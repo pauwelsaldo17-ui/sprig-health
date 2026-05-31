@@ -9,8 +9,6 @@ import {
   ArrowUp, HeartPulse, Search, TrendingDown
 } from "lucide-react";
 
-console.log("[sprig] FIXED App.jsx is loaded");
-
 /* ----------------------------------------------------------------
    SPRIG — a free, AI-powered nutrition tracker
    Photo / label / text logging · remembers described meals ·
@@ -41,27 +39,37 @@ const FONTS = `
 @keyframes pop { 0%{transform:scale(.96);opacity:0;} 100%{transform:scale(1);opacity:1;} }
 .sprig-rise { animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
 .sprig-pop { animation: pop .25s cubic-bezier(.2,.7,.2,1) both; }
-.sprig-tap { transition: transform .12s ease, background .15s ease, box-shadow .15s ease; }
+.sprig-tap { transition: transform .12s ease, background .15s ease, box-shadow .15s ease; -webkit-tap-highlight-color: transparent; }
 .sprig-tap:active { transform: scale(.97); }
 .sprig-scroll::-webkit-scrollbar{width:0;height:0;}
+/* Mobile / PWA baseline — prevents horizontal scroll, honors iOS safe areas, lets the app fill the screen on phones */
+html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #F6F1E7; overscroll-behavior: none; }
+body { -webkit-text-size-adjust: 100%; }
+.sprig-app-frame {
+  max-width: 440px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-top: env(safe-area-inset-top, 0);
+  position: relative;
+}
+.sprig-bottom-pad { height: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+/* On phones, drop the rounded outer corners — the "app" should fill the whole screen */
+@media (max-width: 480px) {
+  .sprig-app-frame { border-radius: 0 !important; box-shadow: none !important; }
+}
+input, textarea, select, button { font-family: inherit; font-size: 16px; }
+/* Bottom sheets/toasts need the inset baked in so they don't sit under the home indicator */
+.sprig-bottom-toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
+.sprig-bottom-sheet { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important; }
 `;
 
-/* ---------------- storage (uses artifact persistence, falls back to memory) -------------- */
+/* ---------------- storage (artifact → localStorage → memory) -------------- */
 const mem = {};
 
 const store = {
   async get(key) {
-    // 1. Browser localStorage first — this is what Vercel/PWA uses.
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        const value = window.localStorage.getItem(key);
-        if (value != null) return value;
-      }
-    } catch (e) {
-      console.warn("[sprig] localStorage get failed:", key, e);
-    }
-
-    // 2. Claude artifact storage second.
     try {
       if (typeof window !== "undefined" && window.storage?.get) {
         const r = await window.storage.get(key, false);
@@ -69,40 +77,31 @@ const store = {
       }
     } catch (e) {}
 
-    // 3. Memory fallback last.
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const value = window.localStorage.getItem(key);
+        if (value != null) return value;
+      }
+    } catch (e) {}
+
     return key in mem ? mem[key] : null;
   },
 
   async set(key, value) {
-    // 1. Browser localStorage first — this MUST be first for Vercel/PWA.
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.setItem(key, value);
-
-        // verify write immediately
-        const back = window.localStorage.getItem(key);
-        if (back === value) {
-          console.log("[sprig] saved to localStorage:", key);
-          return;
-        }
-
-        console.warn("[sprig] localStorage verify failed:", key);
-      }
-    } catch (e) {
-      console.warn("[sprig] localStorage set failed:", key, e);
-    }
-
-    // 2. Claude artifact storage second.
     try {
       if (typeof window !== "undefined" && window.storage?.set) {
         await window.storage.set(key, value, false);
-        console.log("[sprig] saved to window.storage:", key);
         return;
       }
     } catch (e) {}
 
-    // 3. Memory fallback last.
-    console.warn("[sprig] using memory fallback only:", key);
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(key, value);
+        return;
+      }
+    } catch (e) {}
+
     mem[key] = value;
   },
 
@@ -114,23 +113,17 @@ const store = {
     } catch (e) {}
 
     try {
-      if (typeof window !== "undefined" && window.storage?.delete) {
-        await window.storage.delete(key, false);
-      }
-    } catch (e) {}
-
-    try {
       delete mem[key];
     } catch (e) {}
   },
 
-  async delete(key) {
-    return this.remove(key);
-  },
+  // --- compatibility shims so existing callers don't crash ---
+  // Alias: parts of the app call store.delete (older API name)
+  async delete(key) { return this.remove(key); },
 
+  // Used for export / reset to walk all sprig_* keys
   async list(prefix) {
     const out = new Set();
-
     try {
       if (typeof window !== "undefined" && window.localStorage) {
         for (let i = 0; i < window.localStorage.length; i++) {
@@ -139,22 +132,14 @@ const store = {
         }
       }
     } catch (e) {}
-
-    Object.keys(mem).forEach((k) => {
-      if (!prefix || k.startsWith(prefix)) out.add(k);
-    });
-
+    Object.keys(mem).forEach((k) => { if (!prefix || k.startsWith(prefix)) out.add(k); });
     return Array.from(out);
   },
 
-  onWriteError(fn) {
-    return () => {};
-  },
+  // No-op write-error subscription so existing callers don't crash.
+  // (We dropped the active toast — if you want it back, see git history.)
+  onWriteError(fn) { return () => {}; },
 };
-// Write-failure subscription — the app sets _notifyWriteError to surface a banner when persistence fails.
-store._writeErrorListeners = [];
-store.onWriteError = (fn) => { store._writeErrorListeners.push(fn); return () => { store._writeErrorListeners = store._writeErrorListeners.filter((x) => x !== fn); }; };
-store._notifyWriteError = (key, err) => { store._writeErrorListeners.forEach((fn) => { try { fn(key, err); } catch (_) { /* ignore listener errors */ } }); };
 const todayStr = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -2757,47 +2742,36 @@ function extractJSON(text) {
 }
 
 async function analyze({ text, image, mode }) {
-  const content = [];
-  if (image) content.push({ type: "image", source: { type: "base64", media_type: image.media, data: image.data } });
-  let instruction;
-  if (mode === "supp-label") instruction = "Read this dietary SUPPLEMENT label (vitamins/minerals/protein/omega/etc). Use the per-serving 'Supplement Facts' values. For each nutrient, convert the listed amount into integer percent of an average adult daily value. Set macros (calories/protein/carbs/fat) to the values on the label, usually near 0 unless it's protein/meal powder. " + SCHEMA_PROMPT;
-  else if (mode === "supplement") instruction = `This is a dietary SUPPLEMENT the user takes: "${text}". Estimate the nutrients ONE serving/dose contributes, converting each into integer percent of an average adult daily value. Macros are usually ~0 unless it's a protein or meal-replacement powder. ` + SCHEMA_PROMPT;
-  else if (mode === "label") instruction = "Read the nutrition label / packaged product in this image. Use the per-serving values printed if visible. " + SCHEMA_PROMPT;
-  else if (mode === "photo") instruction = "Identify the food in this photo and estimate the nutrition of the visible portion. " + SCHEMA_PROMPT;
-  else instruction = `Estimate the nutrition of this meal described by the user: "${text}". ` + SCHEMA_PROMPT;
-  content.push({ type: "text", text: instruction });
-
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  // Calls the Sprig serverless proxy at /api/analyze, which holds the Anthropic key.
+  // The frontend never sees the API key — see api/analyze.js for the server side.
+  const resp = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      system: "You are a precise nutrition estimation engine for a food-logging app. Always answer with the requested JSON only.",
-      messages: [{ role: "user", content }],
-    }),
+    body: JSON.stringify({ kind: "nutrition", mode, text, image }),
   });
-  if (!resp.ok) throw new Error("API " + resp.status);
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    throw new Error("AI proxy " + resp.status + (body ? ": " + body.slice(0, 120) : ""));
+  }
   const data = await resp.json();
-  const txt = (data.content || []).map((b) => (b.type === "text" ? b.text : "")).join("\n");
-  return extractJSON(txt);
+  // The proxy returns { result: <parsed JSON>, raw?: <string> }.
+  // Fall back to parsing raw text if the proxy didn't parse for us.
+  if (data.result && typeof data.result === "object") return data.result;
+  if (typeof data.raw === "string") return extractJSON(data.raw);
+  throw new Error("AI proxy returned no result");
 }
 
 // free-form text reply for the Ask Coach feature
 async function analyzeText({ prompt, system }) {
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  // Same proxy, different mode. Returns plain text.
+  const resp = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      system: system || "You are Sprig, a kind and direct fitness coach who answers using ONLY the user's logged data summary. Keep replies short and practical. No medical advice.",
-      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
-    }),
+    body: JSON.stringify({ kind: "text", prompt, system }),
   });
-  if (!resp.ok) throw new Error("API " + resp.status);
+  if (!resp.ok) throw new Error("AI proxy " + resp.status);
   const data = await resp.json();
-  return (data.content || []).map((b) => (b.type === "text" ? b.text : "")).join("\n").trim();
+  return (data.text || "").trim();
 }
 
 /* ---------------- local (offline) coach engine — used when the AI API isn't reachable -------------- */
@@ -3216,9 +3190,9 @@ function Onboarding({ onDone }) {
       default: return true;
     }
   };
-  const finish = () => {
+  const finish = async () => {
     const g = ONB_GOALS.find((x) => x.id === p.intent);
-    onDone({
+    await onDone({
       sex: p.sex, age: +p.age, height: +p.height, weight: +p.weight,
       activity: p.activity, goal: g.goal, intent: p.intent,
       experience: p.experience, focus: p.focus, unit: p.unit, mode: "simple",
@@ -3240,7 +3214,7 @@ function Onboarding({ onDone }) {
   );
 
   return (
-    <div style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, minHeight: 600, maxWidth: 440, margin: "0 auto", borderRadius: 24, display: "flex", flexDirection: "column" }}>
+    <div className="sprig-app-frame" style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, borderRadius: 24, display: "flex", flexDirection: "column" }}>
       <style>{FONTS}</style>
       {/* header */}
       <div style={{ padding: "22px 20px 8px" }}>
@@ -3406,6 +3380,8 @@ function SprigApp() {
   const micRef = useRef(null);     // {stream, analyser, raf}
   const sessionRef = useRef(null); // mirror of session for intervals
   const tickRef = useRef(null);
+  const entriesRef = useRef([]); // mirrors `entries` so persistEntries always sees the latest value
+  useEffect(() => { entriesRef.current = entries; }, [entries]);
   const date = todayStr();
 
   const targets = computeTargets(profile);
@@ -3443,22 +3419,8 @@ function SprigApp() {
         const pp = await store.get("sprig_progress_photos_v1");
 
         // Parse everything with safe defaults — any corrupt key falls back to default
-        const directProfile = (() => {
-          try {
-            return window.localStorage.getItem("sprig_profile_v1");
-          } catch (e) {
-            return null;
-          }
-        })();
-        
-        const profileRaw = p || directProfile;
-        const profileParsed = safeParse(profileRaw, null, asObject);
-        
-        if (profileParsed) {
-          setProfile(migrateProfile(profileParsed, DEFAULT_PROFILE));
-          setOnboarded(true);
-          console.log("[sprig] loaded profile from storage");
-        }
+        const profileParsed = safeParse(p, null, asObject);
+        if (profileParsed) { setProfile(migrateProfile(profileParsed, DEFAULT_PROFILE)); setOnboarded(true); }
         setLibrary(safeParse(lib, [], asArray));
         setEntries(safeParse(log, [], asArray));
         setHistory(safeParse(hist, [], asArray));
@@ -3467,7 +3429,7 @@ function SprigApp() {
         setSleepLogs(safeParse(sl, [], asArray));
         setAlarm(migrateAlarm(safeParse(al, null)));
         setWorkouts(safeParse(wk, [], asArray));
-        setActiveWorkout(safeParse(aw, null, (v) => (v === null || asObject(v))));
+        setActiveWorkout(safeParse(aw, null, (v) => (v === null ? null : asObject(v))));
         setCustomRests(safeParse(cr, {}, asObject));
         setRoutines(safeParse(rt, [], asArray));
         setDaily(migrateDaily(safeParse(dy, null)));
@@ -3530,7 +3492,12 @@ function SprigApp() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  const persistEntries = useCallback(async (next) => {
+  const persistEntries = useCallback(async (nextOrUpdater) => {
+    // Accept either an array or an updater fn. Reading from the ref avoids dropped writes when
+    // two events fire before React commits — both callers see the freshest entries.
+    const prev = entriesRef.current;
+    const next = typeof nextOrUpdater === "function" ? nextOrUpdater(prev) : nextOrUpdater;
+    entriesRef.current = next;
     setEntries(next);
     await store.set("sprig_log_" + date, JSON.stringify(next));
     const t = dayTotals(next);
@@ -3543,30 +3510,17 @@ function SprigApp() {
 
   const persistLibrary = async (next) => { setLibrary(next); await store.set("sprig_meals_v1", JSON.stringify(next)); };
   const saveProfile = async (p) => {
-    const cleanProfile = { ...DEFAULT_PROFILE, ...p };
-    const raw = JSON.stringify(cleanProfile);
-  
-    console.log("[sprig] saveProfile → writing sprig_profile_v1", cleanProfile);
-  
-    setProfile(cleanProfile);
-  
+    setProfile(p);
+    const json = JSON.stringify(p);
+    try { console.log("[sprig] saveProfile → writing sprig_profile_v1"); } catch (_) {}
+    await store.set("sprig_profile_v1", json);
+    // Verify the write actually landed (this is the diagnostic the user asked for).
     try {
-      window.localStorage.setItem("sprig_profile_v1", raw);
-      console.log(
-        "[sprig] saveProfile verify:",
-        window.localStorage.getItem("sprig_profile_v1") ? "OK" : "FAILED"
-      );
-    } catch (e) {
-      console.error("[sprig] localStorage write failed", e);
-    }
-  
-    try {
-      await store.set("sprig_profile_v1", raw);
-    } catch (e) {
-      console.error("[sprig] store.set failed", e);
-    }
-  
-    setOnboarded(true);
+      if (typeof window !== "undefined" && window.localStorage) {
+        const back = window.localStorage.getItem("sprig_profile_v1");
+        console.log("[sprig] saveProfile verify: localStorage.getItem('sprig_profile_v1') =", back ? "OK (" + back.length + " bytes)" : "NULL — write did not persist!");
+      }
+    } catch (e) { console.warn("[sprig] verify read failed:", e); }
   };
 
   // ---- data export / import / reset ----
@@ -3612,10 +3566,27 @@ function SprigApp() {
     } catch (e) { /* ignore in non-DOM env */ }
   }
   async function importJSON(file) {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
+    let parsed;
+    try {
+      const text = await file.text();
+      parsed = JSON.parse(text);
+    } catch (e) {
+      setWriteError({ key: "import", msg: "That file isn't valid JSON. Pick a backup file exported from Sprig.", quota: false, ts: Date.now() });
+      return;
+    }
+    if (!parsed || typeof parsed !== "object") {
+      setWriteError({ key: "import", msg: "That file doesn't look like a Sprig backup.", quota: false, ts: Date.now() });
+      return;
+    }
     const data = parsed.data || parsed;
-    for (const [k, v] of Object.entries(data)) { if (k.startsWith("sprig_")) await store.set(k, v); }
+    let wrote = 0;
+    for (const [k, v] of Object.entries(data)) {
+      if (k.startsWith("sprig_")) { await store.set(k, v); wrote += 1; }
+    }
+    if (wrote === 0) {
+      setWriteError({ key: "import", msg: "No Sprig data found in that file.", quota: false, ts: Date.now() });
+      return;
+    }
     window.location && window.location.reload ? window.location.reload() : null;
   }
   async function resetAllData() {
@@ -3633,6 +3604,19 @@ function SprigApp() {
     setUndoItem({ kind, data, restore, ts: Date.now() });
     setTimeout(() => setUndoItem((u) => (u && Date.now() - u.ts >= 5500 ? null : u)), 6000);
   }
+  // write-error toast — fires when a store.set silently fell back to memory-only.
+  // The store keeps a subscription API and can have multiple listeners; we use it instead of
+  // overwriting the hook directly so other code that subscribes (e.g. for telemetry) keeps working.
+  useEffect(() => {
+    const unsubscribe = store.onWriteError((key, err) => {
+      try {
+        const msg = err?.message || String(err);
+        const quota = /quota|size|too large|5MB/i.test(msg);
+        setWriteError({ key, msg, quota, ts: Date.now() });
+      } catch (_) { /* ignore */ }
+    });
+    return unsubscribe;
+  }, []);
   const persistSupps = async (next) => { setSupps(next); await store.set("sprig_supps_v1", JSON.stringify(next)); };
   const persistTaken = async (next) => { setTakenIds(next); await store.set("sprig_supptaken_" + date, JSON.stringify(next)); };
 
@@ -3644,7 +3628,7 @@ function SprigApp() {
     // keep a 60-day weight series for the trend
     if (patch.weight != null) {
       const raw = await store.get("sprig_weightseries_v1");
-      const series = raw ? JSON.parse(raw) : [];
+      const series = safeParse(raw, [], asArray);
       const others = series.filter((s) => s.date !== date);
       const ns = [...others, { date, kg: patch.weight }].sort((a, b) => a.date.localeCompare(b.date)).slice(-60);
       await store.set("sprig_weightseries_v1", JSON.stringify(ns));
@@ -3998,7 +3982,7 @@ function SprigApp() {
       const res = await analyze(opts);
       setResult(res); setResultMode(opts.mode);
     } catch (e) {
-      setError("Couldn't analyze that. The AI engine only runs inside the Claude app — if you're here you're good; otherwise try again, or add it manually below.");
+      setError("AI analysis is unavailable. You can still add this manually.");
     } finally { setBusy(false); }
   }
 
@@ -4018,7 +4002,7 @@ function SprigApp() {
       protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, fiber_g: r.fiber_g,
       micros: r.micros, omega3: r.omega3, mult: r.mult || 1, time: Date.now(),
     };
-    persistEntries([...entries, entry]);
+    persistEntries((prev) => [...prev, entry]);
     // remember text-described meals automatically
     if (resultMode === "text") {
       const exists = library.some((l) => l.name.toLowerCase() === r.name.toLowerCase());
@@ -4030,7 +4014,7 @@ function SprigApp() {
 
   function logFromLibrary(meal) {
     const entry = { ...meal, id: uid(), mult: 1, time: Date.now() };
-    persistEntries([...entries, entry]);
+    persistEntries((prev) => [...prev, entry]);
     setTab("today");
   }
   function addManual(m) {
@@ -4039,17 +4023,17 @@ function SprigApp() {
       calories: +m.calories || 0, protein_g: +m.protein || 0, carbs_g: +m.carbs || 0,
       fat_g: +m.fat || 0, fiber_g: +m.fiber || 0, micros: {}, omega3: null, mult: 1, time: Date.now(),
     };
-    persistEntries([...entries, entry]);
+    persistEntries((prev) => [...prev, entry]);
     setComposer(null);
     setTab("today");
   }
   function removeEntry(id) {
     const ent = entries.find((e) => e.id === id); if (!ent) return;
-    persistEntries(entries.filter((e) => e.id !== id));
-    queueUndo("food", ent, () => persistEntries([...entries.filter((e) => e.id !== id), ent]));
+    persistEntries((prev) => prev.filter((e) => e.id !== id));
+    queueUndo("food", ent, () => persistEntries((prev) => [...prev, ent]));
   }
   function editEntry(id, patch) {
-    persistEntries(entries.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    persistEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   }
   function removeLibrary(id) {
     const m = library.find((l) => l.id === id);
@@ -4227,15 +4211,11 @@ function SprigApp() {
   }
 
   if (!onboarded) {
-    return <Onboarding onDone={async (p) => {
-      await saveProfile(p);
-      setTab("today");
-    }} />;
+    return <Onboarding onDone={async (p) => { await saveProfile(p); setOnboarded(true); setTab("today"); }} />;
   }
-  
 
   return (
-    <div style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, minHeight: 600, maxWidth: 440, margin: "0 auto", position: "relative", overflow: "hidden", borderRadius: 24 }}>
+    <div className="sprig-app-frame" style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, position: "relative", overflow: "hidden", borderRadius: 24 }}>
       <style>{FONTS}</style>
 
       {/* alarm ring overlay */}
@@ -4412,10 +4392,10 @@ function SprigApp() {
       )}
 
       {/* tab bar */}
-      <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: C.card }}>
+      <div style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: C.card, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {[["today", Home, "Today"], ["coach", Sparkles, "Coach"], ["train", Dumbbell, "Train"], ["body", PersonStanding, "Body"], ["sleep", Moon, "Sleep"]].map(([k, Ic, lbl]) => (
           <button key={k} onClick={() => { setTab(k); setResult(null); setComposer(null); setError(""); }}
-            style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "11px 0 14px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.green : C.muted }}>
+            style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "11px 0 14px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.green : C.muted }}>
             <Ic size={20} strokeWidth={tab === k ? 2.4 : 2} />
             <span style={{ fontSize: 10.5, fontWeight: tab === k ? 700 : 500 }}>{lbl}</span>
           </button>
@@ -4464,11 +4444,15 @@ function SprigApp() {
       {photoOpen && <PhotoSheet onClose={() => setPhotoOpen(false)} photos={progressPhotos} onAdd={addProgressPhoto} onRemove={removeProgressPhoto} />}
 
       {/* storage write-error banner — appears when persistence is failing (quota, rate limit, etc.) */}
-      {writeError && Date.now() - writeError.lastTs < 30000 && (
-        <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", background: C.amber, color: "#fff", padding: "9px 14px", borderRadius: 11, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 6px 20px rgba(0,0,0,.18)", fontSize: 12, fontFamily: "DM Sans", zIndex: 70, maxWidth: 380 }}>
+      {writeError && Date.now() - writeError.ts < 30000 && (
+        <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", background: writeError.quota ? C.coral : C.amber, color: "#fff", padding: "9px 14px", borderRadius: 11, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 6px 20px rgba(0,0,0,.18)", fontSize: 12, fontFamily: "DM Sans", zIndex: 70, maxWidth: 380 }}>
           <Square size={13} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1, lineHeight: 1.4 }}>
-            Saving to device failed {writeError.count > 1 ? `(${writeError.count}×) ` : ""}— your data is held in memory only. Export a backup soon.
+            {writeError.quota
+              ? "Storage is full — old data won't save. Export a backup and clear demo/test data."
+              : writeError.key === "import"
+                ? writeError.msg
+                : "Saving to device failed — your data is held in memory only. Export a backup soon."}
           </span>
           <button className="sprig-tap" onClick={() => setWriteError(null)} aria-label="Dismiss"
             style={{ background: "transparent", color: "#fff", border: "none", cursor: "pointer", padding: 0, opacity: 0.8 }}>
@@ -4479,7 +4463,7 @@ function SprigApp() {
 
       {/* undo toast — appears after a delete and gives a few seconds to bring it back */}
       {undoItem && (
-        <div style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: C.ink, color: "#fff", padding: "11px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 20px rgba(0,0,0,.25)", fontSize: 12.5, fontFamily: "DM Sans", zIndex: 60 }}>
+        <div className="sprig-bottom-toast" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: C.ink, color: "#fff", padding: "11px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 20px rgba(0,0,0,.25)", fontSize: 12.5, fontFamily: "DM Sans", zIndex: 60 }}>
           <span>{(() => {
             const k = undoItem.kind, d = undoItem.data;
             if (k === "food") return `Removed “${d?.name || "entry"}”`;
@@ -6540,9 +6524,50 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onExportJSON, o
         <>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Data &amp; privacy</div>
           <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: C.inkSoft, lineHeight: 1.5, marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: C.inkSoft, lineHeight: 1.5, marginBottom: 10 }}>
               <EyeOff size={15} color={C.greenSoft} style={{ flexShrink: 0 }} />
               <span>Your data is stored <b>only on this device</b> unless you export it. Nothing is uploaded to a server. Food and supplement photos are analyzed in the moment and never saved.</span>
+            </div>
+            {/* explicit data-loss warning + storage tier indicator */}
+            <div style={{ background: "#fdf6e9", border: `1px solid ${C.amber}55`, borderRadius: 11, padding: "10px 12px", marginBottom: 12, fontSize: 11.5, color: C.inkSoft, lineHeight: 1.55 }}>
+              <b style={{ color: C.amber }}>Heads up:</b> Sprig stores your data locally on this device.
+              If you clear browser data, switch browsers, or uninstall the app, that data may be lost.
+              <b> Export a backup regularly</b> — even once a month is enough to feel safe.
+              <div style={{ marginTop: 6, fontSize: 10.5, color: C.muted }}>
+                Storage in use: <b style={{ color: C.inkSoft }}>browser localStorage</b>
+              </div>
+              <div style={{ marginTop: 4, fontSize: 10.5, color: C.muted }}>
+                Profile saved: <b style={{ color: (() => {
+                  try {
+                    if (typeof window !== "undefined" && window.localStorage) {
+                      return window.localStorage.getItem("sprig_profile_v1") != null ? C.greenSoft : C.coral;
+                    }
+                  } catch (_) {}
+                  return C.coral;
+                })() }}>{(() => {
+                  try {
+                    if (typeof window !== "undefined" && window.localStorage) {
+                      return window.localStorage.getItem("sprig_profile_v1") != null ? "yes" : "no";
+                    }
+                  } catch (_) {}
+                  return "no (localStorage not available)";
+                })()}</b>
+              </div>
+              <div style={{ marginTop: 4, fontSize: 10.5, color: C.muted }}>
+                Sprig keys in storage: <b style={{ color: C.inkSoft }}>{(() => {
+                  try {
+                    if (typeof window !== "undefined" && window.localStorage) {
+                      let n = 0;
+                      for (let i = 0; i < window.localStorage.length; i++) {
+                        const k = window.localStorage.key(i);
+                        if (k && k.startsWith("sprig_")) n++;
+                      }
+                      return n;
+                    }
+                  } catch (_) {}
+                  return 0;
+                })()}</b>
+              </div>
             </div>
             {/* export */}
             <button className="sprig-tap" onClick={onExportJSON} style={{ ...btn(C.bg2, C.green), width: "100%", padding: "12px 0", marginBottom: 8 }}>
@@ -6898,7 +6923,7 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 60 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
-        style={{ maxWidth: 440, margin: "0 auto", position: "absolute", bottom: 0, left: 0, right: 0, background: C.card, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
+        style={{ maxWidth: 440, margin: "0 auto", position: "absolute", bottom: 0, left: 0, right: 0, background: C.card, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <Sparkles size={17} color={C.greenSoft} />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, flex: 1 }}>Ask the coach</div>
@@ -7083,7 +7108,7 @@ function QuickLogSheet({ ci, daily, sleepInfo, profile, painActive, onCheckin, o
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", display: "grid", placeItems: "flex-end center", zIndex: 50, padding: 0 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
-        style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
+        style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <Zap size={17} color={C.green} />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700 }}>Quick Log Day</div>
