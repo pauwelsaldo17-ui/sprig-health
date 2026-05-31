@@ -9,6 +9,8 @@ import {
   ArrowUp, HeartPulse, Search, TrendingDown
 } from "lucide-react";
 
+console.log("[sprig] FIXED App.jsx is loaded");
+
 /* ----------------------------------------------------------------
    SPRIG — a free, AI-powered nutrition tracker
    Photo / label / text logging · remembers described meals ·
@@ -46,48 +48,107 @@ const FONTS = `
 
 /* ---------------- storage (uses artifact persistence, falls back to memory) -------------- */
 const mem = {};
+
 const store = {
   async get(key) {
+    // 1. Browser localStorage first — this is what Vercel/PWA uses.
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const value = window.localStorage.getItem(key);
+        if (value != null) return value;
+      }
+    } catch (e) {
+      console.warn("[sprig] localStorage get failed:", key, e);
+    }
+
+    // 2. Claude artifact storage second.
     try {
       if (typeof window !== "undefined" && window.storage?.get) {
         const r = await window.storage.get(key, false);
-        return r?.value ?? null;
+        if (r?.value != null) return r.value;
       }
-    } catch (e) { /* missing key throws -> treat as null */ }
+    } catch (e) {}
+
+    // 3. Memory fallback last.
     return key in mem ? mem[key] : null;
   },
+
   async set(key, value) {
+    // 1. Browser localStorage first — this MUST be first for Vercel/PWA.
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(key, value);
+
+        // verify write immediately
+        const back = window.localStorage.getItem(key);
+        if (back === value) {
+          console.log("[sprig] saved to localStorage:", key);
+          return;
+        }
+
+        console.warn("[sprig] localStorage verify failed:", key);
+      }
+    } catch (e) {
+      console.warn("[sprig] localStorage set failed:", key, e);
+    }
+
+    // 2. Claude artifact storage second.
     try {
       if (typeof window !== "undefined" && window.storage?.set) {
         await window.storage.set(key, value, false);
-        mem[key] = value; // mirror in-memory so reads work without going back to storage
-        return { ok: true, persisted: true };
+        console.log("[sprig] saved to window.storage:", key);
+        return;
       }
-    } catch (e) {
-      // Storage write failed (quota, rate limit, broken API) — fall back to memory only
-      mem[key] = value;
-      try { store._notifyWriteError?.(key, e); } catch (_) { /* ignore */ }
-      return { ok: true, persisted: false, error: e };
-    }
+    } catch (e) {}
+
+    // 3. Memory fallback last.
+    console.warn("[sprig] using memory fallback only:", key);
     mem[key] = value;
-    return { ok: true, persisted: true }; // memory-only environment (test/SSR) — treat as persisted
   },
-  async delete(key) {
+
+  async remove(key) {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+    } catch (e) {}
+
     try {
       if (typeof window !== "undefined" && window.storage?.delete) {
         await window.storage.delete(key, false);
       }
-    } catch (e) { /* ignore */ }
-    delete mem[key];
-  },
-  async list(prefix) {
+    } catch (e) {}
+
     try {
-      if (typeof window !== "undefined" && window.storage?.list) {
-        const r = await window.storage.list(prefix || "", false);
-        return r?.keys || [];
+      delete mem[key];
+    } catch (e) {}
+  },
+
+  async delete(key) {
+    return this.remove(key);
+  },
+
+  async list(prefix) {
+    const out = new Set();
+
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const k = window.localStorage.key(i);
+          if (k && (!prefix || k.startsWith(prefix))) out.add(k);
+        }
       }
-    } catch (e) { /* fall through */ }
-    return Object.keys(mem).filter((k) => !prefix || k.startsWith(prefix));
+    } catch (e) {}
+
+    Object.keys(mem).forEach((k) => {
+      if (!prefix || k.startsWith(prefix)) out.add(k);
+    });
+
+    return Array.from(out);
+  },
+
+  onWriteError(fn) {
+    return () => {};
   },
 };
 // Write-failure subscription — the app sets _notifyWriteError to surface a banner when persistence fails.
@@ -3382,8 +3443,22 @@ function SprigApp() {
         const pp = await store.get("sprig_progress_photos_v1");
 
         // Parse everything with safe defaults — any corrupt key falls back to default
-        const profileParsed = safeParse(p, null, asObject);
-        if (profileParsed) { setProfile(migrateProfile(profileParsed, DEFAULT_PROFILE)); setOnboarded(true); }
+        const directProfile = (() => {
+          try {
+            return window.localStorage.getItem("sprig_profile_v1");
+          } catch (e) {
+            return null;
+          }
+        })();
+        
+        const profileRaw = p || directProfile;
+        const profileParsed = safeParse(profileRaw, null, asObject);
+        
+        if (profileParsed) {
+          setProfile(migrateProfile(profileParsed, DEFAULT_PROFILE));
+          setOnboarded(true);
+          console.log("[sprig] loaded profile from storage");
+        }
         setLibrary(safeParse(lib, [], asArray));
         setEntries(safeParse(log, [], asArray));
         setHistory(safeParse(hist, [], asArray));
@@ -3467,7 +3542,32 @@ function SprigApp() {
   }, [date, history]);
 
   const persistLibrary = async (next) => { setLibrary(next); await store.set("sprig_meals_v1", JSON.stringify(next)); };
-  const saveProfile = async (p) => { setProfile(p); await store.set("sprig_profile_v1", JSON.stringify(p)); };
+  const saveProfile = async (p) => {
+    const cleanProfile = { ...DEFAULT_PROFILE, ...p };
+    const raw = JSON.stringify(cleanProfile);
+  
+    console.log("[sprig] saveProfile → writing sprig_profile_v1", cleanProfile);
+  
+    setProfile(cleanProfile);
+  
+    try {
+      window.localStorage.setItem("sprig_profile_v1", raw);
+      console.log(
+        "[sprig] saveProfile verify:",
+        window.localStorage.getItem("sprig_profile_v1") ? "OK" : "FAILED"
+      );
+    } catch (e) {
+      console.error("[sprig] localStorage write failed", e);
+    }
+  
+    try {
+      await store.set("sprig_profile_v1", raw);
+    } catch (e) {
+      console.error("[sprig] store.set failed", e);
+    }
+  
+    setOnboarded(true);
+  };
 
   // ---- data export / import / reset ----
   async function gatherAllData() {
@@ -4127,8 +4227,12 @@ function SprigApp() {
   }
 
   if (!onboarded) {
-    return <Onboarding onDone={(p) => { saveProfile(p); setOnboarded(true); setTab("today"); }} />;
+    return <Onboarding onDone={async (p) => {
+      await saveProfile(p);
+      setTab("today");
+    }} />;
   }
+  
 
   return (
     <div style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, minHeight: 600, maxWidth: 440, margin: "0 auto", position: "relative", overflow: "hidden", borderRadius: 24 }}>
