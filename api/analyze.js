@@ -70,7 +70,7 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-6",
         max_tokens: 1000,
         system:
           "You are a precise nutrition estimation engine for a food-logging app. Always answer with the requested JSON only.",
