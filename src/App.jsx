@@ -2785,12 +2785,86 @@ function localCoachAnswer(question, ctx, profile, targets) {
   const sleepHr = ctx?.sleepAvg != null ? +(ctx.sleepAvg / 60).toFixed(1) : null;
   const sleepShort = sleepHr != null && sleepHr < 7;
 
+  // ===== Specific-question intents (answer the actual question first) =====
+  // These run BEFORE the generic "data audit" path so a user asking "what should I eat before the gym?"
+  // gets a real answer, not a calories/sleep/pain report.
+
+  // PRE-WORKOUT NUTRITION
+  if (/(before (the )?gym|before (a )?workout|before training|pre.?workout|preworkout|pre.workout|meal before (gym|training|workout)|eat before (the )?(gym|workout|training)|what.*eat.*(before|prior to).*(gym|workout|training))/.test(q)) {
+    lines.push("**1 hour before training**, you want easy-digesting carbs + protein. Low fat, low fiber — that combo digests fast and lands fuel where you need it.");
+    lines.push("**Target:** 30–70g carbs and 20–35g protein. Hydrate (300–500ml water). Caffeine is optional and useful if you didn't sleep well, but keep it well before your evening cutoff.");
+    // Personalize
+    const personalize = [];
+    if (calGap != null && goal === "gain" && calGap < -150) personalize.push(`You're ~${Math.abs(calGap)} kcal under your gain target — pick the higher-calorie option.`);
+    else if (calGap != null && goal === "lose" && calGap > 150) personalize.push("You're a bit over your cut target — keep the snack on the lighter side.");
+    if (sleepShort) personalize.push(`Sleep is averaging ${sleepHr}h — caffeine pre-workout will help, but cut it ~8h before bed.`);
+    if (ctx?.painActive) personalize.push("Active pain on file — fuel up normally, but back off intensity, not nutrition.");
+    if (personalize.length) lines.push("**Personalized:** " + personalize.join(" "));
+    lines.push("**Easy options:**\n• Banana + Greek yogurt + honey\n• Bagel or toast + jam + whey shake\n• Cereal + milk (or protein yogurt)\n• Rice cakes + honey + whey\n• White rice + lean protein (if it's more of a meal — eat 90 min out)");
+    lines.push("**Avoid right before training:** fried/fatty food, huge meals, heavy fiber (raw veg, bran), too much dairy if it upsets your stomach, alcohol.");
+    return lines.join("\n\n");
+  }
+
+  // POST-WORKOUT NUTRITION
+  if (/(after (the )?gym|after (a )?workout|after training|post.?workout|postworkout|post.workout|recovery meal|what.*eat.*after.*(gym|workout|training))/.test(q)) {
+    lines.push("**Within 1–2 hours after training**, eat a normal meal with protein and carbs. The mythical 30-minute window matters less than total daily protein and calories.");
+    lines.push("**Target:** 25–40g protein and a decent serving of carbs. Fat is fine post-workout (it doesn't hurt recovery the way it can pre-workout).");
+    if (proteinGap != null && proteinGap > 20) lines.push(`**Personalized:** You're averaging ~${proteinGap}g below your daily protein target — make this meal protein-heavy (eggs + meat, double-scoop shake, big yogurt bowl).`);
+    if (calGap != null && goal === "gain" && calGap < -150) lines.push(`**Personalized:** You're under your gain target — this is the easiest meal of the day to push calories.`);
+    lines.push("**Easy options:**\n• Chicken/beef + rice + vegetables\n• Eggs + toast + Greek yogurt\n• Protein shake + oats + banana + peanut butter\n• Tuna/salmon + pasta\n• Burrito bowl (rice, beans, meat, salsa)");
+    return lines.join("\n\n");
+  }
+
+  // SHOULD I TRAIN TODAY
+  if (/(should i (train|lift|work out|go to the gym|exercise)|train today|gym today|rest day|skip (the )?gym)/.test(q)) {
+    if (ctx?.painActive) {
+      lines.push("**Train, but train around the pain.** Don't load whatever hurts. Pick exercises that don't aggravate it, drop intensity 20–30%, and stop any set that makes pain worse.");
+    } else if (sleepShort) {
+      lines.push("**Train, but expect ~10% less.** Sleep under 7h dulls strength and focus. Hit your main lift with one less working set, keep RIR 2–3 (no grinding reps).");
+    } else if (ctx?.weeklyWk >= 5) {
+      lines.push("**A rest day is fine.** You've already trained 5+ times this week — recovery is where the gains compound. Walk, stretch, eat well.");
+    } else {
+      lines.push("**Yes, train.** Your data doesn't show anything that should hold you back today.");
+    }
+    lines.push("**Quick check before you go:** did you sleep enough, eat enough, and is anything acutely painful? If two out of three are yes, train normally. If two are no, train light or rest.");
+    return lines.join("\n\n");
+  }
+
+  // WHAT WORKOUT SHOULD I DO
+  if (/(what (workout|routine|split|session) (should|do)|what to train today|which (workout|routine))/.test(q)) {
+    lines.push("**Pick the muscle group that's most recovered.** A push/pull/legs rotation works well — if your last session was push, do pull; if pull, do legs; if legs, do push.");
+    lines.push("**Two simple rules:** train each muscle group every 4–6 days, and don't repeat the same group two days in a row.");
+    if (ctx?.stalls?.length) lines.push(`**Personalized:** ${ctx.stalls[0]} has stalled — swap it for a close variant (incline bench → flat dumbbell, back squat → front squat) for the next 2 weeks.`);
+    if (ctx?.painActive) lines.push("**Personalized:** active pain on file — pick a session that doesn't load the painful area.");
+    lines.push("Open the Train tab — the **Suggested today** card uses your routine pattern to pick the next session.");
+    return lines.join("\n\n");
+  }
+
+  // SUPPLEMENT TIMING
+  if (/(when.*(take|to take).*(creatine|protein|whey|caffeine|magnesium|fish oil|omega|vitamin|supplement)|supplement timing|when should i take)/.test(q)) {
+    lines.push("**Most supplements: timing barely matters.** Daily consistency matters far more than the specific hour.");
+    lines.push("**Specific exceptions:**\n• **Creatine** — any time of day, with or without food. Just take 3–5g every day.\n• **Whey protein** — when convenient. Pre- or post-workout is fine, so is breakfast or a snack.\n• **Caffeine** — 30–45 min before training. Cut it 8h before bed.\n• **Magnesium** — evening, with food.\n• **Fish oil** — with a meal (fat aids absorption).\n• **Vitamin D** — with a fatty meal.");
+    lines.push("**Avoid:** taking caffeine late, taking calcium and iron together (they compete), or assuming a supplement makes up for poor sleep/diet — it won't.");
+    return lines.join("\n\n");
+  }
+
+  // WHAT SHOULD I EAT TODAY
+  if (/(what.*(should i|to) eat today|what.*for (breakfast|lunch|dinner)|meal idea)/.test(q)) {
+    lines.push("**Build each meal around protein first** (25–40g), then add carbs and vegetables. Fat fills in the gaps.");
+    if (goal === "gain") lines.push("**Personalized for gain:** add a calorie-dense extra to each meal — olive oil drizzle, nuts, avocado, peanut butter. Easy wins without forcing big portions.");
+    if (goal === "lose") lines.push("**Personalized for fat loss:** lean protein, volume from vegetables, smaller carb portions. Drink water before meals so you don't overshoot.");
+    if (proteinGap != null && proteinGap > 20) lines.push(`**Personalized:** you're averaging ~${proteinGap}g below your protein target — front-load protein at breakfast.`);
+    lines.push("**Easy templates:**\n• Breakfast: Greek yogurt + fruit + granola, or eggs + toast + fruit\n• Lunch: rice/quinoa bowl with chicken + vegetables\n• Dinner: salmon or beef + sweet potato + greens\n• Snack: cottage cheese + berries, or protein shake + banana");
+    return lines.join("\n\n");
+  }
+
+  // ===== Generic data-audit path (kept for "why am I not progressing?" style questions) =====
   const hasData = ctx?.calAvg != null || ctx?.weeklyWk > 0 || ctx?.weightRate != null;
   if (!hasData) {
     return "I don't have enough of your data to answer yet. Log a few days of food, a couple of workouts, and weigh in 2–3 mornings — then ask again and I can be specific.";
   }
 
-  // Topic detection
+  // Topic detection for the data-audit path
   const askingStall = /(stall|stuck|plateau|not going up|not improving|not progress)/.test(q);
   const askingMuscle = /(gain|build|muscle|bigger|grow|mass)/.test(q);
   const askingFat = /(fat|cut|lose|weight loss|leaner)/.test(q);
@@ -3729,14 +3803,48 @@ function SprigApp() {
   async function askCoach(question, ctx) {
     // Skip the network entirely if we know we're offline — the rule-based coach is always available.
     if (!online) return localCoachAnswer(question, ctx, profile, targets);
+
+    // Detect "asking for a progress audit" vs "asking a specific how-to question".
+    // For audit-style questions we hand the full data summary to the model so it can do diagnosis.
+    // For specific questions we keep the data summary as *optional personalization* and tell the
+    // model to answer the actual question first.
+    const q = (question || "").toLowerCase();
+    const isAuditQuestion = /(why.*(not (progress|gain|grow|improv)|stall|stuck|plateau|weak)|analyze.*(my )?progress|review.*(my )?data)/.test(q);
+
     const summary = JSON.stringify({
-      goal: profile?.goal, weight: profile?.weight, recentCalAvg: ctx?.calAvg, proteinAvg: ctx?.protAvg,
-      avgSleepMin: ctx?.sleepAvg, weeklyWorkouts: ctx?.weeklyWk, stalledLifts: ctx?.stalls, painActive: ctx?.painActive,
+      goal: profile?.goal, weight: profile?.weight,
+      recentCalAvg: ctx?.calAvg, proteinAvg: ctx?.protAvg,
+      avgSleepMin: ctx?.sleepAvg, weeklyWorkouts: ctx?.weeklyWk,
+      stalledLifts: ctx?.stalls, painActive: ctx?.painActive,
       weightTrendKgPerWeek: ctx?.weightRate,
     });
-    const prompt = `Reply in 3–5 short paragraphs. Be direct, specific, and kind. No medical advice, no diagnosis. If data is thin, say so. User's question: "${question}". Their data summary: ${summary}.`;
+
+    const system = `You are a practical health and fitness coach for the Sprig app.
+
+ALWAYS follow this order:
+1. Answer the user's exact question first, in 1–3 sentences.
+2. Then personalize using the user's data — but ONLY if it strongly affects the answer.
+3. Give 3–5 concrete examples or steps.
+4. Optionally list what to avoid if useful.
+5. Do NOT turn every answer into a full progress audit.
+6. Do NOT mention sleep, calories, pain, or training status unless they're directly relevant to the question asked.
+
+Bad behavior (do not do this):
+User asks "what should I eat 1 hour before gym?"
+Assistant answers "you are under calories, sleep is low, pain is active." (This ignores the question.)
+
+Good behavior:
+User asks "what should I eat 1 hour before gym?"
+Assistant explains pre-workout nutrition (easy carbs + protein, low fat/fiber, targets, examples), THEN adds one sentence like "because you're under your gain target, pick the higher-calorie option."
+
+Keep replies short and direct. No medical advice. No diagnosis.`;
+
+    const prompt = isAuditQuestion
+      ? `The user is asking for a progress audit. Diagnose using their data summary.\n\nQuestion: "${question}"\n\nData summary: ${summary}`
+      : `Answer the user's specific question directly. Use the data summary ONLY for one optional personalization sentence at the end, and only if it changes the practical answer.\n\nQuestion: "${question}"\n\nData summary (use sparingly): ${summary}`;
+
     try {
-      const r = await analyzeText({ prompt });
+      const r = await analyzeText({ prompt, system });
       if (r && r.trim()) return r;
     } catch (e) { /* fall through to local engine */ }
     return localCoachAnswer(question, ctx, profile, targets);
