@@ -92,8 +92,8 @@ export default async function handler(req, res) {
       .map((b) => (b.type === "text" ? b.text : ""))
       .join("\n");
 
-    const parsed = extractJSON(txt);
-    return res.status(200).json(parsed);
+      const parsed = extractJSON(txt);
+      return res.status(200).json({ result: parsed });
   } catch (err) {
     console.error("/api/analyze error:", err);
     return res.status(500).json({
