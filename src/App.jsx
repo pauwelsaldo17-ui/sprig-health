@@ -2777,173 +2777,40 @@ async function analyzeText({ prompt, system }) {
 /* ---------------- local (offline) coach engine — used when the AI API isn't reachable -------------- */
 // Pattern-matches the user's question and assembles a structured answer from their data summary.
 function localCoachAnswer(question, ctx, profile, targets) {
+  // Minimal offline / AI-failure fallback. The AI handles every real coaching question;
+  // this engine covers only the cases we can answer cleanly from data + simple math.
   const q = (question || "").toLowerCase();
-  const lines = [];
   const goal = profile?.goal || "maintain";
-  const calGap = (ctx?.calAvg != null && targets?.calories) ? Math.round(ctx.calAvg - targets.calories) : null;
-  const proteinGap = (ctx?.protAvg != null && targets?.protein) ? Math.round(targets.protein - ctx.protAvg) : null;
-  const sleepHr = ctx?.sleepAvg != null ? +(ctx.sleepAvg / 60).toFixed(1) : null;
-  const sleepShort = sleepHr != null && sleepHr < 7;
 
-  // ===== Specific-question intents (answer the actual question first) =====
-  // These run BEFORE the generic "data audit" path so a user asking "what should I eat before the gym?"
-  // gets a real answer, not a calories/sleep/pain report.
-
-  // PRE-WORKOUT NUTRITION
-  if (/(before (the )?gym|before (a )?workout|before training|pre.?workout|preworkout|pre.workout|meal before (gym|training|workout)|eat before (the )?(gym|workout|training)|what.*eat.*(before|prior to).*(gym|workout|training))/.test(q)) {
-    lines.push("**1 hour before training**, you want easy-digesting carbs + protein. Low fat, low fiber — that combo digests fast and lands fuel where you need it.");
-    lines.push("**Target:** 30–70g carbs and 20–35g protein. Hydrate (300–500ml water). Caffeine is optional and useful if you didn't sleep well, but keep it well before your evening cutoff.");
-    // Personalize
-    const personalize = [];
-    if (calGap != null && goal === "gain" && calGap < -150) personalize.push(`You're ~${Math.abs(calGap)} kcal under your gain target — pick the higher-calorie option.`);
-    else if (calGap != null && goal === "lose" && calGap > 150) personalize.push("You're a bit over your cut target — keep the snack on the lighter side.");
-    if (sleepShort) personalize.push(`Sleep is averaging ${sleepHr}h — caffeine pre-workout will help, but cut it ~8h before bed.`);
-    if (ctx?.painActive) personalize.push("Active pain on file — fuel up normally, but back off intensity, not nutrition.");
-    if (personalize.length) lines.push("**Personalized:** " + personalize.join(" "));
-    lines.push("**Easy options:**\n• Banana + Greek yogurt + honey\n• Bagel or toast + jam + whey shake\n• Cereal + milk (or protein yogurt)\n• Rice cakes + honey + whey\n• White rice + lean protein (if it's more of a meal — eat 90 min out)");
-    lines.push("**Avoid right before training:** fried/fatty food, huge meals, heavy fiber (raw veg, bran), too much dairy if it upsets your stomach, alcohol.");
-    return lines.join("\n\n");
+  // 1) Should I train today?
+  if (/(should i (train|lift|work ?out|go to the gym|exercise)|train today|gym today|skip (the )?gym|rest day)/.test(q)) {
+    if (ctx?.painActive) return "Train, but train around the pain. Skip exercises that load the painful area, drop intensity ~25%, and stop any set that makes pain worse.";
+    const sleepHr = ctx?.sleepAvg != null ? +(ctx.sleepAvg / 60).toFixed(1) : null;
+    if (sleepHr != null && sleepHr < 6) return `You averaged ${sleepHr}h sleep. You can still train, but expect ~10% less. Hit your main lift, drop a working set, keep RIR 2–3 — no grinding reps.`;
+    if (ctx?.weeklyWk != null && ctx.weeklyWk >= 5) return `You've trained ${ctx.weeklyWk} times this week. A rest day is fine — recovery is where gains compound. Walk, eat well, sleep early.`;
+    return "Nothing in your data is flagging caution today. Train normally.";
   }
 
-  // POST-WORKOUT NUTRITION
-  if (/(after (the )?gym|after (a )?workout|after training|post.?workout|postworkout|post.workout|recovery meal|what.*eat.*after.*(gym|workout|training))/.test(q)) {
-    lines.push("**Within 1–2 hours after training**, eat a normal meal with protein and carbs. The mythical 30-minute window matters less than total daily protein and calories.");
-    lines.push("**Target:** 25–40g protein and a decent serving of carbs. Fat is fine post-workout (it doesn't hurt recovery the way it can pre-workout).");
-    if (proteinGap != null && proteinGap > 20) lines.push(`**Personalized:** You're averaging ~${proteinGap}g below your daily protein target — make this meal protein-heavy (eggs + meat, double-scoop shake, big yogurt bowl).`);
-    if (calGap != null && goal === "gain" && calGap < -150) lines.push(`**Personalized:** You're under your gain target — this is the easiest meal of the day to push calories.`);
-    lines.push("**Easy options:**\n• Chicken/beef + rice + vegetables\n• Eggs + toast + Greek yogurt\n• Protein shake + oats + banana + peanut butter\n• Tuna/salmon + pasta\n• Burrito bowl (rice, beans, meat, salsa)");
-    return lines.join("\n\n");
+  // 2) Recovery score / muscle readiness explanation
+  if (/(recovery score|why.*recovery|recovery (low|red|amber|yellow|green)|why is my recovery|what does recovery mean)/.test(q)) {
+    return "Your recovery score blends three things: how recently you trained each muscle (volume × days), how much you've slept vs. your need, and any active pain flags. Red/amber means at least one of those is depressed — usually low sleep, very recent heavy session, or pain. Green means the system thinks you can push the lift.";
   }
 
-  // SHOULD I TRAIN TODAY
-  if (/(should i (train|lift|work out|go to the gym|exercise)|train today|gym today|rest day|skip (the )?gym)/.test(q)) {
-    if (ctx?.painActive) {
-      lines.push("**Train, but train around the pain.** Don't load whatever hurts. Pick exercises that don't aggravate it, drop intensity 20–30%, and stop any set that makes pain worse.");
-    } else if (sleepShort) {
-      lines.push("**Train, but expect ~10% less.** Sleep under 7h dulls strength and focus. Hit your main lift with one less working set, keep RIR 2–3 (no grinding reps).");
-    } else if (ctx?.weeklyWk >= 5) {
-      lines.push("**A rest day is fine.** You've already trained 5+ times this week — recovery is where the gains compound. Walk, stretch, eat well.");
-    } else {
-      lines.push("**Yes, train.** Your data doesn't show anything that should hold you back today.");
+  // 3) Calorie / maintenance math
+  if (/(maintenance|tdee|how many calories|calorie target|calorie need|kcal target)/.test(q)) {
+    if (targets?.calories) {
+      const t = targets.calories;
+      const goalNote = goal === "gain" ? `Your gain target is ${t} kcal — that's maintenance + ~300 kcal surplus.`
+                     : goal === "lose" ? `Your cut target is ${t} kcal — that's maintenance − ~400 kcal deficit.`
+                     : `Your maintenance target is ${t} kcal.`;
+      const main = goal === "maintain" ? t : (goal === "gain" ? t - 300 : t + 400);
+      return goalNote + "\nApprox maintenance: ~" + main + " kcal/day. (Estimated from your sex/age/weight/height/activity using Mifflin-St Jeor.)";
     }
-    lines.push("**Quick check before you go:** did you sleep enough, eat enough, and is anything acutely painful? If two out of three are yes, train normally. If two are no, train light or rest.");
-    return lines.join("\n\n");
+    return "I need your profile (sex, age, weight, height, activity) to compute calories. Finish onboarding and ask again.";
   }
 
-  // WHAT WORKOUT SHOULD I DO
-  if (/(what (workout|routine|split|session) (should|do)|what to train today|which (workout|routine))/.test(q)) {
-    lines.push("**Pick the muscle group that's most recovered.** A push/pull/legs rotation works well — if your last session was push, do pull; if pull, do legs; if legs, do push.");
-    lines.push("**Two simple rules:** train each muscle group every 4–6 days, and don't repeat the same group two days in a row.");
-    if (ctx?.stalls?.length) lines.push(`**Personalized:** ${ctx.stalls[0]} has stalled — swap it for a close variant (incline bench → flat dumbbell, back squat → front squat) for the next 2 weeks.`);
-    if (ctx?.painActive) lines.push("**Personalized:** active pain on file — pick a session that doesn't load the painful area.");
-    lines.push("Open the Train tab — the **Suggested today** card uses your routine pattern to pick the next session.");
-    return lines.join("\n\n");
-  }
-
-  // SUPPLEMENT TIMING
-  if (/(when.*(take|to take).*(creatine|protein|whey|caffeine|magnesium|fish oil|omega|vitamin|supplement)|supplement timing|when should i take)/.test(q)) {
-    lines.push("**Most supplements: timing barely matters.** Daily consistency matters far more than the specific hour.");
-    lines.push("**Specific exceptions:**\n• **Creatine** — any time of day, with or without food. Just take 3–5g every day.\n• **Whey protein** — when convenient. Pre- or post-workout is fine, so is breakfast or a snack.\n• **Caffeine** — 30–45 min before training. Cut it 8h before bed.\n• **Magnesium** — evening, with food.\n• **Fish oil** — with a meal (fat aids absorption).\n• **Vitamin D** — with a fatty meal.");
-    lines.push("**Avoid:** taking caffeine late, taking calcium and iron together (they compete), or assuming a supplement makes up for poor sleep/diet — it won't.");
-    return lines.join("\n\n");
-  }
-
-  // WHAT SHOULD I EAT TODAY
-  if (/(what.*(should i|to) eat today|what.*for (breakfast|lunch|dinner)|meal idea)/.test(q)) {
-    lines.push("**Build each meal around protein first** (25–40g), then add carbs and vegetables. Fat fills in the gaps.");
-    if (goal === "gain") lines.push("**Personalized for gain:** add a calorie-dense extra to each meal — olive oil drizzle, nuts, avocado, peanut butter. Easy wins without forcing big portions.");
-    if (goal === "lose") lines.push("**Personalized for fat loss:** lean protein, volume from vegetables, smaller carb portions. Drink water before meals so you don't overshoot.");
-    if (proteinGap != null && proteinGap > 20) lines.push(`**Personalized:** you're averaging ~${proteinGap}g below your protein target — front-load protein at breakfast.`);
-    lines.push("**Easy templates:**\n• Breakfast: Greek yogurt + fruit + granola, or eggs + toast + fruit\n• Lunch: rice/quinoa bowl with chicken + vegetables\n• Dinner: salmon or beef + sweet potato + greens\n• Snack: cottage cheese + berries, or protein shake + banana");
-    return lines.join("\n\n");
-  }
-
-  // ===== Generic data-audit path (kept for "why am I not progressing?" style questions) =====
-  const hasData = ctx?.calAvg != null || ctx?.weeklyWk > 0 || ctx?.weightRate != null;
-  if (!hasData) {
-    return "I don't have enough of your data to answer yet. Log a few days of food, a couple of workouts, and weigh in 2–3 mornings — then ask again and I can be specific.";
-  }
-
-  // Topic detection for the data-audit path
-  const askingStall = /(stall|stuck|plateau|not going up|not improving|not progress)/.test(q);
-  const askingMuscle = /(gain|build|muscle|bigger|grow|mass)/.test(q);
-  const askingFat = /(fat|cut|lose|weight loss|leaner)/.test(q);
-  const askingCut = /(cut|bulk|maintain|surplus|deficit|recomp)/.test(q);
-  const askingSleep = /(sleep|tired|fatigue|recover|rested)/.test(q);
-  const askingWeek = /(this week|improve|focus|priority|next week)/.test(q);
-
-  // Common diagnosis path
-  const why = [];
-  if (calGap != null) {
-    if (goal === "gain" && calGap < -150) why.push(`You're eating ~${Math.abs(calGap)} kcal under your gain target — not enough fuel for new tissue.`);
-    if (goal === "lose" && calGap > 150) why.push(`You're eating ~${calGap} kcal over your cut target — the deficit is too small.`);
-  }
-  if (proteinGap != null && proteinGap > 20) why.push(`Protein is averaging ~${proteinGap}g below target — protein synthesis is capped without it.`);
-  if (sleepShort) why.push(`Sleep is averaging ${sleepHr}h — under-recovery dulls strength and recovery.`);
-  if (ctx?.weeklyWk != null && ctx.weeklyWk < 3) why.push(`Only ${ctx.weeklyWk} workout${ctx.weeklyWk === 1 ? "" : "s"} this week — frequency is the lever here.`);
-  if (ctx?.stalls?.length) why.push(`Stalled lifts: ${ctx.stalls.slice(0, 2).join(", ")}. Deload that lift ~10% then rebuild.`);
-  if (ctx?.painActive) why.push("Active pain is likely capping intensity — train around it and the rest will come back.");
-  if (ctx?.weightRate != null && goal === "gain" && ctx.weightRate < 0.05) why.push(`Bodyweight is flat (${ctx.weightRate > 0 ? "+" : ""}${ctx.weightRate} kg/wk) — no surplus is landing.`);
-  if (ctx?.weightRate != null && goal === "lose" && ctx.weightRate > -0.1) why.push(`Bodyweight isn't dropping (${ctx.weightRate > 0 ? "+" : ""}${ctx.weightRate} kg/wk) — the deficit is too small or NEAT dropped.`);
-
-  // What's going well
-  const good = [];
-  if (ctx?.weeklyWk >= 3) good.push("training is consistent");
-  if (proteinGap != null && proteinGap <= 5) good.push("protein is on point");
-  if (sleepHr != null && sleepHr >= 7) good.push("sleep is solid");
-
-  if (askingStall || askingMuscle || askingFat || askingCut) {
-    if (askingStall && !why.length) {
-      lines.push("Nothing obvious is blocking you in the data I can see. Stalls of 1–3 weeks happen even when everything is right.");
-      lines.push("Three things to try: log a working set on video to check form, swap the stalled lift for a close variant for 2 weeks, and make sure you're sleeping 7+ hours.");
-    } else if (why.length) {
-      lines.push(`Most likely cause: ${why[0]}`);
-      if (why.length > 1) lines.push(`Also working against you: ${why.slice(1, 3).join(" ")}`);
-      // suggested fix
-      if (calGap != null && goal === "gain" && calGap < -150) lines.push(`Action: add ${Math.min(300, Math.abs(calGap))} kcal/day this week and recheck weight in 7 days.`);
-      else if (calGap != null && goal === "lose" && calGap > 150) lines.push(`Action: trim ${Math.min(200, calGap)} kcal/day or add 2–3k steps. Recheck in 7 days.`);
-      else if (proteinGap != null && proteinGap > 20) lines.push(`Action: add a ${Math.round(proteinGap)}g protein source per day (e.g. a shake or 100g extra chicken).`);
-      else if (sleepShort) lines.push(`Action: bed 30 min earlier most nights this week.`);
-      else if (ctx?.stalls?.length) lines.push(`Action: deload ${ctx.stalls[0]} ~10% and add a rep before adding weight back.`);
-    } else {
-      lines.push("The fundamentals look fine. Be patient — strength and weight changes show in 2–4 week windows, not day to day.");
-    }
-    if (good.length) lines.push(`Going well: ${good.join(", ")}.`);
-    return lines.join("\n\n");
-  }
-
-  if (askingSleep) {
-    if (sleepHr == null) return "I don't have sleep data yet. Log a few nights and I can tell you what to adjust.";
-    if (sleepShort) lines.push(`Your average is ${sleepHr}h — that's under what your body needs for full recovery.`);
-    else lines.push(`Your average sleep is ${sleepHr}h — that's in the right range.`);
-    lines.push("To improve quality without changing duration: cut caffeine 8h before bed, keep the room cool and dark, and aim for a consistent bedtime (±30 min).");
-    if (ctx?.weightRate != null && goal === "gain" && sleepShort) lines.push("Sleep matters more on a bulk than people think — most muscle growth happens overnight.");
-    return lines.join("\n\n");
-  }
-
-  if (askingWeek) {
-    const priorities = [];
-    if (calGap != null && Math.abs(calGap) > 150) priorities.push(calGap < 0 ? "eat closer to your calorie target" : "tighten your calorie target");
-    if (proteinGap != null && proteinGap > 20) priorities.push("hit your protein target more days");
-    if (sleepShort) priorities.push("get 30 minutes more sleep most nights");
-    if (ctx?.weeklyWk < 3) priorities.push("get to 3+ workouts this week");
-    if (ctx?.painActive) priorities.push("train around your pain and rest the area");
-    if (!priorities.length) return "Keep doing what you're doing. Consistency over time beats any single tweak.";
-    lines.push(`Pick one: ${priorities[0]}.`);
-    if (priorities.length > 1) lines.push(`Next priorities if you have room: ${priorities.slice(1, 3).join(", then ")}.`);
-    lines.push("Don't try to fix everything at once — one focused change per week sticks better.");
-    return lines.join("\n\n");
-  }
-
-  // Generic fallback
-  if (why.length) {
-    lines.push(`Looking at your data, the standout issue is: ${why[0]}`);
-    lines.push(why.length > 1 ? `Other contributing factors: ${why.slice(1, 3).join(" ")}` : "");
-    if (good.length) lines.push(`What's working: ${good.join(", ")}.`);
-  } else {
-    lines.push("Your data looks balanced. Be specific — ask me about a particular lift, day, or goal and I can pinpoint better.");
-  }
-  return lines.filter(Boolean).join("\n\n");
+  // 4) Otherwise: be honest. The AI is the right tool for everything else.
+  return "I couldn't reach the AI to answer that. Try again in a moment, or ask about whether you should train today, your recovery score, or your calorie target — those I can answer from your data offline.";
 }
 
 /* ---------------- small UI bits -------------- */
@@ -3801,52 +3668,65 @@ function SprigApp() {
   };
   // ask-the-coach handler — sends user-facing context to the existing analyze() call
   async function askCoach(question, ctx) {
-    // Skip the network entirely if we know we're offline — the rule-based coach is always available.
+    // AI-FIRST. Every real coaching question goes to the model with the user's full structured context.
+    // The model decides what's relevant — no more pre-routing by topic or canned templates.
+    // localCoachAnswer is reserved for offline mode + API failure + a few simple math/explainer cases.
+
     if (!online) return localCoachAnswer(question, ctx, profile, targets);
 
-    // Detect "asking for a progress audit" vs "asking a specific how-to question".
-    // For audit-style questions we hand the full data summary to the model so it can do diagnosis.
-    // For specific questions we keep the data summary as *optional personalization* and tell the
-    // model to answer the actual question first.
-    const q = (question || "").toLowerCase();
-    const isAuditQuestion = /(why.*(not (progress|gain|grow|improv)|stall|stuck|plateau|weak)|analyze.*(my )?progress|review.*(my )?data)/.test(q);
+    const system = "You are Sprig Coach, an elite evidence-based coach. Answer the user's question directly. Use the user's data only when relevant. Do not give a full audit unless asked. Do not use canned templates. Think like a real coach reviewing a client's data.";
 
-    const summary = JSON.stringify({
-      goal: profile?.goal, weight: profile?.weight,
-      recentCalAvg: ctx?.calAvg, proteinAvg: ctx?.protAvg,
-      avgSleepMin: ctx?.sleepAvg, weeklyWorkouts: ctx?.weeklyWk,
-      stalledLifts: ctx?.stalls, painActive: ctx?.painActive,
-      weightTrendKgPerWeek: ctx?.weightRate,
-    });
+    // Structured coaching context. We hand the model the whole picture and let it choose what to use.
+    // Keys are deliberately readable so the model interprets them correctly.
+    const sleepLastHr = ctx?.sleepLastMin != null ? +(ctx.sleepLastMin / 60).toFixed(1) : null;
+    const sleepAvgHr = ctx?.sleepAvg != null ? +(ctx.sleepAvg / 60).toFixed(1) : null;
+    const coachingContext = {
+      profile: profile ? {
+        sex: profile.sex, age: profile.age,
+        heightCm: profile.height, weightKg: profile.weight,
+        activity: profile.activity, experience: profile.experience,
+        focus: profile.focus, goal: profile.goal,
+      } : null,
+      targets: targets ? {
+        calories: targets.calories, protein_g: targets.protein,
+        carbs_g: targets.carbs, fat_g: targets.fat, fiber_g: targets.fiber,
+      } : null,
+      today: ctx?.today || null,
+      averages14d: {
+        calories: ctx?.calAvg ?? null,
+        protein_g: ctx?.protAvg ?? null,
+      },
+      sleep: {
+        lastNightHr: sleepLastHr,
+        avg7dHr: sleepAvgHr,
+        debtMin: ctx?.sleepDebt ?? null,
+      },
+      bodyWeight: {
+        currentKg: profile?.weight ?? null,
+        trendKgPerWeek: ctx?.weightRate ?? null,
+      },
+      training: {
+        workoutsThisWeek: ctx?.weeklyWk ?? null,
+        stalledLifts: ctx?.stalls || [],
+        muscleRecovery: ctx?.muscleRecovery || null,
+        trainedToday: ctx?.trainedToday ?? null,
+      },
+      flags: {
+        painActive: !!ctx?.painActive,
+        painNotes: ctx?.painNotes || null,
+      },
+      supplements: ctx?.supplements || null,
+    };
 
-    const system = `You are a practical health and fitness coach for the Sprig app.
-
-ALWAYS follow this order:
-1. Answer the user's exact question first, in 1–3 sentences.
-2. Then personalize using the user's data — but ONLY if it strongly affects the answer.
-3. Give 3–5 concrete examples or steps.
-4. Optionally list what to avoid if useful.
-5. Do NOT turn every answer into a full progress audit.
-6. Do NOT mention sleep, calories, pain, or training status unless they're directly relevant to the question asked.
-
-Bad behavior (do not do this):
-User asks "what should I eat 1 hour before gym?"
-Assistant answers "you are under calories, sleep is low, pain is active." (This ignores the question.)
-
-Good behavior:
-User asks "what should I eat 1 hour before gym?"
-Assistant explains pre-workout nutrition (easy carbs + protein, low fat/fiber, targets, examples), THEN adds one sentence like "because you're under your gain target, pick the higher-calorie option."
-
-Keep replies short and direct. No medical advice. No diagnosis.`;
-
-    const prompt = isAuditQuestion
-      ? `The user is asking for a progress audit. Diagnose using their data summary.\n\nQuestion: "${question}"\n\nData summary: ${summary}`
-      : `Answer the user's specific question directly. Use the data summary ONLY for one optional personalization sentence at the end, and only if it changes the practical answer.\n\nQuestion: "${question}"\n\nData summary (use sparingly): ${summary}`;
+    const prompt = `User question: "${question}"\n\nUser data (structured): ${JSON.stringify(coachingContext)}\n\nAnswer the question. Use the data only where it actually helps.`;
 
     try {
       const r = await analyzeText({ prompt, system });
       if (r && r.trim()) return r;
-    } catch (e) { /* fall through to local engine */ }
+    } catch (e) { /* fall through to local fallback */ }
+
+    // AI failed → minimal local engine. It only answers a handful of cases; for everything else
+    // it returns an honest "try again" message rather than pretending to be a real coach.
     return localCoachAnswer(question, ctx, profile, targets);
   }
 
@@ -4536,6 +4416,7 @@ Keep replies short and direct. No medical advice. No diagnosis.`;
         const calAvg = history.length ? Math.round(history.slice(-14).reduce((a, h) => a + h.calories, 0) / Math.min(14, history.length)) : null;
         const protAvg = history.length ? Math.round(history.slice(-14).reduce((a, h) => a + h.protein, 0) / Math.min(14, history.length)) : null;
         const sleepAvg = sleepLogs.length ? Math.round(sleepLogs.slice(-7).reduce((a, l) => a + l.durationMin, 0) / Math.min(7, sleepLogs.length)) : null;
+        const sleepLastMin = sleepLogs.length ? sleepLogs[sleepLogs.length - 1].durationMin : null;
         const weeklyWk = workouts.filter((w) => Date.now() - w.ts <= 7 * 864e5).length;
         const stalls = (typeof stallingLifts === "function") ? stallingLifts(workouts) : [];
         const ws = [...(weightSeries || [])].sort((a, b) => a.date.localeCompare(b.date));
@@ -4545,7 +4426,33 @@ Keep replies short and direct. No medical advice. No diagnosis.`;
           const days = Math.max(1, (new Date(lastW.date) - new Date(first.date)) / 864e5);
           weightRate = +(((lastW.kg - first.kg) / days) * 7).toFixed(2);
         }
-        const ctx = { calAvg, protAvg, sleepAvg, weeklyWk, stalls, painActive: trainInfo.pain?.level !== "none", weightRate };
+        // Today's numbers — useful for "I have 800 kcal left, what should I eat?" style questions
+        const todayTotals = dayTotals(entries || []);
+        const todayCtx = {
+          calories: todayTotals.calories, protein_g: todayTotals.protein,
+          carbs_g: todayTotals.carbs, fat_g: todayTotals.fat, fiber_g: todayTotals.fiber,
+          waterMl: daily?.water ?? 0, steps: daily?.steps ?? 0,
+          cardioMin: daily?.cardioMin ?? 0, cardioKcal: daily?.cardioKcal ?? 0,
+          alcohol_g: daily?.alcohol_g ?? 0, caffeineMg: daily?.caffeine ?? 0,
+          weightKg: daily?.weight ?? null,
+        };
+        // Muscle recovery map (top 5 most-fatigued, abbreviated for the model)
+        const muscleRecoveryList = MUSCLES.map(([k, n]) => ({ muscle: n, fatigue: Math.round(trainInfo.recovery[k]?.fatigue || 0) }))
+          .sort((a, b) => b.fatigue - a.fatigue).slice(0, 5);
+        // Supplements taken today
+        const suppsTodayList = (supps || []).filter((s) => takenIds.includes(s.id)).map((s) => s.name);
+        const ctx = {
+          calAvg, protAvg, sleepAvg, sleepLastMin,
+          sleepDebt: sleepInfo?.debtMin ?? null,
+          weeklyWk, stalls,
+          painActive: activePainLevel !== "none",
+          painNotes: activePainLocations.length ? `${activePainLevel} at ${activePainLocations.join(", ")}` : null,
+          weightRate,
+          today: todayCtx,
+          muscleRecovery: muscleRecoveryList,
+          trainedToday: !!trainedToday,
+          supplements: suppsTodayList.length ? suppsTodayList : null,
+        };
         return <AskCoachSheet onClose={() => setAskOpen(false)} context={ctx} online={online} runAnalysis={(q) => askCoach(q, ctx)} />;
       })()}
 
@@ -7038,7 +6945,7 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true }) {
           <button className="sprig-tap" onClick={onClose} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", color: C.muted }}><X size={14} /></button>
         </div>
         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>
-          Free-form questions about your own data. Uses Claude in the Claude app; falls back to a local rule-based answer everywhere else.
+          Ask anything. I'll answer directly and use your health data only when it helps.
           {!online && (
             <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", background: C.amber + "22", color: C.amber, borderRadius: 99, fontSize: 10.5, fontWeight: 600 }}>
               <Square size={10} /> Offline — using the local coach
