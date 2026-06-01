@@ -6926,7 +6926,10 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true }) {
     try {
       const reply = await runAnalysis(text, context);
       setA(reply);
-    } catch (e) { setErr("Couldn't reach the coach. Try again in a moment."); }
+    } catch (e) {
+      console.error("[sprig] Ask Coach failed:", e);
+      setErr("Couldn't reach the coach. Debug: " + (e?.message || String(e)));
+    }
     finally { setBusy(false); }
   };
   const presets = [

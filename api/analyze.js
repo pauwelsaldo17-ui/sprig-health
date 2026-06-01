@@ -119,7 +119,7 @@ export default async function handler(req, res) {
     }
     console.log("[api/analyze][text] prompt=" + prompt.length + " bytes, system=" + system.length + " bytes");
     payload = {
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1000,
       system,
       messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
@@ -143,7 +143,7 @@ export default async function handler(req, res) {
     content.push({ type: "text", text: instructionFor(mode, text) });
     console.log("[api/analyze][nutrition] mode=" + mode + ", hasImage=" + !!image);
     payload = {
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1000,
       system: "You are a precise nutrition estimation engine for a food-logging app. Always answer with the requested JSON only.",
       messages: [{ role: "user", content }],
