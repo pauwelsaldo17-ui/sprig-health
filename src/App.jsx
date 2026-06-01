@@ -6,8 +6,10 @@ import {
   Activity, MoonStar, ChevronRight, Mic, MicOff,
   Timer, Trophy, Medal, BarChart3, ChevronLeft, ChevronDown, Award, Crown,
   Target, BookOpen, Calculator, Repeat, Gauge, Play, PersonStanding, Square,
-  ArrowUp, HeartPulse, Search, TrendingDown
+  ArrowUp, HeartPulse, Search, TrendingDown,
+  Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail
 } from "lucide-react";
+import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
 
 /* ----------------------------------------------------------------
    SPRIG — a free, AI-powered nutrition tracker
@@ -2764,13 +2766,33 @@ async function analyze({ text, image, mode }) {
 // free-form text reply for the Ask Coach feature
 async function analyzeText({ prompt, system }) {
   // Same proxy, different mode. Returns plain text.
-  const resp = await fetch("/api/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "text", prompt, system }),
-  });
-  if (!resp.ok) throw new Error("AI proxy " + resp.status);
-  const data = await resp.json();
+  // We log everything to the console here because Ask Coach failures are otherwise invisible —
+  // open DevTools (Safari Develop menu on iOS, or eruda on phone) to see what actually went wrong.
+  let resp;
+  try {
+    resp = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "text", prompt, system }),
+    });
+  } catch (e) {
+    console.error("[sprig] analyzeText: fetch threw —", e?.message || e);
+    throw new Error("Network error talking to /api/analyze: " + (e?.message || e));
+  }
+  // Read body once as text so we can both inspect it and parse it as JSON if possible.
+  const bodyText = await resp.text().catch(() => "");
+  if (!resp.ok) {
+    console.error("[sprig] analyzeText: HTTP " + resp.status + " from /api/analyze. Body:", bodyText.slice(0, 500));
+    let serverError = null;
+    try { serverError = JSON.parse(bodyText)?.error; } catch (_) {}
+    throw new Error("AI proxy " + resp.status + (serverError ? ": " + serverError : ""));
+  }
+  let data;
+  try { data = JSON.parse(bodyText); } catch (e) {
+    console.error("[sprig] analyzeText: response was not JSON. Body:", bodyText.slice(0, 500));
+    throw new Error("AI proxy returned non-JSON response");
+  }
+  console.log("[sprig] analyzeText: OK, got " + (data.text?.length || 0) + " chars");
   return (data.text || "").trim();
 }
 
@@ -3670,9 +3692,12 @@ function SprigApp() {
   async function askCoach(question, ctx) {
     // AI-FIRST. Every real coaching question goes to the model with the user's full structured context.
     // The model decides what's relevant — no more pre-routing by topic or canned templates.
-    // localCoachAnswer is reserved for offline mode + API failure + a few simple math/explainer cases.
-
-    if (!online) return localCoachAnswer(question, ctx, profile, targets);
+    // localCoachAnswer is reserved for actual API failure + a few simple math/explainer cases.
+    //
+    // IMPORTANT: we do NOT short-circuit on navigator.onLine here. iOS Safari (and PWAs on iOS in
+    // particular) frequently report onLine === false even when connectivity is fine, which would
+    // wrongly send every question to the local fallback. Better to actually try the network and
+    // fall back on a real error.
 
     const system = "You are Sprig Coach, an elite evidence-based coach. Answer the user's question directly. Use the user's data only when relevant. Do not give a full audit unless asked. Do not use canned templates. Think like a real coach reviewing a client's data.";
 
@@ -3720,14 +3745,21 @@ function SprigApp() {
 
     const prompt = `User question: "${question}"\n\nUser data (structured): ${JSON.stringify(coachingContext)}\n\nAnswer the question. Use the data only where it actually helps.`;
 
+    let aiError = null;
     try {
       const r = await analyzeText({ prompt, system });
       if (r && r.trim()) return r;
-    } catch (e) { /* fall through to local fallback */ }
+      console.warn("[sprig] askCoach: AI returned empty response");
+      aiError = "AI returned an empty response";
+    } catch (e) {
+      console.error("[sprig] askCoach: AI failed —", e?.message || e);
+      aiError = e?.message || String(e);
+    }
 
-    // AI failed → minimal local engine. It only answers a handful of cases; for everything else
-    // it returns an honest "try again" message rather than pretending to be a real coach.
-    return localCoachAnswer(question, ctx, profile, targets);
+    // AI failed → minimal local engine, but also tell the user *why* the AI didn't work.
+    // Without this, they'd just see "I couldn't reach the AI" with no way to debug.
+    const localAnswer = localCoachAnswer(question, ctx, profile, targets);
+    return localAnswer + "\n\n_Debug: " + aiError + "_";
   }
 
   function toggleTaken(id) {
@@ -6290,6 +6322,307 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
   );
 }
 
+/* ================= CLOUD SYNC (optional, additive) =================
+   Sprig keeps all data in localStorage. When the user signs in with Supabase,
+   they can manually push (syncToCloud) or pull (restoreFromCloud) the entire
+   sprig_* keyset. Auth/cloud is fully optional — if Supabase env vars aren't
+   set, getSupabase() returns null and these helpers degrade gracefully. */
+
+// Walk localStorage and return every key prefixed `sprig_` as an object.
+// Returns {} on any failure (private browsing throws on access, etc.).
+function collectSprigLocalData() {
+  const out = {};
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return out;
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k && k.startsWith("sprig_")) {
+        try { out[k] = window.localStorage.getItem(k); } catch (_) { /* skip bad key */ }
+      }
+    }
+  } catch (e) { console.warn("[sprig] collectSprigLocalData failed:", e); }
+  return out;
+}
+
+// Push the current device's sprig_* keys into the user's row in sprig_user_data.
+// Returns { ok: true, count } or { ok: false, error }.
+async function syncToCloud() {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Cloud sync isn't configured for this build." };
+  const { data: sess } = await supabase.auth.getSession();
+  const user = sess?.session?.user;
+  if (!user) return { ok: false, error: "You're not logged in." };
+  const data = collectSprigLocalData();
+  const count = Object.keys(data).length;
+  if (count === 0) return { ok: false, error: "Nothing local to sync." };
+  const { error } = await supabase
+    .from("sprig_user_data")
+    .upsert(
+      { user_id: user.id, app_data: data, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+  if (error) {
+    console.error("[sprig] syncToCloud upsert failed:", error);
+    return { ok: false, error: error.message || "Sync failed" };
+  }
+  try { window.localStorage.setItem("sprig_last_synced_at", new Date().toISOString()); } catch (_) {}
+  return { ok: true, count };
+}
+
+// Pull the user's row, write every sprig_* key back to localStorage, then reload.
+// CALLER MUST CONFIRM with the user before invoking (it overwrites local data).
+async function restoreFromCloud() {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Cloud sync isn't configured for this build." };
+  const { data: sess } = await supabase.auth.getSession();
+  const user = sess?.session?.user;
+  if (!user) return { ok: false, error: "You're not logged in." };
+  const { data, error } = await supabase
+    .from("sprig_user_data")
+    .select("app_data, updated_at")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (error) {
+    console.error("[sprig] restoreFromCloud fetch failed:", error);
+    return { ok: false, error: error.message || "Restore failed" };
+  }
+  if (!data || !data.app_data) return { ok: false, error: "No cloud backup found yet." };
+  const incoming = data.app_data;
+  const keys = Object.keys(incoming);
+  if (keys.length === 0) return { ok: false, error: "Cloud backup is empty." };
+  try {
+    for (const k of keys) {
+      if (k.startsWith("sprig_") && typeof incoming[k] === "string") {
+        window.localStorage.setItem(k, incoming[k]);
+      }
+    }
+    window.localStorage.setItem("sprig_last_synced_at", new Date().toISOString());
+  } catch (e) {
+    console.error("[sprig] restoreFromCloud write failed:", e);
+    return { ok: false, error: "Couldn't write to local storage." };
+  }
+  return { ok: true, count: keys.length, updatedAt: data.updated_at };
+}
+
+// React hook: keeps the current Supabase session in state. Returns { user, loading, supabase }.
+// If Supabase isn't configured, returns { user: null, loading: false, supabase: null }.
+function useSupabaseAuth() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(supabaseConfigured());
+  const supabase = getSupabase();
+  useEffect(() => {
+    if (!supabase) { setLoading(false); return; }
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setUser(data?.session?.user || null);
+      setLoading(false);
+    }).catch((e) => { console.warn("[sprig] getSession failed:", e); if (mounted) setLoading(false); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      setUser(session?.user || null);
+    });
+    return () => { mounted = false; sub?.subscription?.unsubscribe?.(); };
+  }, [supabase]);
+  return { user, loading, supabase };
+}
+
+/* ---------------- AccountSection (rendered inside MeTab) -------------- */
+function AccountSection() {
+  const { user, loading, supabase } = useSupabaseAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null); // { ok, text }
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [showFirstChoice, setShowFirstChoice] = useState(false);
+  const [lastSynced, setLastSynced] = useState(() => {
+    try { return window.localStorage.getItem("sprig_last_synced_at"); } catch (_) { return null; }
+  });
+
+  // After login/signup, prompt once: upload this device, restore cloud, or decide later.
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const seen = window.localStorage.getItem("sprig_first_login_prompted_" + user.id);
+      if (!seen) setShowFirstChoice(true);
+    } catch (_) {}
+  }, [user]);
+  const dismissFirstChoice = () => {
+    setShowFirstChoice(false);
+    if (user) {
+      try { window.localStorage.setItem("sprig_first_login_prompted_" + user.id, "1"); } catch (_) {}
+    }
+  };
+
+  // Don't render anything if Supabase isn't configured — keeps existing builds untouched.
+  if (!supabase) return null;
+
+  const note = (ok, text) => setMsg({ ok, text });
+
+  async function handleSignUp() {
+    if (!email || !password) return note(false, "Email and password required.");
+    if (password.length < 6) return note(false, "Password must be at least 6 characters.");
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+    setBusy(false);
+    if (error) return note(false, error.message);
+    // Supabase may or may not require email confirmation depending on project settings.
+    note(true, "Account created. Check your email if confirmation is required, then log in.");
+    setPassword("");
+  }
+  async function handleSignIn() {
+    if (!email || !password) return note(false, "Email and password required.");
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    setBusy(false);
+    if (error) return note(false, error.message);
+    note(true, "Signed in.");
+    setEmail(""); setPassword("");
+  }
+  async function handleSignOut() {
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.auth.signOut();
+    setBusy(false);
+    if (error) return note(false, error.message);
+    note(true, "Signed out.");
+  }
+  async function handleSync() {
+    setBusy(true); setMsg(null);
+    const r = await syncToCloud();
+    setBusy(false);
+    if (!r.ok) return note(false, r.error);
+    setLastSynced(new Date().toISOString());
+    note(true, "Synced " + r.count + " keys to your account.");
+  }
+  async function handleRestore() {
+    setConfirmRestore(false);
+    setBusy(true); setMsg(null);
+    const r = await restoreFromCloud();
+    setBusy(false);
+    if (!r.ok) return note(false, r.error);
+    note(true, "Restored " + r.count + " keys. Reloading…");
+    setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 800);
+  }
+
+  return (
+    <>
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Account</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: C.inkSoft, lineHeight: 1.5, marginBottom: 12 }}>
+          <Cloud size={15} color={C.greenSoft} style={{ flexShrink: 0 }} />
+          <span>Data is saved locally on this device. When logged in, you can sync a backup to your account and restore it on a new phone.</span>
+        </div>
+
+        {loading && <div style={{ fontSize: 12, color: C.muted }}>Checking session…</div>}
+
+        {!loading && !user && (
+          <>
+            <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 8 }}>
+              Your data is currently saved on this device. Create an account to sync it.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+              <input
+                type="email" inputMode="email" autoComplete="email" placeholder="email"
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, outline: "none" }}
+              />
+              <input
+                type="password" autoComplete="new-password" placeholder="password (min 6 chars)"
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, outline: "none" }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="sprig-tap" onClick={handleSignUp} disabled={busy}
+                style={{ flex: 1, background: C.green, color: "#fff", border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                <Plus size={14} /> Create account
+              </button>
+              <button className="sprig-tap" onClick={handleSignIn} disabled={busy}
+                style={{ flex: 1, background: C.bg2, color: C.green, border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                <LogIn size={14} /> Log in
+              </button>
+            </div>
+          </>
+        )}
+
+        {!loading && user && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 11px", background: C.bg, borderRadius: 11, marginBottom: 10 }}>
+              <Mail size={14} color={C.muted} />
+              <span style={{ flex: 1, fontSize: 12.5, color: C.ink, wordBreak: "break-all" }}>{user.email}</span>
+            </div>
+            {lastSynced && (
+              <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 10 }}>
+                Last synced: {new Date(lastSynced).toLocaleString()}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button className="sprig-tap" onClick={handleSync} disabled={busy}
+                style={{ background: C.green, color: "#fff", border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                <CloudUpload size={14} /> Sync now
+              </button>
+              {!confirmRestore ? (
+                <button className="sprig-tap" onClick={() => setConfirmRestore(true)} disabled={busy}
+                  style={{ background: C.bg2, color: C.green, border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                  <CloudDownload size={14} /> Restore from cloud
+                </button>
+              ) : (
+                <div style={{ background: "#fdf6e9", border: `1px solid ${C.amber}55`, borderRadius: 11, padding: 11 }}>
+                  <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 8, lineHeight: 1.45 }}>
+                    Restoring overwrites this device's data with the cloud backup. Continue?
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="sprig-tap" onClick={() => setConfirmRestore(false)} style={{ flex: 1, background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 600 }}>Cancel</button>
+                    <button className="sprig-tap" onClick={handleRestore} style={{ flex: 1, background: C.amber, color: "#fff", border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 700 }}>Yes, restore</button>
+                  </div>
+                </div>
+              )}
+              <button className="sprig-tap" onClick={handleSignOut} disabled={busy}
+                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.line}`, cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "10px 0", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                <LogOut size={13} /> Log out
+              </button>
+            </div>
+          </>
+        )}
+
+        {msg && (
+          <div style={{ marginTop: 11, fontSize: 11.5, color: msg.ok ? C.greenSoft : C.coral, background: (msg.ok ? C.greenSoft : C.coral) + "11", border: `1px solid ${(msg.ok ? C.greenSoft : C.coral)}55`, borderRadius: 9, padding: "8px 10px", lineHeight: 1.45 }}>
+            {msg.text}
+          </div>
+        )}
+      </div>
+
+      {/* First-login choice prompt — shown once per account on this device. */}
+      {showFirstChoice && user && (
+        <div onClick={dismissFirstChoice}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
+          <div onClick={(e) => e.stopPropagation()} className="sprig-bottom-sheet"
+            style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px 22px", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>Welcome!</div>
+            <div style={{ fontSize: 12.5, color: C.inkSoft, marginBottom: 14, lineHeight: 1.5 }}>
+              Do you want to <b>sync this device's data</b> to your account, or <b>restore existing cloud data</b> onto this device?
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button className="sprig-tap" onClick={() => { dismissFirstChoice(); handleSync(); }}
+                style={{ background: C.green, color: "#fff", border: "none", cursor: "pointer", borderRadius: 11, padding: "12px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans" }}>
+                <CloudUpload size={14} /> Upload this device
+              </button>
+              <button className="sprig-tap" onClick={() => { dismissFirstChoice(); setConfirmRestore(true); }}
+                style={{ background: C.bg2, color: C.green, border: "none", cursor: "pointer", borderRadius: 11, padding: "12px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans" }}>
+                <CloudDownload size={14} /> Restore cloud data
+              </button>
+              <button className="sprig-tap" onClick={dismissFirstChoice}
+                style={{ background: "transparent", color: C.muted, border: "none", cursor: "pointer", padding: "9px 0", fontSize: 12, fontFamily: "DM Sans" }}>
+                Decide later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ---------------- Me / profile tab -------------- */
 function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo }) {
   const importRef = useRef(null);
@@ -6533,6 +6866,9 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onExportJSON, o
       <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <ActivitySourcesSection profile={profile} onSetSource={(id) => onSave({ ...profile, activitySourcePreference: id })} />
       </div>
+
+      {/* ACCOUNT (optional cloud sync) */}
+      <AccountSection />
 
       {/* DATA & PRIVACY */}
       {onExportJSON && (
@@ -6926,10 +7262,7 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true }) {
     try {
       const reply = await runAnalysis(text, context);
       setA(reply);
-    } catch (e) {
-      console.error("[sprig] Ask Coach failed:", e);
-      setErr("Couldn't reach the coach. Debug: " + (e?.message || String(e)));
-    }
+    } catch (e) { setErr("Couldn't reach the coach. Try again in a moment."); }
     finally { setBusy(false); }
   };
   const presets = [
