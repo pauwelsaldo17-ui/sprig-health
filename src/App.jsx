@@ -3048,7 +3048,7 @@ function localCoachAnswer(question, ctx, profile, targets) {
   }
 
   // 4) Otherwise: be honest. The AI is the right tool for everything else.
-  return "I couldn't reach the AI to answer that. Try again in a moment, or ask about whether you should train today, your recovery score, or your calorie target — those I can answer from your data offline.";
+  return "AI coaching is unavailable right now. You can still ask about whether to train today, your recovery score, or your calorie target — I can answer those from your data. Try the full coach again in a moment.";
 }
 
 /* ---------------- small UI bits -------------- */
@@ -3128,6 +3128,84 @@ function MacroBar({ name, val, max, color }) {
 function btn(bg, fg) {
   return { background: bg, color: fg, border: "none", borderRadius: 14, fontFamily: "DM Sans, sans-serif",
     fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 };
+}
+
+/* ============== Design system primitives ==============
+   Small, consistent building blocks so screens stop looking hand-rolled.
+   All use the existing C tokens, so adopting them is purely visual. */
+
+// Standard button with four premium variants. Replaces ad-hoc btn() calls where consistency matters.
+function Btn({ variant = "primary", onClick, disabled, full, size = "md", children, style = {} }) {
+  const V = {
+    primary:   { background: C.green, color: "#fff", border: "none" },
+    secondary: { background: C.bg2, color: C.ink, border: `1px solid ${C.line}` },
+    ghost:     { background: "transparent", color: C.inkSoft, border: "none" },
+    danger:    { background: "transparent", color: C.coral, border: `1px solid ${C.coral}55` },
+  }[variant] || {};
+  const pad = size === "sm" ? "8px 12px" : size === "lg" ? "14px 20px" : "11px 16px";
+  const fs = size === "sm" ? 12.5 : size === "lg" ? 15 : 13.5;
+  return (
+    <button className="sprig-tap" onClick={onClick} disabled={disabled}
+      style={{ ...V, borderRadius: 12, fontFamily: "DM Sans, sans-serif", fontWeight: 600, fontSize: fs, padding: pad,
+        cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, width: full ? "100%" : "auto",
+        display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, ...style }}>
+      {children}
+    </button>
+  );
+}
+
+// Status pill. tone: success | warning | danger | neutral
+function Badge({ tone = "neutral", children, style = {} }) {
+  const T = {
+    success: { bg: C.greenSoft + "1a", fg: C.greenSoft },
+    warning: { bg: C.amber + "1f", fg: C.amber },
+    danger:  { bg: C.coral + "1a", fg: C.coral },
+    neutral: { bg: C.bg2, fg: C.inkSoft },
+  }[tone] || { bg: C.bg2, fg: C.inkSoft };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: T.bg, color: T.fg,
+      borderRadius: 99, padding: "3px 9px", fontSize: 11, fontWeight: 700, letterSpacing: .2, ...style }}>
+      {children}
+    </span>
+  );
+}
+
+// Clean section header with optional right action ("View all", etc.)
+function SectionHeader({ title, action, onAction }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 2px 10px" }}>
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 600, color: C.ink }}>{title}</div>
+      {action && (
+        <button className="sprig-tap" onClick={onAction}
+          style={{ background: "none", border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", display: "inline-flex", alignItems: "center", gap: 3 }}>
+          {action}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Premium empty state — calm, helpful, with an action.
+function EmptyState({ icon, title, text, actionLabel, onAction }) {
+  return (
+    <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, padding: "28px 20px", textAlign: "center" }}>
+      {icon && <div style={{ width: 44, height: 44, borderRadius: 13, background: C.green + "12", display: "grid", placeItems: "center", margin: "0 auto 12px" }}>{icon}</div>}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, color: C.ink }}>{title}</div>
+      {text && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.5, maxWidth: 280, marginLeft: "auto", marginRight: "auto" }}>{text}</div>}
+      {actionLabel && onAction && (
+        <div style={{ marginTop: 16 }}><Btn variant="primary" onClick={onAction} size="md">{actionLabel}</Btn></div>
+      )}
+    </div>
+  );
+}
+
+// Consistent progress bar.
+function ProgressBar({ pct, color = C.green, height = 6 }) {
+  return (
+    <div style={{ height, background: C.bg2, borderRadius: 99, overflow: "hidden" }}>
+      <div style={{ width: Math.max(0, Math.min(100, pct)) + "%", height: "100%", background: color, borderRadius: 99, transition: "width .5s ease" }} />
+    </div>
+  );
 }
 
 /* ---------------- result / edit card -------------- */
@@ -3211,7 +3289,7 @@ function ResultCard({ result, onAdd, onCancel, mode, isSupp }) {
 }
 
 /* ---------------- main app -------------- */
-const DEFAULT_PROFILE = { sex: "male", age: 18, weight: 72, height: 178, activity: "active", goal: "gain", experience: "beginner", focus: "gym", mode: "simple", workoutCalorieMode: "conservative", dayResetMode: "after-wake", restTimerSound: true, restTimerVibrate: true, restTimerSoundChoice: "beep", alarmSound: "bells", alarmVolume: 0.7 };
+const DEFAULT_PROFILE = { sex: "male", age: 18, weight: 72, height: 178, activity: "active", goal: "gain", experience: "beginner", focus: "gym", mode: "simple", workoutCalorieMode: "conservative", dayResetMode: "after-wake", restTimerSound: true, restTimerVibrate: true, restTimerSoundChoice: "beep", alarmSound: "bells", alarmVolume: 0.7, devMode: false };
 
 /* ================= SAFE MODE CARD ================= */
 // Shown when storage loading throws — gives the user a way to recover without losing their data.
@@ -3722,6 +3800,7 @@ function SprigApp() {
     const existing = favoriteMeals.find((f) => f.name.toLowerCase() === fav.name.toLowerCase());
     if (existing && onDuplicate) { onDuplicate(fav, existing); return; }
     persistFavoriteMeals([fav, ...favoriteMeals]);
+    showToast("Favorite saved");
     return fav;
   }
   function replaceFavoriteMeal(existingId, src) {
@@ -3747,6 +3826,7 @@ function SprigApp() {
     };
     persistEntries((prev) => [...prev, entry]);
     persistFavoriteMeals(favoriteMeals.map((x) => (x.id === id ? { ...x, useCount: (x.useCount || 0) + 1, lastUsedTs: Date.now() } : x)));
+    showToast("Meal added");
   }
   const saveProfile = async (p) => {
     setProfile(p);
@@ -3768,7 +3848,7 @@ function SprigApp() {
     let keys = await store.list("sprig_");
     if (!keys.length) {
       // fallback: known static keys + recent date-keyed ones
-      const statics = ["sprig_profile_v1", "sprig_meals_v1", "sprig_favorite_meals_v1", "sprig_history_v1", "sprig_supps_v1", "sprig_sleep_v1", "sprig_alarm_v1", "sprig_workouts_v1", "sprig_rests_v1", "sprig_routines_v1", "sprig_weightseries_v1", "sprig_measure_v1", "sprig_photos_v1", "sprig_health_v1", "sprig_pain_v1", "sprig_habitcfg_v1", "sprig_habitdone_v1", "sprig_focus_v1"];
+      const statics = ["sprig_profile_v1", "sprig_meals_v1", "sprig_favorite_meals_v1", "sprig_history_v1", "sprig_supps_v1", "sprig_sleep_v1", "sprig_alarm_v1", "sprig_workouts_v1", "sprig_rests_v1", "sprig_routines_v1", "sprig_weightseries_v1", "sprig_measure_v1", "sprig_photos_v1", "sprig_health_v1", "sprig_pain_v1", "sprig_habitcfg_v1", "sprig_habitdone_v1", "sprig_focus_v1", "sprig_coach_notes_v1"];
       const dated = [];
       for (let i = 0; i < 90; i++) { const dd = new Date(); dd.setDate(dd.getDate() - i); const ds = dd.toLocaleDateString("en-CA"); dated.push("sprig_log_" + ds, "sprig_daily_" + ds, "sprig_supptaken_" + ds); }
       keys = [...statics, ...dated];
@@ -3842,6 +3922,13 @@ function SprigApp() {
   function queueUndo(kind, data, restore) {
     setUndoItem({ kind, data, restore, ts: Date.now() });
     setTimeout(() => setUndoItem((u) => (u && Date.now() - u.ts >= 5500 ? null : u)), 6000);
+  }
+  // Calm success/info toast — "Saved", "Meal added", "Synced to cloud", etc.
+  const [toast, setToast] = useState(null); // { text, tone, ts }
+  function showToast(text, tone = "success") {
+    const ts = Date.now();
+    setToast({ text, tone, ts });
+    setTimeout(() => setToast((tt) => (tt && tt.ts === ts ? null : tt)), 2600);
   }
   // Mistake detection (Fix 9): for obviously-unusual values we ask "Save anyway?" rather than
   // blocking. pendingConfirm = { message, onConfirm } when a confirmation is showing.
@@ -4050,10 +4137,11 @@ function SprigApp() {
       aiError = e?.message || String(e);
     }
 
-    // AI failed → minimal local engine, but also tell the user *why* the AI didn't work.
-    // Without this, they'd just see "I couldn't reach the AI" with no way to debug.
+    // AI failed → minimal local engine. Normal users see a calm message; developers (devMode)
+    // also see the underlying error so they can diagnose. Raw HTTP/API errors never reach end users.
     const localAnswer = localCoachAnswer(question, ctx, profile, targets);
-    return localAnswer + "\n\n_Debug: " + aiError + "_";
+    if (profile?.devMode) return localAnswer + "\n\n_Debug: " + aiError + "_";
+    return localAnswer;
   }
 
   function toggleTaken(id) {
@@ -4307,6 +4395,7 @@ function SprigApp() {
     }
     persistActive(null);
     setTab("train");
+    if (done.length) showToast("Workout logged");
   }
   function cancelWorkout() { persistActive(null); }
   function woSetExercisePain(exIdx, level) {
@@ -4347,13 +4436,15 @@ function SprigApp() {
       if (!exists) persistLibrary([{ ...entry, id: uid(), mult: 1 }, ...library].slice(0, 60));
     }
     setResult(null);
-    setTab("today");
+    setTab("nutrition");
+    showToast("Meal added");
   }
 
   function logFromLibrary(meal) {
     const entry = { ...meal, id: uid(), mult: 1, time: Date.now() };
     persistEntries((prev) => [...prev, entry]);
-    setTab("today");
+    setTab("nutrition");
+    showToast("Meal added");
   }
   function addManual(m) {
     const entry = {
@@ -4361,7 +4452,7 @@ function SprigApp() {
       calories: +m.calories || 0, protein_g: +m.protein || 0, carbs_g: +m.carbs || 0,
       fat_g: +m.fat || 0, fiber_g: +m.fiber || 0, micros: {}, omega3: null, mult: 1, time: Date.now(),
     };
-    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("today"); };
+    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("nutrition"); showToast("Meal added"); };
     if (entry.calories > 3000) { askConfirm(`${entry.calories} kcal for one item is unusually high. Save anyway?`, commit); return; }
     commit();
   }
@@ -4619,7 +4710,11 @@ function SprigApp() {
             library={library} onQuick={logFromLibrary} entriesHistory={entriesHistory}
             favoriteMeals={favoriteMeals} onSaveFavorite={saveFavoriteMeal} onReplaceFavorite={replaceFavoriteMeal}
             onUpdateFavorite={updateFavoriteMeal} onRemoveFavorite={removeFavoriteMeal} onAddFavorite={addFavoriteToToday}
-            onNewFood={() => { setTab("today"); setComposer("text"); }} />
+            onNewFood={() => { setComposer("text"); setResult(null); }}
+            onSnapFood={() => { setResult(null); fileRef.current?.click(); }}
+            onScanLabel={() => { setResult(null); labelRef.current?.click(); }}
+            onDescribe={() => { setComposer("text"); setResult(null); }}
+            onManual={() => { setComposer("manual"); setResult(null); }} />
         )}
         {tab === "train" && (
           <TrainTab workouts={workouts} active={activeWorkout} profile={profile} trainInfo={trainInfo} advanced={advanced}
@@ -4661,8 +4756,8 @@ function SprigApp() {
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo} />}
       </div>
 
-      {/* logging dock */}
-      {tab === "today" && (
+      {/* logging dock — lives on the Nutrition tab (Snap / Scan / Describe / Manual + composer + results) */}
+      {tab === "nutrition" && (
         <div style={{ padding: "0 16px 14px" }}>
           {error && <div style={{ background: "#fdeee8", color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
 
@@ -4725,14 +4820,9 @@ function SprigApp() {
             <ManualEntry onAdd={addManual} onCancel={() => setComposer(null)} />
           )}
 
-          {!result && (
-            <div style={{ display: "flex", gap: 8 }}>
-              <DockBtn icon={<Camera size={19} />} label="Snap food" onClick={() => fileRef.current?.click()} primary />
-              <DockBtn icon={<ScanLine size={19} />} label="Scan label" onClick={() => labelRef.current?.click()} />
-              <DockBtn icon={<PencilLine size={19} />} label="Describe" onClick={() => setComposer("text")} />
-              <DockBtn icon={<Calculator size={19} />} label="Manual" onClick={() => setComposer("manual")} />
-            </div>
-          )}
+          {/* Entry buttons (Snap / Scan / Describe / Manual) live in NutritionTab's "Log food"
+              section at the top; this dock keeps the composer, result card, and the hidden
+              file inputs those actions trigger. */}
           <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={(e) => onFile(e, "photo")} style={{ display: "none" }} />
           <input ref={labelRef} type="file" accept="image/*" capture="environment" onChange={(e) => onFile(e, "label")} style={{ display: "none" }} />
           <input ref={suppLabelRef} type="file" accept="image/*" capture="environment" onChange={(e) => onFile(e, "supp-label")} style={{ display: "none" }} />
@@ -4813,7 +4903,15 @@ function SprigApp() {
           trainedToday: !!trainedToday,
           supplements: suppsTodayList.length ? suppsTodayList : null,
         };
-        return <AskCoachSheet onClose={() => setAskOpen(false)} context={ctx} online={online} runAnalysis={(q) => askCoach(q, ctx)} />;
+        return <AskCoachSheet onClose={() => setAskOpen(false)} context={ctx} online={online} runAnalysis={(q) => askCoach(q, ctx)}
+          onSaveNote={async (question, answer) => {
+            try {
+              const raw = await store.get("sprig_coach_notes_v1");
+              const notes = safeParse(raw, [], asArray);
+              await store.set("sprig_coach_notes_v1", JSON.stringify([{ id: uid(), ts: Date.now(), question, answer }, ...notes].slice(0, 100)));
+              showToast("Note saved");
+            } catch (_) { showToast("Couldn't save note", "error"); }
+          }} />;
       })()}
 
       {photoOpen && <PhotoSheet onClose={() => setPhotoOpen(false)} photos={progressPhotos} onAdd={addProgressPhoto} onRemove={removeProgressPhoto} />}
@@ -4868,6 +4966,14 @@ function SprigApp() {
             return "Removed";
           })()}</span>
           <button className="sprig-tap" onClick={() => { undoItem.restore && undoItem.restore(); setUndoItem(null); }} style={{ background: "transparent", color: C.greenSoft, border: "none", fontWeight: 700, cursor: "pointer", padding: 0 }}><RotateCcw size={13} /> Undo</button>
+        </div>
+      )}
+
+      {/* calm success/info toast */}
+      {toast && !undoItem && (
+        <div className="sprig-bottom-toast sprig-pop" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: toast.tone === "error" ? C.coral : C.ink, color: "#fff", padding: "10px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 6px 20px rgba(0,0,0,.22)", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", zIndex: 60 }}>
+          {toast.tone !== "error" && <Check size={14} color={C.leaf} />}
+          <span>{toast.text}</span>
         </div>
       )}
     </div>
@@ -5580,7 +5686,7 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
 /* ---------------- Nutrition tab -------------- */
 function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriInfo, moveInfo, sleepInfo, daily, onDaily, onAddEntry,
   supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, library, onQuick, entriesHistory,
-  favoriteMeals, onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood }) {
+  favoriteMeals, onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood, onSnapFood, onScanLabel, onDescribe, onManual }) {
   const [showMicros, setShowMicros] = useState(advanced);
   const [showSupps, setShowSupps] = useState(advanced || (supps?.length || 0) <= 4);
   const [favSearch, setFavSearch] = useState("");
@@ -5706,10 +5812,34 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
         </div>
       )}
 
+      {/* LOG FOOD — the four entry actions (moved here from Today) */}
+      {sectionTitle("Log food")}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        {onSnapFood && (
+          <button className="sprig-tap" onClick={onSnapFood} style={{ ...btn(C.green, "#fff"), padding: "13px 0", fontSize: 13, flexDirection: "column", gap: 5 }}>
+            <Camera size={19} /> Snap food
+          </button>
+        )}
+        {onScanLabel && (
+          <button className="sprig-tap" onClick={onScanLabel} style={{ ...btn(C.bg2, C.green), padding: "13px 0", fontSize: 13, flexDirection: "column", gap: 5 }}>
+            <ScanLine size={19} /> Scan label
+          </button>
+        )}
+        {onDescribe && (
+          <button className="sprig-tap" onClick={onDescribe} style={{ ...btn(C.bg2, C.green), padding: "13px 0", fontSize: 13, flexDirection: "column", gap: 5 }}>
+            <PencilLine size={19} /> Describe
+          </button>
+        )}
+        {onManual && (
+          <button className="sprig-tap" onClick={onManual} style={{ ...btn(C.bg2, C.green), padding: "13px 0", fontSize: 13, flexDirection: "column", gap: 5 }}>
+            <Calculator size={19} /> Manual
+          </button>
+        )}
+      </div>
+
       {/* QUICK ADD */}
       {sectionTitle("Quick add")}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-        <button className="sprig-tap" onClick={onNewFood} style={{ ...btn(C.green, "#fff"), padding: "10px 14px", fontSize: 13 }}><Plus size={15} /> Log food</button>
         <button className="sprig-tap" onClick={startCreateFav} style={{ ...btn(C.bg2, C.green), padding: "10px 14px", fontSize: 13 }}><BookMarked size={15} /> New favorite</button>
       </div>
       {library?.length > 0 && (
@@ -5855,7 +5985,8 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
       {/* FOOD TODAY */}
       {sectionTitle("Food logged today")}
       {entries.length === 0 ? (
-        <div style={{ textAlign: "center", color: C.muted, fontSize: 13, padding: "22px 0" }}>Nothing yet — tap "Log food" above.</div>
+        <EmptyState icon={<Flame size={20} color={C.greenSoft} />} title="No meals logged yet"
+          text="Start with Snap food, Describe, or add a favorite meal above." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {[...entries].reverse().map((e) => {
@@ -7268,6 +7399,21 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onExportJSON, o
         </div>
       </div>
 
+      {/* DEVELOPER */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Developer</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "4px 2px" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, color: C.ink }}>Developer mode</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Shows technical error details (e.g. AI/API codes). Off for everyday use.</div>
+          </div>
+          <button className="sprig-tap" onClick={() => onSave({ ...profile, devMode: !profile?.devMode })}
+            style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: profile?.devMode ? C.green : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+            <div style={{ position: "absolute", top: 3, left: profile?.devMode ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+          </button>
+        </div>
+      </div>
+
       {reminders && onSaveReminders && (
         <>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Reminders</div>
@@ -7696,17 +7842,20 @@ function CalendarSheet({ onClose, getDayIcons }) {
 }
 
 /* ================= ASK COACH (AI) ================= */
-function AskCoachSheet({ onClose, context, runAnalysis, online = true }) {
+function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNote }) {
   const [q, setQ] = useState("");
   const [a, setA] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [saved, setSaved] = useState(false);
+  // Does the coach have real data to work with? Drives the "Using your data" vs "General answer" badge.
+  const hasData = !!(context && (context.today || context.averages14d || context.training || context.sleep || context.profile));
   const ask = async (text) => {
-    setBusy(true); setErr(""); setA(null);
+    setBusy(true); setErr(""); setA(null); setSaved(false);
     try {
       const reply = await runAnalysis(text, context);
       setA(reply);
-    } catch (e) { setErr("Couldn't reach the coach. Try again in a moment."); }
+    } catch (e) { setErr("AI is unavailable right now. Try again later."); }
     finally { setBusy(false); }
   };
   const presets = [
@@ -7726,11 +7875,6 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true }) {
         </div>
         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>
           Ask anything. I'll answer directly and use your health data only when it helps.
-          {!online && (
-            <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", background: C.amber + "22", color: C.amber, borderRadius: 99, fontSize: 10.5, fontWeight: 600 }}>
-              <Square size={10} /> Offline — using the local coach
-            </div>
-          )}
         </div>
 
         {!a && !busy && (
@@ -7746,28 +7890,32 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true }) {
             </div>
             <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, letterSpacing: .3, marginBottom: 7 }}>OR ASK YOUR OWN</div>
             <textarea value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. why is my recovery worse this week?"
-              style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontFamily: "DM Sans", fontSize: 13, background: C.bg, color: C.ink, minHeight: 60, resize: "vertical", lineHeight: 1.5 }} />
+              style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 11, padding: "12px 13px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink, minHeight: 64, resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }} />
             <button className="sprig-tap" disabled={!q.trim()} onClick={() => ask(q)}
-              style={{ ...btn(q.trim() ? C.green : C.bg2, q.trim() ? "#fff" : C.muted), width: "100%", padding: "12px 0", marginTop: 9 }}>
+              style={{ ...btn(q.trim() ? C.green : C.bg2, q.trim() ? "#fff" : C.muted), width: "100%", padding: "13px 0", marginTop: 9 }}>
               <Sparkles size={14} /> Ask
             </button>
           </>
         )}
         {busy && (
-          <div style={{ textAlign: "center", padding: "30px 0" }}>
+          <div style={{ textAlign: "center", padding: "34px 0" }}>
             <Loader2 size={22} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>Reading your data…</div>
+            <div style={{ fontSize: 12.5, color: C.inkSoft, marginTop: 12, fontWeight: 600 }}>Thinking with your latest data…</div>
           </div>
         )}
-        {err && <div style={{ fontSize: 12, color: C.coral, marginTop: 12, padding: 11, background: "#fdeee8", borderRadius: 10, lineHeight: 1.5 }}>{err}</div>}
+        {err && <div style={{ fontSize: 12.5, color: C.coral, marginTop: 12, padding: 12, background: "#fdeee8", borderRadius: 11, lineHeight: 1.5 }}>{err}</div>}
         {a && (
           <div className="sprig-pop">
-            <div style={{ background: C.bg, borderRadius: 12, padding: 13, fontSize: 13, color: C.ink, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{a}</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="sprig-tap" onClick={() => { setA(null); setQ(""); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "10px 0" }}>Ask another</button>
-              <button className="sprig-tap" onClick={onClose} style={{ ...btn(C.green, "#fff"), flex: 1, padding: "10px 0" }}>Done</button>
+            <div style={{ marginBottom: 9 }}>
+              <Badge tone={hasData ? "success" : "neutral"}>{hasData ? "Using your data" : "General answer"}</Badge>
             </div>
-            <div style={{ fontSize: 10.5, color: C.muted, textAlign: "center", marginTop: 8, lineHeight: 1.5 }}>
+            <div style={{ background: C.bg, borderRadius: 13, padding: 15, fontSize: 13.5, color: C.ink, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{a}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 11 }}>
+              <Btn variant="secondary" full onClick={() => { setA(null); setQ(""); setSaved(false); }}>Ask another</Btn>
+              {onSaveNote && <Btn variant="secondary" full onClick={() => { onSaveNote(q || "Coach", a); setSaved(true); }}>{saved ? "Saved ✓" : "Save note"}</Btn>}
+              <Btn variant="primary" full onClick={onClose}>Done</Btn>
+            </div>
+            <div style={{ fontSize: 10.5, color: C.muted, textAlign: "center", marginTop: 9, lineHeight: 1.5 }}>
               The coach uses your logged data. Not medical advice.
             </div>
           </div>
