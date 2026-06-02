@@ -269,7 +269,7 @@ const DEFAULT_DAILY = {
   sedentary: 0, sweat: "normal",
   sportLog: {}, checkin: {},
 };
-const DEFAULT_ALARM = { latest: "07:00", window: 30, enabled: true };
+const DEFAULT_ALARM = { latest: "07:00", window: 30, enabled: true, mode: "smart", durationH: 8 };
 const DEFAULT_HABIT_CFG = { custom: [], hidden: [] };
 const DEFAULT_REMINDERS = {
   weightAM: false, water: false, supps: false, sleepRoutine: false,
@@ -1145,6 +1145,48 @@ const MICRO_KEYS = [
   ["potassium", "Potassium"], ["selenium", "Selenium"],
 ];
 
+// Map every historical / AI micro key format onto the canonical UI keys above.
+// The AI proxy returns `vit_a_pct`, `vit_b12_pct`, `vit_b9_pct`, `calcium_pct`, …; older
+// data used `vitamin_a`, `b12`, `folate`, `calcium`; some used bare `vit_a`. This accepts
+// all of them and returns an object keyed by the canonical MICRO_KEYS. Safe on missing/null.
+const MICRO_ALIASES = {
+  vitamin_a: ["vitamin_a", "vit_a", "vit_a_pct", "vita", "a"],
+  vitamin_c: ["vitamin_c", "vit_c", "vit_c_pct", "vitc", "c"],
+  vitamin_d: ["vitamin_d", "vit_d", "vit_d_pct", "vitd", "d"],
+  vitamin_e: ["vitamin_e", "vit_e", "vit_e_pct", "vite", "e"],
+  vitamin_k: ["vitamin_k", "vit_k", "vit_k_pct", "vitk", "k"],
+  b6:        ["b6", "vitamin_b6", "vit_b6", "vit_b6_pct"],
+  b12:       ["b12", "vitamin_b12", "vit_b12", "vit_b12_pct"],
+  folate:    ["folate", "b9", "vitamin_b9", "vit_b9", "vit_b9_pct", "folate_pct"],
+  calcium:   ["calcium", "calcium_pct", "ca"],
+  iron:      ["iron", "iron_pct", "fe"],
+  magnesium: ["magnesium", "magnesium_pct", "mg"],
+  zinc:      ["zinc", "zinc_pct", "zn"],
+  potassium: ["potassium", "potassium_pct", "k_potassium"],
+  selenium:  ["selenium", "selenium_pct", "se"],
+};
+function normalizeMicros(micros) {
+  const out = {};
+  if (!micros || typeof micros !== "object") {
+    MICRO_KEYS.forEach(([k]) => (out[k] = 0));
+    return out;
+  }
+  // case-insensitive lookup map of the incoming object
+  const lower = {};
+  for (const key of Object.keys(micros)) {
+    const v = micros[key];
+    if (typeof v === "number" && isFinite(v)) lower[key.toLowerCase()] = v;
+  }
+  MICRO_KEYS.forEach(([canon]) => {
+    let val = 0;
+    for (const alias of MICRO_ALIASES[canon]) {
+      if (lower[alias] != null) { val = lower[alias]; break; }
+    }
+    out[canon] = Math.max(0, Math.round(val));
+  });
+  return out;
+}
+
 const omegaNum = (v) => ({ low: 20, medium: 55, high: 90 }[v] ?? 0);
 
 function dayTotals(entries) {
@@ -1158,7 +1200,8 @@ function dayTotals(entries) {
     t.fat += (e.fat_g || 0) * m;
     t.fiber += (e.fiber_g || 0) * m;
     t.alcohol_g += (e.alcohol_g || 0) * m;
-    MICRO_KEYS.forEach(([k]) => (t.micros[k] += (e.micros?.[k] || 0) * m));
+    const em = normalizeMicros(e.micros);
+    MICRO_KEYS.forEach(([k]) => (t.micros[k] += (em[k] || 0) * m));
     if (e.omega3) { t.omega3 += omegaNum(e.omega3); t.oCount += 1; }
   });
   t.omega3 = t.oCount ? t.omega3 / t.oCount : 0;
@@ -1231,7 +1274,7 @@ function mealScore(e, targets) {
   // fiber density: g per 100 kcal (≥1.4 is great)
   const fibDensity = Math.min(1, (fiber / (cal / 100)) / 1.4);
   // micronutrient richness: avg of this meal's micros (already %DV-ish per serving)
-  const microVals = MICRO_KEYS.map(([k]) => Math.min(100, (e.micros?.[k] || 0) * m));
+  const microVals = MICRO_KEYS.map(([k]) => Math.min(100, (normalizeMicros(e.micros)[k] || 0) * m));
   const microAvg = microVals.length ? microVals.reduce((a, b) => a + b, 0) / microVals.length : 0;
   const omega = e.omega3 ? omegaNum(e.omega3) : 0;
   let score = protDensity * 38 + fibDensity * 24 + (microAvg / 100) * 28 + (omega / 100) * 10;
@@ -2389,6 +2432,39 @@ function exLastBest(workouts, exName) {
   let best = 0, bestSet = null;
   workouts.forEach((w) => w.exercises.forEach((ex) => { if (ex.name === exName) ex.sets.forEach((s) => { const e = est1RM(s.w, s.reps); if (e > best) { best = e; bestSet = s; } }); }));
   return { best, bestSet };
+}
+// Compute a workout recap on the fly. `priorWorkouts` are the sessions BEFORE this one
+// (used to detect records/overloads). Works for old workouts with no stored recap.
+function recapFor(workout, priorWorkouts) {
+  const exercises = workout.exercises || [];
+  let totalVolume = 0, totalSets = 0, records = 0;
+  const recordLifts = [];
+  exercises.forEach((ex) => {
+    const priorBest = exLastBest(priorWorkouts, ex.name).best || 0;
+    let sessionBestE1 = 0;
+    ex.sets.forEach((s) => {
+      totalSets += 1;
+      totalVolume += (s.w || 0) * (s.reps || 0);
+      const e = est1RM(s.w, s.reps);
+      if (e > sessionBestE1) sessionBestE1 = e;
+    });
+    // a record = this session's best e1RM for the exercise beats everything prior
+    if (priorBest > 0 && sessionBestE1 > priorBest * 1.001) {
+      records += 1;
+      recordLifts.push({ name: ex.name, e1RM: Math.round(sessionBestE1), prev: Math.round(priorBest) });
+    } else if (priorBest === 0 && sessionBestE1 > 0) {
+      // first-ever time doing this exercise — counts as a new e1RM, not an "overload"
+      recordLifts.push({ name: ex.name, e1RM: Math.round(sessionBestE1), prev: 0, firstTime: true });
+    }
+  });
+  return {
+    totalVolume: Math.round(totalVolume),
+    totalSets,
+    exerciseCount: exercises.length,
+    durationMin: workout.durationMin || 0,
+    records,
+    recordLifts: recordLifts.slice(0, 6),
+  };
 }
 function plateLoad(target, bar = 20) {
   let each = (target - bar) / 2; if (each <= 0) return [];
@@ -4165,7 +4241,7 @@ function SprigApp() {
       calories: Math.round((r.calories || 0) * m),
       protein_g: +(r.protein_g * m).toFixed(1), carbs_g: +(r.carbs_g * m).toFixed(1),
       fat_g: +(r.fat_g * m).toFixed(1), fiber_g: +(r.fiber_g * m).toFixed(1),
-      micros: Object.fromEntries(MICRO_KEYS.map(([k]) => [k, Math.round((r.micros?.[k] || 0) * m)])),
+      micros: (() => { const nm = normalizeMicros(r.micros); return Object.fromEntries(MICRO_KEYS.map(([k]) => [k, Math.round((nm[k] || 0) * m)])); })(),
       omega3: r.omega3, mult: 1,
     };
     const next = [supp, ...supps].slice(0, 40);
@@ -4305,12 +4381,24 @@ function SprigApp() {
       // smart alarm check
       if (alarm.enabled) {
         const nowMin = tsToMin(Date.now());
-        const { wakeMin } = smartWake(cur.bedTs, hmToMin(alarm.latest), alarm.window);
-        const latest = hmToMin(alarm.latest);
         const asleepMin = (Date.now() - cur.bedTs) / 60000;
-        // ring at predicted light phase within window, or at latest fallback; require >=3h asleep
-        if (asleepMin > 180 && (circDiff(nowMin, wakeMin) <= 1 || circDiff(nowMin, latest) <= 1)) {
-          triggerWake();
+        const mode = alarm.mode || "smart";
+        if (mode === "duration") {
+          // Wake after a set sleep duration from when sleep started (default 8h).
+          const targetMin = (alarm.durationH || 8) * 60;
+          // If smart window is also wanted, allow a light-phase wake up to `window` min early,
+          // but never before the target minus the window.
+          const { wakeMin } = smartWake(cur.bedTs, tsToMin(cur.bedTs + targetMin * 60000), alarm.window || 0);
+          if (asleepMin >= targetMin) triggerWake();
+          else if ((alarm.window || 0) > 0 && asleepMin >= targetMin - (alarm.window) && circDiff(nowMin, wakeMin) <= 1) triggerWake();
+        } else if (mode === "fixed") {
+          const latest = hmToMin(alarm.latest);
+          if (asleepMin > 180 && circDiff(nowMin, latest) <= 1) triggerWake();
+        } else {
+          // smart window (default, original behavior)
+          const { wakeMin } = smartWake(cur.bedTs, hmToMin(alarm.latest), alarm.window);
+          const latest = hmToMin(alarm.latest);
+          if (asleepMin > 180 && (circDiff(nowMin, wakeMin) <= 1 || circDiff(nowMin, latest) <= 1)) triggerWake();
         }
       }
       setSession({ ...cur });
@@ -4427,7 +4515,7 @@ function SprigApp() {
     const entry = {
       id: uid(), name: r.name, serving: r.serving, calories: r.calories,
       protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, fiber_g: r.fiber_g,
-      micros: r.micros, omega3: r.omega3, mult: r.mult || 1, time: Date.now(),
+      micros: normalizeMicros(r.micros), omega3: r.omega3, mult: r.mult || 1, time: Date.now(),
     };
     persistEntries((prev) => [...prev, entry]);
     // remember text-described meals automatically
@@ -4682,9 +4770,9 @@ function SprigApp() {
             title="Calendar" aria-label="Calendar" style={{ background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center" }}>
             <BarChart3 size={18} />
           </button>
-          <button className="sprig-tap" onClick={() => { setTab("coach"); setResult(null); setComposer(null); }}
-            title="Coach" aria-label="Coach" style={{ background: tab === "coach" ? C.green : C.bg2, color: tab === "coach" ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center" }}>
-            <Sparkles size={18} />
+          <button className="sprig-tap" onClick={() => { setTab("more"); setResult(null); setComposer(null); }}
+            title="More & settings" aria-label="More and settings" style={{ background: tab === "more" ? C.green : C.bg2, color: tab === "more" ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center" }}>
+            <User size={18} />
           </button>
         </div>
       </div>
@@ -4831,7 +4919,7 @@ function SprigApp() {
 
       {/* tab bar — 8 tabs, horizontally scrollable on narrow screens */}
       <div className="sprig-tabbar" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: C.card, paddingBottom: "env(safe-area-inset-bottom, 0px)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-        {[["today", Home, "Today"], ["nutrition", Flame, "Nutrition"], ["train", Dumbbell, "Train"], ["sleep", Moon, "Sleep"], ["health", HeartPulse, "Health"], ["mind", BookOpen, "Mind"], ["progress", TrendingUp, "Progress"], ["more", User, "More"]].map(([k, Ic, lbl]) => (
+        {[["today", Home, "Today"], ["nutrition", Flame, "Food"], ["coach", Sparkles, "Coach"], ["train", Dumbbell, "Train"], ["sleep", Moon, "Sleep"], ["health", HeartPulse, "Health"], ["mind", BookOpen, "Mind"], ["progress", TrendingUp, "Progress"]].map(([k, Ic, lbl]) => (
           <button key={k} onClick={() => { setTab(k); setResult(null); setComposer(null); setError(""); }}
             style={{ flex: "1 0 auto", minWidth: 64, background: "none", border: "none", cursor: "pointer", padding: "10px 6px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.green : C.muted }}>
             <Ic size={19} strokeWidth={tab === k ? 2.4 : 2} />
@@ -5958,29 +6046,40 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
 
       {/* VITAMINS & MINERALS */}
       {sectionTitle("Vitamins & minerals")}
-      <button className="sprig-tap" onClick={() => setShowMicros((s) => !s)}
-        style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "12px 14px", cursor: "pointer", fontSize: 13, color: C.inkSoft, fontFamily: "DM Sans", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span>{MICRO_KEYS.filter(([k]) => t.micros[k] >= 100).length}/{MICRO_KEYS.length} at 100%</span>
-        <span style={{ color: C.greenSoft, fontWeight: 600 }}>{showMicros ? "Hide ▴" : "Show vitamins & minerals ▾"}</span>
-      </button>
-      {showMicros && (
-        <div style={{ background: C.card, borderRadius: 16, padding: 14, boxShadow: C.shadow, marginTop: 8, border: `1px solid ${C.line}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
-          {MICRO_KEYS.map(([k, lbl]) => {
-            const v = Math.min(150, t.micros[k]); const full = t.micros[k] >= 100;
-            return (
-              <div key={k}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 4 }}>
-                  <span style={{ color: C.inkSoft }}>{lbl}</span>
-                  <span style={{ color: full ? C.greenSoft : C.muted, fontWeight: full ? 700 : 500 }}>{t.micros[k]}%</span>
-                </div>
-                <div style={{ height: 5, background: C.bg2, borderRadius: 99 }}>
-                  <div style={{ width: Math.min(100, v) + "%", height: "100%", background: full ? C.greenSoft : C.leaf, borderRadius: 99 }} />
-                </div>
+      {(() => {
+        const anyMicros = MICRO_KEYS.some(([k]) => (t.micros[k] || 0) > 0);
+        if (!anyMicros) {
+          return <EmptyState icon={<Pill size={20} color={C.greenSoft} />} title="No vitamin data yet"
+            text="Log meals with AI or labels to see vitamins and minerals." />;
+        }
+        return (
+          <>
+            <button className="sprig-tap" onClick={() => setShowMicros((s) => !s)}
+              style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "12px 14px", cursor: "pointer", fontSize: 13, color: C.inkSoft, fontFamily: "DM Sans", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{MICRO_KEYS.filter(([k]) => t.micros[k] >= 100).length}/{MICRO_KEYS.length} at 100%</span>
+              <span style={{ color: C.greenSoft, fontWeight: 600 }}>{showMicros ? "Hide ▴" : "Show vitamins & minerals ▾"}</span>
+            </button>
+            {showMicros && (
+              <div style={{ background: C.card, borderRadius: 16, padding: 14, boxShadow: C.shadow, marginTop: 8, border: `1px solid ${C.line}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
+                {MICRO_KEYS.map(([k, lbl]) => {
+                  const v = Math.min(150, t.micros[k]); const full = t.micros[k] >= 100;
+                  return (
+                    <div key={k}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 4 }}>
+                        <span style={{ color: C.inkSoft }}>{lbl}</span>
+                        <span style={{ color: full ? C.greenSoft : C.muted, fontWeight: full ? 700 : 500 }}>{t.micros[k]}%</span>
+                      </div>
+                      <div style={{ height: 5, background: C.bg2, borderRadius: 99 }}>
+                        <div style={{ width: Math.min(100, v) + "%", height: "100%", background: full ? C.greenSoft : C.leaf, borderRadius: 99 }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      )}
+            )}
+          </>
+        );
+      })()}
 
       {/* FOOD TODAY */}
       {sectionTitle("Food logged today")}
@@ -6337,22 +6436,70 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
 
       {/* smart alarm settings */}
       <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 14 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}><AlarmClock size={16} color={C.greenSoft} /> Smart alarm</div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
-          <span style={{ fontSize: 13, color: C.inkSoft }}>Latest wake time</span>
-          <input type="time" value={alarm.latest} onChange={(e) => onSaveAlarm({ ...alarm, latest: e.target.value })} style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: "7px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg }} />
+        <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}><AlarmClock size={16} color={C.greenSoft} /> Wake-up alarm</div>
+
+        {/* mode selector */}
+        <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6 }}>ALARM MODE</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+          {[
+            ["smart", "Smart alarm window", "Wakes you during light sleep before your latest time"],
+            ["fixed", "Fixed wake time", "Always rings at your set time"],
+            ["duration", "After sleep duration", "Rings once you've slept a set number of hours"],
+          ].map(([k, lbl, sub]) => {
+            const on = (alarm.mode || "smart") === k;
+            return (
+              <button key={k} className="sprig-tap" onClick={() => onSaveAlarm({ ...alarm, mode: k })}
+                style={{ background: on ? C.green + "11" : C.bg, border: `1px solid ${on ? C.green : C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "DM Sans" }}>
+                <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${on ? C.green : C.muted}`, display: "grid", placeItems: "center", flexShrink: 0 }}>{on && <div style={{ width: 7, height: 7, borderRadius: 99, background: C.green }} />}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{lbl}</div>
+                  <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>{sub}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
-          <span style={{ fontSize: 13, color: C.inkSoft }}>Wake window</span>
-          <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 3, borderRadius: 11 }}>
-            {[15, 30, 45].map((w) => (
-              <button key={w} onClick={() => onSaveAlarm({ ...alarm, window: w })} className="sprig-tap"
-                style={{ border: "none", cursor: "pointer", padding: "6px 11px", borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: alarm.window === w ? C.card : "transparent", color: alarm.window === w ? C.green : C.muted }}>{w}m</button>
-            ))}
+
+        {(alarm.mode || "smart") !== "duration" && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
+            <span style={{ fontSize: 13, color: C.inkSoft }}>{(alarm.mode || "smart") === "fixed" ? "Wake time" : "Latest wake time"}</span>
+            <input type="time" value={alarm.latest} onChange={(e) => onSaveAlarm({ ...alarm, latest: e.target.value })} style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: "7px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg }} />
           </div>
-        </div>
+        )}
+
+        {(alarm.mode || "smart") === "duration" && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
+            <span style={{ fontSize: 13, color: C.inkSoft }}>Sleep duration</span>
+            <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 3, borderRadius: 11 }}>
+              {[6, 7, 7.5, 8, 8.5, 9].map((h) => (
+                <button key={h} onClick={() => onSaveAlarm({ ...alarm, durationH: h })} className="sprig-tap"
+                  style={{ border: "none", cursor: "pointer", padding: "6px 9px", borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: (alarm.durationH || 8) === h ? C.card : "transparent", color: (alarm.durationH || 8) === h ? C.green : C.muted }}>{h}h</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(alarm.mode || "smart") !== "fixed" && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
+            <span style={{ fontSize: 13, color: C.inkSoft }}>{(alarm.mode || "smart") === "duration" ? "Light-wake window" : "Wake window"}</span>
+            <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 3, borderRadius: 11 }}>
+              {[0, 15, 30, 45].map((w) => (
+                <button key={w} onClick={() => onSaveAlarm({ ...alarm, window: w })} className="sprig-tap"
+                  style={{ border: "none", cursor: "pointer", padding: "6px 11px", borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: alarm.window === w ? C.card : "transparent", color: alarm.window === w ? C.green : C.muted }}>{w === 0 ? "Off" : w + "m"}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.45 }}>
-          Wakes you at the end of a sleep cycle between {minToLabel(hmToMin(alarm.latest) - alarm.window)} and {alarm.latest} so you rise during light sleep, not mid-dream.
+          {(alarm.mode || "smart") === "duration"
+            ? `Wake after ${alarm.durationH || 8}h is based on when you started sleep, not a fixed clock time${(alarm.window || 0) > 0 ? ` — within a ${alarm.window}-min light-wake window` : ""}.`
+            : (alarm.mode || "smart") === "fixed"
+              ? `Rings at ${alarm.latest}, once you've slept at least 3 hours.`
+              : `Wakes you at the end of a sleep cycle between ${minToLabel(hmToMin(alarm.latest) - alarm.window)} and ${alarm.latest} so you rise during light sleep.`}
+        </div>
+        <div style={{ fontSize: 10.5, color: C.amber, marginTop: 8, lineHeight: 1.45 }}>
+          Phone alarms require the app to stay open. For a guaranteed alarm, also set your phone's built-in alarm.
         </div>
       </div>
 
@@ -8790,6 +8937,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   const [showCue, setShowCue] = useState(false);
   const [showPlate, setShowPlate] = useState(false);
   const [editRest, setEditRest] = useState(false);
+  const [overload, setOverload] = useState(null); // { text } brief celebration on a PR set
   const restSecs = customRests[ex.name] ?? restDefault(meta);
   const setNo = ex.sets.length + 1;
 
@@ -8803,11 +8951,24 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   function log() {
     const W = parseFloat(w) || 0, R = parseInt(reps) || 0;
     if (R <= 0) return;
+    // Progressive-overload detection: does this set beat the best historical e1RM for this exercise?
+    const histBest = exLastBest(workouts, ex.name).best || 0;
+    const thisE1 = est1RM(W, R);
+    if (histBest > 0 && thisE1 > histBest * 1.001) {
+      setOverload({ text: "New best" });
+      try { navigator.vibrate?.(40); } catch (_) {}
+      setTimeout(() => setOverload(null), 2600);
+    }
     onLogSet(exIdx, { w: W, reps: R, rir });
     onStartRest(ex.name);
   }
   return (
-    <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+    <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10, position: "relative" }}>
+      {overload && (
+        <div className="sprig-pop" style={{ position: "absolute", top: 10, right: 12, zIndex: 5, display: "inline-flex", alignItems: "center", gap: 5, background: C.green, color: "#fff", borderRadius: 99, padding: "5px 11px", fontSize: 11.5, fontWeight: 700, boxShadow: "0 4px 14px rgba(35,84,58,.35)" }}>
+          <Sparkles size={13} /> {overload.text}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{ex.name}</div>
@@ -9531,17 +9692,48 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
         <>
           <div style={{ margin: "18px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>History</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {[...workouts].reverse().slice(0, 8).map((w) => {
+            {[...workouts].reverse().slice(0, 8).map((w, idx, arr) => {
               const sets = w.exercises.reduce((a, e) => a + e.sets.length, 0);
+              // prior workouts = everything chronologically before this one
+              const prior = workouts.filter((x) => x.ts < w.ts);
+              const recap = recapFor(w, prior);
               return (
-                <div key={w.id} style={{ background: C.card, borderRadius: 13, padding: "11px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <details key={w.id} style={{ background: C.card, borderRadius: 13, padding: "11px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+                  <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 8 }}>
                     <Dumbbell size={15} color={C.greenSoft} />
                     <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{new Date(w.ts).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
+                    {recap.records > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: C.green + "14", color: C.greenSoft, borderRadius: 99, padding: "2px 8px", fontSize: 10.5, fontWeight: 700 }}><Sparkles size={11} /> {recap.records}</span>}
                     <span style={{ fontSize: 11.5, color: C.muted }}>{w.durationMin}m · {sets} sets</span>
+                    <ChevronDown size={13} color={C.muted} />
+                  </summary>
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7 }}>{w.exercises.map((e) => e.name).join(" · ")}</div>
+                  {/* recap */}
+                  <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 30%", background: C.bg, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, color: C.ink }}>{recap.totalVolume.toLocaleString()}</div>
+                      <div style={{ fontSize: 10, color: C.muted }}>kg volume</div>
+                    </div>
+                    <div style={{ flex: "1 1 30%", background: C.bg, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, color: C.ink }}>{recap.totalSets}</div>
+                      <div style={{ fontSize: 10, color: C.muted }}>sets</div>
+                    </div>
+                    <div style={{ flex: "1 1 30%", background: C.bg, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, color: recap.records > 0 ? C.greenSoft : C.ink }}>{recap.records}</div>
+                      <div style={{ fontSize: 10, color: C.muted }}>records</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>{w.exercises.map((e) => e.name).join(" · ")}</div>
-                </div>
+                  {recap.records > 0 ? (
+                    <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 4 }}>
+                      {recap.recordLifts.filter((r) => !r.firstTime).map((r) => (
+                        <div key={r.name} style={{ fontSize: 11.5, color: C.inkSoft, display: "flex", alignItems: "center", gap: 6 }}>
+                          <Sparkles size={11} color={C.greenSoft} /> {r.name}: new e1RM <b>{r.e1RM}{unit}</b> {r.prev > 0 && <span style={{ color: C.muted }}>(was {r.prev})</span>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 9, fontSize: 11.5, color: C.muted, fontStyle: "italic" }}>Solid session — consistency logged.</div>
+                  )}
+                </details>
               );
             })}
           </div>
