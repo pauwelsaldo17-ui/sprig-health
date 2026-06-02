@@ -5346,22 +5346,66 @@ function ActivitySourcesSection({ profile, onSetSource }) {
 }
 
 /* ---------------- Today tab -------------- */
-function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain }) {
-  const [simpleToday, setSimpleToday] = useState(true);
-  const takenCount = supps.filter((s) => takenIds.includes(s.id)).length;
-  const { lastSleep, debtMin, rec, gym } = sleepInfo;
-  const { daily, weightSeries, subScores, healthScore, actions } = dailyInfo;
-  const nowMin = tsToMin(Date.now());
-  const ci = daily.checkin || {};
-  const [showCheckin, setShowCheckin] = useState(false);
-  const [weightInput, setWeightInput] = useState("");
+// Compact dashboard card used across Today. Title, big value, one-line note, optional actions.
+function TodaySummaryCard({ icon, accent = C.greenSoft, title, value, sub, note, children, actions }) {
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 15, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+        {icon}
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.inkSoft, letterSpacing: .2 }}>{title}</span>
+      </div>
+      {value != null && (
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: accent, lineHeight: 1 }}>{value}</span>
+          {sub && <span style={{ fontSize: 12.5, color: C.muted }}>{sub}</span>}
+        </div>
+      )}
+      {note && <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 6, lineHeight: 1.45 }}>{note}</div>}
+      {children}
+      {actions && <div style={{ display: "flex", gap: 7, marginTop: 11 }}>{actions}</div>}
+    </div>
+  );
+}
+// Small pill button used for "View in X" and inline quick-actions on Today cards.
+function TodayChip({ label, onClick, primary }) {
+  return (
+    <button className="sprig-tap" onClick={onClick}
+      style={{ background: primary ? C.green : C.bg2, color: primary ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", borderRadius: 10, padding: "8px 12px", fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", display: "inline-flex", alignItems: "center", gap: 5 }}>
+      {label}
+    </button>
+  );
+}
 
-  // weight trend
-  const wSorted = [...weightSeries].sort((a, b) => a.date.localeCompare(b.date));
-  const curW = daily.weight ?? (wSorted.length ? wSorted[wSorted.length - 1].kg : null);
-  const weekAgo = wSorted.find((s) => (Date.now() - new Date(s.date).getTime()) <= 8 * 864e5);
-  const wChange = curW != null && weekAgo ? +(curW - weekAgo.kg).toFixed(1) : null;
-  const SUB_LABELS = [["nutrition", "Nutrition", "🥗"], ["sleep", "Sleep", "😴"], ["training", "Recovery", "💪"], ["movement", "Movement", "🏃"], ["mind", "Mind", "🧠"], ["habits", "Habits", "✅"]];
+function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain }) {
+  const { lastSleep, debtMin, rec, gym } = sleepInfo;
+  const { daily, subScores, healthScore, actions } = dailyInfo;
+
+  // ---- derived mini-card values ----
+  const adjTarget = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
+  const kcalLeft = Math.max(0, adjTarget - t.calories);
+  const proteinLeft = Math.max(0, targets.protein - t.protein);
+
+  const stepGoalV = moveInfo?.stepGoal || 8000;
+  const steps = daily.steps || 0;
+  const cardioMin = daily.cardioMin || 0;
+
+  const drinks = Array.isArray(daily?.alcoholDrinks) ? daily.alcoholDrinks : [];
+  const drinkKcal = drinks.reduce((a, d) => a + (d.kcal || 0), 0);
+  const alcoholG = daily.alcohol_g || 0;
+
+  const waterMl = daily.water || 0;
+  const waterGoal = nutriInfo.waterGoal || 2600;
+  const waterLeft = Math.max(0, waterGoal - waterMl);
+
+  const readiness = trainInfo?.recoveryRec || { level: "normal", text: "Log sleep to tune today's readiness." };
+  const readyLabel = { hard: "Ready", normal: "Good", light: "Take it easy", rest: "Rest" }[readiness.level] || "Good";
+  const readyColor = { hard: C.greenSoft, normal: C.greenSoft, light: C.amber, rest: C.coral }[readiness.level] || C.greenSoft;
+
+  // functional health: lowest of the functional scores, plus how many are strong
+  const fhAvg = scores.length ? Math.round(scores.reduce((a, s) => a + s.score, 0) / scores.length) : null;
+  const fhLow = scores.length ? scores.slice().sort((a, b) => a.score - b.score)[0] : null;
+
+  const litres = (ml) => (ml / 1000).toFixed(1) + "L";
 
   return (
     <div className="sprig-rise">
@@ -5381,7 +5425,8 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
           </div>
         );
       })()}
-      {/* DAILY HEALTH SCORE */}
+
+      {/* 1 — DAILY HEALTH SCORE */}
       <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 22, padding: 18, color: "#fff", boxShadow: C.shadow }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <ScoreDonut score={healthScore} />
@@ -5393,29 +5438,16 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
             </div>
           </div>
         </div>
-        {/* sub-score chips */}
-        <details style={{ marginTop: 14 }}>
-          <summary style={{ cursor: "pointer", listStyle: "none", fontSize: 11.5, opacity: .8, fontWeight: 600 }}>▾ Score breakdown</summary>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
-            {SUB_LABELS.map(([k, lbl, emo]) => (
-              <div key={k} style={{ background: "rgba(255,255,255,.08)", borderRadius: 11, padding: "9px 8px", textAlign: "center" }}>
-                <div style={{ fontSize: 14 }}>{emo}</div>
-                <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginTop: 1 }}>{subScores[k] == null ? "–" : subScores[k]}</div>
-                <div style={{ fontSize: 9.5, opacity: .7 }}>{lbl}</div>
-              </div>
-            ))}
-          </div>
-        </details>
       </div>
 
-      {/* BEST ACTION TODAY */}
+      {/* 2 — BEST ACTIONS (max 3, one sentence each) */}
       {actions.length > 0 && (
         <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, marginBottom: 11, display: "flex", alignItems: "center", gap: 7 }}>
             <Sparkles size={16} color={C.greenSoft} /> Best actions today
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-            {actions.slice(0, advanced ? 6 : 3).map((a, i) => (
+            {actions.slice(0, 3).map((a, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
                 <div style={{ width: 30, height: 30, borderRadius: 9, background: i === 0 ? C.green : C.bg2, color: i === 0 ? "#fff" : C.greenSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
                   {ACTION_ICON[a.icon] || <Check size={16} />}
@@ -5432,624 +5464,113 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         </div>
       )}
 
-      {/* DAILY CHECK-IN */}
-      <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-        <button className="sprig-tap" onClick={() => setShowCheckin((s) => !s)} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 8, fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, color: C.ink }}>
-          <HeartPulse size={16} color={C.greenSoft} />
-          <span style={{ flex: 1, textAlign: "left" }}>Daily check-in</span>
-          {!showCheckin && (
-            <span style={{ fontFamily: "DM Sans", fontSize: 11.5, color: C.muted, fontWeight: 500 }}>
-              {[ci.energy, ci.mood].filter(Boolean).length ? "tap to edit" : "30 seconds"}
-            </span>
-          )}
-          <ChevronRight size={17} color={C.muted} style={{ transform: showCheckin ? "rotate(90deg)" : "none", transition: "transform .2s" }} />
-        </button>
-        {/* Quick Log Day shortcut */}
-        {onQuickLog && !showCheckin && (
+      {/* 3 — QUICK LOG (buttons only) */}
+      {onQuickLog && (
+        <div style={{ marginTop: 12 }}>
           <button className="sprig-tap" onClick={onQuickLog}
-            style={{ width: "100%", marginTop: 10, background: C.green + "0d", border: `1px dashed ${C.green}66`, cursor: "pointer", borderRadius: 11, padding: "9px 12px", display: "flex", alignItems: "center", gap: 9, color: C.green, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans" }}>
-            <Zap size={14} /> <span>Lazy day? Quick log in 20 seconds</span>
-            <ChevronRight size={14} style={{ marginLeft: "auto" }} />
+            style={{ width: "100%", background: C.green + "0d", border: `1px dashed ${C.green}66`, cursor: "pointer", borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 10, color: C.green, fontSize: 13.5, fontWeight: 600, fontFamily: "DM Sans" }}>
+            <Zap size={16} /> Quick log the day
+            <ChevronRight size={16} style={{ marginLeft: "auto" }} />
           </button>
-        )}
-        {showCheckin ? (
+        </div>
+      )}
+
+      {/* mini cards grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
+        {/* 4 — NUTRITION mini */}
+        <TodaySummaryCard
+          icon={<Flame size={15} color={C.amber} />} accent={t.calories > adjTarget ? C.coral : C.green}
+          title="Nutrition" value={kcalLeft} sub="kcal left"
+          note={t.calories > adjTarget ? `${t.calories - adjTarget} over target.` : `${proteinLeft}g protein to go.`}
+          actions={<>
+            {onAddEntry && <TodayChip label="+ Food" primary onClick={onGoNutrition} />}
+            <TodayChip label="Nutrition" onClick={onGoNutrition} />
+          </>}
+        >
           <div style={{ marginTop: 8 }}>
-            <CheckinRow label="Energy" value={ci.energy} onPick={(v) => onCheckin("energy", v)} opts={[["low", "Low"], ["normal", "Normal"], ["high", "High"]]} />
-            <CheckinRow label="Mood" value={ci.mood} onPick={(v) => onCheckin("mood", v)} opts={[["bad", "Bad", C.coral], ["okay", "Okay", C.amber], ["good", "Good", C.greenSoft]]} />
-            <CheckinRow label="Focus" value={ci.focus} onPick={(v) => onCheckin("focus", v)} opts={[["low", "Low", C.coral], ["normal", "Normal", C.amber], ["high", "High", C.greenSoft]]} />
-            <CheckinRow label="Stress" value={ci.stress} onPick={(v) => onCheckin("stress", v)} opts={[["low", "Low", C.greenSoft], ["medium", "Med", C.amber], ["high", "High", C.coral]]} />
-            <CheckinRow label="Pain" value={ci.pain} onPick={(v) => onCheckin("pain", v)} opts={[["none", "None", C.greenSoft], ["mild", "Mild", C.amber], ["moderate", "Mod", "#E0714A"], ["serious", "Serious", C.coral]]} />
-            <CheckinRow label="Sick" value={ci.sick} onPick={(v) => onCheckin("sick", v)} opts={[["no", "No", C.greenSoft], ["yes", "Yes", C.coral]]} />
-            <div style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, letterSpacing: .3, marginBottom: 5 }}>NOTE FOR TODAY</div>
-              <textarea value={ci.note || ""} onChange={(e) => onCheckin("note", e.target.value)} placeholder="e.g. Felt weak today, only slept 5h. Elbow pain during skull crushers."
-                style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 10px", fontFamily: "DM Sans", fontSize: 12.5, background: C.bg, color: C.ink, minHeight: 50, resize: "vertical", lineHeight: 1.5 }} />
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap" }}>
-            {[["Energy", ci.energy], ["Mood", ci.mood], ["Stress", ci.stress], ["Pain", ci.pain], ["Sick", ci.sick === "yes" ? "yes" : null]].map(([lbl, v]) => (
-              <span key={lbl} style={{ fontSize: 11.5, background: C.bg2, borderRadius: 8, padding: "5px 10px", color: v ? C.inkSoft : C.muted, fontWeight: v ? 600 : 400, textTransform: "capitalize" }}>{lbl}{v ? `: ${v}` : ""}</span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* QUICK LOG DAY card (one-tap binary log) */}
-      <QuickDayCard daily={daily} onDaily={onDaily} />
-
-      {/* SUGGESTED NEXT WORKOUT (from routine pattern history) */}
-      <NextWorkoutCard suggestion={moveInfo?.nextWorkout} onStart={onStartWorkout} />
-
-      {/* MEAL SHORTCUTS: same as yesterday / frequent / by time */}
-      <MealShortcutsCard shortcuts={moveInfo?.mealShortcuts} onLog={(e) => onAddEntry && onAddEntry({ ...e, ts: Date.now() })} />
-
-      {/* TONIGHT PLAN: caffeine + blue cutoffs + bedtime */}
-      <TonightPlanCard plan={moveInfo?.tonight} />
-
-      {/* CALORIE TARGET RECOMMENDATION from weight trend */}
-      <CalorieTrendCard rec={moveInfo?.calorieTrend} />
-
-      {/* QUICK TRACKERS: water, steps, weight */}
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <Stepper icon={<Coffee size={13} />} label="Water" value={daily.water} suffix="ml" step={250} onChange={(v) => onDaily({ water: v })} color="#5B9BD5" goal={nutriInfo.waterGoal} />
-        <Stepper icon={<Activity size={13} />} label="Steps" value={daily.steps} suffix="" step={500} onChange={(v) => onDaily({ steps: v })} color={C.greenSoft} goal={moveInfo?.stepGoal} />
-      </div>
-      {/* steps quick-add row */}
-      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-        {[1000, 2500, 5000].map((n) => (
-          <button key={n} className="sprig-tap" onClick={() => onDaily({ steps: (daily.steps || 0) + n, activitySource: "manual" })}
-            style={{ flex: 1, background: C.bg2, border: "none", cursor: "pointer", borderRadius: 9, padding: "7px 0", fontSize: 11.5, fontWeight: 600, color: C.inkSoft, fontFamily: "DM Sans" }}>
-            +{n >= 1000 ? `${n / 1000}k` : n}
-          </button>
-        ))}
-      </div>
-      <details style={{ marginTop: 6 }}>
-        <summary style={{ cursor: "pointer", listStyle: "none", fontSize: 10.5, color: C.muted, padding: "4px 6px", display: "flex", alignItems: "center", gap: 5 }}>
-          <ChevronRight size={11} /> Auto step tracking?
-        </summary>
-        <div style={{ fontSize: 10.5, color: C.muted, padding: "5px 8px 0", lineHeight: 1.55 }}>
-          Automatic step tracking needs Apple Health, Health Connect, Google Fit, Fitbit, Garmin, or a native mobile app. For now, enter steps manually or import them.
-          <div style={{ marginTop: 5 }}>Current source: <b style={{ color: C.inkSoft }}>{daily.activitySource || "manual"}</b></div>
-        </div>
-      </details>
-
-      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "stretch" }}>
-        <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "10px 11px", boxShadow: C.shadow }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, color: C.amber, fontSize: 11, fontWeight: 600 }}><User size={13} /> Bodyweight</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 7 }}>
-            <input value={weightInput} onChange={(e) => setWeightInput(e.target.value)} inputMode="decimal" placeholder={curW != null ? String(curW) : "kg"}
-              style={{ width: 54, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 9, padding: "6px 4px", fontFamily: "DM Sans", fontSize: 14, fontWeight: 600, background: C.bg }} />
-            <button className="sprig-tap" disabled={!weightInput} onClick={() => { onDaily({ weight: parseFloat(weightInput) }); setWeightInput(""); }}
-              style={{ ...btn(weightInput ? C.green : C.bg2, weightInput ? "#fff" : C.muted), padding: "7px 11px", fontSize: 12.5 }}>Log</button>
-            {wChange != null && <span style={{ fontSize: 11.5, color: wChange > 0 ? C.amber : C.greenSoft, fontWeight: 600, marginLeft: "auto" }}>{wChange > 0 ? "+" : ""}{wChange}kg/wk</span>}
-          </div>
-        </div>
-      </div>
-
-      {/* CARDIO sessions quick log */}
-      <CardioCard daily={daily} profile={profile} onDaily={onDaily} />
-
-      {/* ALCOHOL / DRINKS quick log */}
-      <DrinksCard daily={daily} onDaily={onDaily} onAddEntry={onAddEntry} />
-
-      {!simpleToday && <>
-      {/* MOVEMENT card */}
-      {moveInfo?.movement && (
-        <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 10 }}>
-            <Activity size={15} color={C.greenSoft} /> Movement today
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700 }}>
-              {moveInfo.movement.steps.toLocaleString()} <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>/ {moveInfo.movement.goal.toLocaleString()}</span>
-            </div>
-            <span style={{ fontSize: 12, color: moveInfo.movement.pct >= 100 ? C.greenSoft : C.muted, fontWeight: 600 }}>{moveInfo.movement.pct}%{moveInfo.movement.kcal ? ` · ~${moveInfo.movement.kcal} kcal` : ""}</span>
-          </div>
-          <div style={{ height: 7, background: C.bg2, borderRadius: 99 }}>
-            <div style={{ width: Math.min(100, moveInfo.movement.pct) + "%", height: "100%", background: moveInfo.movement.pct >= 100 ? C.greenSoft : C.green, borderRadius: 99, transition: "width .5s" }} />
-          </div>
-          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>{moveInfo.movement.note}</div>
-          {/* dynamic calorie adjustment */}
-          {moveInfo.calAdjust && Math.abs(moveInfo.calAdjust.delta) >= 150 && (
-            <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}`, lineHeight: 1.5, display: "flex", gap: 7 }}>
-              <Flame size={14} color={C.amber} style={{ flexShrink: 0, marginTop: 1 }} /><span>{moveInfo.calAdjust.text}</span>
-            </div>
-          )}
-          {/* strength workout adjustment — only shown if a strength workout was logged today and the setting isn't Off */}
-          {moveInfo.workoutAdj && moveInfo.workoutAdj.kcal > 0 && (
-            <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}`, lineHeight: 1.5 }}>
-              <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
-                <Dumbbell size={14} color={C.green} style={{ flexShrink: 0 }} />
-                <span><b>Workout adjustment: +{moveInfo.workoutAdj.kcal} kcal</b> <span style={{ color: C.muted }}>· {moveInfo.workoutAdj.intensity} session</span></span>
-              </div>
-              <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4, paddingLeft: 21 }}>
-                Strength training burn is estimated conservatively to avoid overeating.
-              </div>
-            </div>
-          )}
-          {/* sedentary line */}
-          {moveInfo.sedentary && (
-            <div style={{ fontSize: 11.5, marginTop: 8, lineHeight: 1.5, display: "flex", gap: 7, color: moveInfo.sedentary.color }}>
-              <Clock size={13} style={{ flexShrink: 0, marginTop: 1 }} /><span>{moveInfo.sedentary.text}</span>
-            </div>
-          )}
-          {/* electrolyte hint */}
-          {moveInfo.hydration?.needsElectrolytes && (
-            <div style={{ fontSize: 11.5, marginTop: 8, lineHeight: 1.5, display: "flex", gap: 7, color: "#5B9BD5" }}>
-              <Coffee size={13} style={{ flexShrink: 0, marginTop: 1 }} /><span>Long or heavy-sweat session — consider electrolytes (sodium + potassium) with your water.</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* sport-specific quick log (when a sport is set) */}
-      {profile?.sport && profile.sport !== "gym" && profile.sport !== "health" && (() => {
-        const fields = sportFields(profile.sport);
-        if (!fields.length) return null;
-        const log = daily.sportLog || {};
-        return (
-          <div style={{ background: C.card, borderRadius: 14, padding: 13, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, color: C.inkSoft, fontWeight: 600, marginBottom: 9 }}>
-              <Dumbbell size={13} color={C.greenSoft} /> {SPORTS.find(([k]) => k === profile.sport)?.[1] || "Sport"} today
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {fields.filter((f) => f.opts.length).map((f) => (
-                <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 92, fontSize: 11.5, color: C.muted, fontWeight: 600 }}>{f.label}</div>
-                  <div style={{ display: "flex", gap: 4, flex: 1, flexWrap: "wrap" }}>
-                    {f.opts.filter(([k]) => k).map(([k, lbl, color]) => (
-                      <button key={k + lbl} className="sprig-tap"
-                        onClick={() => onDaily({ sportLog: { ...log, [f.id]: k } })}
-                        style={{ flex: 1, border: "none", cursor: "pointer", padding: "6px 0", borderRadius: 7, fontSize: 11, fontWeight: 600, fontFamily: "DM Sans", background: log[f.id] === k ? (color || C.green) : C.bg2, color: log[f.id] === k ? "#fff" : C.muted }}>{lbl}</button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* advanced: sedentary minutes + sweat level */}
-      {advanced && (
-        <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "stretch" }}>
-          <Stepper icon={<Clock size={13} />} label="Sitting" value={daily.sedentary || 0} suffix="m" step={30} onChange={(v) => onDaily({ sedentary: v })} color="#9C6B4A" />
-          <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "10px 11px", boxShadow: C.shadow }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#5B9BD5", fontSize: 11, fontWeight: 600 }}><Coffee size={13} /> Sweat</div>
-            <div style={{ display: "flex", gap: 3, marginTop: 7 }}>
-              {[["low", "Low"], ["normal", "Nrm"], ["heavy", "Heavy"]].map(([k, lbl]) => (
-                <button key={k} className="sprig-tap" onClick={() => onDaily({ sweat: k })}
-                  style={{ flex: 1, border: "none", cursor: "pointer", padding: "5px 0", borderRadius: 7, fontSize: 10.5, fontWeight: 600, fontFamily: "DM Sans", background: (daily.sweat || "normal") === k ? "#5B9BD5" : C.bg2, color: (daily.sweat || "normal") === k ? "#fff" : C.muted }}>{lbl}</button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* caffeine + alcohol (advanced) */}
-      {advanced && (
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <Stepper icon={<Coffee size={13} />} label="Caffeine" value={daily.caffeine} suffix="mg" step={50} onChange={(v) => onDaily({ caffeine: v })} color="#9C6B4A" />
-          <Stepper icon={<Flame size={13} />} label="Alcohol" value={daily.alcohol} suffix="u" step={1} onChange={(v) => onDaily({ alcohol: v })} color={C.coral} />
-        </div>
-      )}
-
-      {/* Apple Health (honest, ready-to-wire) */}
-      <details style={{ marginTop: 10 }}>
-        <summary style={{ cursor: "pointer", listStyle: "none", background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "12px 14px", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 600, color: C.ink, fontFamily: "DM Sans" }}>
-          <HeartPulse size={16} color={C.coral} />
-          <span style={{ flex: 1 }}>Connect Apple Health</span>
-          <ChevronRight size={16} color={C.muted} />
-        </summary>
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: 14, marginTop: 8, boxShadow: C.shadow }}>
-          <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.55 }}>
-            Automatic sync (steps, calories burned, heart rate, sleep) needs the Sprig <b>iOS app</b> — Apple Health can't be read from inside a web view. The version you're using is the web preview.
-          </div>
-          <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.55, marginTop: 8 }}>
-            Until then, tap your steps and cardio above and everything else works the same. When the native app ships, today's numbers will fill in automatically each morning.
-          </div>
-        </div>
-      </details>
-      </>}
-
-      {/* NUTRITION card */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "18px 2px 10px" }}>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Nutrition</div>
-        {onGoNutrition && (
-          <button className="sprig-tap" onClick={onGoNutrition} style={{ background: "none", border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 3 }}>
-            Full nutrition <ChevronRight size={13} />
-          </button>
-        )}
-      </div>
-      <div style={{ background: C.card, borderRadius: 22, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        {(() => {
-          const adjTarget = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
-          const delta = moveInfo?.calAdjust?.delta || 0;
-          const leftLabel = Math.max(0, adjTarget - t.calories);
-          return (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-                <Ring value={t.calories} max={adjTarget} label={leftLabel} sub="kcal left"
-                  color={t.calories > adjTarget ? C.coral : C.green} />
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-                  <MacroBar name="Protein" val={t.protein} max={targets.protein} color={C.green} />
-                  <MacroBar name="Carbs" val={t.carbs} max={targets.carbs} color={C.amber} />
-                  <MacroBar name="Fat" val={t.fat} max={targets.fat} color={C.coral} />
-                  <MacroBar name="Fiber" val={t.fiber} max={targets.fiber} color={C.leaf} />
-                </div>
-              </div>
-              {delta !== 0 && (
-                <details style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
-                  <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11.5, color: C.inkSoft, fontWeight: 600 }}>
-                    <span>Movement-adjusted target: <b style={{ color: C.ink }}>{adjTarget} kcal</b></span>
-                    <ChevronDown size={12} color={C.muted} />
-                  </summary>
-                  <div style={{ marginTop: 8, fontSize: 11.5, color: C.muted, lineHeight: 1.6 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Base target</span><span>{targets.calories} kcal</span></div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Movement adjustment</span><span style={{ color: delta > 0 ? C.greenSoft : C.amber }}>{delta > 0 ? "+" : ""}{delta} kcal</span></div>
-                    <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px dashed ${C.line}`, marginTop: 5, paddingTop: 5, color: C.inkSoft, fontWeight: 600 }}><span>Adjusted target</span><span>{adjTarget} kcal</span></div>
-                    <div style={{ marginTop: 8, fontSize: 10.5, color: C.muted, lineHeight: 1.5, fontStyle: "italic" }}>
-                      Calories burned are estimates. Use your weight trend over time to adjust targets.
-                    </div>
-                  </div>
-                </details>
-              )}
-            </>
-          );
-        })()}
-
-        {/* diet quality score */}
-        {t.calories > 0 && (
-          <div style={{ marginTop: 14, paddingTop: 13, borderTop: `1px solid ${C.line}` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-              <span style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>Diet quality</span>
-              <span style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, color: nutriInfo.dietQ.score >= 70 ? C.greenSoft : nutriInfo.dietQ.score >= 50 ? C.amber : C.coral }}>{nutriInfo.dietQ.score}<span style={{ fontSize: 11, color: C.muted }}>/100</span></span>
-            </div>
             <div style={{ height: 6, background: C.bg2, borderRadius: 99 }}>
-              <div style={{ width: nutriInfo.dietQ.score + "%", height: "100%", background: nutriInfo.dietQ.score >= 70 ? C.greenSoft : nutriInfo.dietQ.score >= 50 ? C.amber : C.coral, borderRadius: 99, transition: "width .6s" }} />
-            </div>
-            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>
-              {nutriInfo.dietQ.advice.length ? `To improve: ${nutriInfo.dietQ.advice.join(", ")}.` : "Well-balanced day — keep it up. 🌿"}
+              <div style={{ width: Math.min(100, Math.round((t.calories / adjTarget) * 100)) + "%", height: "100%", background: t.calories > adjTarget ? C.coral : C.green, borderRadius: 99, transition: "width .5s" }} />
             </div>
           </div>
-        )}
+        </TodaySummaryCard>
+
+        {/* Water mini */}
+        <TodaySummaryCard
+          icon={<Coffee size={15} color="#5B9BD5" />} accent="#5B9BD5"
+          title="Water" value={litres(waterMl)} sub={"/ " + litres(waterGoal)}
+          note={waterLeft > 0 ? `About ${litres(waterLeft)} more today.` : "Hydration goal hit. 💧"}
+          actions={<>
+            <TodayChip label="+250ml" primary onClick={() => onDaily({ water: waterMl + 250 })} />
+            <TodayChip label="Nutrition" onClick={onGoNutrition} />
+          </>}
+        />
+
+        {/* 5 — MOVEMENT mini (steps + cardio) */}
+        <TodaySummaryCard
+          icon={<Activity size={15} color={C.greenSoft} />} accent={C.greenSoft}
+          title="Movement" value={steps.toLocaleString()} sub={"/ " + stepGoalV.toLocaleString() + " steps"}
+          note={cardioMin > 0 ? `${cardioMin} min cardio logged.` : (steps >= stepGoalV ? "Step goal hit. 🏃" : `${Math.max(0, stepGoalV - steps).toLocaleString()} steps to goal.`)}
+          actions={<TodayChip label="Train" onClick={onGoTrain} />}
+        />
+
+        {/* 6 — DRINKS mini */}
+        <TodaySummaryCard
+          icon={<span style={{ fontSize: 15 }}>🍷</span>} accent={alcoholG >= 30 ? C.coral : alcoholG >= 15 ? C.amber : C.inkSoft}
+          title="Drinks today" value={drinks.length} sub={drinks.length === 1 ? "drink" : "drinks"}
+          note={drinks.length ? `${alcoholG}g alcohol · ${drinkKcal} kcal.` : "No drinks logged."}
+          actions={<TodayChip label="Nutrition" onClick={onGoNutrition} />}
+        />
       </div>
 
-      {/* bulk / cut / maintenance coach */}
-      {nutriInfo.coach.lines.length > 0 && (
-        <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 10 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft, marginBottom: 9, display: "flex", alignItems: "center", gap: 7 }}>
-            <Target size={15} color={C.greenSoft} /> {targets.goal === "gain" ? "Lean bulk" : targets.goal === "lose" ? "Cut" : "Maintenance"} coach
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {nutriInfo.coach.lines.map((l, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, color: C.inkSoft, lineHeight: 1.4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: 99, background: l.tone === "good" ? C.greenSoft : C.amber, flexShrink: 0, marginTop: 6 }} />
-                {l.text}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!simpleToday && <>
-      {/* missing nutrients */}
-      {nutriInfo.missing.length > 0 && (
-        <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 10 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft, marginBottom: 11, display: "flex", alignItems: "center", gap: 7 }}>
-            <Flame size={15} color={C.amber} /> Top to top up today
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {nutriInfo.missing.map((mi) => (
-              <div key={mi.key}>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{mi.label}</span>
-                  <span style={{ fontSize: 11.5, color: mi.pct < 40 ? C.coral : C.amber, fontWeight: 600 }}>{mi.pct}%</span>
-                </div>
-                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Try: {mi.food}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* evening cues: blue-light + caffeine cutoffs */}
-      <div style={{ display: "flex", gap: 9, marginTop: 12 }}>
-        <div style={{ flex: 1, background: "linear-gradient(135deg,#27384d,#2e2a4d)", borderRadius: 18, padding: "12px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,.12)", display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <EyeOff size={17} color="#BFD0FF" />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, opacity: .75, letterSpacing: .3 }}>NO BLUE LIGHT AFTER</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, lineHeight: 1.1 }}>{minToLabel(rec.blueCutoff)}</div>
-          </div>
-        </div>
-        <div style={{ flex: 1, background: "linear-gradient(135deg,#4a3a2e,#3a2a22)", borderRadius: 18, padding: "12px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,.12)", display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <Coffee size={17} color="#E7DCC6" />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, opacity: .75, letterSpacing: .3 }}>NO CAFFEINE AFTER</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, lineHeight: 1.1 }}>{minToLabel(rec.caffeineCutoff)}</div>
-          </div>
-        </div>
-      </div>
-      {debtMin > 60 && (
-        <div style={{ fontSize: 11.5, color: C.muted, margin: "6px 4px 0", lineHeight: 1.5 }}>
-          Both pulled earlier tonight — you're carrying {durLabel(debtMin)} of sleep debt.
-        </div>
-      )}
-      </>}
-
-      {/* sleep + gym quick snapshot */}
-      <div style={{ display: "flex", gap: 9, marginTop: 10 }}>
-        <button className="sprig-tap" onClick={onGoSleep} style={{ flex: 1, textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "13px 14px", cursor: "pointer", boxShadow: C.shadow }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#7A6FB0", fontSize: 11.5, fontWeight: 600 }}><Moon size={14} /> Last night</div>
-          {lastSleep ? (
-            <>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, marginTop: 4 }}>{durLabel(lastSleep.durationMin)}</div>
-              <div style={{ fontSize: 11.5, color: C.muted }}>score {lastSleep.score} · debt {durLabel(debtMin)}</div>
-            </>
-          ) : (
-            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6 }}>Log last night →</div>
-          )}
-        </button>
-        <button className="sprig-tap" onClick={onGoEnergy} style={{ flex: 1, textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "13px 14px", cursor: "pointer", boxShadow: C.shadow }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.greenSoft, fontSize: 11.5, fontWeight: 600 }}><Dumbbell size={14} /> Best gym window</div>
-          {gym ? (
-            <>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, marginTop: 4 }}>{minToLabel(gym.start)}</div>
-              <div style={{ fontSize: 11.5, color: C.muted }}>peak energy {gym.avg}/100</div>
-            </>
-          ) : (
-            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6 }}>See your day →</div>
-          )}
-        </button>
+      {/* 7 — SLEEP mini (full width) */}
+      <div style={{ marginTop: 10 }}>
+        <TodaySummaryCard
+          icon={<Moon size={15} color="#7A6FB0" />} accent="#7A6FB0"
+          title="Sleep" value={lastSleep ? durLabel(lastSleep.durationMin) : "—"} sub={lastSleep ? `score ${lastSleep.score}` : "no log yet"}
+          note={rec ? `Caffeine cutoff ${minToLabel(rec.caffeineCutoff)} · blue light ${minToLabel(rec.blueCutoff)}.` : "Log last night to see your cutoffs."}
+          actions={<>
+            {!lastSleep && <TodayChip label="Log sleep" primary onClick={onGoSleep} />}
+            <TodayChip label="Sleep" onClick={onGoSleep} />
+          </>}
+        />
       </div>
 
-      {!simpleToday && <>
-      {/* BODY snapshot */}
-      <button className="sprig-tap" onClick={onGoBody} style={{ width: "100%", textAlign: "left", marginTop: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "13px 15px", cursor: "pointer", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 38, height: 38, borderRadius: 11, background: C.amber + "20", display: "grid", placeItems: "center", flexShrink: 0 }}><User size={18} color={C.amber} /></div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: C.amber }}>Body</div>
-          <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 2 }}>
-            {curW != null ? `${curW} kg` : "Log your weight"}{wChange != null ? ` · ${wChange > 0 ? "+" : ""}${wChange} kg this week` : ""}
-          </div>
-          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
-            {wSorted.length < 2 ? "Weigh in a few mornings to see your trend" : "Tip: snap a progress photo weekly, same light"}
-          </div>
-        </div>
-        <ChevronRight size={18} color={C.muted} />
-      </button>
-
-      {/* HEALTH card — surfaces summary or a "log your first vitals" nudge */}
-      {(() => {
-        const radar = healthInfo?.radar || [];
-        const flagged = radar.filter((r) => r.tag === "elevated" || r.tag === "high");
-        const hasAnyData = Object.keys(healthInfo?.latest || {}).filter((k) => k !== "blood").length > 0 || (healthInfo?.latest?.blood && Object.keys(healthInfo.latest.blood).length);
-        return (
-          <button className="sprig-tap" onClick={onGoHealth} style={{ width: "100%", textAlign: "left", marginTop: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "13px 15px", cursor: "pointer", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: (flagged.length ? C.coral : C.greenSoft) + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <HeartPulse size={18} color={flagged.length ? C.coral : C.greenSoft} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: flagged.length ? C.coral : C.greenSoft }}>Health markers</div>
-              <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 2 }}>
-                {!hasAnyData ? "Log blood pressure & resting HR" :
-                  flagged.length ? `${flagged.length} item${flagged.length > 1 ? "s" : ""} to watch` :
-                  "Long-term markers look good"}
-              </div>
-              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
-                {!hasAnyData ? "Two simple readings a month tracks long-term risk."
-                  : flagged.length ? flagged.slice(0, 2).map((r) => r.label.toLowerCase()).join(", ")
-                  : "Sleep, movement, BP all in range."}
-              </div>
-            </div>
-            <ChevronRight size={18} color={C.muted} />
-          </button>
-        );
-      })()}
-
-      {/* HABITS snapshot */}
-      {mindInfo && (() => {
-        const done = mindInfo.habits.filter((h) => h.done).length;
-        const total = mindInfo.habits.length;
-        const pct = total ? Math.round((done / total) * 100) : 0;
-        return (
-          <button className="sprig-tap" onClick={onGoMind} style={{ width: "100%", textAlign: "left", marginTop: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "13px 15px", cursor: "pointer", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: C.greenSoft + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <Sparkles size={18} color={C.greenSoft} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: C.greenSoft }}>Mind &amp; habits</div>
-              <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 2 }}>{done}/{total} habits today · {mindInfo.consistency.pct}% this week</div>
-              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
-                {mindInfo.focusMinutesToday > 0 ? `${mindInfo.focusMinutesToday} min focused today` : "Check in, tick habits, start a focus session"}
-              </div>
-            </div>
-            <div style={{ position: "relative", width: 38, height: 38, flexShrink: 0 }}>
-              <Ring value={pct} max={100} size={38} stroke={5} label={null} color={pct >= 70 ? C.greenSoft : pct >= 40 ? C.amber : C.coral} />
-            </div>
-          </button>
-        );
-      })()}
-      </>}
-
-      {/* training readiness (syncs sleep + muscle recovery) */}
-      <button className="sprig-tap" onClick={onGoBody} style={{ width: "100%", textAlign: "left", marginTop: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: "14px 16px", cursor: "pointer", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 14 }}>
-        <Ring value={trainInfo.bodyReadiness} max={100} size={62} stroke={8} label={trainInfo.bodyReadiness} sub="ready"
-          color={trainInfo.bodyReadiness >= 70 ? C.greenSoft : trainInfo.bodyReadiness >= 45 ? C.amber : C.coral} />
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.greenSoft, fontSize: 11.5, fontWeight: 600 }}><Gauge size={14} /> Training readiness</div>
-          <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 3 }}>
-            {trainInfo.bodyReadiness >= 70 ? "Greenlight — push hard today" : trainInfo.bodyReadiness >= 45 ? "Moderate — train smart" : "Low — go light or recover"}
-          </div>
-          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
-            {trainInfo.freshMuscles.length ? `Fresh: ${trainInfo.freshMuscles.slice(0, 3).join(", ")}` : "Recovery in progress"}
-          </div>
-        </div>
-        <ChevronRight size={18} color={C.muted} />
-      </button>
-
-      {trainInfo.deload.suggest && (
-        <div style={{ marginTop: 10, background: "#fdeee8", borderRadius: 14, padding: "11px 14px", display: "flex", gap: 10, alignItems: "center" }}>
-          <TrendingDown size={18} color={C.coral} style={{ flexShrink: 0 }} />
-          <div style={{ fontSize: 12, color: "#9a3d22", lineHeight: 1.4 }}>
-            <b>Deload week suggested.</b> {trainInfo.deload.reasons.join(" · ")}.
-          </div>
-        </div>
-      )}
-
-      {!simpleToday && <>
-      {/* supplement stack */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "18px 2px 10px" }}>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}>
-          <Pill size={16} color={C.greenSoft} /> Daily stack
-          {supps.length > 0 && <span style={{ fontFamily: "DM Sans", fontSize: 12, color: C.muted, fontWeight: 500 }}>· {takenCount}/{supps.length} taken</span>}
-        </div>
-        <button className="sprig-tap" onClick={onAddSupp} style={{ ...btn(C.bg2, C.green), padding: "7px 12px", fontSize: 12.5, borderRadius: 11 }}><Plus size={15} /> Add</button>
-      </div>
-      {supps.length === 0 ? (
-        <button className="sprig-tap" onClick={onAddSupp}
-          style={{ width: "100%", background: C.card, border: `1px dashed ${C.line}`, borderRadius: 16, padding: "16px 14px", cursor: "pointer",
-            color: C.muted, fontSize: 13, fontFamily: "DM Sans", textAlign: "left", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "14", display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <Pill size={17} color={C.greenSoft} />
-          </div>
-          <span>Add the supplements you take — describe them once or scan the label, then just tick them off each day.</span>
-        </button>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {supps.map((s) => {
-            const on = takenIds.includes(s.id);
-            return (
-              <div key={s.id} className="sprig-tap" onClick={() => onToggleSupp(s.id)}
-                style={{ background: on ? C.green + "0d" : C.card, borderRadius: 14, padding: "11px 13px", cursor: "pointer",
-                  boxShadow: C.shadow, border: `1px solid ${on ? C.leaf + "66" : C.line}`, display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 26, height: 26, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center",
-                  background: on ? C.green : "transparent", border: on ? "none" : `2px solid ${C.line}`, transition: "all .15s ease" }}>
-                  {on && <Check size={16} color="#fff" strokeWidth={3} />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: on ? C.green : C.ink, textDecoration: on ? "none" : "none" }}>{s.name}</div>
-                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.serving}</div>
-                </div>
-                <button className="sprig-tap" onClick={(e) => { e.stopPropagation(); onRemoveSupp(s.id); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
-              </div>
-            );
-          })}
-          <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 2 }}>
-            Ticked supplements feed your micronutrients &amp; functional scores above.
-          </div>
-        </div>
-      )}
-
-      {/* functional health */}
-      <div style={{ margin: "18px 2px 10px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Functional health today</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-        {scores.map((s) => (
-          <div key={s.key} style={{ background: C.card, borderRadius: 16, padding: "12px 13px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 13 }}>{s.emoji}</span>
-              <span style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: s.color }}>{s.score}</span>
-            </div>
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: C.inkSoft, margin: "4px 0 7px" }}>{s.label}</div>
-            <div style={{ height: 5, background: C.bg2, borderRadius: 99 }}>
-              <div style={{ width: s.score + "%", height: "100%", background: s.color, borderRadius: 99, transition: "width .6s ease" }} />
-            </div>
-          </div>
-        ))}
+      {/* 8 — TRAINING mini: readiness + gym window */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+        <TodaySummaryCard
+          icon={<Gauge size={15} color={readyColor} />} accent={readyColor}
+          title="Training readiness" value={readyLabel}
+          note={readiness.text}
+          actions={<TodayChip label="Train" onClick={onGoTrain} />}
+        />
+        <TodaySummaryCard
+          icon={<Dumbbell size={15} color={C.greenSoft} />} accent={C.greenSoft}
+          title="Best gym window" value={gym ? minToLabel(gym.start) : "—"} sub={gym ? `energy ${gym.avg}/100` : ""}
+          note={gym ? "Your predicted peak-energy window." : "See your full energy curve."}
+          actions={<TodayChip label="Energy" onClick={onGoEnergy} />}
+        />
       </div>
 
-      {/* micros (advanced only) */}
-      {advanced && (
-      <details style={{ marginTop: 14 }}>
-        <summary style={{ cursor: "pointer", listStyle: "none", fontSize: 13, fontWeight: 600, color: C.greenSoft, padding: "6px 2px" }}>
-          ▾ Vitamins &amp; minerals ({MICRO_KEYS.filter(([k]) => t.micros[k] >= 100).length}/14 at 100%)
-        </summary>
-        <div style={{ background: C.card, borderRadius: 16, padding: 14, boxShadow: C.shadow, marginTop: 6, border: `1px solid ${C.line}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
-          {MICRO_KEYS.map(([k, lbl]) => {
-            const v = Math.min(150, t.micros[k]); const full = t.micros[k] >= 100;
-            return (
-              <div key={k}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 4 }}>
-                  <span style={{ color: C.inkSoft }}>{lbl}</span>
-                  <span style={{ color: full ? C.greenSoft : C.muted, fontWeight: full ? 700 : 500 }}>{t.micros[k]}%</span>
+      {/* 9 — FUNCTIONAL HEALTH mini (compact summary) */}
+      {scores.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <TodaySummaryCard
+            icon={<HeartPulse size={15} color={C.greenSoft} />} accent={fhAvg >= 70 ? C.greenSoft : fhAvg >= 50 ? C.amber : C.coral}
+            title="Functional health" value={fhAvg} sub="/ 100 avg"
+            note={fhLow && fhLow.score < 60 ? `Lowest: ${fhLow.label} (${fhLow.score}). Tap for detail.` : "Your systems are tracking well today."}
+            actions={<TodayChip label="Health" onClick={onGoHealth} />}
+          >
+            <div style={{ display: "flex", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
+              {scores.slice(0, 6).map((s) => (
+                <div key={s.key} title={s.label} style={{ display: "flex", alignItems: "center", gap: 4, background: C.bg2, borderRadius: 99, padding: "4px 9px" }}>
+                  <span style={{ fontSize: 11 }}>{s.emoji}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{s.score}</span>
                 </div>
-                <div style={{ height: 5, background: C.bg2, borderRadius: 99 }}>
-                  <div style={{ width: Math.min(100, v) + "%", height: "100%", background: full ? C.greenSoft : C.leaf, borderRadius: 99 }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </details>
-      )}
-
-      {/* quick re-log */}
-      {library.length > 0 && (
-        <>
-          <div style={{ margin: "18px 2px 8px", fontSize: 12.5, fontWeight: 600, color: C.muted }}>Quick add from your meals</div>
-          <div className="sprig-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-            {library.slice(0, 8).map((m) => (
-              <button key={m.id} className="sprig-tap" onClick={() => onQuick(m)}
-                style={{ flexShrink: 0, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "9px 13px", cursor: "pointer", textAlign: "left", boxShadow: C.shadow }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, maxWidth: 120, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                <div style={{ fontSize: 11, color: C.coral, marginTop: 2 }}>{m.calories} kcal · +</div>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* today's entries */}
-      <div style={{ margin: "18px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>
-        Logged today {entries.length > 0 && <span style={{ fontSize: 12, color: C.muted, fontFamily: "DM Sans" }}>· {entries.length}</span>}
-      </div>
-      {entries.length === 0 ? (
-        <div style={{ textAlign: "center", color: C.muted, fontSize: 13, padding: "26px 0" }}>
-          Nothing yet — snap, scan, or describe a meal below 👇
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[...entries].reverse().map((e) => {
-            const ms = mealScore(e, targets);
-            const msCol = ms ? (ms.score >= 70 ? C.greenSoft : ms.score >= 45 ? C.amber : C.coral) : C.muted;
-            return (
-              <div key={e.id} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {ms && (
-                    <div style={{ width: 38, height: 38, borderRadius: 11, background: msCol + "1f", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: msCol, lineHeight: 1 }}>{ms.score}</span>
-                    </div>
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{e.name}{e.mult !== 1 && <span style={{ color: C.muted, fontWeight: 500 }}> ×{e.mult}</span>}</div>
-                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
-                      {e.time ? minToLabel(tsToMin(e.time)) + " · " : ""}P {Math.round(e.protein_g * e.mult)} · C {Math.round(e.carbs_g * e.mult)} · F {Math.round(e.fat_g * e.mult)} g
-                    </div>
-                  </div>
-                  <div style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: 16 }}>{Math.round(e.calories * e.mult)}</div>
-                  <button className="sprig-tap" onClick={() => onRemove(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><Trash2 size={15} /></button>
-                </div>
-                {advanced && ms && (
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 8, paddingLeft: 50 }}>{ms.note}</div>
-                )}
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          </TodaySummaryCard>
         </div>
       )}
-      </>}
-
-      {/* Show more / Show less toggle */}
-      <button className="sprig-tap" onClick={() => setSimpleToday((s) => !s)}
-        style={{ width: "100%", background: "none", border: `1px dashed ${C.line}`, cursor: "pointer", borderRadius: 11, padding: "10px 0", fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: "DM Sans", marginTop: 14 }}>
-        {simpleToday ? <>Show more on Today <ChevronDown size={13} /></> : <>Show less <ChevronDown size={13} style={{ transform: "rotate(180deg)" }} /></>}
-      </button>
 
       <div style={{ height: 6 }} />
     </div>
