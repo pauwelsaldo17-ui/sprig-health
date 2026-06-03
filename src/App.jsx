@@ -3412,7 +3412,7 @@ function ProgressBar({ pct, color = C.green, height = 6 }) {
 }
 
 /* ---------------- result / edit card -------------- */
-function ResultCard({ result, onAdd, onCancel, mode, isSupp }) {
+function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode }) {
   const [r, setR] = useState({ ...result, mult: 1 });
   const setMult = (d) => setR((x) => ({ ...x, mult: Math.max(0.25, Math.round((x.mult + d) * 4) / 4) }));
   const m = r.mult;
@@ -3484,7 +3484,7 @@ function ResultCard({ result, onAdd, onCancel, mode, isSupp }) {
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
         <button className="sprig-tap" onClick={onCancel} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "13px 0" }}><X size={16} /> Discard</button>
         <button className="sprig-tap" onClick={() => onAdd(r)} style={{ ...btn(C.green, "#fff"), flex: 2, padding: "13px 0" }}>
-          <Check size={16} /> {isSupp ? "Add to my stack" : <>Add to today{mode === "text" ? " · save meal" : ""}</>}
+          <Check size={16} /> {favoriteMode ? "Review & save favorite" : isSupp ? "Add to my stack" : <>Add to today{mode === "text" ? " · save meal" : ""}</>}
         </button>
       </div>
     </div>
@@ -3809,6 +3809,7 @@ function SprigApp() {
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
   const [composer, setComposer] = useState(null); // 'text' | 'supp' | null
+  const [favoriteMode, setFavoriteMode] = useState(false); // when true, an AI/photo/text result is saved as a favorite (not logged to today)
   const [supps, setSupps] = useState([]);       // saved supplement stack
   const [takenIds, setTakenIds] = useState([]); // supplement ids taken today
   const [sleepLogs, setSleepLogs] = useState([]);
@@ -3989,7 +3990,7 @@ function SprigApp() {
       carbs_g: Math.round(+(src.carbs_g ?? src.carbs) || 0),
       fat_g: Math.round(+(src.fat_g ?? src.fat) || 0),
       fiber_g: Math.round(+(src.fiber_g ?? src.fiber) || 0),
-      micros: src.micros && typeof src.micros === "object" ? src.micros : {},
+      micros: src.micros && typeof src.micros === "object" ? normalizeMicros(src.micros) : {},
       omega3: src.omega3 ?? null,
       tags: Array.isArray(src.tags) ? src.tags : [],
       createdTs: Date.now(),
@@ -4037,6 +4038,36 @@ function SprigApp() {
   const [favEditing, setFavEditing] = useState(null); // "new" | favorite id
   const [favDup, setFavDup] = useState(null);        // { form, existing } duplicate-name prompt
   function openCreateFavorite() { setFavEditing("new"); setFavForm({ name: "", serving: "1 serving", calories: "", protein: "", carbs: "", fat: "", fiber: "", tags: [] }); }
+  // Open the favorite form pre-filled from an analysis result (Snap/Scan/Describe), so the user
+  // can review/edit name, serving, calories, macros before saving. Micros ride along on the form.
+  function openFavoriteFromResult(r) {
+    setFavEditing("new");
+    setFavForm({
+      name: r.name || "", serving: r.serving || "1 serving",
+      calories: r.calories != null ? String(Math.round(r.calories)) : "",
+      protein: r.protein_g != null ? String(Math.round(r.protein_g)) : "",
+      carbs: r.carbs_g != null ? String(Math.round(r.carbs_g)) : "",
+      fat: r.fat_g != null ? String(Math.round(r.fat_g)) : "",
+      fiber: r.fiber_g != null ? String(Math.round(r.fiber_g)) : "",
+      tags: [],
+      micros: normalizeMicros(r.micros), omega3: r.omega3 ?? null,
+    });
+    setResult(null); setFavoriteMode(false);
+  }
+  // "New favorite" opens a small chooser (Snap / Scan / Describe / Manual), mirroring food logging.
+  const [favChooser, setFavChooser] = useState(false);
+  function openFavoriteChooser() { setFavChooser(true); }
+  function chooseFavoriteSource(src) {
+    setFavChooser(false);
+    if (src === "manual") { openCreateFavorite(); return; }
+    // route through the SAME analysis flows as normal logging, but flag favoriteMode so the
+    // result is saved as a favorite rather than logged to today.
+    setFavoriteMode(true); setResult(null);
+    setTab("nutrition");
+    if (src === "snap") { setComposer(null); setTimeout(() => fileRef.current?.click(), 0); }
+    else if (src === "scan") { setComposer(null); setTimeout(() => labelRef.current?.click(), 0); }
+    else if (src === "describe") { setComposer("text"); }
+  }
   function openEditFavorite(f) { setFavEditing(f.id); setFavForm({ name: f.name, serving: f.serving, calories: f.calories, protein: f.protein_g, carbs: f.carbs_g, fat: f.fat_g, fiber: f.fiber_g, tags: f.tags || [] }); }
   function closeFavForm() { setFavForm(null); setFavEditing(null); }
   const saveProfile = async (p) => {
@@ -4591,16 +4622,21 @@ function SprigApp() {
     persistActive({ ...activeWorkout, exercises: [...activeWorkout.exercises, { name, group: meta?.group, sets: [] }] });
   }
   function woLogSet(exIdx, set) {
-    const ex = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: [...e.sets, { ...set, ts: Date.now() }] } : e);
-    persistActive({ ...activeWorkout, exercises: ex });
+    const next = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: [...e.sets, { ...set, ts: Date.now() }] } : e);
+    persistActive({ ...activeWorkout, exercises: next });
+    // open the post-set RIR prompt for the set we just appended (frame-level so it's never clipped)
+    const setIdx = activeWorkout.exercises[exIdx].sets.length;
+    setRirPrompt({ exIdx, setIdx });
   }
-  // Set a set's RIR after it's logged (used by the post-set RIR prompt).
+  // Set a set's RIR after it's logged (used by the post-set RIR prompt + row editor).
   function woSetRir(exIdx, setIdx, rir) {
     const ex = activeWorkout.exercises.map((e, i) => i === exIdx
       ? { ...e, sets: e.sets.map((s, j) => (j === setIdx ? { ...s, rir } : s)) }
       : e);
     persistActive({ ...activeWorkout, exercises: ex });
   }
+  const [rirPrompt, setRirPrompt] = useState(null); // { exIdx, setIdx } — frame-level RIR sheet
+  function chooseRir(exIdx, setIdx, val) { woSetRir(exIdx, setIdx, val); setRirPrompt(null); }
 
   // ---- Rest timer (lifted to app level so the floating UI tracks scroll reliably) ----
   const [rest, setRest] = useState(null);          // { exName, end, paused, remainingMs }
@@ -4969,16 +5005,17 @@ function SprigApp() {
             onScanLabel={() => { setResult(null); labelRef.current?.click(); }}
             onDescribe={() => { setComposer("text"); setResult(null); }}
             onManual={() => { setComposer("manual"); setResult(null); }}
-            onOpenCreateFavorite={openCreateFavorite} onOpenEditFavorite={openEditFavorite}
+            onOpenCreateFavorite={openFavoriteChooser} onOpenEditFavorite={openEditFavorite}
             onFavoriteDuplicate={(form, existing) => setFavDup({ form, existing })} />
         )}
         {tab === "train" && (
           <TrainTab workouts={workouts} active={activeWorkout} profile={profile} trainInfo={trainInfo} advanced={advanced}
             routines={routines} onSaveRoutine={saveRoutine} onDeleteRoutine={deleteRoutine} onUseTemplate={useTemplate}
-            onStart={startWorkout} onAddExercise={addWoExercise} onLogSet={woLogSet} onSetRir={woSetRir} onRemoveSet={woRemoveSet}
+            onStart={startWorkout} onAddExercise={addWoExercise} onLogSet={woLogSet} onSetRir={woSetRir} onOpenRirPrompt={(exIdx, setIdx) => setRirPrompt({ exIdx, setIdx })} onRemoveSet={woRemoveSet}
             onRemoveExercise={woRemoveExercise} onFinish={finishWorkout} onCancel={cancelWorkout}
             onSaveRest={saveRest} onSetExercisePain={woSetExercisePain} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")}
-            onStartRest={startRest} restActive={!!rest} />
+            onStartRest={startRest} restActive={!!rest}
+            moveInfo={moveInfo} daily={daily} onDaily={persistDaily} />
         )}
         {(tab === "progress" || tab === "body" || tab === "trends") && (
           <>
@@ -5029,12 +5066,20 @@ function SprigApp() {
 
           {result && !busy && (
             <div style={{ marginBottom: 10 }}>
+              {favoriteMode && (
+                <div style={{ fontSize: 11.5, color: C.greenSoft, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                  <BookMarked size={13} /> Saving as a favorite — review & edit next
+                </div>
+              )}
               <ResultCard
                 result={result}
                 mode={resultMode}
                 isSupp={resultMode === "supplement" || resultMode === "supp-label"}
-                onAdd={(resultMode === "supplement" || resultMode === "supp-label") ? addSupplement : addEntry}
-                onCancel={() => setResult(null)}
+                favoriteMode={favoriteMode}
+                onAdd={favoriteMode
+                  ? openFavoriteFromResult
+                  : ((resultMode === "supplement" || resultMode === "supp-label") ? addSupplement : addEntry)}
+                onCancel={() => { setResult(null); setFavoriteMode(false); }}
               />
             </div>
           )}
@@ -5064,7 +5109,7 @@ function SprigApp() {
                 placeholder="e.g. two eggs, a slice of sourdough, half an avocado and a flat white"
                 style={{ width: "100%", border: "none", outline: "none", resize: "none", background: "transparent", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 56, lineHeight: 1.45 }} />
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button className="sprig-tap" onClick={() => { setComposer(null); setDraft(""); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "11px 0" }}>Cancel</button>
+                <button className="sprig-tap" onClick={() => { setComposer(null); setDraft(""); setFavoriteMode(false); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "11px 0" }}>Cancel</button>
                 <button className="sprig-tap" disabled={!draft.trim()} onClick={() => { runAnalysis({ text: draft, mode: "text" }); setDraft(""); }}
                   style={{ ...btn(draft.trim() ? C.green : C.bg2, draft.trim() ? "#fff" : C.muted), flex: 2, padding: "11px 0" }}>
                   <Sparkles size={15} /> Analyze
@@ -5089,7 +5134,7 @@ function SprigApp() {
       {/* tab bar — 8 tabs, horizontally scrollable on narrow screens */}
       <div className="sprig-tabbar" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: C.card, paddingBottom: "env(safe-area-inset-bottom, 0px)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {[["today", Home, "Today"], ["nutrition", Flame, "Food"], ["coach", Sparkles, "Coach"], ["train", Dumbbell, "Train"], ["sleep", Moon, "Sleep"], ["health", HeartPulse, "Health"], ["mind", BookOpen, "Mind"], ["progress", TrendingUp, "Progress"]].map(([k, Ic, lbl]) => (
-          <button key={k} onClick={() => { setTab(k); setResult(null); setComposer(null); setError(""); }}
+          <button key={k} onClick={() => { setTab(k); setResult(null); setComposer(null); setError(""); setFavoriteMode(false); }}
             style={{ flex: "1 0 auto", minWidth: 64, background: "none", border: "none", cursor: "pointer", padding: "10px 6px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.green : C.muted }}>
             <Ic size={19} strokeWidth={tab === k ? 2.4 : 2} />
             <span style={{ fontSize: 9.5, fontWeight: tab === k ? 700 : 500, whiteSpace: "nowrap" }}>{lbl}</span>
@@ -5198,6 +5243,60 @@ function SprigApp() {
       {photoOpen && <PhotoSheet onClose={() => setPhotoOpen(false)} photos={progressPhotos} onAdd={addProgressPhoto} onRemove={removeProgressPhoto} />}
 
       {/* Favorite meal create/edit — frame-level so it's never clipped by the scroll container */}
+      {/* Post-set RIR sheet — frame-level (was clipped by overflow:hidden when nested in the workout list) */}
+      {rirPrompt && activeWorkout && (() => {
+        const ex = activeWorkout.exercises[rirPrompt.exIdx];
+        const s = ex?.sets?.[rirPrompt.setIdx];
+        return (
+          <div onClick={() => setRirPrompt(null)} style={{ position: "absolute", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 88, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
+              style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, textAlign: "center", color: C.ink }}>How many reps in reserve?</div>
+              <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 4, marginBottom: 16 }}>
+                How hard was that set?{s ? ` · ${ex.name} ${s.w}${profile.unit || "kg"} × ${s.reps}` : ""}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                {[["0", "0", "Failure"], ["1", "1", "Hard"], ["2", "2", "Solid"], ["3", "3+", "Easy"]].map(([val, big, lbl]) => (
+                  <button key={val} className="sprig-tap" onClick={() => chooseRir(rirPrompt.exIdx, rirPrompt.setIdx, +val)}
+                    style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: "DM Sans" }}>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.green }}>{big}</span>
+                    <span style={{ fontSize: 10.5, color: C.muted, fontWeight: 600 }}>{lbl}</span>
+                  </button>
+                ))}
+              </div>
+              <button className="sprig-tap" onClick={() => setRirPrompt(null)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Favorite-source chooser — same 4 methods as food logging, but result is saved as a favorite */}
+      {favChooser && (
+        <div onClick={() => setFavChooser(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
+          <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
+            style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>New favorite meal</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Create it the same way you log food — we'll save the result as a favorite to reuse.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[
+                ["snap", <Camera size={18} />, "Snap food", "Photo → AI estimate"],
+                ["scan", <ScanLine size={18} />, "Scan label", "Nutrition label → AI"],
+                ["describe", <PencilLine size={18} />, "Describe", "Type it, AI estimates"],
+                ["manual", <Plus size={18} />, "Manual", "Enter values yourself"],
+              ].map(([src, ic, title, sub]) => (
+                <button key={src} className="sprig-tap" onClick={() => chooseFavoriteSource(src)}
+                  style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 5, textAlign: "left", fontFamily: "DM Sans" }}>
+                  <span style={{ color: C.greenSoft }}>{ic}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{title}</span>
+                  <span style={{ fontSize: 10.5, color: C.muted }}>{sub}</span>
+                </button>
+              ))}
+            </div>
+            <button className="sprig-tap" onClick={() => setFavChooser(false)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       {favForm && (
         <FavoriteFormSheet form={favForm} setForm={setFavForm} isNew={favEditing === "new"} onClose={closeFavForm}
           onSubmit={() => {
@@ -5474,6 +5573,57 @@ function CardioCard({ daily, profile, onDaily }) {
           <div style={{ fontSize: 10, color: C.muted, marginTop: 6, lineHeight: 1.5, textAlign: "center" }}>
             ~{cardioKcal(minutes, intensity, profile?.weight)} kcal estimated. Calories burned are estimates.
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- shared Movement & Cardio card (Today + Train) -------------- */
+// Reuses daily.steps + CardioCard so Today and Train edit the exact same data via onDaily (Sprig day).
+function MovementCard({ daily, profile, onDaily, compact }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const steps = daily.steps || 0;
+  const goal = stepGoal(profile);
+  const cardioMin = daily.cardioMin || 0;
+  const cardioK = daily.cardioKcal || 0;
+  const bump = (n) => onDaily({ steps: Math.max(0, steps + n) });
+  const saveEdit = () => { const v = parseInt(draft, 10); if (Number.isFinite(v) && v >= 0) onDaily({ steps: v }); setEditing(false); setDraft(""); };
+  return (
+    <div style={{ background: C.card, borderRadius: 16, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <Activity size={16} color={C.greenSoft} />
+        <div style={{ flex: 1, fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 600 }}>Movement &amp; cardio</div>
+        <span style={{ fontSize: 11.5, color: C.muted }}>{steps.toLocaleString()} / {goal.toLocaleString()}</span>
+      </div>
+      <ProgressBar pct={Math.round((steps / goal) * 100)} color={steps >= goal ? C.greenSoft : C.green} />
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11.5, color: C.inkSoft }}>
+        <span>{steps >= goal ? "Step goal hit 🏃" : `${Math.max(0, goal - steps).toLocaleString()} to goal`}</span>
+        {cardioMin > 0 && <span>{cardioMin} min cardio · ~{cardioK} kcal</span>}
+      </div>
+      {/* quick step actions */}
+      {!editing ? (
+        <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap" }}>
+          <button className="sprig-tap" onClick={() => bump(1000)} style={{ ...btn(C.bg2, C.green), padding: "9px 13px", fontSize: 12.5 }}><Plus size={13} /> 1k steps</button>
+          <button className="sprig-tap" onClick={() => bump(2500)} style={{ ...btn(C.bg2, C.green), padding: "9px 13px", fontSize: 12.5 }}><Plus size={13} /> 2.5k steps</button>
+          <button className="sprig-tap" onClick={() => { setDraft(String(steps)); setEditing(true); }} style={{ ...btn(C.bg2, C.inkSoft), padding: "9px 13px", fontSize: 12.5 }}><PencilLine size={13} /> Edit steps</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 7, marginTop: 11 }}>
+          <input type="number" inputMode="numeric" min="0" value={draft} autoFocus onChange={(e) => setDraft(e.target.value)} placeholder="Steps today"
+            style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 11px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
+          <button className="sprig-tap" onClick={saveEdit} style={{ ...btn(C.green, "#fff"), padding: "9px 15px", fontSize: 12.5 }}>Save</button>
+          <button className="sprig-tap" onClick={() => { setEditing(false); setDraft(""); }} style={{ ...btn(C.bg2, C.inkSoft), padding: "9px 13px", fontSize: 12.5 }}>Cancel</button>
+        </div>
+      )}
+      {/* full cardio logger (reused) */}
+      <div style={{ marginTop: 4 }}>
+        <CardioCard daily={daily} profile={profile} onDaily={onDaily} />
+      </div>
+      {!compact && (
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
+          Steps and cardio feed your daily calorie adjustment and recovery.
         </div>
       )}
     </div>
@@ -5800,6 +5950,8 @@ function TodayChip({ label, onClick, primary }) {
 function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain }) {
   const { lastSleep, debtMin, rec, gym } = sleepInfo;
   const { daily, subScores, healthScore, actions, funcHealth } = dailyInfo;
+  const [showDrinks, setShowDrinks] = useState(false);
+  const [showMovement, setShowMovement] = useState(false);
 
   // ---- derived mini-card values ----
   const adjTarget = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
@@ -5931,7 +6083,10 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
           icon={<Activity size={15} color={C.greenSoft} />} accent={C.greenSoft}
           title="Movement" value={steps.toLocaleString()} sub={"/ " + stepGoalV.toLocaleString() + " steps"}
           note={cardioMin > 0 ? `${cardioMin} min cardio logged.` : (steps >= stepGoalV ? "Step goal hit. 🏃" : `${Math.max(0, stepGoalV - steps).toLocaleString()} steps to goal.`)}
-          actions={<TodayChip label="Train" onClick={onGoTrain} />}
+          actions={<>
+            <TodayChip label={showMovement ? "Hide" : "Add"} primary onClick={() => setShowMovement((s) => !s)} />
+            <TodayChip label="Train" onClick={onGoTrain} />
+          </>}
         />
 
         {/* 6 — DRINKS mini */}
@@ -5939,9 +6094,24 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
           icon={<span style={{ fontSize: 15 }}>🍷</span>} accent={alcoholG >= 30 ? C.coral : alcoholG >= 15 ? C.amber : C.inkSoft}
           title="Drinks today" value={drinks.length} sub={drinks.length === 1 ? "drink" : "drinks"}
           note={drinks.length ? `${alcoholG}g alcohol · ${drinkKcal} kcal.` : "No drinks logged."}
-          actions={<TodayChip label="Nutrition" onClick={onGoNutrition} />}
+          actions={<>
+            <TodayChip label={showDrinks ? "Hide" : "Add drink"} primary onClick={() => setShowDrinks((s) => !s)} />
+            <TodayChip label="Nutrition" onClick={onGoNutrition} />
+          </>}
         />
       </div>
+
+      {/* expandable real loggers (reuse the same components as Nutrition/Train) */}
+      {showMovement && (
+        <div style={{ marginTop: 10 }}>
+          <MovementCard daily={daily} profile={profile} onDaily={onDaily} compact />
+        </div>
+      )}
+      {showDrinks && (
+        <div style={{ marginTop: 10 }}>
+          <DrinksCard daily={daily} onDaily={onDaily} onAddEntry={onAddEntry} />
+        </div>
+      )}
 
       {/* 7 — SLEEP mini (full width) */}
       <div style={{ marginTop: 10 }}>
@@ -9155,7 +9325,7 @@ function PlateView({ target, unit }) {
   );
 }
 
-function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, onLogSet, onSetRir, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
+function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
   const meta = findEx(ex.name);
   const prog = progressionFor(workouts, ex.name, daily, sleepReadiness);  // richer: action + text + suggested w/reps
   const sug = prog || suggestNext(workouts, ex.name);                     // fall back to lightweight hint
@@ -9166,7 +9336,6 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   const [showPlate, setShowPlate] = useState(false);
   const [editRest, setEditRest] = useState(false);
   const [overload, setOverload] = useState(null);   // { text } brief celebration on a PR set
-  const [rirPrompt, setRirPrompt] = useState(null);  // { setIdx } → asks RIR right after a set is logged
   const restSecs = customRests[ex.name] ?? restDefault(meta);
   const setNo = ex.sets.length + 1;
 
@@ -9188,16 +9357,9 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
       try { navigator.vibrate?.(40); } catch (_) {}
       setTimeout(() => setOverload(null), 2600);
     }
-    // Log the set immediately (RIR captured next via the post-set prompt).
-    const newIdx = ex.sets.length;
+    // Log the set; the RIR prompt is opened at the app-frame level by the parent's woLogSet.
     onLogSet(exIdx, { w: W, reps: R, rir: null });
     onStartRest(ex.name);
-    setRirPrompt({ setIdx: newIdx });
-  }
-  // Set RIR for a specific already-logged set (used by the prompt and the row editor).
-  function chooseRir(setIdx, val) {
-    onSetRir(exIdx, setIdx, val);
-    setRirPrompt(null);
   }
   return (
     <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10, position: "relative" }}>
@@ -9250,7 +9412,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
               <span style={{ width: 36, color: C.muted, fontSize: 11 }}>Set {i + 1}</span>
               <span style={{ fontWeight: 600 }}>{s.w}{unit} × {s.reps}</span>
               {advanced && (
-                <button className="sprig-tap" onClick={() => setRirPrompt({ setIdx: i })} title="Set reps in reserve"
+                <button className="sprig-tap" onClick={() => onOpenRirPrompt && onOpenRirPrompt(exIdx, i)} title="Set reps in reserve"
                   style={{ background: s.rir == null ? C.amber + "22" : "transparent", border: "none", cursor: "pointer", color: s.rir == null ? C.amber : C.muted, fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "2px 6px" }}>
                   {s.rir == null ? "+ RIR" : `RIR ${s.rir}`}
                 </button>
@@ -9379,28 +9541,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         </div>
       )}
 
-      {/* Post-set RIR prompt — appears immediately after a set is completed (and when editing a set's RIR). */}
-      {rirPrompt && (
-        <div onClick={() => setRirPrompt(null)} style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 70, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
-            style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, textAlign: "center" }}>How many reps in reserve?</div>
-            <div style={{ fontSize: 12, color: C.muted, textAlign: "center", marginTop: 4, marginBottom: 16 }}>
-              Set {rirPrompt.setIdx + 1}{ex.sets[rirPrompt.setIdx] ? ` · ${ex.sets[rirPrompt.setIdx].w}${unit} × ${ex.sets[rirPrompt.setIdx].reps}` : ""} — how many more could you have done?
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-              {[["0", "0", "Failure"], ["1", "1", "Hard"], ["2", "2", "Solid"], ["3", "3+", "Easy"]].map(([val, big, lbl]) => (
-                <button key={val} className="sprig-tap" onClick={() => chooseRir(rirPrompt.setIdx, +val)}
-                  style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: "DM Sans" }}>
-                  <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.green }}>{big}</span>
-                  <span style={{ fontSize: 10.5, color: C.muted, fontWeight: 600 }}>{lbl}</span>
-                </button>
-              ))}
-            </div>
-            <button className="sprig-tap" onClick={() => setRirPrompt(null)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip</button>
-          </div>
-        </div>
-      )}
+      {/* RIR prompt now renders at the app-frame level (see SprigApp) so it's never clipped. */}
     </div>
   );
 }
@@ -9641,7 +9782,7 @@ function LiftTrend({ workouts, exName }) {
   );
 }
 
-function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive }) {
+function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio }) {
   const unit = profile.unit || "kg";
   const [picker, setPicker] = useState(false);
   const [builder, setBuilder] = useState(null); // null | {} (new) | routine (edit)
@@ -9671,7 +9812,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
           <ExerciseCard key={i} ex={ex} exIdx={i} workouts={workouts} unit={unit} customRests={trainInfo.customRests} advanced={advanced}
             sleepReadiness={trainInfo.sleepReadiness} daily={trainInfo.daily}
             painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations}
-            onLogSet={onLogSet} onSetRir={onSetRir} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
+            onLogSet={onLogSet} onSetRir={onSetRir} onOpenRirPrompt={onOpenRirPrompt} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
             onSetExercisePain={onSetExercisePain} />
         ))}
 
@@ -9907,6 +10048,14 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
         <>
           <div style={{ margin: "18px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><BarChart3 size={16} color={C.greenSoft} /> Strength trend</div>
           {standardLifts.map((n) => <LiftTrend key={n} workouts={workouts} exName={n} />)}
+        </>
+      )}
+
+      {/* Movement & Cardio — same data/functions as Today, edits via onDaily (Sprig day) */}
+      {moveInfo && daily && onDaily && (
+        <>
+          <div style={{ margin: "20px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Movement &amp; cardio</div>
+          <MovementCard daily={daily} profile={profile} onDaily={onDaily} />
         </>
       )}
 
