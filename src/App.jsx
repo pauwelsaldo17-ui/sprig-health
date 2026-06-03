@@ -1917,13 +1917,36 @@ function scoreSleep({ durationMin, restlessness = 30, bedMin }, needMin, usualBe
   return Math.round(Math.max(0, Math.min(100, durScore * 0.5 + restScore * 0.3 + consist * 0.2)));
 }
 function sleepDebtMin(logs, needMin) {
-  // Ignore accidental/short/explicitly-ignored sessions so a 1-minute mis-start can't create debt.
+  // Weighted, decaying sleep-debt model — debt is NOT a permanent unpaid balance.
+  // Recent nights matter most, old shortfalls fade, and nights at/above need pay debt down.
+  // Process the last 14 valid nights oldest → newest as a running balance:
+  //   • each new night, the prior balance decays (older debt fades ~15%/night)
+  //   • a short night adds its shortage; a long night subtracts its surplus (pays debt down)
+  // Ignore accidental/short/explicitly-ignored sessions so a mis-start can't create debt.
   const recent = (logs || [])
     .filter((l) => !l.ignoredFromScore && !l.discarded && (l.durationMin || 0) >= 20 && !l.nap)
     .slice(-14);
-  let debt = 0;
-  recent.forEach((l) => { debt += needMin - l.durationMin; });
-  return Math.max(0, Math.min(40 * 60, debt));
+  if (recent.length === 0) return 0;
+  const DECAY = 0.8;          // each night, ~20% of accumulated debt fades
+  const PAYDOWN = 1.2;        // surplus sleep pays debt down a bit faster than shortage builds it
+  const ONTARGET_PAY = 20;    // a night that simply meets need still chips ~20 min off old debt
+  let bal = 0;
+  recent.forEach((l) => {
+    bal *= DECAY;                                   // yesterday's debt fades
+    const delta = needMin - (l.durationMin || 0);   // >0 short, <0 surplus
+    if (delta > 0) bal += delta;                    // short night adds shortage
+    else if (delta < 0) bal += delta * PAYDOWN;      // good night actively pays down (surplus)
+    else bal -= ONTARGET_PAY;                         // exactly on target still helps recovery
+    if (bal < 0) bal = 0;                            // can't bank negative debt
+  });
+  return Math.max(0, Math.min(40 * 60, Math.round(bal)));
+}
+// Friendly label + tone for a sleep-debt amount in minutes.
+function sleepDebtLabel(debtMin) {
+  if (debtMin < 30) return { label: "Recovered", tone: "success" };
+  if (debtMin < 90) return { label: "Mild debt", tone: "neutral" };
+  if (debtMin < 180) return { label: "Moderate debt", tone: "warning" };
+  return { label: "High debt", tone: "danger" };
 }
 function recommend(logs, profile, debtMin) {
   const need = sleepNeedMin(profile.age);
@@ -2662,21 +2685,54 @@ function suggestSplit({ workouts, recovery, volume, sleepReadiness, debtMin, dai
 
 // progression decision per exercise
 function progressionFor(workouts, exName, daily, sleepReadiness) {
-  const sets = [];
-  workouts.forEach((w) => w.exercises.forEach((ex) => { if (ex.name === exName) ex.sets.forEach((s) => sets.push({ ...s, ts: w.ts })); }));
-  if (sets.length === 0) return null;
-  const last = sets[sets.length - 1];
+  // gather this exercise's history, most recent session's best set as the reference
+  const byTs = {};
+  workouts.forEach((w) => w.exercises.forEach((ex) => { if (ex.name === exName) { (byTs[w.ts] = byTs[w.ts] || []).push(...ex.sets); } }));
+  const tsKeys = Object.keys(byTs).map(Number).sort((a, b) => a - b);
+  if (tsKeys.length === 0) return null;
+  const lastSets = byTs[tsKeys[tsKeys.length - 1]];
+  // reference = the heaviest/best set of last session for this exercise
+  const last = lastSets.reduce((b, s) => (est1RM(s.w, s.reps) > est1RM(b.w, b.reps) ? s : b), lastSets[0]);
   const meta = findEx(exName);
-  const heavy = meta?.type === "compound" && meta?.bar;
+  const bar = !!meta?.bar;
+  const compound = meta?.type === "compound";
+  const isDumbbell = /dumbbell|db\b/i.test(exName);
+  // weight increment by equipment: barbells/cables/machines +2.5kg, dumbbells jump ~2kg/pair, small isolation +1.25
+  const inc = isDumbbell ? 2 : (bar || compound) ? 2.5 : 1.25;
+  // rep range: lower reps for heavy compounds, higher for isolation
+  const repRange = compound ? [5, 8] : bar ? [6, 10] : [8, 12];
+  const [, repTop] = repRange;
   const stalls = stallingLifts(workouts).includes(exName);
-  // recovery / sleep guardrail
-  if (sleepReadiness < 45) return { action: "hold", text: "Hold weight — sleep readiness is low today.", w: last.w, reps: last.reps };
-  if ((daily?.checkin?.pain) === "serious") return { action: "hold", text: "Hold weight — pain logged today.", w: last.w, reps: last.reps };
-  if (stalls) return { action: "deload", text: "Stalled for 3 sessions — drop ~10% for a week, then build back up.", w: +(last.w * 0.9).toFixed(1), reps: last.reps };
-  if (last.rir == null || last.rir >= 3) return { action: "add_w", text: "Last set felt easy — add weight.", w: +(last.w + (heavy ? 2.5 : 1.25)).toFixed(2), reps: last.reps };
-  if (last.rir === 2) return { action: "add_rep", text: "One more rep this session, then add weight next time.", w: last.w, reps: last.reps + 1 };
-  if (last.rir === 1) return { action: "repeat", text: "Repeat the same weight — close to your limit.", w: last.w, reps: last.reps };
-  return { action: "back_off", text: "Hit failure last time — repeat or back off slightly.", w: last.w, reps: Math.max(1, last.reps - 1) };
+  const prevW = last.w, prevReps = last.reps, prevRir = last.rir;
+  const base = { prevW, prevReps, prevRir };
+
+  // ---- caution branches: only when genuinely warranted (kept rare) ----
+  if (daily?.deloadMode) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: "Deload week — drop ~10% and move smooth." };
+  if (stalls) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: "Stalled 3 sessions — drop ~10% this week, then build back up past your old best." };
+  if ((daily?.checkin?.pain) === "serious") return { ...base, action: "hold", w: prevW, reps: prevReps, text: "Pain logged today — match last time and stop early if it flares. Skip if it hurts." };
+  if (sleepReadiness < 40) return { ...base, action: "hold", w: prevW, reps: prevReps, text: "Recovery is low, so match last time today. If warm-ups feel great, try +1 rep." };
+
+  // ---- aggressive default: beat last time ----
+  // If last set already hit/exceeded the top of the rep range → add weight, reset to bottom of range.
+  if (prevReps >= repTop) {
+    return { ...base, action: "add_w", w: +(prevW + inc).toFixed(2), reps: repRange[0], text: `You hit ${prevReps} reps last time — add ${inc}${"kg"} and aim for ${repRange[0]}+.` };
+  }
+  // RIR-driven progression (most sessions land here, pushing +1 rep or weight)
+  if (prevRir == null) {
+    // no RIR captured last time — still push for one more rep by default
+    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `Goal: beat last time — aim for ${prevReps + 1} reps at ${prevW}${"kg"}.` };
+  }
+  if (prevRir >= 3) {
+    return { ...base, action: "add_w", w: +(prevW + inc).toFixed(2), reps: prevReps, text: `You had 3+ in reserve — add ${inc}kg and hold ${prevReps} reps.` };
+  }
+  if (prevRir === 2) {
+    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `You had 2 RIR last time, so aim for +1 rep (${prevReps + 1}).` };
+  }
+  if (prevRir === 1) {
+    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `Close to your limit — go for +1 rep (${prevReps + 1}) if it's there, otherwise match last time.` };
+  }
+  // prevRir === 0 (failure): only push if they'd been climbing; default to matching, with a stretch
+  return { ...base, action: "repeat", w: prevW, reps: prevReps, text: `Hit failure last time — match ${prevW}kg × ${prevReps}. Beat it by a rep if it moves clean.` };
 }
 
 // workout templates (seed routines a user can save with one tap)
@@ -2774,6 +2830,77 @@ function dailyHealthScore(s) {
   let sum = 0, wsum = 0;
   Object.keys(w).forEach((k) => { if (s[k] != null) { sum += s[k] * w[k]; wsum += w[k]; } });
   return wsum ? Math.round(sum / wsum) : 0;
+}
+
+// Fair, explainable functional-health score. Missing data is "unknown" (excluded from the
+// denominator), never scored as zero. Weighted across available categories, with a confidence
+// label and the top reasons it's low. Health markers only count if the user logged them.
+function functionalHealth({ subScores, sleepInfo, trainInfo, daily, healthInfo, profile, targets, t, trainedToday }) {
+  const ci = (daily && daily.checkin) || {};
+  // Category scores — each null when there's no valid data for it.
+  const sleep = subScores.sleep;                       // null until a sleep log exists
+  // nutrition + hydration combined (only count if the user actually logged food/water today)
+  const ateToday = (t?.calories || 0) > 0;
+  const drankToday = (daily?.water || 0) > 0;
+  let nutHydParts = [], nutHydW = 0;
+  if (ateToday) { nutHydParts.push(subScores.nutrition); nutHydW += 0.7; }
+  if (drankToday || ateToday) { nutHydParts.push(subScores.habits); nutHydW += 0.3; }
+  const nutrition = nutHydParts.length ? clamp100(nutHydParts.reduce((a, b, i) => a + b * (i === 0 && ateToday ? 0.7 : 0.3), 0) / nutHydW) : null;
+  // movement: only if any steps/cardio/workout logged today
+  const movedToday = (daily?.steps || 0) > 0 || (daily?.cardioMin || 0) > 0 || trainedToday;
+  const movement = movedToday ? subScores.movement : null;
+  // mind: null until a check-in field is logged (subScores.mind already null-safe)
+  const mind = subScores.mind;
+  // health markers: only if the user logged BP / resting HR / recent symptoms
+  const hasMarkers = !!(healthInfo && (healthInfo.latest?.bp || healthInfo.latest?.rhr || (healthInfo.latest?.symptoms && healthInfo.latest.symptoms.length)));
+  let markers = null;
+  if (hasMarkers) {
+    let mk = 80;
+    const bp = healthInfo.latest.bp;
+    if (bp && (bp.sys >= 140 || bp.dia >= 90)) mk -= 30;
+    else if (bp && (bp.sys >= 130 || bp.dia >= 85)) mk -= 12;
+    if (healthInfo.latest.rhr && healthInfo.latest.rhr > 80) mk -= 15;
+    if (healthInfo.latest.symptoms && healthInfo.latest.symptoms.length) mk -= Math.min(30, healthInfo.latest.symptoms.length * 12);
+    markers = clamp100(mk);
+  }
+
+  // Spec weights — redistribute missing categories' weight across what's available.
+  const cats = [
+    { key: "sleep", label: "Sleep & recovery", score: sleep, w: 0.25 },
+    { key: "nutrition", label: "Nutrition & hydration", score: nutrition, w: 0.25 },
+    { key: "movement", label: "Movement", score: movement, w: 0.20 },
+    { key: "mind", label: "Mind & check-in", score: mind, w: 0.15 },
+    { key: "markers", label: "Health markers", score: markers, w: 0.15 },
+  ];
+  const present = cats.filter((c) => c.score != null);
+  const wsum = present.reduce((a, c) => a + c.w, 0);
+  const score = wsum ? Math.round(present.reduce((a, c) => a + c.score * c.w, 0) / wsum) : null;
+
+  // Confidence from how much of the total weighted picture we actually have data for.
+  const totalW = cats.reduce((a, c) => a + c.w, 0);
+  const coverage = totalW ? wsum / totalW : 0;
+  let confidence;
+  if (coverage >= 0.7) confidence = "High";
+  else if (coverage >= 0.45) confidence = "Medium";
+  else confidence = "Low";
+
+  // Top reasons it's not higher (only from categories that have data).
+  const reasons = [];
+  if (sleep != null && sleep < 60) reasons.push("Sleep is low");
+  if ((daily?.alcohol || 0) > 0) reasons.push("Alcohol logged");
+  if (ateToday && subScores.nutrition < 55) reasons.push("Calories or protein off target");
+  if (drankToday === false && ateToday) reasons.push("Hydration not logged");
+  else if (drankToday && (daily.water || 0) < waterGoal(profile) * 0.5) reasons.push("Hydration low");
+  if (movedToday && movement != null && movement < 50) reasons.push("Steps low");
+  if (ci.pain === "serious" || ci.pain === "moderate") reasons.push("Pain active");
+  if (ci.stress === "high") reasons.push("Stress high");
+  if (markers != null && markers < 60) reasons.push("Health markers flagged");
+
+  const enough = present.length >= 2;
+  return {
+    score, confidence, reasons: reasons.slice(0, 3), enough,
+    categories: cats, presentCount: present.length,
+  };
 }
 function scoreVerdict(score) {
   if (score >= 85) return "Excellent day";
@@ -3904,6 +4031,14 @@ function SprigApp() {
     persistFavoriteMeals(favoriteMeals.map((x) => (x.id === id ? { ...x, useCount: (x.useCount || 0) + 1, lastUsedTs: Date.now() } : x)));
     showToast("Meal added");
   }
+  // Favorite create/edit modal — rendered at the app-frame level (not inside the scrolled
+  // Nutrition tab, where an overflow:hidden ancestor was clipping the fixed modal so taps did nothing).
+  const [favForm, setFavForm] = useState(null);     // { ...fields } while creating/editing
+  const [favEditing, setFavEditing] = useState(null); // "new" | favorite id
+  const [favDup, setFavDup] = useState(null);        // { form, existing } duplicate-name prompt
+  function openCreateFavorite() { setFavEditing("new"); setFavForm({ name: "", serving: "1 serving", calories: "", protein: "", carbs: "", fat: "", fiber: "", tags: [] }); }
+  function openEditFavorite(f) { setFavEditing(f.id); setFavForm({ name: f.name, serving: f.serving, calories: f.calories, protein: f.protein_g, carbs: f.carbs_g, fat: f.fat_g, fiber: f.fiber_g, tags: f.tags || [] }); }
+  function closeFavForm() { setFavForm(null); setFavEditing(null); }
   const saveProfile = async (p) => {
     setProfile(p);
     const json = JSON.stringify(p);
@@ -4459,6 +4594,36 @@ function SprigApp() {
     const ex = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: [...e.sets, { ...set, ts: Date.now() }] } : e);
     persistActive({ ...activeWorkout, exercises: ex });
   }
+  // Set a set's RIR after it's logged (used by the post-set RIR prompt).
+  function woSetRir(exIdx, setIdx, rir) {
+    const ex = activeWorkout.exercises.map((e, i) => i === exIdx
+      ? { ...e, sets: e.sets.map((s, j) => (j === setIdx ? { ...s, rir } : s)) }
+      : e);
+    persistActive({ ...activeWorkout, exercises: ex });
+  }
+
+  // ---- Rest timer (lifted to app level so the floating UI tracks scroll reliably) ----
+  const [rest, setRest] = useState(null);          // { exName, end, paused, remainingMs }
+  const [restDone, setRestDone] = useState(false); // brief "rest over" flash
+  const restFiredRef = useRef(false);
+  const [, setRestTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setRestTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
+  const restLeft = rest ? (rest.paused ? Math.round(rest.remainingMs / 1000) : Math.max(0, Math.round((rest.end - Date.now()) / 1000))) : 0;
+  useEffect(() => {
+    if (!rest || rest.paused) { restFiredRef.current = false; return; }
+    if (restLeft <= 0 && !restFiredRef.current) {
+      restFiredRef.current = true;
+      if (profile?.restTimerSound !== false) { try { playAlarmTone(profile?.restTimerSoundChoice || "beep", profile?.alarmVolume ?? 0.7); } catch (_) {} }
+      if (profile?.restTimerVibrate !== false) { try { navigator.vibrate?.([300, 120, 300]); } catch (_) {} }
+      setRestDone(true);
+      setTimeout(() => setRestDone(false), 4000);
+    }
+  }, [restLeft, rest, profile]);
+  function startRest(exName) { const meta = findEx(exName); const secs = customRests[exName] ?? restDefault(meta); restFiredRef.current = false; setRestDone(false); setRest({ exName, end: Date.now() + secs * 1000, paused: false }); }
+  function pauseRest() { setRest((r) => r && !r.paused ? { ...r, paused: true, remainingMs: Math.max(0, r.end - Date.now()) } : r); }
+  function resumeRest() { setRest((r) => r && r.paused ? { ...r, paused: false, end: Date.now() + (r.remainingMs || 0) } : r); }
+  function addRest(ms) { setRest((r) => { if (!r) return r; if (r.paused) return { ...r, remainingMs: (r.remainingMs || 0) + ms }; return { ...r, end: r.end + ms }; }); restFiredRef.current = false; }
+  function skipRest() { setRest(null); setRestDone(false); }
   function woRemoveSet(exIdx, setIdx) {
     const ex = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: e.sets.filter((_, j) => j !== setIdx) } : e);
     persistActive({ ...activeWorkout, exercises: ex });
@@ -4645,8 +4810,9 @@ function SprigApp() {
   trainInfo.suggestion = suggestion;
   const subScores = dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile });
   const healthScore = dailyHealthScore(subScores);
+  const funcHealth = functionalHealth({ subScores, sleepInfo, trainInfo, daily, healthInfo, profile, targets, t, trainedToday });
   const actions = bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile });
-  const dailyInfo = { daily, weightSeries, subScores, healthScore, actions, trainedToday };
+  const dailyInfo = { daily, weightSeries, subScores, healthScore, funcHealth, actions, trainedToday };
 
   // nutrition coaching
   const dietQ = dietQuality(t, targets, daily, profile);
@@ -4802,14 +4968,17 @@ function SprigApp() {
             onSnapFood={() => { setResult(null); fileRef.current?.click(); }}
             onScanLabel={() => { setResult(null); labelRef.current?.click(); }}
             onDescribe={() => { setComposer("text"); setResult(null); }}
-            onManual={() => { setComposer("manual"); setResult(null); }} />
+            onManual={() => { setComposer("manual"); setResult(null); }}
+            onOpenCreateFavorite={openCreateFavorite} onOpenEditFavorite={openEditFavorite}
+            onFavoriteDuplicate={(form, existing) => setFavDup({ form, existing })} />
         )}
         {tab === "train" && (
           <TrainTab workouts={workouts} active={activeWorkout} profile={profile} trainInfo={trainInfo} advanced={advanced}
             routines={routines} onSaveRoutine={saveRoutine} onDeleteRoutine={deleteRoutine} onUseTemplate={useTemplate}
-            onStart={startWorkout} onAddExercise={addWoExercise} onLogSet={woLogSet} onRemoveSet={woRemoveSet}
+            onStart={startWorkout} onAddExercise={addWoExercise} onLogSet={woLogSet} onSetRir={woSetRir} onRemoveSet={woRemoveSet}
             onRemoveExercise={woRemoveExercise} onFinish={finishWorkout} onCancel={cancelWorkout}
-            onSaveRest={saveRest} onSetExercisePain={woSetExercisePain} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")} />
+            onSaveRest={saveRest} onSetExercisePain={woSetExercisePain} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")}
+            onStartRest={startRest} restActive={!!rest} />
         )}
         {(tab === "progress" || tab === "body" || tab === "trends") && (
           <>
@@ -4928,6 +5097,30 @@ function SprigApp() {
         ))}
       </div>
 
+      {/* Floating rest timer — rendered at the app-frame level (absolute, pinned just above the
+          tab bar) so it stays put no matter how far the user scrolls the exercise list. */}
+      {activeWorkout && rest && (restLeft > 0 || restDone) && (
+        <div className="sprig-pop" style={{ position: "absolute", left: 12, right: 12, bottom: "calc(64px + env(safe-area-inset-bottom, 0px))", background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.32)", zIndex: 45 }}>
+          <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : "#BFD0FF"} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10.5, opacity: .75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {restLeft <= 0 ? "REST COMPLETE" : `REST · ${rest.exName}`}
+            </div>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700 }}>{restLeft <= 0 ? "Go!" : fmtClock(restLeft)}</div>
+          </div>
+          {restLeft > 0 && (
+            <>
+              <button className="sprig-tap" onClick={() => (rest.paused ? resumeRest() : pauseRest())} aria-label={rest.paused ? "Resume" : "Pause"}
+                style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>
+                {rest.paused ? <Play size={13} /> : <span style={{ fontWeight: 700, letterSpacing: 1 }}>II</span>}
+              </button>
+              <button className="sprig-tap" onClick={() => addRest(30000)} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>+30s</button>
+            </>
+          )}
+          <button className="sprig-tap" onClick={skipRest} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>{restLeft <= 0 ? "Done" : "Skip"}</button>
+        </div>
+      )}
+
       {quickOpen && <QuickLogSheet ci={daily.checkin || {}} daily={{ ...daily, trainedToday }} sleepInfo={sleepInfo} profile={profile}
         painActive={trainInfo.pain?.level !== "none"} onCheckin={setCheckin} onDaily={persistDaily}
         onClose={() => setQuickOpen(false)} />}
@@ -5003,6 +5196,40 @@ function SprigApp() {
       })()}
 
       {photoOpen && <PhotoSheet onClose={() => setPhotoOpen(false)} photos={progressPhotos} onAdd={addProgressPhoto} onRemove={removeProgressPhoto} />}
+
+      {/* Favorite meal create/edit — frame-level so it's never clipped by the scroll container */}
+      {favForm && (
+        <FavoriteFormSheet form={favForm} setForm={setFavForm} isNew={favEditing === "new"} onClose={closeFavForm}
+          onSubmit={() => {
+            const f = favForm;
+            if (!f || !f.name.trim()) return;
+            if (favEditing === "new") {
+              saveFavoriteMeal(f, { onDuplicate: (fav, existing) => setFavDup({ form: f, existing }) });
+            } else {
+              updateFavoriteMeal(favEditing, {
+                name: f.name.trim(), serving: f.serving || "1 serving",
+                calories: Math.max(0, Math.round(+f.calories || 0)), protein_g: Math.max(0, Math.round(+f.protein || 0)),
+                carbs_g: Math.max(0, Math.round(+f.carbs || 0)), fat_g: Math.max(0, Math.round(+f.fat || 0)), fiber_g: Math.max(0, Math.round(+f.fiber || 0)),
+                tags: f.tags || [],
+              });
+              showToast("Favorite updated");
+            }
+            closeFavForm();
+          }} />
+      )}
+      {favDup && (
+        <div onClick={() => setFavDup(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 86, padding: 24 }}>
+          <div onClick={(e) => e.stopPropagation()} className="sprig-pop" style={{ width: "100%", maxWidth: 340, background: C.card, borderRadius: 18, padding: 20, boxShadow: "0 12px 40px rgba(0,0,0,.25)" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Favorite already exists</div>
+            <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 16 }}>You already have a favorite called "{favDup.existing.name}". Replace it, or save a copy?</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button className="sprig-tap" onClick={() => { replaceFavoriteMeal(favDup.existing.id, favDup.form); showToast("Favorite updated"); setFavDup(null); closeFavForm(); }} style={{ ...btn(C.green, "#fff"), padding: "11px 0", fontSize: 13 }}>Replace existing</button>
+              <button className="sprig-tap" onClick={() => { saveFavoriteMeal({ ...favDup.form, name: favDup.form.name + " (copy)" }); setFavDup(null); closeFavForm(); }} style={{ ...btn(C.bg2, C.green), padding: "11px 0", fontSize: 13 }}>Save as copy</button>
+              <button className="sprig-tap" onClick={() => setFavDup(null)} style={{ background: "transparent", color: C.muted, border: "none", cursor: "pointer", padding: "8px 0", fontSize: 12 }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* storage write-error banner — appears when persistence is failing (quota, rate limit, etc.) */}
       {writeError && Date.now() - writeError.ts < 30000 && (
@@ -5572,7 +5799,7 @@ function TodayChip({ label, onClick, primary }) {
 
 function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain }) {
   const { lastSleep, debtMin, rec, gym } = sleepInfo;
-  const { daily, subScores, healthScore, actions } = dailyInfo;
+  const { daily, subScores, healthScore, actions, funcHealth } = dailyInfo;
 
   // ---- derived mini-card values ----
   const adjTarget = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
@@ -5745,26 +5972,36 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         />
       </div>
 
-      {/* 9 — FUNCTIONAL HEALTH mini (compact summary) */}
-      {scores.length > 0 && (
-        <div style={{ marginTop: 10 }}>
+      {/* 9 — FUNCTIONAL HEALTH mini (fair, confidence-aware) */}
+      <div style={{ marginTop: 10 }}>
+        {!funcHealth.enough ? (
           <TodaySummaryCard
-            icon={<HeartPulse size={15} color={C.greenSoft} />} accent={fhAvg >= 70 ? C.greenSoft : fhAvg >= 50 ? C.amber : C.coral}
-            title="Functional health" value={fhAvg} sub="/ 100 avg"
-            note={fhLow && fhLow.score < 60 ? `Lowest: ${fhLow.label} (${fhLow.score}). Tap for detail.` : "Your systems are tracking well today."}
+            icon={<HeartPulse size={15} color={C.muted} />} accent={C.muted}
+            title="Functional health" value="—"
+            note="Not enough data yet — log sleep, a check-in, water, steps, and food for a score."
+            actions={<TodayChip label="Health" onClick={onGoHealth} />}
+          />
+        ) : (
+          <TodaySummaryCard
+            icon={<HeartPulse size={15} color={C.greenSoft} />} accent={funcHealth.score >= 70 ? C.greenSoft : funcHealth.score >= 50 ? C.amber : C.coral}
+            title="Functional health" value={funcHealth.score} sub="/ 100"
+            note={funcHealth.reasons.length ? funcHealth.reasons.slice(0, 2).join(" · ") + "." : "Your tracked areas look healthy today."}
             actions={<TodayChip label="Health" onClick={onGoHealth} />}
           >
-            <div style={{ display: "flex", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
-              {scores.slice(0, 6).map((s) => (
-                <div key={s.key} title={s.label} style={{ display: "flex", alignItems: "center", gap: 4, background: C.bg2, borderRadius: 99, padding: "4px 9px" }}>
-                  <span style={{ fontSize: 11 }}>{s.emoji}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{s.score}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: funcHealth.confidence === "High" ? C.greenSoft : funcHealth.confidence === "Medium" ? C.amber : C.muted, background: C.bg2, borderRadius: 99, padding: "3px 9px" }}>
+                {funcHealth.confidence} confidence
+              </span>
+              {funcHealth.categories.filter((c) => c.score != null).map((c) => (
+                <div key={c.key} title={c.label} style={{ display: "flex", alignItems: "center", gap: 4, background: C.bg2, borderRadius: 99, padding: "3px 9px" }}>
+                  <span style={{ fontSize: 10, color: C.muted }}>{c.label.split(" ")[0]}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: c.score >= 60 ? C.greenSoft : c.score >= 40 ? C.amber : C.coral }}>{c.score}</span>
                 </div>
               ))}
             </div>
           </TodaySummaryCard>
-        </div>
-      )}
+        )}
+      </div>
 
       <div style={{ height: 6 }} />
     </div>
@@ -5772,16 +6009,69 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
 }
 
 /* ---------------- Nutrition tab -------------- */
+const MEAL_TAGS = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
+
+// Frame-level favorite create/edit sheet (with validation), so it's never clipped by the scroll area.
+function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
+  const nameOk = (form.name || "").trim().length > 0;
+  const numOk = (v) => v === "" || (Number.isFinite(+v) && +v >= 0);
+  const fieldsOk = ["calories", "protein", "carbs", "fat", "fiber"].every((k) => numOk(form[k]));
+  const valid = nameOk && fieldsOk;
+  return (
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
+      <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
+        style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{isNew ? "New favorite meal" : "Edit favorite"}</div>
+        <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>Name</div>
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Chicken rice bowl"
+          style={{ width: "100%", background: C.bg, border: `1px solid ${nameOk || form.name === "" ? C.line : C.coral}`, borderRadius: 11, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, marginBottom: 8, boxSizing: "border-box" }} />
+        <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>Serving</div>
+        <input value={form.serving} onChange={(e) => setForm({ ...form, serving: e.target.value })} placeholder="e.g. 1 bowl"
+          style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, marginBottom: 8, boxSizing: "border-box" }} />
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          {[["calories", "kcal"], ["protein", "P (g)"], ["carbs", "C (g)"], ["fat", "F (g)"]].map(([k, lbl]) => (
+            <div key={k} style={{ flex: 1 }}>
+              <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{lbl}</div>
+              <input type="number" inputMode="decimal" min="0" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                style={{ width: "100%", background: C.bg, border: `1px solid ${numOk(form[k]) ? C.line : C.coral}`, borderRadius: 10, padding: "8px 9px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ width: "33%", marginBottom: 8 }}>
+          <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>Fiber (g)</div>
+          <input type="number" inputMode="decimal" min="0" value={form.fiber} onChange={(e) => setForm({ ...form, fiber: e.target.value })}
+            style={{ width: "100%", background: C.bg, border: `1px solid ${numOk(form.fiber) ? C.line : C.coral}`, borderRadius: 10, padding: "8px 9px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
+        </div>
+        <div style={{ fontSize: 10.5, color: C.muted, margin: "4px 0 6px" }}>Tag (optional)</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+          {MEAL_TAGS.map((tg) => {
+            const on = (form.tags || []).includes(tg);
+            return (
+              <button key={tg} className="sprig-tap" onClick={() => setForm({ ...form, tags: on ? form.tags.filter((x) => x !== tg) : [...(form.tags || []), tg] })}
+                style={{ background: on ? C.green : C.bg, color: on ? "#fff" : C.inkSoft, border: `1px solid ${on ? C.green : C.line}`, borderRadius: 99, padding: "6px 11px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans" }}>{tg}</button>
+            );
+          })}
+        </div>
+        {!nameOk && <div style={{ fontSize: 11, color: C.coral, margin: "2px 0 8px" }}>A meal name is required.</div>}
+        {!fieldsOk && <div style={{ fontSize: 11, color: C.coral, margin: "2px 0 8px" }}>Calories and macros must be numbers of 0 or more.</div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <button className="sprig-tap" onClick={onClose} style={{ flex: 1, ...btn(C.bg2, C.inkSoft), padding: "12px 0", fontSize: 13 }}>Cancel</button>
+          <button className="sprig-tap" disabled={!valid} onClick={() => valid && onSubmit()}
+            style={{ flex: 1, ...btn(valid ? C.green : C.bg2, valid ? "#fff" : C.muted), padding: "12px 0", fontSize: 13, opacity: valid ? 1 : .7 }}>{isNew ? "Save favorite" : "Save changes"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriInfo, moveInfo, sleepInfo, daily, onDaily, onAddEntry,
   supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, library, onQuick, entriesHistory,
-  favoriteMeals, onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood, onSnapFood, onScanLabel, onDescribe, onManual }) {
+  favoriteMeals, onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood, onSnapFood, onScanLabel, onDescribe, onManual,
+  onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate }) {
   const [showMicros, setShowMicros] = useState(advanced);
   const [showSupps, setShowSupps] = useState(advanced || (supps?.length || 0) <= 4);
   const [favSearch, setFavSearch] = useState("");
   const [favSort, setFavSort] = useState("recent"); // recent | most
-  const [favEditing, setFavEditing] = useState(null); // favorite id being edited
-  const [favForm, setFavForm] = useState(null); // {} when creating/editing
-  const [dupPrompt, setDupPrompt] = useState(null); // { fav, existing }
   const takenCount = supps.filter((s) => takenIds.includes(s.id)).length;
   const adjTarget = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
   const delta = moveInfo?.calAdjust?.delta || 0;
@@ -5791,24 +6081,6 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
   const favs = (favoriteMeals || [])
     .filter((f) => !favSearch || f.name.toLowerCase().includes(favSearch.toLowerCase()) || (f.tags || []).some((tg) => tg.includes(favSearch.toLowerCase())))
     .sort((a, b) => favSort === "most" ? (b.useCount || 0) - (a.useCount || 0) : (b.lastUsedTs || b.createdTs || 0) - (a.lastUsedTs || a.createdTs || 0));
-  const TAGS = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
-
-  function startCreateFav() { setFavEditing("new"); setFavForm({ name: "", serving: "1 serving", calories: "", protein: "", carbs: "", fat: "", fiber: "", tags: [] }); }
-  function startEditFav(f) { setFavEditing(f.id); setFavForm({ name: f.name, serving: f.serving, calories: f.calories, protein: f.protein_g, carbs: f.carbs_g, fat: f.fat_g, fiber: f.fiber_g, tags: f.tags || [] }); }
-  function submitFav() {
-    if (!favForm || !favForm.name.trim()) return;
-    if (favEditing === "new") {
-      onSaveFavorite(favForm, { onDuplicate: (fav, existing) => setDupPrompt({ form: favForm, existing }) });
-    } else {
-      onUpdateFavorite(favEditing, {
-        name: favForm.name.trim(), serving: favForm.serving,
-        calories: Math.round(+favForm.calories || 0), protein_g: Math.round(+favForm.protein || 0),
-        carbs_g: Math.round(+favForm.carbs || 0), fat_g: Math.round(+favForm.fat || 0), fiber_g: Math.round(+favForm.fiber || 0),
-        tags: favForm.tags || [],
-      });
-    }
-    setFavEditing(null); setFavForm(null);
-  }
 
   const sectionTitle = (txt) => <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 600, margin: "22px 2px 10px" }}>{txt}</div>;
 
@@ -5928,7 +6200,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
       {/* QUICK ADD */}
       {sectionTitle("Quick add")}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-        <button className="sprig-tap" onClick={startCreateFav} style={{ ...btn(C.bg2, C.green), padding: "10px 14px", fontSize: 13 }}><BookMarked size={15} /> New favorite</button>
+        <button className="sprig-tap" onClick={onOpenCreateFavorite} style={{ ...btn(C.bg2, C.green), padding: "10px 14px", fontSize: 13 }}><BookMarked size={15} /> New favorite</button>
       </div>
       {library?.length > 0 && (
         <>
@@ -5961,7 +6233,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
         </div>
       )}
       {(favoriteMeals?.length || 0) === 0 ? (
-        <button className="sprig-tap" onClick={startCreateFav}
+        <button className="sprig-tap" onClick={onOpenCreateFavorite}
           style={{ width: "100%", background: C.card, border: `1px dashed ${C.line}`, borderRadius: 16, padding: "16px 14px", cursor: "pointer", color: C.muted, fontSize: 13, fontFamily: "DM Sans", textAlign: "left", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "14", display: "grid", placeItems: "center", flexShrink: 0 }}><BookMarked size={17} color={C.greenSoft} /></div>
           <span>Save meals you eat often as favorites, then add them to today with one tap. Tap any logged meal's star, or create one here.</span>
@@ -5975,7 +6247,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{f.calories} kcal · P{f.protein_g} C{f.carbs_g} F{f.fat_g}{f.useCount ? ` · used ${f.useCount}×` : ""}</div>
                 {(f.tags || []).length > 0 && <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>{f.tags.map((tg) => <span key={tg} style={{ fontSize: 9.5, color: C.greenSoft, background: C.green + "14", borderRadius: 99, padding: "2px 7px" }}>{tg}</span>)}</div>}
               </div>
-              <button className="sprig-tap" onClick={() => startEditFav(f)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><PencilLine size={14} /></button>
+              <button className="sprig-tap" onClick={() => onOpenEditFavorite(f)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><PencilLine size={14} /></button>
               <button className="sprig-tap" onClick={() => onRemoveFavorite(f.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><Trash2 size={14} /></button>
               <button className="sprig-tap" onClick={() => onAddFavorite(f.id)} style={{ ...btn(C.green, "#fff"), padding: "8px 12px", fontSize: 12, whiteSpace: "nowrap" }}><Plus size={13} /> Add</button>
             </div>
@@ -6104,7 +6376,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
                     <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{e.time ? minToLabel(tsToMin(e.time)) + " · " : ""}P {Math.round(e.protein_g * e.mult)} · C {Math.round(e.carbs_g * e.mult)} · F {Math.round(e.fat_g * e.mult)} g</div>
                   </div>
                   <div style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: 16 }}>{Math.round(e.calories * e.mult)}</div>
-                  <button className="sprig-tap" title="Save as favorite" onClick={() => onSaveFavorite(e, { onDuplicate: (fav, existing) => setDupPrompt({ form: e, existing }) })}
+                  <button className="sprig-tap" title="Save as favorite" onClick={() => onSaveFavorite(e, { onDuplicate: (fav, existing) => onFavoriteDuplicate && onFavoriteDuplicate(e, existing) })}
                     style={{ background: "none", border: "none", cursor: "pointer", color: C.amber, padding: 4 }}><BookMarked size={15} /></button>
                   <button className="sprig-tap" onClick={() => onRemove(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><Trash2 size={15} /></button>
                 </div>
@@ -6112,57 +6384,6 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* favorite create/edit sheet */}
-      {favForm && (
-        <div onClick={() => { setFavForm(null); setFavEditing(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
-          <div onClick={(e) => e.stopPropagation()} className="sprig-bottom-sheet" style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px 24px", maxHeight: "85vh", overflowY: "auto" }}>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{favEditing === "new" ? "New favorite meal" : "Edit favorite"}</div>
-            <input value={favForm.name} onChange={(e) => setFavForm({ ...favForm, name: e.target.value })} placeholder="Name (e.g. Chicken rice bowl)"
-              style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, marginBottom: 8, boxSizing: "border-box" }} />
-            <input value={favForm.serving} onChange={(e) => setFavForm({ ...favForm, serving: e.target.value })} placeholder="Serving (e.g. 1 bowl)"
-              style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, marginBottom: 8, boxSizing: "border-box" }} />
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              {[["calories", "kcal"], ["protein", "P"], ["carbs", "C"], ["fat", "F"]].map(([k, lbl]) => (
-                <div key={k} style={{ flex: 1 }}>
-                  <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{lbl}</div>
-                  <input type="number" inputMode="numeric" value={favForm[k]} onChange={(e) => setFavForm({ ...favForm, [k]: e.target.value })}
-                    style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 9px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, margin: "4px 0 6px" }}>Tags (optional)</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-              {TAGS.map((tg) => {
-                const on = (favForm.tags || []).includes(tg);
-                return (
-                  <button key={tg} className="sprig-tap" onClick={() => setFavForm({ ...favForm, tags: on ? favForm.tags.filter((x) => x !== tg) : [...(favForm.tags || []), tg] })}
-                    style={{ background: on ? C.green : C.bg, color: on ? "#fff" : C.inkSoft, border: `1px solid ${on ? C.green : C.line}`, borderRadius: 99, padding: "6px 11px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans" }}>{tg}</button>
-                );
-              })}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="sprig-tap" onClick={() => { setFavForm(null); setFavEditing(null); }} style={{ flex: 1, ...btn(C.bg2, C.inkSoft), padding: "12px 0", fontSize: 13 }}>Cancel</button>
-              <button className="sprig-tap" onClick={submitFav} style={{ flex: 1, ...btn(C.green, "#fff"), padding: "12px 0", fontSize: 13 }}>{favEditing === "new" ? "Save favorite" : "Save changes"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* duplicate-name prompt */}
-      {dupPrompt && (
-        <div onClick={() => setDupPrompt(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 85, padding: 24 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 340, background: C.card, borderRadius: 18, padding: 20, boxShadow: "0 12px 40px rgba(0,0,0,.25)" }}>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Favorite already exists</div>
-            <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 16 }}>You already have a favorite called "{dupPrompt.existing.name}". Replace it, or save a copy?</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button className="sprig-tap" onClick={() => { onReplaceFavorite(dupPrompt.existing.id, dupPrompt.form); setDupPrompt(null); }} style={{ ...btn(C.green, "#fff"), padding: "11px 0", fontSize: 13 }}>Replace existing</button>
-              <button className="sprig-tap" onClick={() => { onSaveFavorite({ ...dupPrompt.form, name: dupPrompt.form.name + " (copy)" }); setDupPrompt(null); }} style={{ ...btn(C.bg2, C.green), padding: "11px 0", fontSize: 13 }}>Save as copy</button>
-              <button className="sprig-tap" onClick={() => setDupPrompt(null)} style={{ background: "transparent", color: C.muted, border: "none", cursor: "pointer", padding: "8px 0", fontSize: 12 }}>Cancel</button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -6214,8 +6435,10 @@ function MealsTab({ library, onLog, onRemove, onNew }) {
 
 /* ---------------- Sleep tab -------------- */
 function StageBar({ stages, advanced }) {
-  const total = stages.deep + stages.rem + stages.light || 1;
-  const seg = [["Deep", stages.deep, "#3E5C8A"], ["REM", stages.rem, "#7A6FB0"], ["Light", stages.light, "#A9C3D9"]];
+  if (!stages || (stages.deep == null && stages.rem == null && stages.light == null)) return null;
+  const deep = stages.deep || 0, rem = stages.rem || 0, light = stages.light || 0;
+  const total = deep + rem + light || 1;
+  const seg = [["Deep", deep, "#3E5C8A"], ["REM", rem, "#7A6FB0"], ["Light", light, "#A9C3D9"]];
   return (
     <div>
       <div style={{ display: "flex", height: 14, borderRadius: 99, overflow: "hidden", marginBottom: advanced ? 8 : 0 }}>
@@ -6289,10 +6512,13 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
       <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <div style={{ fontSize: 11.5, opacity: .75, letterSpacing: .3 }}>SLEEP DEBT · LAST 14 NIGHTS</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 34, fontWeight: 700, marginTop: 4 }}>{durLabel(debtMin)}</div>
+            <div style={{ fontSize: 11.5, opacity: .75, letterSpacing: .3 }}>SLEEP DEBT · WEIGHTED, LAST 14 NIGHTS</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 4 }}>
+              <span style={{ fontFamily: "Fraunces, serif", fontSize: 34, fontWeight: 700 }}>{debtMin < 30 ? "~0" : durLabel(debtMin)}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, opacity: .9 }}>{sleepDebtLabel(debtMin).label}</span>
+            </div>
             <div style={{ fontSize: 12, opacity: .8, marginTop: 2 }}>
-              {debtMin < 60 ? "You're well rested 🌿" : debtMin < 300 ? "A bit behind — bank some early nights." : "High debt — prioritize sleep this week."}
+              {debtMin < 30 ? "You're well rested 🌿" : debtMin < 90 ? "Slightly behind — one early night clears it." : debtMin < 180 ? "A bit behind — bank a couple of early nights." : "High debt — prioritize sleep this week."}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -6313,6 +6539,9 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
             <div style={{ fontSize: 10.5, opacity: .75, display: "flex", alignItems: "center", gap: 4 }}><Coffee size={12} /> NO CAFFEINE AFTER</div>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginTop: 2 }}>{minToLabel(rec.caffeineCutoff)}</div>
           </div>
+        </div>
+        <div style={{ fontSize: 10.5, opacity: .65, marginTop: 14, lineHeight: 1.5 }}>
+          Sleep debt is weighted toward recent nights. Good nights reduce old debt — it isn't a permanent balance.
         </div>
       </div>
 
@@ -6585,7 +6814,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
 function sleepTip(log, debtMin, need) {
   if (log.durationMin < need - 60) return "Short night. Aim to be in bed 30–60 min earlier tonight to start clearing the deficit.";
   if (log.restlessness > 55) return "Restless sleep — a cooler, darker room and no screens before bed can deepen it.";
-  if (log.stages.deep < log.durationMin * 0.13) return "Deep sleep ran low. Avoid late caffeine and alcohol, and keep a steady bedtime.";
+  if (log.stages?.deep != null && log.stages.deep < log.durationMin * 0.13) return "Deep sleep ran low. Avoid late caffeine and alcohol, and keep a steady bedtime.";
   if (debtMin > 240) return "Good night, but you're still in debt — a few consistent early nights will reset your energy.";
   return "Solid, restorative night. Keep your wake time consistent to lock in the rhythm.";
 }
@@ -8926,18 +9155,18 @@ function PlateView({ target, unit }) {
   );
 }
 
-function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, onLogSet, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
+function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, onLogSet, onSetRir, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
   const meta = findEx(ex.name);
   const prog = progressionFor(workouts, ex.name, daily, sleepReadiness);  // richer: action + text + suggested w/reps
   const sug = prog || suggestNext(workouts, ex.name);                     // fall back to lightweight hint
   const last = ex.sets[ex.sets.length - 1];
   const [w, setW] = useState(last ? String(last.w) : sug ? String(sug.w) : "");
   const [reps, setReps] = useState(last ? String(last.reps) : sug ? String(sug.reps) : "");
-  const [rir, setRir] = useState(2);
   const [showCue, setShowCue] = useState(false);
   const [showPlate, setShowPlate] = useState(false);
   const [editRest, setEditRest] = useState(false);
-  const [overload, setOverload] = useState(null); // { text } brief celebration on a PR set
+  const [overload, setOverload] = useState(null);   // { text } brief celebration on a PR set
+  const [rirPrompt, setRirPrompt] = useState(null);  // { setIdx } → asks RIR right after a set is logged
   const restSecs = customRests[ex.name] ?? restDefault(meta);
   const setNo = ex.sets.length + 1;
 
@@ -8959,8 +9188,16 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
       try { navigator.vibrate?.(40); } catch (_) {}
       setTimeout(() => setOverload(null), 2600);
     }
-    onLogSet(exIdx, { w: W, reps: R, rir });
+    // Log the set immediately (RIR captured next via the post-set prompt).
+    const newIdx = ex.sets.length;
+    onLogSet(exIdx, { w: W, reps: R, rir: null });
     onStartRest(ex.name);
+    setRirPrompt({ setIdx: newIdx });
+  }
+  // Set RIR for a specific already-logged set (used by the prompt and the row editor).
+  function chooseRir(setIdx, val) {
+    onSetRir(exIdx, setIdx, val);
+    setRirPrompt(null);
   }
   return (
     <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10, position: "relative" }}>
@@ -9012,7 +9249,12 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, background: C.bg, borderRadius: 9, padding: "7px 11px" }}>
               <span style={{ width: 36, color: C.muted, fontSize: 11 }}>Set {i + 1}</span>
               <span style={{ fontWeight: 600 }}>{s.w}{unit} × {s.reps}</span>
-              {advanced && <span style={{ fontSize: 11, color: C.muted }}>RIR {s.rir ?? "–"}</span>}
+              {advanced && (
+                <button className="sprig-tap" onClick={() => setRirPrompt({ setIdx: i })} title="Set reps in reserve"
+                  style={{ background: s.rir == null ? C.amber + "22" : "transparent", border: "none", cursor: "pointer", color: s.rir == null ? C.amber : C.muted, fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "2px 6px" }}>
+                  {s.rir == null ? "+ RIR" : `RIR ${s.rir}`}
+                </button>
+              )}
               {advanced && <span style={{ marginLeft: "auto", fontSize: 11, color: C.greenSoft }}><Term k="e1RM" /> {Math.round(est1RM(s.w, s.reps))}</span>}
               <button className="sprig-tap" onClick={() => onRemoveSet(exIdx, i)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 2, marginLeft: advanced ? 0 : "auto" }}><X size={13} /></button>
             </div>
@@ -9021,25 +9263,39 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
       )}
 
       {sug && ex.sets.length === 0 && (() => {
-        // color & icon by action (prog hint), or default for legacy sug shape
         const action = sug.action || "add_w";
         const styleMap = {
           add_w:   { c: C.greenSoft, ic: <ArrowUp size={13} /> },
           add_rep: { c: C.greenSoft, ic: <Plus size={13} /> },
           repeat:  { c: C.amber,     ic: <Repeat size={13} /> },
           back_off:{ c: C.amber,     ic: <Minus size={13} /> },
-          hold:    { c: C.muted,     ic: <Square size={13} /> },
+          hold:    { c: C.amber,     ic: <Square size={13} /> },
           deload:  { c: C.coral,     ic: <TrendingDown size={13} /> },
         };
         const sty = styleMap[action] || styleMap.add_w;
         const text = sug.text || sug.note;
+        const isPush = action === "add_w" || action === "add_rep";
         return (
-          <div style={{ fontSize: 11.5, color: sty.c, marginTop: 9, display: "flex", alignItems: "flex-start", gap: 6, lineHeight: 1.45 }}>
-            <span style={{ marginTop: 1 }}>{sty.ic}</span>
-            <span><b>{sug.w}{unit} × {sug.reps}</b> — {text}</span>
+          <div style={{ background: isPush ? C.green + "0d" : C.bg, borderRadius: 12, padding: "10px 12px", marginTop: 9, border: `1px solid ${isPush ? C.green + "33" : C.line}` }}>
+            {sug.prevW != null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginBottom: 5 }}>
+                <span style={{ color: C.muted }}>Last: <b style={{ color: C.inkSoft }}>{sug.prevW}{unit} × {sug.prevReps}</b></span>
+                <ChevronRight size={13} color={C.muted} />
+                <span style={{ color: sty.c, fontWeight: 700 }}>Target: {sug.w}{unit} × {sug.reps}</span>
+              </div>
+            )}
+            <div style={{ fontSize: 11.5, color: sty.c, display: "flex", alignItems: "flex-start", gap: 6, lineHeight: 1.45 }}>
+              <span style={{ marginTop: 1 }}>{sty.ic}</span><span>{text}</span>
+            </div>
           </div>
         );
       })()}
+
+      {!sug && ex.sets.length === 0 && (
+        <div style={{ background: C.bg, borderRadius: 12, padding: "10px 12px", marginTop: 9, border: `1px solid ${C.line}`, fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>
+          Start conservative — pick a weight you can do for 8–12 reps with about 2 in reserve. Next time, Sprig pushes you to beat it.
+        </div>
+      )}
 
       {/* input row */}
       <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10 }}>
@@ -9052,18 +9308,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         {meta?.bar && (
           <button className="sprig-tap" onClick={() => setShowPlate((s) => !s)} title="Plate calculator" style={{ background: showPlate ? C.green : C.bg2, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", color: showPlate ? "#fff" : C.inkSoft }}><Calculator size={16} /></button>
         )}
-        <button className="sprig-tap" onClick={log} style={{ ...btn(C.green, "#fff"), flex: 1, padding: "10px 0" }}><Plus size={16} /> Add set</button>
-      </div>
-
-      {/* effort / RIR */}
-      <div style={{ fontSize: 10.5, color: C.muted, margin: "10px 2px 5px", fontWeight: 600, letterSpacing: .2 }}>
-        {advanced ? <>REPS IN RESERVE <Term k="RIR" /></> : "HOW HARD WAS IT?"}
-      </div>
-      <div style={{ display: "flex", gap: 5 }}>
-        {(advanced ? RIR_OPTS : EFFORT_OPTS).map(([v, lbl]) => (
-          <button key={v} onClick={() => setRir(+v)} className="sprig-tap"
-            style={{ flex: 1, border: "none", cursor: "pointer", padding: "7px 0", borderRadius: 9, fontSize: 11, fontWeight: 600, fontFamily: "DM Sans", background: rir === +v ? C.green : C.bg2, color: rir === +v ? "#fff" : C.muted }}>{lbl}</button>
-        ))}
+        <button className="sprig-tap" onClick={log} style={{ ...btn(C.green, "#fff"), flex: 1, padding: "10px 0" }}><Plus size={16} /> Complete set</button>
       </div>
 
       {showPlate && meta?.bar && <PlateView target={parseFloat(w) || 0} unit={unit} />}
@@ -9131,6 +9376,29 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
                   background: on ? val.color : C.bg2, color: on ? "#fff" : C.muted }}>{val.label}</button>
             );
           })}
+        </div>
+      )}
+
+      {/* Post-set RIR prompt — appears immediately after a set is completed (and when editing a set's RIR). */}
+      {rirPrompt && (
+        <div onClick={() => setRirPrompt(null)} style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 70, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
+            style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, textAlign: "center" }}>How many reps in reserve?</div>
+            <div style={{ fontSize: 12, color: C.muted, textAlign: "center", marginTop: 4, marginBottom: 16 }}>
+              Set {rirPrompt.setIdx + 1}{ex.sets[rirPrompt.setIdx] ? ` · ${ex.sets[rirPrompt.setIdx].w}${unit} × ${ex.sets[rirPrompt.setIdx].reps}` : ""} — how many more could you have done?
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+              {[["0", "0", "Failure"], ["1", "1", "Hard"], ["2", "2", "Solid"], ["3", "3+", "Easy"]].map(([val, big, lbl]) => (
+                <button key={val} className="sprig-tap" onClick={() => chooseRir(rirPrompt.setIdx, +val)}
+                  style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: "DM Sans" }}>
+                  <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.green }}>{big}</span>
+                  <span style={{ fontSize: 10.5, color: C.muted, fontWeight: 600 }}>{lbl}</span>
+                </button>
+              ))}
+            </div>
+            <button className="sprig-tap" onClick={() => setRirPrompt(null)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip</button>
+          </div>
         </div>
       )}
     </div>
@@ -9373,37 +9641,14 @@ function LiftTrend({ workouts, exName }) {
   );
 }
 
-function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth }) {
+function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive }) {
   const unit = profile.unit || "kg";
   const [picker, setPicker] = useState(false);
-  const [rest, setRest] = useState(null); // { exName, end, paused, remainingMs }
-  const [restDone, setRestDone] = useState(false); // brief "rest over" flash
-  const restFiredRef = useRef(false);
   const [builder, setBuilder] = useState(null); // null | {} (new) | routine (edit)
   const [showTemplates, setShowTemplates] = useState(false);
   const [showMobility, setShowMobility] = useState(false);
   const [, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
-  const restLeft = rest ? (rest.paused ? Math.round(rest.remainingMs / 1000) : Math.max(0, Math.round((rest.end - Date.now()) / 1000))) : 0;
-  // Fire sound + vibration the moment an active (non-paused) timer hits zero.
-  useEffect(() => {
-    if (!rest || rest.paused) { restFiredRef.current = false; return; }
-    if (restLeft <= 0 && !restFiredRef.current) {
-      restFiredRef.current = true;
-      if (profile?.restTimerSound !== false) {
-        try { playAlarmTone(profile?.restTimerSoundChoice || "beep", profile?.alarmVolume ?? 0.7); } catch (_) {}
-      }
-      if (profile?.restTimerVibrate !== false) {
-        try { navigator.vibrate?.([300, 120, 300]); } catch (_) {}
-      }
-      setRestDone(true);
-      setTimeout(() => setRestDone(false), 4000);
-    }
-  }, [restLeft, rest, profile]);
-  function startRest(exName) { const meta = findEx(exName); const secs = trainInfo.customRests[exName] ?? restDefault(meta); restFiredRef.current = false; setRestDone(false); setRest({ exName, end: Date.now() + secs * 1000, paused: false }); }
-  function pauseRest() { setRest((r) => r && !r.paused ? { ...r, paused: true, remainingMs: Math.max(0, r.end - Date.now()) } : r); }
-  function resumeRest() { setRest((r) => r && r.paused ? { ...r, paused: false, end: Date.now() + (r.remainingMs || 0) } : r); }
-  function addRest(ms) { setRest((r) => { if (!r) return r; if (r.paused) return { ...r, remainingMs: (r.remainingMs || 0) + ms }; return { ...r, end: r.end + ms }; }); restFiredRef.current = false; }
 
   // ACTIVE WORKOUT
   if (active) {
@@ -9420,35 +9665,13 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
           <button className="sprig-tap" onClick={onFinish} style={{ ...btn("#fff", C.green), padding: "9px 14px", fontSize: 12.5 }}><Check size={15} /> Finish</button>
         </div>
 
-        {/* Floating rest timer — fixed above the tab bar so it follows scroll (Fix 5).
-            Renders outside the normal flow so the page doesn't jump when it appears. */}
-        {rest && (restLeft > 0 || restDone) && (
-          <div className="sprig-bottom-toast" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(72px + env(safe-area-inset-bottom, 0px))", width: "calc(100% - 32px)", maxWidth: 408, background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.3)", zIndex: 55 }}>
-            <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : "#BFD0FF"} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10.5, opacity: .75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {restLeft <= 0 ? "REST OVER" : `REST · ${rest.exName}`}
-              </div>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700 }}>{restLeft <= 0 ? "Go!" : fmtClock(restLeft)}</div>
-            </div>
-            {restLeft > 0 && (
-              <>
-                <button className="sprig-tap" onClick={() => (rest.paused ? resumeRest() : pauseRest())} aria-label={rest.paused ? "Resume" : "Pause"}
-                  style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>
-                  {rest.paused ? <Play size={13} /> : <span style={{ fontWeight: 700, letterSpacing: 1 }}>II</span>}
-                </button>
-                <button className="sprig-tap" onClick={() => addRest(30000)} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>+30s</button>
-              </>
-            )}
-            <button className="sprig-tap" onClick={() => { setRest(null); setRestDone(false); }} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>{restLeft <= 0 ? "Done" : "Skip"}</button>
-          </div>
-        )}
+        {/* (Rest timer now renders at the app-frame level so it tracks scroll — see SprigApp.) */}
 
         {active.exercises.map((ex, i) => (
           <ExerciseCard key={i} ex={ex} exIdx={i} workouts={workouts} unit={unit} customRests={trainInfo.customRests} advanced={advanced}
             sleepReadiness={trainInfo.sleepReadiness} daily={trainInfo.daily}
             painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations}
-            onLogSet={onLogSet} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={startRest}
+            onLogSet={onLogSet} onSetRir={onSetRir} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
             onSetExercisePain={onSetExercisePain} />
         ))}
 
