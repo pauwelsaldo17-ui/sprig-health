@@ -18,35 +18,38 @@ import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
 -----------------------------------------------------------------*/
 
 const C = {
-  bg: "#F6F1E7",
-  bg2: "#EFE8D9",
-  card: "#FFFDF8",
-  ink: "#1C2B22",
-  inkSoft: "#4A5B50",
-  muted: "#8A968C",
-  line: "#E4DCCB",
-  green: "#23543A",
-  greenSoft: "#3E7B53",
-  leaf: "#6BAE78",
-  coral: "#E0714A",
-  coralSoft: "#F0A07F",
-  amber: "#D9A23C",
-  shadow: "0 1px 0 rgba(0,0,0,.02), 0 8px 24px rgba(28,43,34,.06)",
+  bg: "#07140F",         // dark forest-green background
+  bg2: "rgba(255,255,255,0.06)",  // subtle glass inset / secondary fill
+  card: "rgba(255,255,255,0.07)", // glassy translucent dark card
+  cardSolid: "#13261D",  // opaque dark card where translucency won't read (e.g. over images)
+  ink: "#F4F7F2",        // primary light text
+  inkSoft: "rgba(244,247,242,0.72)", // secondary text
+  muted: "rgba(244,247,242,0.52)",   // tertiary / micro labels
+  line: "rgba(255,255,255,0.08)",    // hairline glass border
+  green: "#3E9D63",      // primary green — works as a button bg with light text
+  greenSoft: "#52C878",  // secondary green accent
+  leaf: "#74CE8A",
+  lime: "#C7FF3D",       // NEON lime — key progress / accent states only
+  limeSoft: "#A7F04B",
+  coral: "#FF6B5F",      // danger
+  coralSoft: "#FF9B92",
+  amber: "#F5A623",      // warning
+  shadow: "0 1px 2px rgba(0,0,0,.18), 0 10px 30px rgba(0,0,0,.28)",  // soft depth on dark
 };
 
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes rise { from { opacity:0; transform: translateY(8px);} to {opacity:1; transform:none;} }
-@keyframes pop { 0%{transform:scale(.96);opacity:0;} 100%{transform:scale(1);opacity:1;} }
-.sprig-rise { animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
-.sprig-pop { animation: pop .25s cubic-bezier(.2,.7,.2,1) both; }
-.sprig-tap { transition: transform .12s ease, background .15s ease, box-shadow .15s ease; -webkit-tap-highlight-color: transparent; }
-.sprig-tap:active { transform: scale(.97); }
+@keyframes rise { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+@keyframes pop { 0%{transform:scale(.97);opacity:0;} 100%{transform:scale(1);opacity:1;} }
+.sprig-rise { animation: rise .28s cubic-bezier(.22,.7,.25,1) both; }
+.sprig-pop { animation: pop .22s cubic-bezier(.22,.7,.25,1) both; }
+.sprig-tap { transition: transform .14s cubic-bezier(.22,.7,.25,1), background .18s ease, box-shadow .18s ease; -webkit-tap-highlight-color: transparent; }
+.sprig-tap:active { transform: scale(.975); }
 .sprig-scroll::-webkit-scrollbar{width:0;height:0;}
 /* Mobile / PWA baseline — prevents horizontal scroll, honors iOS safe areas, lets the app fill the screen on phones */
-html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #F6F1E7; overscroll-behavior: none; }
-body { -webkit-text-size-adjust: 100%; }
+html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #07140F; overscroll-behavior: none; }
+body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
 .sprig-app-frame {
   max-width: 440px;
   margin: 0 auto;
@@ -55,13 +58,21 @@ body { -webkit-text-size-adjust: 100%; }
   padding-bottom: env(safe-area-inset-bottom, 0);
   padding-top: env(safe-area-inset-top, 0);
   position: relative;
+  /* deep green gradient page backdrop */
+  background:
+    radial-gradient(120% 60% at 50% -10%, #123524 0%, rgba(18,53,36,0) 55%),
+    linear-gradient(180deg, #0B1A13 0%, #07140F 60%);
 }
+.sprig-glass { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .sprig-bottom-pad { height: calc(env(safe-area-inset-bottom, 0px) + 8px); }
 /* On phones, drop the rounded outer corners — the "app" should fill the whole screen */
 @media (max-width: 480px) {
   .sprig-app-frame { border-radius: 0 !important; box-shadow: none !important; }
 }
 input, textarea, select, button { font-family: inherit; font-size: 16px; }
+/* dark inputs read correctly on glass */
+input, textarea, select { color: #F4F7F2; }
+input::placeholder, textarea::placeholder { color: rgba(244,247,242,0.4); }
 /* Bottom sheets/toasts need the inset baked in so they don't sit under the home indicator */
 .sprig-bottom-toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
 .sprig-bottom-sheet { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important; }
@@ -3446,6 +3457,79 @@ function ProgressBar({ pct, color = C.green, height = 6 }) {
   );
 }
 
+// Standard surface: glass card — consistent radius / padding / soft shadow / blur. Use for any card-like block.
+function PremiumCard({ children, accent, onClick, style = {}, pad = 18 }) {
+  const base = {
+    background: C.card, borderRadius: 22, padding: pad, boxShadow: C.shadow,
+    border: `1px solid ${C.line}`, ...(accent ? { borderLeft: `3px solid ${accent}` } : {}), ...style,
+  };
+  if (onClick) return <button className="sprig-tap sprig-glass" onClick={onClick} style={{ ...base, width: "100%", textAlign: "left", cursor: "pointer", display: "block" }}>{children}</button>;
+  return <div className="sprig-glass" style={base}>{children}</div>;
+}
+
+// Kiwi-style glass card alias — translucent dark surface, blur, soft border, large radius.
+function GlassCard({ children, onClick, style = {}, pad = 18, radius = 24 }) {
+  return <PremiumCard onClick={onClick} pad={pad} style={{ borderRadius: radius, ...style }}>{children}</PremiumCard>;
+}
+
+// Circular progress ring with a center value + label. Used for calories, macros, vitamins, scores, etc.
+function RingMetric({ value, max, label, icon, accent = C.lime, size = 76, stroke = 7, center, sub, track = "rgba(255,255,255,0.10)" }) {
+  const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const off = circ * (1 - pct);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <div style={{ position: "relative", width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={accent} strokeWidth={stroke}
+            strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round"
+            style={{ transition: "stroke-dashoffset .6s cubic-bezier(.22,.7,.25,1)" }} />
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
+          {icon && !center && <span style={{ color: accent, display: "inline-flex" }}>{icon}</span>}
+          {center != null && <span style={{ fontFamily: "Fraunces, serif", fontSize: size > 90 ? 24 : 16, fontWeight: 700, color: C.ink, lineHeight: 1 }}>{center}</span>}
+          {sub && <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 600 }}>{sub}</span>}
+        </div>
+      </div>
+      {label && <span style={{ fontSize: 11, color: C.inkSoft, fontWeight: 600, textAlign: "center" }}>{label}</span>}
+    </div>
+  );
+}
+
+// Metric tile: label, big number, subtext, optional progress + action.
+function MetricCard({ icon, label, value, unit, sub, pct, accent = C.lime, action }) {
+  return (
+    <PremiumCard>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+        {icon && <span style={{ color: accent, display: "inline-flex" }}>{icon}</span>}
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>{label}</span>
+        {action && <span style={{ marginLeft: "auto" }}>{action}</span>}
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+        <span style={{ fontFamily: "Fraunces, serif", fontSize: 28, fontWeight: 700, color: C.ink, lineHeight: 1 }}>{value}</span>
+        {unit && <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>{unit}</span>}
+      </div>
+      {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{sub}</div>}
+      {pct != null && <div style={{ marginTop: 10 }}><ProgressBar pct={pct} color={accent} /></div>}
+    </PremiumCard>
+  );
+}
+
+// Large, confident page title (Apple-style), with optional subtitle + right action.
+function PageHeader({ title, subtitle, action }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", margin: "4px 2px 16px" }}>
+      <div>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 27, fontWeight: 700, color: C.ink, letterSpacing: -.3, lineHeight: 1.1 }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{subtitle}</div>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
 /* ---------------- result / edit card -------------- */
 function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode }) {
   const [r, setR] = useState({ ...result, mult: 1 });
@@ -3709,7 +3793,7 @@ function Onboarding({ onDone }) {
   );
 
   return (
-    <div className="sprig-app-frame" style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, borderRadius: 24, display: "flex", flexDirection: "column" }}>
+    <div className="sprig-app-frame" style={{ fontFamily: "DM Sans, sans-serif", color: C.ink, borderRadius: 24, display: "flex", flexDirection: "column" }}>
       <style>{FONTS}</style>
       {/* header */}
       <div style={{ padding: "22px 20px 8px" }}>
@@ -4991,7 +5075,7 @@ function SprigApp() {
 
       {/* alarm ring overlay */}
       {ringing && (
-        <div className="sprig-pop" style={{ position: "absolute", inset: 0, zIndex: 50, background: "linear-gradient(160deg,#1C2B22,#2C4636)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff", padding: 30 }}>
+        <div className="sprig-pop" style={{ position: "absolute", inset: 0, zIndex: 50, background: "linear-gradient(160deg,#0E2C1E,#1C5237)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff", padding: 30 }}>
           <Sun size={54} color={C.amber} style={{ animation: "pop .4s ease" }} />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, fontWeight: 700, marginTop: 18 }}>Good morning</div>
           <div style={{ fontSize: 13.5, opacity: .8, marginTop: 6, textAlign: "center", maxWidth: 260 }}>
@@ -5183,10 +5267,10 @@ function SprigApp() {
       )}
 
       {/* tab bar — 8 tabs, horizontally scrollable on narrow screens */}
-      <div className="sprig-tabbar" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: C.card, paddingBottom: "env(safe-area-inset-bottom, 0px)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="sprig-tabbar sprig-glass" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "rgba(7,20,15,0.82)", paddingBottom: "env(safe-area-inset-bottom, 0px)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         {[["today", Home, "Today"], ["nutrition", Flame, "Food"], ["coach", Sparkles, "Coach"], ["train", Dumbbell, "Train"], ["sleep", Moon, "Sleep"], ["health", HeartPulse, "Health"], ["mind", BookOpen, "Mind"], ["progress", TrendingUp, "Progress"]].map(([k, Ic, lbl]) => (
           <button key={k} onClick={() => { setTab(k); setResult(null); setComposer(null); setError(""); setFavoriteMode(false); }}
-            style={{ flex: "1 0 auto", minWidth: 64, background: "none", border: "none", cursor: "pointer", padding: "10px 6px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.green : C.muted }}>
+            style={{ flex: "1 0 auto", minWidth: 64, background: "none", border: "none", cursor: "pointer", padding: "10px 6px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.lime : C.muted }}>
             <Ic size={19} strokeWidth={tab === k ? 2.4 : 2} />
             <span style={{ fontSize: 9.5, fontWeight: tab === k ? 700 : 500, whiteSpace: "nowrap" }}>{lbl}</span>
           </button>
@@ -6098,7 +6182,7 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
       })()}
 
       {/* 1 — DAILY HEALTH SCORE */}
-      <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 22, padding: 18, color: "#fff", boxShadow: C.shadow }}>
+      <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 22, padding: 18, color: "#fff", boxShadow: C.shadow }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <ScoreDonut score={healthScore} />
           <div style={{ flex: 1 }}>
@@ -6110,6 +6194,28 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
           </div>
         </div>
       </div>
+
+      {/* horizontal score rings — Kiwi-style dashboard summary of each system */}
+      {(() => {
+        const rings = [
+          { label: "Nutrition", v: subScores.nutrition, ic: <Flame size={15} />, accent: C.lime },
+          { label: "Sleep", v: subScores.sleep, ic: <Moon size={15} />, accent: C.greenSoft },
+          { label: "Movement", v: subScores.movement, ic: <Activity size={15} />, accent: C.leaf },
+          { label: "Recovery", v: subScores.training, ic: <Gauge size={15} />, accent: C.limeSoft },
+          { label: "Mind", v: subScores.mind, ic: <BookOpen size={15} />, accent: C.greenSoft },
+        ];
+        return (
+          <div style={{ display: "flex", gap: 12, overflowX: "auto", padding: "14px 2px 4px", marginTop: 2 }} className="sprig-scroll">
+            {rings.map((rg) => (
+              <div key={rg.label} style={{ flex: "0 0 auto" }}>
+                <RingMetric value={rg.v == null ? 0 : rg.v} max={100} size={64} stroke={6}
+                  accent={rg.v == null ? "rgba(255,255,255,0.18)" : rg.accent}
+                  icon={rg.ic} center={rg.v == null ? "–" : Math.round(rg.v)} label={rg.label} />
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* 2 — BEST ACTIONS (max 3, one sentence each) */}
       {actions.length > 0 && (
@@ -6751,7 +6857,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
   if (session) {
     return (
       <div className="sprig-rise" style={{ textAlign: "center", padding: "20px 6px" }}>
-        <div style={{ background: "linear-gradient(160deg,#1C2B22,#2C4636)", borderRadius: 24, padding: "34px 20px", color: "#fff" }}>
+        <div style={{ background: "linear-gradient(160deg,#0E2C1E,#1C5237)", borderRadius: 24, padding: "34px 20px", color: "#fff" }}>
           <MoonStar size={40} color="#BFD0FF" />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, marginTop: 14 }}>Sleep mode on</div>
           <div style={{ fontSize: 13, opacity: .8, marginTop: 6 }}>Asleep for {durLabel(elapsed)}</div>
@@ -6777,7 +6883,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
   return (
     <div className="sprig-rise">
       {/* sleep debt hero */}
-      <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow }}>
+      <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: 11.5, opacity: .75, letterSpacing: .3 }}>SLEEP DEBT · WEIGHTED, LAST 14 NIGHTS</div>
@@ -8287,7 +8393,7 @@ function CoachTab({ coach, advanced, moveInfo, timeline, plateaus, patterns, onG
 
       {/* WHY AM I NOT PROGRESSING — headline diagnostic */}
       {diag && (diag.enough ? (
-        <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
+        <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, opacity: .75, letterSpacing: .3, marginBottom: 8 }}>
             <Search size={14} color="#E7DCC6" /> WHY AM I NOT PROGRESSING?
           </div>
@@ -8785,7 +8891,7 @@ function FocusTimer({ onLogFocus }) {
   const completeNow = () => { setRunning(false); setRemaining(null); onLogFocus(minutes, label.trim() || "Deep work"); };
 
   return (
-    <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow }}>
+    <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, opacity: .85, fontWeight: 600, marginBottom: 12 }}>
         <Timer size={15} color="#E7DCC6" /> Focus session
       </div>
@@ -8847,7 +8953,7 @@ function MindTab({ mindInfo, advanced, checkin, onCheckin, profile, onToggleHabi
       </div>
 
       {/* WEEKLY CONSISTENCY */}
-      <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginTop: 12, display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginTop: 12, display: "flex", alignItems: "center", gap: 16 }}>
         <Ring value={consistency.pct} max={100} size={78} stroke={9} label={consistency.pct + "%"} sub="this week"
           color={consistency.pct >= 70 ? C.leaf : consistency.pct >= 40 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
         <div style={{ flex: 1 }}>
@@ -9998,7 +10104,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
 
       {/* SUGGESTED WORKOUT */}
       {sug && (
-        <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 20, padding: 16, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
+        <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 16, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
             <div style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(255,255,255,.14)", display: "grid", placeItems: "center", flexShrink: 0 }}>
               <SugIcon size={22} color="#E7DCC6" />
@@ -10130,7 +10236,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
       )}
 
       {/* readiness */}
-      <button className="sprig-tap" onClick={onGoBody} style={{ width: "100%", textAlign: "left", marginTop: 14, background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow, border: "none", cursor: "pointer" }}>
+      <button className="sprig-tap" onClick={onGoBody} style={{ width: "100%", textAlign: "left", marginTop: 14, background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow, border: "none", cursor: "pointer" }}>
         <Ring value={trainInfo.bodyReadiness} max={100} size={64} stroke={8} label={trainInfo.bodyReadiness} sub="ready" color={trainInfo.bodyReadiness >= 70 ? C.leaf : trainInfo.bodyReadiness >= 45 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 11.5, opacity: .8 }}>TODAY'S READINESS</div>
@@ -10527,7 +10633,7 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
       {section === "strength" && (
         <>
       {/* readiness header */}
-      <div style={{ background: "linear-gradient(150deg,#2C4636,#1C2B22)", borderRadius: 20, padding: 18, color: "#fff", display: "flex", alignItems: "center", gap: 16, boxShadow: C.shadow }}>
+      <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 18, color: "#fff", display: "flex", alignItems: "center", gap: 16, boxShadow: C.shadow }}>
         <Ring value={trainInfo.bodyReadiness} max={100} size={76} stroke={9} label={trainInfo.bodyReadiness} sub="ready"
           color={trainInfo.bodyReadiness >= 70 ? C.leaf : trainInfo.bodyReadiness >= 45 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
         <div style={{ flex: 1 }}>
