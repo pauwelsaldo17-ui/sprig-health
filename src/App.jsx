@@ -1948,6 +1948,36 @@ function sleepDebtLabel(debtMin) {
   if (debtMin < 180) return { label: "Moderate debt", tone: "warning" };
   return { label: "High debt", tone: "danger" };
 }
+
+// Decide whether to nudge an end-of-day quick log. Fires only when ALL hold:
+//   • it's within ~90 min before (or just past) the recommended bedtime
+//   • the user hasn't logged anything for a few hours (stale)
+//   • their most important daily goals aren't met yet
+// We never reduce the health score for not logging — this is a gentle prompt, nothing more.
+function bedtimeReminder({ nowTs, recBedMin, lastLogTs, t, targets, daily, waterGoalMl, trainedToday }) {
+  if (recBedMin == null) return null;
+  const nowMin = tsToMin(nowTs);
+  // circular minutes-until-bed (handle wrap past midnight); treat the window as 90 min before bed
+  let toBed = (recBedMin - nowMin + 1440) % 1440;
+  if (toBed > 720) toBed -= 1440; // allow "just past bedtime" (negative up to -12h)
+  const nearBed = toBed <= 90 && toBed >= -90;
+  if (!nearBed) return null;
+
+  // stale: nothing logged in 4h+ (lastLogTs is the most recent of any log we track)
+  const hoursSinceLog = lastLogTs ? (nowTs - lastLogTs) / 3600000 : 99;
+  const stale = hoursSinceLog >= 4;
+  if (!stale) return null;
+
+  // key goals — the few that matter most for a daily picture
+  const missing = [];
+  if ((t?.calories || 0) < (targets?.calories || 0) * 0.6) missing.push("food");
+  if ((daily?.water || 0) < (waterGoalMl || 2500) * 0.6) missing.push("water");
+  if (!daily?.checkin || !daily.checkin.mood) missing.push("check-in");
+  if ((daily?.steps || 0) === 0 && !trainedToday && (daily?.cardioMin || 0) === 0) missing.push("movement");
+  if (missing.length < 2) return null; // most things already logged → no need to nudge
+
+  return { missing: missing.slice(0, 3), nearBed: true };
+}
 function recommend(logs, profile, debtMin) {
   const need = sleepNeedMin(profile.age);
   const recent = logs.slice(-7);
@@ -2684,7 +2714,7 @@ function suggestSplit({ workouts, recovery, volume, sleepReadiness, debtMin, dai
 }
 
 // progression decision per exercise
-function progressionFor(workouts, exName, daily, sleepReadiness) {
+function progressionFor(workouts, exName, daily, sleepReadiness, prefRange) {
   // gather this exercise's history, most recent session's best set as the reference
   const byTs = {};
   workouts.forEach((w) => w.exercises.forEach((ex) => { if (ex.name === exName) { (byTs[w.ts] = byTs[w.ts] || []).push(...ex.sets); } }));
@@ -2699,8 +2729,10 @@ function progressionFor(workouts, exName, daily, sleepReadiness) {
   const isDumbbell = /dumbbell|db\b/i.test(exName);
   // weight increment by equipment: barbells/cables/machines +2.5kg, dumbbells jump ~2kg/pair, small isolation +1.25
   const inc = isDumbbell ? 2 : (bar || compound) ? 2.5 : 1.25;
-  // rep range: lower reps for heavy compounds, higher for isolation
-  const repRange = compound ? [5, 8] : bar ? [6, 10] : [8, 12];
+  // Rep range: the user's preferred range wins (set on first workout, editable in settings);
+  // otherwise fall back to an equipment-appropriate default.
+  const validPref = Array.isArray(prefRange) && prefRange.length === 2 && prefRange[0] > 0 && prefRange[1] >= prefRange[0];
+  const repRange = validPref ? [prefRange[0], prefRange[1]] : (compound ? [5, 8] : bar ? [6, 10] : [8, 12]);
   const [, repTop] = repRange;
   const stalls = stallingLifts(workouts).includes(exName);
   const prevW = last.w, prevReps = last.reps, prevRir = last.rir;
@@ -2785,12 +2817,14 @@ const STEPS_TARGET = 8000;
 
 // six 0-100 sub-scores from whatever data exists today
 function dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile }) {
-  // nutrition: protein + calorie proximity + fiber
+  // nutrition: protein + calorie proximity + fiber — null until the user logs any food today,
+  // so an empty log isn't scored as a near-zero (we don't punish "not logged" as "bad").
+  const ateToday = (t.calories || 0) > 0 || (t.protein || 0) > 0;
   const protP = targets.protein ? Math.min(1, t.protein / targets.protein) : 0;
   const calRatio = targets.calories ? t.calories / targets.calories : 0;
   const calScore = calRatio === 0 ? 0 : calRatio <= 1 ? 60 + calRatio * 40 : Math.max(50, 100 - (calRatio - 1) * 120);
   const fiberP = targets.fiber ? Math.min(1, t.fiber / targets.fiber) : 0;
-  const nutrition = clamp100(protP * 55 + (calScore / 100) * 30 + fiberP * 15);
+  const nutrition = ateToday ? clamp100(protP * 55 + (calScore / 100) * 30 + fiberP * 15) : null;
 
   // sleep: last night score adjusted for debt; null if no data
   const sleep = sleepInfo.lastSleep
@@ -2800,9 +2834,10 @@ function dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, pr
   // training/recovery readiness
   const training = clamp100(trainInfo.bodyReadiness);
 
-  // movement: steps + (a workout today counts)
+  // movement: steps + (a workout today counts) — null until there's any movement signal
+  const movedToday = (daily.steps || 0) > 0 || trainedToday || (daily.cardioMin || 0) > 0;
   const stepP = Math.min(1, (daily.steps || 0) / STEPS_TARGET);
-  const movement = clamp100(stepP * 80 + (trainedToday ? 20 : 0));
+  const movement = movedToday ? clamp100(stepP * 80 + (trainedToday ? 20 : 0)) : null;
 
   // mind/mood from check-in (energy, mood, stress); null until any logged
   const ci = daily.checkin || {};
@@ -4194,7 +4229,7 @@ function SprigApp() {
 
   // daily extras
   const writeDaily = useCallback(async (patch) => {
-    const next = { ...daily, ...patch };
+    const next = { ...daily, ...patch, lastTouchTs: Date.now() };
     setDaily(next);
     await store.set("sprig_daily_" + date, JSON.stringify(next));
     // keep a 60-day weight series for the trend
@@ -4616,7 +4651,11 @@ function SprigApp() {
   function startWorkout(routine) {
     const exercises = (routine?.exercises || []).map((name) => ({ name, group: findEx(name)?.group, sets: [] }));
     persistActive({ startTs: Date.now(), exercises, routineName: routine?.name || null });
+    // First workout ever (no preferred rep range chosen yet) → ask once. Never shown again.
+    if (!profile.repRange && !profile.repRangeAsked) setRepRangePrompt(true);
   }
+  const [repRangePrompt, setRepRangePrompt] = useState(false);
+  const [bedNudgeDismissed, setBedNudgeDismissed] = useState(false);
   function addWoExercise(name) {
     const meta = findEx(name);
     persistActive({ ...activeWorkout, exercises: [...activeWorkout.exercises, { name, group: meta?.group, sets: [] }] });
@@ -4849,6 +4888,18 @@ function SprigApp() {
   const funcHealth = functionalHealth({ subScores, sleepInfo, trainInfo, daily, healthInfo, profile, targets, t, trainedToday });
   const actions = bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile });
   const dailyInfo = { daily, weightSeries, subScores, healthScore, funcHealth, actions, trainedToday };
+
+  // End-of-day quick-log nudge (gentle; never affects the score).
+  const lastLogTs = Math.max(
+    0,
+    ...(entries || []).map((e) => e.time || e.ts || 0),
+    daily?.lastTouchTs || 0,
+    ...(sleepLogs || []).map((l) => l.ts || 0),
+  ) || null;
+  const bedNudge = bedtimeReminder({
+    nowTs: Date.now(), recBedMin: sleepInfo?.rec?.recBed, lastLogTs,
+    t, targets, daily, waterGoalMl: waterGoal(profile), trainedToday,
+  });
 
   // nutrition coaching
   const dietQ = dietQuality(t, targets, daily, profile);
@@ -5166,6 +5217,20 @@ function SprigApp() {
         </div>
       )}
 
+      {/* End-of-day quick-log nudge — gentle, dismissible, never affects the score. Hidden during
+          an active workout (rest timer owns that space) and on the Today tab (quick log is right there). */}
+      {bedNudge && !bedNudgeDismissed && !activeWorkout && tab !== "today" && !quickOpen && (
+        <div className="sprig-pop" style={{ position: "absolute", left: 12, right: 12, bottom: "calc(64px + env(safe-area-inset-bottom, 0px))", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 11, boxShadow: "0 8px 30px rgba(0,0,0,.18)", zIndex: 44 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#7A6FB022", display: "grid", placeItems: "center", flexShrink: 0 }}><Moon size={17} color="#7A6FB0" /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Wind-down check-in</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Bedtime soon — log your {bedNudge.missing.join(", ")} before you wrap up.</div>
+          </div>
+          <button className="sprig-tap" onClick={() => { setQuickOpen(true); setBedNudgeDismissed(true); }} style={{ ...btn(C.green, "#fff"), padding: "8px 13px", fontSize: 12.5, flexShrink: 0 }}>Quick log</button>
+          <button className="sprig-tap" onClick={() => setBedNudgeDismissed(true)} aria-label="Dismiss" style={{ background: "transparent", border: "none", cursor: "pointer", color: C.muted, padding: 4, flexShrink: 0 }}><X size={15} /></button>
+        </div>
+      )}
+
       {quickOpen && <QuickLogSheet ci={daily.checkin || {}} daily={{ ...daily, trainedToday }} sleepInfo={sleepInfo} profile={profile}
         painActive={trainInfo.pain?.level !== "none"} onCheckin={setCheckin} onDaily={persistDaily}
         onClose={() => setQuickOpen(false)} />}
@@ -5243,6 +5308,39 @@ function SprigApp() {
       {photoOpen && <PhotoSheet onClose={() => setPhotoOpen(false)} photos={progressPhotos} onAdd={addProgressPhoto} onRemove={removeProgressPhoto} />}
 
       {/* Favorite meal create/edit — frame-level so it's never clipped by the scroll container */}
+      {/* First-workout rep-range preference — asked once, stored on the profile, editable in settings */}
+      {repRangePrompt && (
+        <div style={{ position: "absolute", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 89, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div className="sprig-pop sprig-bottom-sheet"
+            style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "22px 18px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>What rep range do you train in?</div>
+            <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 6, marginBottom: 18, lineHeight: 1.5 }}>
+              Sprig uses this to guide progressive overload — when you hit the top of your range, it'll suggest adding weight. You can change this anytime in More → Settings.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                { range: [5, 8], title: "5–8 reps", sub: "Strength focus — heavier loads" },
+                { range: [8, 10], title: "8–10 reps", sub: "Strength + size balance" },
+                { range: [10, 12], title: "10–12 reps", sub: "Hypertrophy — muscle growth" },
+                { range: [12, 15], title: "12–15 reps", sub: "Endurance & higher volume" },
+              ].map((opt) => (
+                <button key={opt.title} className="sprig-tap" onClick={() => { saveProfile({ ...profile, repRange: opt.range, repRangeAsked: true }); setRepRangePrompt(false); }}
+                  style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 13, padding: "13px 15px", display: "flex", alignItems: "center", gap: 12, textAlign: "left", fontFamily: "DM Sans" }}>
+                  <Dumbbell size={17} color={C.greenSoft} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{opt.title}</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{opt.sub}</div>
+                  </div>
+                  <ChevronRight size={16} color={C.muted} />
+                </button>
+              ))}
+            </div>
+            <button className="sprig-tap" onClick={() => { saveProfile({ ...profile, repRangeAsked: true }); setRepRangePrompt(false); }}
+              style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip — use smart defaults</button>
+          </div>
+        </div>
+      )}
+
       {/* Post-set RIR sheet — frame-level (was clipped by overflow:hidden when nested in the workout list) */}
       {rirPrompt && activeWorkout && (() => {
         const ex = activeWorkout.exercises[rirPrompt.exIdx];
@@ -7846,6 +7944,33 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onExportJSON, o
         })()}
       </div>
 
+      {/* PREFERRED REP RANGE */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Training rep range</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
+          Drives progressive-overload suggestions. When you hit the top of your range, Sprig advises adding a little weight.
+        </div>
+        {(() => {
+          const cur = profile?.repRange || null;
+          const OPTS = [[[5, 8], "5–8", "Strength"], [[8, 10], "8–10", "Strength + size"], [[10, 12], "10–12", "Hypertrophy"], [[12, 15], "12–15", "Endurance"]];
+          return (
+            <div style={{ display: "flex", gap: 7 }}>
+              {OPTS.map(([range, lbl, sub]) => {
+                const active = cur && cur[0] === range[0] && cur[1] === range[1];
+                return (
+                  <button key={lbl} className="sprig-tap" onClick={() => onSave({ ...profile, repRange: range, repRangeAsked: true })}
+                    style={{ flex: 1, background: active ? C.green + "11" : C.bg, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 11, padding: "10px 4px", cursor: "pointer", textAlign: "center", fontFamily: "DM Sans" }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: active ? C.green : C.ink }}>{lbl}</div>
+                    <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+        {!profile?.repRange && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 9 }}>Currently using smart per-exercise defaults. Pick a range to standardize it.</div>}
+      </div>
+
       {/* DAY RESET MODE */}
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Day reset</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
@@ -9325,9 +9450,9 @@ function PlateView({ target, unit }) {
   );
 }
 
-function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
+function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
   const meta = findEx(ex.name);
-  const prog = progressionFor(workouts, ex.name, daily, sleepReadiness);  // richer: action + text + suggested w/reps
+  const prog = progressionFor(workouts, ex.name, daily, sleepReadiness, repRangePref);  // richer: action + text + suggested w/reps
   const sug = prog || suggestNext(workouts, ex.name);                     // fall back to lightweight hint
   const last = ex.sets[ex.sets.length - 1];
   const [w, setW] = useState(last ? String(last.w) : sug ? String(sug.w) : "");
@@ -9811,7 +9936,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
         {active.exercises.map((ex, i) => (
           <ExerciseCard key={i} ex={ex} exIdx={i} workouts={workouts} unit={unit} customRests={trainInfo.customRests} advanced={advanced}
             sleepReadiness={trainInfo.sleepReadiness} daily={trainInfo.daily}
-            painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations}
+            painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations} repRangePref={profile.repRange}
             onLogSet={onLogSet} onSetRir={onSetRir} onOpenRirPrompt={onOpenRirPrompt} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
             onSetExercisePain={onSetExercisePain} />
         ))}
