@@ -7,7 +7,7 @@ import {
   Timer, Trophy, Medal, BarChart3, ChevronLeft, ChevronDown, Award, Crown,
   Target, BookOpen, Calculator, Repeat, Gauge, Play, PersonStanding, Square,
   ArrowUp, HeartPulse, Search, TrendingDown,
-  Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail
+  Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal
 } from "lucide-react";
 import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
 
@@ -3530,6 +3530,24 @@ function PageHeader({ title, subtitle, action }) {
   );
 }
 
+// Top-of-page segmented control for splitting a tab into subtabs (Food, Train, Sleep).
+function SubTabs({ tabs, active, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 4, borderRadius: 13, marginBottom: 14 }}>
+      {tabs.map(([key, label]) => {
+        const on = active === key;
+        return (
+          <button key={key} className="sprig-tap" onClick={() => onChange(key)}
+            style={{ flex: 1, minWidth: 0, border: "none", cursor: "pointer", padding: "9px 6px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans",
+              background: on ? C.card : "transparent", color: on ? C.lime : C.muted, boxShadow: on ? C.shadow : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ---------------- result / edit card -------------- */
 function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode }) {
   const [r, setR] = useState({ ...result, mult: 1 });
@@ -3904,6 +3922,9 @@ export default function SprigRoot() {
 
 function SprigApp() {
   const [tab, setTab] = useState("today");
+  const [foodSub, setFoodSub] = useState("meals");   // meals | nutrition
+  const [trainSub, setTrainSub] = useState("training"); // training | analytics
+  const [sleepSub, setSleepSub] = useState("sleep");  // sleep | alarm
   const [quickOpen, setQuickOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -5107,9 +5128,9 @@ function SprigApp() {
             title="Calendar" aria-label="Calendar" style={{ background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center" }}>
             <BarChart3 size={18} />
           </button>
-          <button className="sprig-tap" onClick={() => { setTab("more"); setResult(null); setComposer(null); }}
-            title="More & settings" aria-label="More and settings" style={{ background: tab === "more" ? C.green : C.bg2, color: tab === "more" ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center" }}>
-            <User size={18} />
+          <button className="sprig-tap" onClick={() => { setTab("settings"); setResult(null); setComposer(null); }}
+            title="Settings" aria-label="Settings" style={{ background: tab === "settings" ? C.green : C.bg2, color: tab === "settings" ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center" }}>
+            <SlidersHorizontal size={18} />
           </button>
         </div>
       </div>
@@ -5130,6 +5151,7 @@ function SprigApp() {
         )}
         {tab === "nutrition" && (
           <NutritionTab t={t} targets={targets} entries={entries} onRemove={removeEntry} profile={profile} advanced={advanced}
+            sub={foodSub} onSub={setFoodSub}
             nutriInfo={nutriInfo} moveInfo={moveInfo} sleepInfo={sleepInfo} daily={daily} onDaily={persistDaily} onAddEntry={addEntry}
             supps={supps} takenIds={takenIds} onToggleSupp={toggleTaken} onRemoveSupp={removeSupp} onAddSupp={() => { setComposer("supp"); setResult(null); }}
             library={library} onQuick={logFromLibrary} entriesHistory={entriesHistory}
@@ -5145,6 +5167,7 @@ function SprigApp() {
         )}
         {tab === "train" && (
           <TrainTab workouts={workouts} active={activeWorkout} profile={profile} trainInfo={trainInfo} advanced={advanced}
+            sub={trainSub} onSub={setTrainSub}
             routines={routines} onSaveRoutine={saveRoutine} onDeleteRoutine={deleteRoutine} onUseTemplate={useTemplate}
             onStart={startWorkout} onAddExercise={addWoExercise} onLogSet={woLogSet} onSetRir={woSetRir} onOpenRirPrompt={(exIdx, setIdx) => setRirPrompt({ exIdx, setIdx })} onRemoveSet={woRemoveSet}
             onRemoveExercise={woRemoveExercise} onFinish={finishWorkout} onCancel={cancelWorkout}
@@ -5166,6 +5189,7 @@ function SprigApp() {
         )}
         {tab === "sleep" && (
           <SleepTab sleepLogs={sleepLogs} sleepInfo={sleepInfo} alarm={alarm} onSaveAlarm={saveAlarm}
+            sub={sleepSub} onSub={setSleepSub}
             session={session} micState={micState} onStart={startSession} onEnd={endSession}
             onManual={saveSleepLog} onRemove={removeSleep} onToggleIgnore={toggleSleepIgnored} onEditLog={editSleepLog} profile={profile} advanced={advanced}
             daily={daily} onDaily={persistDaily} recoveryRec={trainInfo.recoveryRec} />
@@ -5180,7 +5204,11 @@ function SprigApp() {
           onToggleHabit={toggleHabit} onAddHabit={addHabit} onRemoveHabit={removeHabit} onRestoreHabit={restoreHabit} onLogFocus={logFocus} />}
         {tab === "coach" && <CoachTab coach={coach2} advanced={advanced} moveInfo={moveInfo} timeline={timeline} plateaus={plateaus} patterns={patterns}
           onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={() => setAskOpen(true)} />}
-        {(tab === "more" || tab === "me") && <MeTab profile={profile} targets={targets} onSave={saveProfile} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")}
+        {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} />}
+        {tab === "targets" && <MeTab view="targets" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
+          onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
+          reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo} />}
+        {tab === "settings" && <MeTab view="settings" onBack={() => setTab("today")} profile={profile} targets={targets} onSave={saveProfile}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo} />}
       </div>
@@ -6438,11 +6466,12 @@ function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
   );
 }
 
-function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriInfo, moveInfo, sleepInfo, daily, onDaily, onAddEntry,
+function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = "meals", onSub, nutriInfo, moveInfo, sleepInfo, daily, onDaily, onAddEntry,
   supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, library, onQuick, entriesHistory,
   favoriteMeals, onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood, onSnapFood, onScanLabel, onDescribe, onManual,
   onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate }) {
   const [showMicros, setShowMicros] = useState(advanced);
+  const [showAllFood, setShowAllFood] = useState(false);
   const [showSupps, setShowSupps] = useState(advanced || (supps?.length || 0) <= 4);
   const [favSearch, setFavSearch] = useState("");
   const [favSort, setFavSort] = useState("recent"); // recent | most
@@ -6460,7 +6489,10 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
 
   return (
     <div className="sprig-rise">
-      {/* Sticky compact Log Food bar — stays visible while scrolling the Food tab */}
+      <SubTabs tabs={[["meals", "Meals"], ["nutrition", "Nutrition"]]} active={sub} onChange={onSub} />
+
+      {sub === "meals" && (<>
+      {/* Sticky compact Log Food bar — stays visible while scrolling the Meals tab */}
       {(onSnapFood || onScanLabel || onDescribe || onManual) && (
         <div className="sprig-glass" style={{ position: "sticky", top: -8, zIndex: 30, margin: "-8px -4px 6px", padding: "8px 4px", background: "rgba(7,20,15,0.72)" }}>
           <div style={{ display: "flex", gap: 7 }}>
@@ -6473,8 +6505,11 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
           </div>
         </div>
       )}
+      </>)}
+
+      {sub === "nutrition" && (<>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 2px" }}>Nutrition</div>
-      <div style={{ fontSize: 12, color: C.muted, margin: "0 2px 8px" }}>Everything you eat, drink, and supplement — for this Sprig day.</div>
+      <div style={{ fontSize: 12, color: C.muted, margin: "0 2px 8px" }}>Calories, macros, hydration, vitamins, and your supplement stack.</div>
 
       {/* DAILY TARGET */}
       {sectionTitle("Daily target")}
@@ -6558,7 +6593,9 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
           </div>
         </div>
       )}
+      </>)}
 
+      {sub === "meals" && (<>
       {/* LOG FOOD — the four entry actions (moved here from Today) */}
       {sectionTitle("Log food")}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
@@ -6658,7 +6695,9 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
           Alcohol today counts toward calories and nudges your recovery and sleep guidance.
         </div>
       )}
+      </>)}
 
+      {sub === "nutrition" && (<>
       {/* SUPPLEMENTS */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 2px 10px" }}>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}>
@@ -6739,7 +6778,9 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
           </>
         );
       })()}
+      </>)}
 
+      {sub === "meals" && (<>
       {/* FOOD TODAY */}
       {sectionTitle("Food logged today")}
       {entries.length === 0 ? (
@@ -6747,7 +6788,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
           text="Start with Snap food, Describe, or add a favorite meal above." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[...entries].reverse().map((e) => {
+          {(showAllFood ? [...entries].reverse() : [...entries].reverse().slice(0, 4)).map((e) => {
             const ms = mealScore(e, targets);
             const msCol = ms ? (ms.score >= 70 ? C.greenSoft : ms.score >= 45 ? C.amber : C.coral) : C.muted;
             return (
@@ -6771,8 +6812,15 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
               </div>
             );
           })}
+          {entries.length > 4 && (
+            <button className="sprig-tap" onClick={() => setShowAllFood((s) => !s)}
+              style={{ background: C.bg2, border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", borderRadius: 12, padding: "10px 0", marginTop: 2 }}>
+              {showAllFood ? "Show less" : `View all ${entries.length} meals`}
+            </button>
+          )}
         </div>
       )}
+      </>)}
 
       <div style={{ height: 6 }} />
     </div>
@@ -6844,7 +6892,7 @@ function StageBar({ stages, advanced }) {
   );
 }
 
-function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onEditLog, profile, advanced, daily, onDaily, recoveryRec }) {
+function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onEditLog, profile, advanced, daily, onDaily, recoveryRec }) {
   const { debtMin, lastSleep, rec, need } = sleepInfo;
   const [showManual, setShowManual] = useState(false);
   const [bed, setBed] = useState("23:00");
@@ -6895,6 +6943,8 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
 
   return (
     <div className="sprig-rise">
+      <SubTabs tabs={[["sleep", "Sleep"], ["alarm", "Alarm & Routine"]]} active={sub} onChange={onSub} />
+      {sub === "sleep" && (<>
       {/* sleep debt hero */}
       <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -6954,7 +7004,9 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
           </div>
         );
       })()}
+      </>)}
 
+      {sub === "alarm" && (<>
       {/* start session */}
       <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
         <button className="sprig-tap" onClick={() => onStart(true)} style={{ ...btn(C.green, "#fff"), flex: 2, padding: "15px 0", flexDirection: "column", gap: 3 }}>
@@ -7122,7 +7174,9 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
           Phone alarms require the app to stay open. For a guaranteed alarm, also set your phone's built-in alarm.
         </div>
       </div>
+      </>)}
 
+      {sub === "sleep" && (<>
       {/* history — Recent sleep logs with edit / delete / ignore (Fix 3) */}
       {sleepLogs.length >= 1 && (
         <>
@@ -7198,6 +7252,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
           </div>
         </>
       )}
+      </>)}
       <div style={{ height: 6 }} />
     </div>
   );
@@ -7851,7 +7906,32 @@ function AccountSection() {
 }
 
 /* ---------------- Me / profile tab -------------- */
-function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onGoProgress, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo }) {
+// More tab — extra main app pages only (NOT settings). Compact stacked links.
+function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress }) {
+  const items = [
+    ["Your targets", <Target size={18} color={C.lime} />, onGoTargets],
+    ["Health markers", <HeartPulse size={18} color={C.greenSoft} />, onGoHealth],
+    ["Mind & Habits", <Sparkles size={18} color={C.greenSoft} />, onGoMind],
+    ["Progress", <TrendingUp size={18} color={C.greenSoft} />, onGoProgress],
+  ];
+  return (
+    <div className="sprig-rise">
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, margin: "4px 2px 14px", letterSpacing: -0.3 }}>More</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+        {items.map(([title, icon, onClick]) => (
+          <button key={title} className="sprig-tap" onClick={onClick}
+            style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "15px 16px", boxShadow: C.shadow, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: C.bg2, display: "grid", placeItems: "center", flexShrink: 0 }}>{icon}</div>
+            <span style={{ flex: 1, textAlign: "left", fontSize: 14.5, fontWeight: 600, color: C.ink }}>{title}</span>
+            <ChevronRight size={18} color={C.muted} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MeTab({ view = "settings", onBack, profile, targets, onSave, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo }) {
   const importRef = useRef(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [p, setP] = useState(profile);
@@ -7881,6 +7961,13 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onGoProgress, o
   );
   return (
     <div className="sprig-rise">
+      {onBack && (
+        <button className="sprig-tap" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: "none", cursor: "pointer", color: C.inkSoft, fontSize: 13.5, fontWeight: 600, fontFamily: "DM Sans", padding: "2px 2px 10px", margin: 0 }}>
+          <ChevronLeft size={17} /> {view === "settings" ? "Back" : "More"}
+        </button>
+      )}
+      {view === "settings" && <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, margin: "0 2px 14px", letterSpacing: -0.3 }}>Settings</div>}
+      {view === "targets" && (<>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 12px" }}>Your targets</div>
 
       <div style={{ background: C.green, borderRadius: 18, padding: 16, color: "#fff", display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
@@ -7994,8 +8081,15 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onGoProgress, o
         </div>
       </details>
 
+      <button className="sprig-tap" onClick={() => { onSave(p); setSaved(true); }}
+        style={{ ...btn(saved ? C.greenSoft : C.green, "#fff"), width: "100%", padding: "14px 0", marginTop: 16 }}>
+        {saved ? <><Check size={16} /> Saved</> : "Save targets"}
+      </button>
+      </>)}
+
+      {view === "settings" && (<>
       {/* display mode */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "20px 2px 10px" }}>Display</div>
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "4px 2px 10px" }}>Display</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -8020,47 +8114,6 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onGoProgress, o
         </div>
       </div>
 
-      {/* health link */}
-      {onGoHealth && (
-        <>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "20px 2px 10px" }}>More tabs</div>
-          <button className="sprig-tap" onClick={onGoHealth} style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16, boxShadow: C.shadow, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 11, background: C.greenSoft + "22", display: "grid", placeItems: "center", flexShrink: 0 }}><HeartPulse size={18} color={C.greenSoft} /></div>
-            <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>Health markers</div>
-              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Blood pressure, resting HR, symptoms, and optional blood work.</div>
-            </div>
-            <ChevronRight size={18} color={C.muted} />
-          </button>
-          {onGoMind && (
-            <button className="sprig-tap" onClick={onGoMind} style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16, boxShadow: C.shadow, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, marginTop: 9 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 11, background: C.greenSoft + "22", display: "grid", placeItems: "center", flexShrink: 0 }}><Sparkles size={18} color={C.greenSoft} /></div>
-              <div style={{ flex: 1, textAlign: "left" }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>Mind &amp; habits</div>
-                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Mood &amp; focus check-in, habit tracker, focus timer.</div>
-              </div>
-              <ChevronRight size={18} color={C.muted} />
-            </button>
-          )}
-          {onGoProgress && (
-            <button className="sprig-tap" onClick={onGoProgress} style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16, boxShadow: C.shadow, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, marginTop: 9 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 11, background: C.greenSoft + "22", display: "grid", placeItems: "center", flexShrink: 0 }}><TrendingUp size={18} color={C.greenSoft} /></div>
-              <div style={{ flex: 1, textAlign: "left" }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>Progress</div>
-                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Bodyweight, measurements, photos, achievements, and weekly reports.</div>
-              </div>
-              <ChevronRight size={18} color={C.muted} />
-            </button>
-          )}
-        </>
-      )}
-
-      <button className="sprig-tap" onClick={() => { onSave(p); setSaved(true); }}
-        style={{ ...btn(saved ? C.greenSoft : C.green, "#fff"), width: "100%", padding: "14px 0", marginTop: 16 }}>
-        {saved ? <><Check size={16} /> Saved</> : "Save targets"}
-      </button>
-
-      {/* REMINDERS */}
       {/* WORKOUT CALORIE ADJUSTMENT — Off / Conservative / Normal */}
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Workout calorie adjustment</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
@@ -8376,6 +8429,7 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onGoProgress, o
       <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 14, lineHeight: 1.5, padding: "0 10px" }}>
         Targets use the Mifflin–St Jeor formula. Everything is stored on your device only. Estimates are approximate — great for awareness, not medical precision.
       </div>
+      </>)}
     </div>
   );
 }
@@ -10060,7 +10114,7 @@ function LiftTrend({ workouts, exName }) {
   );
 }
 
-function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio, sleepInfo }) {
+function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "training", onSub, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio, sleepInfo }) {
   const unit = profile.unit || "kg";
   const [picker, setPicker] = useState(false);
   const [builder, setBuilder] = useState(null); // null | {} (new) | routine (edit)
@@ -10116,6 +10170,8 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
   };
   return (
     <div className="sprig-rise">
+      <SubTabs tabs={[["training", "Training & Cardio"], ["analytics", "Volume & Recovery"]]} active={sub} onChange={onSub} />
+      {sub === "training" && (<>
       {/* PAIN COACH — only when active pain logged */}
       {trainInfo.pain && trainInfo.pain.level !== "none" && (() => {
         const lvl = trainInfo.pain.level;
@@ -10303,8 +10359,6 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
         </div>
       )}
 
-      <VolumeCoach volume={trainInfo.volume} advanced={advanced} />
-
       {/* Movement & Cardio — directly under readiness (same data/functions as Today, edits via onDaily) */}
       {moveInfo && daily && onDaily && (
         <>
@@ -10312,6 +10366,12 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
           <MovementCard daily={daily} profile={profile} onDaily={onDaily} />
         </>
       )}
+
+      {/* recent workout history preview */}
+      </>)}
+
+      {sub === "analytics" && (<>
+      <VolumeCoach volume={trainInfo.volume} advanced={advanced} />
 
       {/* Recovery & strength — moved here from Progress; lives with the rest of training */}
       <div style={{ margin: "20px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><Crown size={16} color={C.lime} /> Recovery &amp; strength</div>
@@ -10340,8 +10400,10 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
           {standardLifts.map((n) => <LiftTrend key={n} workouts={workouts} exName={n} />)}
         </>
       )}
+      </>)}
 
-      {/* history */}
+      {sub === "training" && (<>
+      {/* history — recent workouts preview */}
       {workouts.length > 0 ? (
         <>
           <div style={{ margin: "18px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>History</div>
@@ -10397,6 +10459,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
           No workouts yet. Tap <b>Start workout</b>, add an exercise, and log your first set — progressive-overload suggestions kick in from session two.
         </div>
       )}
+      </>)}
       <div style={{ height: 6 }} />
     </div>
   );
