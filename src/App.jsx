@@ -4654,7 +4654,7 @@ function SprigApp() {
 
   /* ---- sleep ---- */
   const persistSleep = async (next) => { setSleepLogs(next); await store.set("sprig_sleep_v1", JSON.stringify(next)); };
-  const saveAlarm = async (a) => { setAlarm(a); await store.set("sprig_alarm_v1", JSON.stringify(a)); };
+  const saveAlarm = async (a) => { const wasOff = !alarm?.enabled; setAlarm(a); if (a?.enabled && wasOff) logged("Alarm set", "light"); await store.set("sprig_alarm_v1", JSON.stringify(a)); };
 
   function saveSleepLog({ bedTs, wakeTs, restlessness, source }) {
     const durationMin = Math.max(0, Math.round((wakeTs - bedTs) / 60000));
@@ -4772,6 +4772,7 @@ function SprigApp() {
     ensureAudio();
     const s = { bedTs: Date.now(), samples: [], micOn: false };
     sessionRef.current = s; setSession({ ...s });
+    logged("Sleep started", "light");
     if (withMic) startMic().then((ok) => { s.micOn = ok; setSession({ ...sessionRef.current }); });
     // sample movement every 60s; check smart-alarm window each minute
     tickRef.current = setInterval(() => {
@@ -4852,6 +4853,7 @@ function SprigApp() {
   function startWorkout(routine) {
     const exercises = (routine?.exercises || []).map((name) => ({ name, group: findEx(name)?.group, sets: [] }));
     persistActive({ startTs: Date.now(), exercises, routineName: routine?.name || null });
+    logged("Workout started", "light");
     // First workout ever (no preferred rep range chosen yet) → ask once. Never shown again.
     if (!profile.repRange && !profile.repRangeAsked) setRepRangePrompt(true);
   }
@@ -6369,13 +6371,13 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         </div>
       )}
 
-      {/* 3 — QUICK LOG (buttons only) */}
+      {/* 3 — PRIMARY CTA: Quick log the day */}
       {onQuickLog && (
         <div style={{ marginTop: 12 }}>
           <button className="sprig-tap" onClick={onQuickLog}
-            style={{ width: "100%", background: C.green + "0d", border: `1px dashed ${C.green}66`, cursor: "pointer", borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 10, color: C.green, fontSize: 13.5, fontWeight: 600, fontFamily: "DM Sans" }}>
-            <Zap size={16} /> Quick log the day
-            <ChevronRight size={16} style={{ marginLeft: "auto" }} />
+            style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "15px 16px", fontSize: 15, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
+            <Zap size={17} /> Quick log the day
+            <ChevronRight size={17} style={{ marginLeft: "auto" }} />
           </button>
         </div>
       )}
@@ -6572,6 +6574,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
   onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate }) {
   const [showMicros, setShowMicros] = useState(advanced);
   const [showAllFood, setShowAllFood] = useState(false);
+  const [logSheet, setLogSheet] = useState(false);
   const [showSupps, setShowSupps] = useState(advanced || (supps?.length || 0) <= 4);
   const [favSearch, setFavSearch] = useState("");
   const [favSort, setFavSort] = useState("recent"); // recent | most
@@ -6592,17 +6595,13 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       <SubTabs tabs={[["meals", "Meals"], ["nutrition", "Nutrition"]]} active={sub} onChange={onSub} />
 
       {sub === "meals" && (<>
-      {/* Sticky compact Log Food bar — stays visible while scrolling the Meals tab */}
+      {/* Sticky primary CTA — one obvious action; opens a sheet with the four methods */}
       {(onSnapFood || onScanLabel || onDescribe || onManual) && (
-        <div className="sprig-glass" style={{ position: "sticky", top: -8, zIndex: 30, margin: "-8px -4px 6px", padding: "8px 4px", background: C.navBg }}>
-          <div style={{ display: "flex", gap: 7 }}>
-            {[[onSnapFood, Camera, "Snap"], [onScanLabel, ScanLine, "Scan"], [onDescribe, PencilLine, "Describe"], [onManual, Calculator, "Manual"]].map(([fn, Ic, lbl], i) => fn && (
-              <button key={lbl} className="sprig-tap" onClick={fn}
-                style={{ flex: 1, minWidth: 0, ...btn(i === 0 ? C.green : C.bg2, i === 0 ? "#fff" : C.ink), padding: "10px 0", fontSize: 11.5, flexDirection: "column", gap: 3 }}>
-                <Ic size={16} /> {lbl}
-              </button>
-            ))}
-          </div>
+        <div className="sprig-glass" style={{ position: "sticky", top: -8, zIndex: 30, margin: "-8px -4px 8px", padding: "8px 4px", background: C.navBg }}>
+          <button className="sprig-tap" onClick={() => setLogSheet(true)}
+            style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "14px 0", fontSize: 15, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
+            <Plus size={19} /> Log food
+          </button>
         </div>
       )}
       </>)}
@@ -6696,31 +6695,6 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       </>)}
 
       {sub === "meals" && (<>
-      {/* LOG FOOD — the four entry actions (moved here from Today) */}
-      {sectionTitle("Log food")}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-        {onSnapFood && (
-          <button className="sprig-tap" onClick={onSnapFood} style={{ ...btn(C.green, "#fff"), padding: "13px 0", fontSize: 13, flexDirection: "column", gap: 5 }}>
-            <Camera size={19} /> Snap food
-          </button>
-        )}
-        {onScanLabel && (
-          <button className="sprig-tap" onClick={onScanLabel} style={{ ...btn(C.bg2, C.green), padding: "13px 0", fontSize: 13, flexDirection: "column", gap: 5 }}>
-            <ScanLine size={19} /> Scan label
-          </button>
-        )}
-        {onDescribe && (
-          <button className="sprig-tap" onClick={onDescribe} style={{ ...btn(C.bg2, C.green), padding: "13px 0", fontSize: 13, flexDirection: "column", gap: 5 }}>
-            <PencilLine size={19} /> Describe
-          </button>
-        )}
-        {onManual && (
-          <button className="sprig-tap" onClick={onManual} style={{ ...btn(C.bg2, C.green), padding: "13px 0", fontSize: 13, flexDirection: "column", gap: 5 }}>
-            <Calculator size={19} /> Manual
-          </button>
-        )}
-      </div>
-
       {/* QUICK ADD */}
       {sectionTitle("Quick add")}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -6923,11 +6897,36 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       </>)}
 
       <div style={{ height: 6 }} />
+
+      {/* Log food action sheet — opened by the primary CTA */}
+      {logSheet && (
+        <div onClick={() => setLogSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
+          <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
+            style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "20px 18px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, marginBottom: 4, color: C.ink }}>Log food</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>How do you want to add it?</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[
+                [onSnapFood, Camera, "Snap food", "Photo → AI estimate"],
+                [onScanLabel, ScanLine, "Scan label", "Nutrition label → AI"],
+                [onDescribe, PencilLine, "Describe", "Type it, AI estimates"],
+                [onManual, Calculator, "Manual", "Enter values yourself"],
+              ].map(([fn, Ic, title, sub]) => fn && (
+                <button key={title} className="sprig-tap" onClick={() => { setLogSheet(false); fn(); }}
+                  style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 5, textAlign: "left", fontFamily: "DM Sans" }}>
+                  <Ic size={18} color={C.lime} />
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{title}</span>
+                  <span style={{ fontSize: 10.5, color: C.muted }}>{sub}</span>
+                </button>
+              ))}
+            </div>
+            <button className="sprig-tap" onClick={() => setLogSheet(false)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-/* ---------------- Meals (library) tab -------------- */
 function MealsTab({ library, onLog, onRemove, onNew }) {
   return (
     <div className="sprig-rise">
@@ -7034,8 +7033,8 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
             Keep the app open with your phone charging on the nightstand. I'll wake you in a light phase inside your window.
           </div>
         </div>
-        <button className="sprig-tap" onClick={onEnd} style={{ ...btn(C.coral, "#fff"), width: "100%", padding: "15px 0", marginTop: 16 }}>
-          <Sun size={17} /> I'm awake — end &amp; score
+        <button className="sprig-tap" onClick={onEnd} style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "16px 0", marginTop: 16, fontSize: 15.5, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
+          <Sun size={17} /> Wake up — end &amp; score
         </button>
       </div>
     );
@@ -7109,9 +7108,9 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
       {sub === "alarm" && (<>
       {/* start session */}
       <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-        <button className="sprig-tap" onClick={() => onStart(true)} style={{ ...btn(C.green, "#fff"), flex: 2, padding: "15px 0", flexDirection: "column", gap: 3 }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 15 }}><Moon size={17} /> Start sleep &amp; smart alarm</span>
-          <span style={{ fontSize: 11, opacity: .85, fontWeight: 500 }}>wakes you by {alarm.latest}</span>
+        <button className="sprig-tap" onClick={() => onStart(true)} style={{ ...btn(C.lime, "#0A1F12"), flex: 2, padding: "15px 0", flexDirection: "column", gap: 3, boxShadow: `0 6px 18px ${C.lime}33` }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 15, fontWeight: 700 }}><Moon size={17} /> Start sleep &amp; smart alarm</span>
+          <span style={{ fontSize: 11, opacity: .8, fontWeight: 600 }}>wakes you by {alarm.latest}</span>
         </button>
         <button className="sprig-tap" onClick={() => setShowManual((s) => !s)} style={{ ...btn(C.card, C.ink), flex: 1, padding: "15px 0", border: `1px solid ${C.line}`, flexDirection: "column", gap: 4, boxShadow: C.shadow }}>
           <PencilLine size={17} /><span style={{ fontSize: 11.5 }}>Log past night</span>
@@ -8635,13 +8634,13 @@ function CoachTab({ coach, advanced, moveInfo, timeline, plateaus, patterns, onG
 
       {onAsk && (
         <button className="sprig-tap" onClick={onAsk}
-          style={{ width: "100%", background: "linear-gradient(150deg,#3E7B53,#2C4636)", border: "none", cursor: "pointer", borderRadius: 14, padding: "12px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 11, marginBottom: 12, boxShadow: C.shadow }}>
-          <Sparkles size={17} color="#E7DCC6" />
+          style={{ width: "100%", background: C.lime, border: "none", cursor: "pointer", borderRadius: 14, padding: "15px 16px", color: "#0A1F12", display: "flex", alignItems: "center", gap: 11, marginBottom: 12, boxShadow: `0 6px 18px ${C.lime}33` }}>
+          <Sparkles size={18} color="#0A1F12" />
           <div style={{ flex: 1, textAlign: "left" }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700 }}>Ask the coach</div>
-            <div style={{ fontSize: 11, opacity: .85, marginTop: 1 }}>Free-form questions about your data — uses AI</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Ask coach</div>
+            <div style={{ fontSize: 11, opacity: .7, marginTop: 1 }}>Anything about training, food, sleep, or recovery</div>
           </div>
-          <ChevronRight size={16} />
+          <ChevronRight size={17} />
         </button>
       )}
 
@@ -10385,10 +10384,10 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
       )}
 
       <div style={{ display: "flex", gap: 9 }}>
-        <button className="sprig-tap" onClick={() => onStart()} style={{ ...btn(C.green, "#fff"), flex: 2, padding: "16px 0", fontSize: 15.5 }}>
+        <button className="sprig-tap" onClick={() => onStart()} style={{ ...btn(C.lime, "#0A1F12"), flex: 2, padding: "17px 0", fontSize: 16, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
           <Play size={18} /> Start workout
         </button>
-        <button className="sprig-tap" onClick={() => setBuilder({})} style={{ ...btn(C.card, C.green), flex: 1, padding: "16px 0", fontSize: 13.5, border: `1px solid ${C.greenSoft}`, boxShadow: C.shadow }}>
+        <button className="sprig-tap" onClick={() => setBuilder({})} style={{ ...btn(C.card, C.ink), flex: 1, padding: "17px 0", fontSize: 13.5, border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
           <Plus size={17} /> Routine
         </button>
       </div>
