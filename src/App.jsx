@@ -17,25 +17,78 @@ import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
    macros + micronutrients · functional health scores
 -----------------------------------------------------------------*/
 
-const C = {
-  bg: "#07140F",         // dark forest-green background
-  bg2: "rgba(255,255,255,0.06)",  // subtle glass inset / secondary fill
-  card: "rgba(255,255,255,0.07)", // glassy translucent dark card
-  cardSolid: "#13261D",  // opaque dark card where translucency won't read (e.g. over images)
-  ink: "#F4F7F2",        // primary light text
-  inkSoft: "rgba(244,247,242,0.72)", // secondary text
-  muted: "rgba(244,247,242,0.52)",   // tertiary / micro labels
-  line: "rgba(255,255,255,0.08)",    // hairline glass border
-  green: "#3E9D63",      // primary green — works as a button bg with light text
-  greenSoft: "#52C878",  // secondary green accent
-  leaf: "#74CE8A",
-  lime: "#C7FF3D",       // NEON lime — key progress / accent states only
-  limeSoft: "#A7F04B",
-  coral: "#FF6B5F",      // danger
-  coralSoft: "#FF9B92",
-  amber: "#F5A623",      // warning
-  shadow: "0 1px 2px rgba(0,0,0,.18), 0 10px 30px rgba(0,0,0,.28)",  // soft depth on dark
+// ---- Theme tokens. Two palettes; `C` is a live object whose keys are swapped in place by
+// applyTheme() so the ~1200 `C.x` references across the app re-read new values on re-render. ----
+const THEMES = {
+  dark: {
+    bg: "#07140F",
+    bg2: "rgba(255,255,255,0.06)",
+    card: "rgba(255,255,255,0.07)",
+    cardSolid: "#13261D",
+    ink: "#F4F7F2",
+    inkSoft: "rgba(244,247,242,0.72)",
+    muted: "rgba(244,247,242,0.52)",
+    line: "rgba(255,255,255,0.08)",
+    green: "#3E9D63",
+    greenSoft: "#52C878",
+    leaf: "#74CE8A",
+    lime: "#C7FF3D",
+    limeSoft: "#A7F04B",
+    coral: "#FF6B5F",
+    coralSoft: "#FF9B92",
+    amber: "#F5A623",
+    shadow: "0 1px 2px rgba(0,0,0,.18), 0 10px 30px rgba(0,0,0,.28)",
+    navBg: "rgba(7,20,15,0.82)",
+    pageBg: "radial-gradient(120% 60% at 50% -10%, #123524 0%, rgba(18,53,36,0) 55%), linear-gradient(180deg, #0B1A13 0%, #07140F 60%)",
+    heroGrad1: "linear-gradient(150deg,#1C5237,#0E2C1E)",
+    heroGrad2: "linear-gradient(160deg,#0E2C1E,#1C5237)",
+    isDark: true,
+  },
+  light: {
+    bg: "#F4F6F2",
+    bg2: "#ECEFEA",
+    card: "#FFFFFF",
+    cardSolid: "#FFFFFF",
+    ink: "#101612",
+    inkSoft: "#3C4A41",
+    muted: "#7C8780",
+    line: "rgba(16,22,18,0.10)",
+    green: "#2C8E54",
+    greenSoft: "#34A862",
+    leaf: "#4FB374",
+    lime: "#5BBF3A",       // lime is illegible on white; use a readable green-lime in light mode
+    limeSoft: "#6FC94E",
+    coral: "#E0533F",
+    coralSoft: "#E88670",
+    amber: "#C8861E",
+    shadow: "0 1px 2px rgba(16,22,18,.04), 0 6px 18px rgba(16,22,18,.06)",
+    navBg: "rgba(255,255,255,0.92)",
+    pageBg: "radial-gradient(120% 60% at 50% -10%, #E8F1E9 0%, rgba(232,241,233,0) 55%), linear-gradient(180deg, #F7F8F5 0%, #F1F4EF 60%)",
+    heroGrad1: "linear-gradient(150deg,#2C8E54,#1C6B3D)",
+    heroGrad2: "linear-gradient(160deg,#1C6B3D,#2C8E54)",
+    isDark: false,
+  },
 };
+
+// Live theme object — every component reads C.x at render time, so swapping these keys re-themes the app.
+const C = { ...THEMES.dark };
+function applyTheme(mode) {
+  const t = THEMES[mode] || THEMES.dark;
+  Object.keys(C).forEach((k) => { delete C[k]; });
+  Object.assign(C, t);
+  try {
+    document.documentElement.style.background = t.bg;
+    document.body.style.background = t.bg;
+    document.body.style.color = t.ink;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", t.isDark ? "#07140F" : "#F4F6F2");
+  } catch (_) {}
+}
+// initialize from storage as early as possible (before first render)
+try {
+  const saved = (typeof window !== "undefined") && window.localStorage ? window.localStorage.getItem("sprig_theme_v1") : null;
+  if (saved === "light" || saved === "dark") applyTheme(saved);
+} catch (_) {}
 
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -51,17 +104,28 @@ const FONTS = `
 html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #07140F; overscroll-behavior: none; }
 body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
 .sprig-app-frame {
+  width: 100%;
   max-width: 440px;
   margin: 0 auto;
   min-height: 100vh;
   min-height: 100dvh;
-  padding-bottom: env(safe-area-inset-bottom, 0);
   padding-top: env(safe-area-inset-top, 0);
   position: relative;
-  /* deep green gradient page backdrop */
-  background:
-    radial-gradient(120% 60% at 50% -10%, #123524 0%, rgba(18,53,36,0) 55%),
-    linear-gradient(180deg, #0B1A13 0%, #07140F 60%);
+  display: flex;
+  flex-direction: column;
+}
+/* Scrollable content area leaves room for the fixed bottom nav + home indicator */
+.sprig-content { flex: 1; padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+/* Bottom nav pinned to the true bottom of the viewport, within the centered frame */
+.sprig-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 440px;
+  z-index: 60;
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
 }
 .sprig-glass { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .sprig-bottom-pad { height: calc(env(safe-area-inset-bottom, 0px) + 8px); }
@@ -218,6 +282,17 @@ const ALARM_SOUNDS = [
   { id: "deep",    label: "Deep alarm" },
   { id: "vibrate", label: "Silent vibration only" },
 ];
+// ---- Haptics: module-level so any component can buzz, gated by a flag SprigApp keeps in sync
+// with the user's Haptics setting. Patterns are short and consistent across the app. ----
+let HAPTICS_ON = true;
+const HAPTIC_PATTERNS = {
+  tap: 12, light: 18, success: [16, 40, 16], strong: 35, select: 10,
+  complete: [24, 60, 24], finish: [40, 80, 40, 80, 40], alarm: [400, 200, 400, 200, 400], error: [60, 40, 60],
+};
+function buzz(kind = "tap") {
+  if (!HAPTICS_ON) return;
+  try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
+}
 // Play one "ring" of the chosen sound at the given volume (0–1). Returns approx duration in ms.
 function playAlarmTone(kind = "bells", volume = 0.7) {
   if (kind === "vibrate") {
@@ -3811,7 +3886,7 @@ function Onboarding({ onDone }) {
   );
 
   return (
-    <div className="sprig-app-frame" style={{ fontFamily: "DM Sans, sans-serif", color: C.ink, borderRadius: 24, display: "flex", flexDirection: "column" }}>
+    <div className="sprig-app-frame" style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, borderRadius: 24, display: "flex", flexDirection: "column" }}>
       <style>{FONTS}</style>
       {/* header */}
       <div style={{ padding: "22px 20px 8px" }}>
@@ -3922,6 +3997,19 @@ export default function SprigRoot() {
 
 function SprigApp() {
   const [tab, setTab] = useState("today");
+  const [themeMode, setThemeMode] = useState(() => {
+    try { const s = localStorage.getItem("sprig_theme_v1"); return s === "light" ? "light" : "dark"; } catch (_) { return "dark"; }
+  });
+  // Apply theme on mount + whenever it changes (mutates the live C object, then re-renders).
+  useEffect(() => { applyTheme(themeMode); }, [themeMode]);
+  const setTheme = useCallback((mode) => {
+    const m = mode === "light" ? "light" : "dark";
+    applyTheme(m);
+    setThemeMode(m);
+    try { localStorage.setItem("sprig_theme_v1", m); } catch (_) {}
+    // persist through the same store used for sprig_* keys so it syncs to Supabase
+    try { store.set && store.set("sprig_theme_v1", m); } catch (_) {}
+  }, []);
   const [foodSub, setFoodSub] = useState("meals");   // meals | nutrition
   const [trainSub, setTrainSub] = useState("training"); // training | analytics
   const [sleepSub, setSleepSub] = useState("sleep");  // sleep | alarm
@@ -4144,7 +4232,7 @@ function SprigApp() {
     const existing = favoriteMeals.find((f) => f.name.toLowerCase() === fav.name.toLowerCase());
     if (existing && onDuplicate) { onDuplicate(fav, existing); return; }
     persistFavoriteMeals([fav, ...favoriteMeals]);
-    showToast("Favorite saved");
+    logged("Favorite saved", "success");
     return fav;
   }
   function replaceFavoriteMeal(existingId, src) {
@@ -4170,7 +4258,7 @@ function SprigApp() {
     };
     persistEntries((prev) => [...prev, entry]);
     persistFavoriteMeals(favoriteMeals.map((x) => (x.id === id ? { ...x, useCount: (x.useCount || 0) + 1, lastUsedTs: Date.now() } : x)));
-    showToast("Meal added");
+    logged("Meal added", "light");
   }
   // Favorite create/edit modal — rendered at the app-frame level (not inside the scrolled
   // Nutrition tab, where an overflow:hidden ancestor was clipping the fixed modal so taps did nothing).
@@ -4312,6 +4400,13 @@ function SprigApp() {
     setToast({ text, tone, ts });
     setTimeout(() => setToast((tt) => (tt && tt.ts === ts ? null : tt)), 2600);
   }
+  // Centralized haptics — respects the Haptics on/off setting (default on). Named patterns keep
+  // the feedback consistent across the app (a light tap for logs, a double-buzz for completions, etc).
+  function haptic(kind = "tap") { buzz(kind); }
+  // keep the module-level flag in sync with the user's setting so child cards can buzz too
+  useEffect(() => { HAPTICS_ON = profile?.haptics !== false; }, [profile?.haptics]);
+  // Combined helper: tiny success toast + matching haptic, the standard "logged something" feedback.
+  function logged(text, kind = "success") { showToast(text, "success"); haptic(kind); }
   // Mistake detection (Fix 9): for obviously-unusual values we ask "Save anyway?" rather than
   // blocking. pendingConfirm = { message, onConfirm } when a confirmation is showing.
   const [pendingConfirm, setPendingConfirm] = useState(null);
@@ -4581,6 +4676,7 @@ function SprigApp() {
     };
     const next = [...sleepLogs.filter((l) => l.date !== log.date), log].sort((a, b) => a.waketime - b.waketime).slice(-30);
     persistSleep(next);
+    logged(isShort ? "Saved as a short nap" : "Sleep logged", "light");
     return log;
   }
   // Toggle whether a sleep log counts toward score/debt (Fix 3).
@@ -4768,6 +4864,7 @@ function SprigApp() {
   function woLogSet(exIdx, set) {
     const next = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: [...e.sets, { ...set, ts: Date.now() }] } : e);
     persistActive({ ...activeWorkout, exercises: next });
+    buzz("complete"); // set completed
     // open the post-set RIR prompt for the set we just appended (frame-level so it's never clipped)
     const setIdx = activeWorkout.exercises[exIdx].sets.length;
     setRirPrompt({ exIdx, setIdx });
@@ -4780,7 +4877,7 @@ function SprigApp() {
     persistActive({ ...activeWorkout, exercises: ex });
   }
   const [rirPrompt, setRirPrompt] = useState(null); // { exIdx, setIdx } — frame-level RIR sheet
-  function chooseRir(exIdx, setIdx, val) { woSetRir(exIdx, setIdx, val); setRirPrompt(null); }
+  function chooseRir(exIdx, setIdx, val) { woSetRir(exIdx, setIdx, val); setRirPrompt(null); buzz("select"); }
 
   // ---- Rest timer (lifted to app level so the floating UI tracks scroll reliably) ----
   const [rest, setRest] = useState(null);          // { exName, end, paused, remainingMs }
@@ -4794,7 +4891,8 @@ function SprigApp() {
     if (restLeft <= 0 && !restFiredRef.current) {
       restFiredRef.current = true;
       if (profile?.restTimerSound !== false) { try { playAlarmTone(profile?.restTimerSoundChoice || "beep", profile?.alarmVolume ?? 0.7); } catch (_) {} }
-      if (profile?.restTimerVibrate !== false) { try { navigator.vibrate?.([300, 120, 300]); } catch (_) {} }
+      if (profile?.restTimerVibrate !== false) buzz("finish");
+      showToast("Rest complete", "success");
       setRestDone(true);
       setTimeout(() => setRestDone(false), 4000);
     }
@@ -4828,7 +4926,7 @@ function SprigApp() {
     }
     persistActive(null);
     setTab("train");
-    if (done.length) showToast("Workout logged");
+    if (done.length) logged("Workout saved", "finish");
   }
   function cancelWorkout() { persistActive(null); }
   function woSetExercisePain(exIdx, level) {
@@ -4870,14 +4968,14 @@ function SprigApp() {
     }
     setResult(null);
     setTab("nutrition");
-    showToast("Meal added");
+    logged("Meal added", "light");
   }
 
   function logFromLibrary(meal) {
     const entry = { ...meal, id: uid(), mult: 1, time: Date.now() };
     persistEntries((prev) => [...prev, entry]);
     setTab("nutrition");
-    showToast("Meal added");
+    logged("Meal added", "light");
   }
   function addManual(m) {
     const entry = {
@@ -4885,7 +4983,7 @@ function SprigApp() {
       calories: +m.calories || 0, protein_g: +m.protein || 0, carbs_g: +m.carbs || 0,
       fat_g: +m.fat || 0, fiber_g: +m.fiber || 0, micros: {}, omega3: null, mult: 1, time: Date.now(),
     };
-    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("nutrition"); showToast("Meal added"); };
+    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("nutrition"); logged("Meal added", "light"); };
     if (entry.calories > 3000) { askConfirm(`${entry.calories} kcal for one item is unusually high. Save anyway?`, commit); return; }
     commit();
   }
@@ -5091,12 +5189,12 @@ function SprigApp() {
   }
 
   return (
-    <div className="sprig-app-frame" style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, position: "relative", overflow: "hidden", borderRadius: 24 }}>
+    <div className="sprig-app-frame" style={{ background: C.pageBg, fontFamily: "DM Sans, sans-serif", color: C.ink, position: "relative", overflow: "hidden", borderRadius: 24 }}>
       <style>{FONTS}</style>
 
       {/* alarm ring overlay */}
       {ringing && (
-        <div className="sprig-pop" style={{ position: "absolute", inset: 0, zIndex: 50, background: "linear-gradient(160deg,#0E2C1E,#1C5237)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff", padding: 30 }}>
+        <div className="sprig-pop" style={{ position: "absolute", inset: 0, zIndex: 50, background: C.heroGrad2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff", padding: 30 }}>
           <Sun size={54} color={C.amber} style={{ animation: "pop .4s ease" }} />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, fontWeight: 700, marginTop: 18 }}>Good morning</div>
           <div style={{ fontSize: 13.5, opacity: .8, marginTop: 6, textAlign: "center", maxWidth: 260 }}>
@@ -5135,7 +5233,7 @@ function SprigApp() {
         </div>
       </div>
 
-      <div className="sprig-scroll" style={{ height: 470, overflowY: "auto", padding: "8px 16px 18px" }}>
+      <div className="sprig-scroll sprig-content" style={{ overflowY: "auto", overflowX: "hidden", padding: "8px 16px 18px" }}>
         {tab === "today" && (
           <TodayTab
             t={t} targets={targets} entries={entries} scores={scores} onRemove={removeEntry}
@@ -5209,6 +5307,7 @@ function SprigApp() {
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo} />}
         {tab === "settings" && <MeTab view="settings" onBack={() => setTab("today")} profile={profile} targets={targets} onSave={saveProfile}
+          themeMode={themeMode} onSetTheme={setTheme}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo} />}
       </div>
@@ -5295,7 +5394,7 @@ function SprigApp() {
       )}
 
       {/* tab bar — 8 tabs, horizontally scrollable on narrow screens */}
-      <div className="sprig-tabbar sprig-glass" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "rgba(7,20,15,0.82)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      <div className="sprig-tabbar sprig-glass" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: C.navBg, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {[["today", Home, "Today"], ["nutrition", Flame, "Food"], ["train", Dumbbell, "Train"], ["sleep", Moon, "Sleep"], ["coach", Sparkles, "Coach"], ["more", User, "More"]].map(([k, Ic, lbl]) => (
           <button key={k} onClick={() => { setTab(k); setResult(null); setComposer(null); setError(""); setFavoriteMode(false); }}
             style={{ flex: 1, minWidth: 0, background: "none", border: "none", cursor: "pointer", padding: "10px 4px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.lime : C.muted }}>
@@ -5798,8 +5897,8 @@ function MovementCard({ daily, profile, onDaily, compact }) {
   const goal = stepGoal(profile);
   const cardioMin = daily.cardioMin || 0;
   const cardioK = daily.cardioKcal || 0;
-  const bump = (n) => onDaily({ steps: Math.max(0, steps + n) });
-  const saveEdit = () => { const v = parseInt(draft, 10); if (Number.isFinite(v) && v >= 0) onDaily({ steps: v }); setEditing(false); setDraft(""); };
+  const bump = (n) => { onDaily({ steps: Math.max(0, steps + n) }); buzz("light"); };
+  const saveEdit = () => { const v = parseInt(draft, 10); if (Number.isFinite(v) && v >= 0) { onDaily({ steps: v }); buzz("light"); } setEditing(false); setDraft(""); };
   return (
     <div style={{ background: C.card, borderRadius: 16, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -5852,6 +5951,7 @@ function DrinksCard({ daily, onDaily, onAddEntry }) {
   const log = (preset) => {
     const next = [...drinks, { id: uid(), ts: Date.now(), ...preset }];
     onDaily({ alcoholDrinks: next, alcohol_g: next.reduce((a, d) => a + (d.alcohol_g || 0), 0), alcohol: next.length });
+    buzz("light");
     // also push as a nutrition entry so calories count in dayTotals
     if (onAddEntry) onAddEntry({
       name: preset.name,
@@ -6210,7 +6310,7 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
       })()}
 
       {/* 1 — DAILY HEALTH SCORE */}
-      <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 22, padding: 18, color: "#fff", boxShadow: C.shadow }}>
+      <div style={{ background: C.heroGrad1, borderRadius: 22, padding: 18, color: "#fff", boxShadow: C.shadow }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <ScoreDonut score={healthScore} />
           <div style={{ flex: 1 }}>
@@ -6494,7 +6594,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       {sub === "meals" && (<>
       {/* Sticky compact Log Food bar — stays visible while scrolling the Meals tab */}
       {(onSnapFood || onScanLabel || onDescribe || onManual) && (
-        <div className="sprig-glass" style={{ position: "sticky", top: -8, zIndex: 30, margin: "-8px -4px 6px", padding: "8px 4px", background: "rgba(7,20,15,0.72)" }}>
+        <div className="sprig-glass" style={{ position: "sticky", top: -8, zIndex: 30, margin: "-8px -4px 6px", padding: "8px 4px", background: C.navBg }}>
           <div style={{ display: "flex", gap: 7 }}>
             {[[onSnapFood, Camera, "Snap"], [onScanLabel, ScanLine, "Scan"], [onDescribe, PencilLine, "Describe"], [onManual, Calculator, "Manual"]].map(([fn, Ic, lbl], i) => fn && (
               <button key={lbl} className="sprig-tap" onClick={fn}
@@ -6784,8 +6884,8 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       {/* FOOD TODAY */}
       {sectionTitle("Food logged today")}
       {entries.length === 0 ? (
-        <EmptyState icon={<Flame size={20} color={C.greenSoft} />} title="No meals logged yet"
-          text="Start with Snap food, Describe, or add a favorite meal above." />
+        <EmptyState icon={<Flame size={20} color={C.greenSoft} />} title="No meals yet"
+          text="Log with Snap, Scan, Describe, or add a favorite." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(showAllFood ? [...entries].reverse() : [...entries].reverse().slice(0, 4)).map((e) => {
@@ -6918,7 +7018,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
   if (session) {
     return (
       <div className="sprig-rise" style={{ textAlign: "center", padding: "20px 6px" }}>
-        <div style={{ background: "linear-gradient(160deg,#0E2C1E,#1C5237)", borderRadius: 24, padding: "34px 20px", color: "#fff" }}>
+        <div style={{ background: C.heroGrad2, borderRadius: 24, padding: "34px 20px", color: "#fff" }}>
           <MoonStar size={40} color="#BFD0FF" />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, marginTop: 14 }}>Sleep mode on</div>
           <div style={{ fontSize: 13, opacity: .8, marginTop: 6 }}>Asleep for {durLabel(elapsed)}</div>
@@ -6946,7 +7046,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
       <SubTabs tabs={[["sleep", "Sleep"], ["alarm", "Alarm & Routine"]]} active={sub} onChange={onSub} />
       {sub === "sleep" && (<>
       {/* sleep debt hero */}
-      <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow }}>
+      <div style={{ background: C.heroGrad1, borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: 11.5, opacity: .75, letterSpacing: .3 }}>SLEEP DEBT · WEIGHTED, LAST 14 NIGHTS</div>
@@ -7269,52 +7369,66 @@ function sleepTip(log, debtMin, need) {
 // Energy-today curve graph — extracted so it can render in both the Sleep tab and Energy tab.
 // Reads everything from sleepInfo; shows a calm empty state when there isn't enough data yet.
 function EnergyCurveCard({ sleepInfo }) {
-  const { curve, gym, wakeMin, rec, debtMin, mealMarks } = sleepInfo;
+  const { curve, gym, mealMarks } = sleepInfo;
+  // tick every 2 min so the "Now" marker advances while the app is open
+  const [, setTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTick((n) => n + 1), 120000); return () => clearInterval(id); }, []);
   if (!curve || !curve.length) {
     return (
       <div style={{ background: C.card, borderRadius: 20, padding: "24px 18px", boxShadow: C.shadow, border: `1px solid ${C.line}`, textAlign: "center" }}>
         <div style={{ width: 42, height: 42, borderRadius: 12, background: C.greenSoft + "22", display: "grid", placeItems: "center", margin: "0 auto 10px" }}><Zap size={19} color={C.greenSoft} /></div>
-        <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>Energy graph appears after sleep and check-in data.</div>
+        <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>Energy curve appears after sleep and check-in data.</div>
       </div>
     );
   }
-  const W = 380, H = 150, padL = 6, padR = 6, top = 12, bot = 22;
-  const minX = curve[0].min, maxX = curve[curve.length - 1].min;
-  const x = (m) => padL + ((m - minX) / (maxX - minX)) * (W - padL - padR);
-  const y = (e) => top + (1 - e / 100) * (H - top - bot);
-  const line = curve.map((p, i) => `${i ? "L" : "M"}${x(p.min).toFixed(1)},${y(p.e).toFixed(1)}`).join(" ");
-  const area = `${line} L${x(maxX).toFixed(1)},${H - bot} L${x(minX).toFixed(1)},${H - bot} Z`;
-  const nowMin = tsToMin(Date.now());
-  const showNow = nowMin >= minX % DAYMIN && nowMin <= maxX;
+  // Fixed full-day domain: 0 (00:00) → 1440 (24:00). Points past midnight wrap into the same day.
+  const W = 380, H = 150, padL = 8, padR = 8, top = 12, bot = 22;
+  const DAY = 1440;
+  const x = (m) => padL + (Math.max(0, Math.min(DAY, m)) / DAY) * (W - padL - padR);
+  const y = (e) => top + (1 - Math.max(0, Math.min(100, e)) / 100) * (H - top - bot);
+  // normalize curve minutes into 0..1440 (wrap values >1440), keep sorted, dedupe ends
+  const pts = curve.map((p) => ({ min: ((p.min % DAY) + DAY) % DAY, e: p.e })).sort((a, b) => a.min - b.min);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p.min).toFixed(1)},${y(p.e).toFixed(1)}`).join(" ");
+  const area = pts.length ? `${line} L${x(pts[pts.length - 1].min).toFixed(1)},${H - bot} L${x(pts[0].min).toFixed(1)},${H - bot} Z` : "";
+  const nowMin = tsToMin(Date.now());           // minutes since midnight, 0..1440
+  const nowX = x(nowMin);
+  const wrap = (m) => ((m % DAY) + DAY) % DAY;
+  const ticks = [0, 360, 720, 1080, 1440];      // 00:00 06:00 12:00 18:00 24:00
+  const tickLabel = (m) => (m === 1440 ? "24:00" : `${String(Math.floor(m / 60)).padStart(2, "0")}:00`);
   return (
     <div style={{ background: C.card, borderRadius: 20, padding: "14px 12px 8px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: "auto", display: "block" }}>
         <defs>
           <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={C.leaf} stopOpacity="0.45" />
+            <stop offset="0%" stopColor={C.leaf} stopOpacity={C.isDark ? "0.45" : "0.30"} />
             <stop offset="100%" stopColor={C.leaf} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        {gym && <rect x={x(gym.start)} y={top} width={x(gym.end) - x(gym.start)} height={H - top - bot} fill={C.green} opacity="0.08" rx="4" />}
-        <path d={area} fill="url(#eg)" />
-        <path d={line} fill="none" stroke={C.leaf} strokeWidth="2.4" strokeLinejoin="round" />
-        {mealMarks.map((m, i) => (
+        {/* hour gridlines */}
+        {ticks.map((m) => <line key={"g" + m} x1={x(m)} y1={top} x2={x(m)} y2={H - bot} stroke={C.line} strokeWidth="1" />)}
+        {gym && <rect x={x(wrap(gym.start))} y={top} width={Math.max(2, x(wrap(gym.end)) - x(wrap(gym.start)))} height={H - top - bot} fill={C.green} opacity="0.10" rx="4" />}
+        {area && <path d={area} fill="url(#eg)" />}
+        {line && <path d={line} fill="none" stroke={C.leaf} strokeWidth="2.4" strokeLinejoin="round" />}
+        {(mealMarks || []).map((m, i) => (
           <g key={i}>
-            <line x1={x(m.min)} y1={top} x2={x(m.min)} y2={H - bot} stroke={C.amber} strokeWidth="1" strokeDasharray="2 3" opacity="0.6" />
-            <circle cx={x(m.min)} cy={H - bot} r="3.5" fill={C.amber} />
+            <line x1={x(wrap(m.min))} y1={top} x2={x(wrap(m.min))} y2={H - bot} stroke={C.amber} strokeWidth="1" strokeDasharray="2 3" opacity="0.6" />
+            <circle cx={x(wrap(m.min))} cy={H - bot} r="3.5" fill={C.amber} />
           </g>
         ))}
-        {gym && <g><circle cx={x(gym.start + 45)} cy={y(gym.avg)} r="5" fill={C.leaf} stroke={C.bg} strokeWidth="2" /></g>}
-        {showNow && <line x1={x(nowMin)} y1={top} x2={x(nowMin)} y2={H - bot} stroke={C.coral} strokeWidth="1.5" />}
-        {curve.filter((p) => p.min % 180 === 0 || (p.min - minX) % 180 < 15).slice(0, 6).map((p, i) => (
-          <text key={i} x={x(p.min)} y={H - 6} fontSize="9" fill={C.muted} textAnchor="middle" fontFamily="DM Sans">{minToLabel(p.min).replace(":00", "")}</text>
+        {/* NOW marker — always shown, positioned at nowMin/1440 */}
+        <line x1={nowX} y1={top - 4} x2={nowX} y2={H - bot} stroke={C.coral} strokeWidth="1.8" />
+        <circle cx={nowX} cy={top - 4} r="3" fill={C.coral} />
+        <text x={Math.min(W - 18, Math.max(16, nowX))} y={top - 7} fontSize="9" fill={C.coral} textAnchor="middle" fontFamily="DM Sans" fontWeight="700">Now</text>
+        {/* hour labels */}
+        {ticks.map((m) => (
+          <text key={"t" + m} x={Math.min(W - 12, Math.max(12, x(m)))} y={H - 6} fontSize="9" fill={C.muted} textAnchor="middle" fontFamily="DM Sans">{tickLabel(m)}</text>
         ))}
       </svg>
       <div style={{ display: "flex", gap: 14, padding: "4px 6px 2px", flexWrap: "wrap" }}>
         <Legend c={C.leaf} label="Energy" />
-        <Legend c={C.amber} label="Meals logged" />
+        <Legend c={C.amber} label="Meals" />
         {gym && <Legend c={C.green} label="Gym window" faded />}
-        {showNow && <Legend c={C.coral} label="Now" />}
+        <Legend c={C.coral} label="Now" />
       </div>
     </div>
   );
@@ -7772,8 +7886,9 @@ function AccountSection() {
     setBusy(true); setMsg(null);
     const r = await syncToCloud();
     setBusy(false);
-    if (!r.ok) return note(false, r.error);
+    if (!r.ok) { buzz("error"); return note(false, r.error); }
     setLastSynced(new Date().toISOString());
+    buzz("success");
     note(true, "Synced " + r.count + " keys to your account.");
   }
   async function handleRestore() {
@@ -7931,7 +8046,7 @@ function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress }) {
   );
 }
 
-function MeTab({ view = "settings", onBack, profile, targets, onSave, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo }) {
+function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo }) {
   const importRef = useRef(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [p, setP] = useState(profile);
@@ -8111,6 +8226,44 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, onExportJS
           {(p.mode || "simple") === "simple"
             ? "Clean view: the numbers that matter day to day. Detailed breakdowns — micronutrients, muscle-by-muscle recovery, sleep stages, RIR and charts — stay tucked away."
             : "Full view: every metric is shown — micronutrient percentages, per-muscle recovery hours, sleep stages, RIR, estimated 1RMs and trend charts."}
+        </div>
+      </div>
+
+      {/* APPEARANCE — Dark / Light theme */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Appearance</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Moon size={16} color={C.greenSoft} />
+            <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Theme</span>
+          </div>
+          <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 3, borderRadius: 11 }}>
+            {[["dark", "Dark", Moon], ["light", "Light", Sun]].map(([v, lbl, Ic]) => {
+              const on = themeMode === v;
+              return (
+                <button key={v} className="sprig-tap" onClick={() => onSetTheme && onSetTheme(v)}
+                  style={{ border: "none", cursor: "pointer", padding: "7px 13px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 6,
+                    background: on ? C.card : "transparent", color: on ? C.green : C.muted, boxShadow: on ? C.shadow : "none" }}><Ic size={14} /> {lbl}</button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
+          {themeMode === "dark" ? "Kiwi dark — deep forest green with glass cards." : "Light — clean white background with dark text. The green accent stays."}
+        </div>
+        {/* Haptics on/off */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Activity size={16} color={C.greenSoft} />
+            <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Haptics</span>
+          </div>
+          <button className="sprig-tap" onClick={() => { const on = p.haptics === false; const np = { ...p, haptics: on }; setP(np); onSave(np); if (on) buzz("light"); }}
+            style={{ position: "relative", width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: p.haptics === false ? C.bg2 : C.green, transition: "background .2s" }}>
+            <span style={{ position: "absolute", top: 3, left: p.haptics === false ? 3 : 21, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s" }} />
+          </button>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+          Subtle vibration when you log, complete a set, or finish a rest timer. Only on supported devices.
         </div>
       </div>
 
@@ -8494,7 +8647,7 @@ function CoachTab({ coach, advanced, moveInfo, timeline, plateaus, patterns, onG
 
       {/* WHY AM I NOT PROGRESSING — headline diagnostic */}
       {diag && (diag.enough ? (
-        <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
+        <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, opacity: .75, letterSpacing: .3, marginBottom: 8 }}>
             <Search size={14} color="#E7DCC6" /> WHY AM I NOT PROGRESSING?
           </div>
@@ -8992,7 +9145,7 @@ function FocusTimer({ onLogFocus }) {
   const completeNow = () => { setRunning(false); setRemaining(null); onLogFocus(minutes, label.trim() || "Deep work"); };
 
   return (
-    <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow }}>
+    <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, opacity: .85, fontWeight: 600, marginBottom: 12 }}>
         <Timer size={15} color="#E7DCC6" /> Focus session
       </div>
@@ -9054,7 +9207,7 @@ function MindTab({ mindInfo, advanced, checkin, onCheckin, profile, onToggleHabi
       </div>
 
       {/* WEEKLY CONSISTENCY */}
-      <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginTop: 12, display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginTop: 12, display: "flex", alignItems: "center", gap: 16 }}>
         <Ring value={consistency.pct} max={100} size={78} stroke={9} label={consistency.pct + "%"} sub="this week"
           color={consistency.pct >= 70 ? C.leaf : consistency.pct >= 40 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
         <div style={{ flex: 1 }}>
@@ -9686,7 +9839,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
     const thisE1 = est1RM(W, R);
     if (histBest > 0 && thisE1 > histBest * 1.001) {
       setOverload({ text: "New best" });
-      try { navigator.vibrate?.(40); } catch (_) {}
+      buzz("strong");
       setTimeout(() => setOverload(null), 2600);
     }
     // Log the set; the RIR prompt is opened at the app-frame level by the parent's woLogSet.
@@ -10207,7 +10360,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
 
       {/* SUGGESTED WORKOUT */}
       {sug && (
-        <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 16, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
+        <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 16, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
             <div style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(255,255,255,.14)", display: "grid", placeItems: "center", flexShrink: 0 }}>
               <SugIcon size={22} color="#E7DCC6" />
@@ -10339,7 +10492,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
       )}
 
       {/* readiness */}
-      <div style={{ width: "100%", textAlign: "left", marginTop: 14, background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
+      <div style={{ width: "100%", textAlign: "left", marginTop: 14, background: C.heroGrad1, borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
         <Ring value={trainInfo.bodyReadiness} max={100} size={64} stroke={8} label={trainInfo.bodyReadiness} sub="ready" color={trainInfo.bodyReadiness >= 70 ? C.leaf : trainInfo.bodyReadiness >= 45 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 11.5, opacity: .8 }}>TODAY'S READINESS</div>
