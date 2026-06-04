@@ -5150,7 +5150,7 @@ function SprigApp() {
             onRemoveExercise={woRemoveExercise} onFinish={finishWorkout} onCancel={cancelWorkout}
             onSaveRest={saveRest} onSetExercisePain={woSetExercisePain} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")}
             onStartRest={startRest} restActive={!!rest}
-            moveInfo={moveInfo} daily={daily} onDaily={persistDaily} />
+            moveInfo={moveInfo} daily={daily} onDaily={persistDaily} sleepInfo={sleepInfo} />
         )}
         {(tab === "progress" || tab === "body" || tab === "trends") && (
           <>
@@ -5180,7 +5180,7 @@ function SprigApp() {
           onToggleHabit={toggleHabit} onAddHabit={addHabit} onRemoveHabit={removeHabit} onRestoreHabit={restoreHabit} onLogFocus={logFocus} />}
         {tab === "coach" && <CoachTab coach={coach2} advanced={advanced} moveInfo={moveInfo} timeline={timeline} plateaus={plateaus} patterns={patterns}
           onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={() => setAskOpen(true)} />}
-        {(tab === "more" || tab === "me") && <MeTab profile={profile} targets={targets} onSave={saveProfile} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")}
+        {(tab === "more" || tab === "me") && <MeTab profile={profile} targets={targets} onSave={saveProfile} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo} />}
       </div>
@@ -5267,12 +5267,12 @@ function SprigApp() {
       )}
 
       {/* tab bar — 8 tabs, horizontally scrollable on narrow screens */}
-      <div className="sprig-tabbar sprig-glass" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "rgba(7,20,15,0.82)", paddingBottom: "env(safe-area-inset-bottom, 0px)", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-        {[["today", Home, "Today"], ["nutrition", Flame, "Food"], ["coach", Sparkles, "Coach"], ["train", Dumbbell, "Train"], ["sleep", Moon, "Sleep"], ["health", HeartPulse, "Health"], ["mind", BookOpen, "Mind"], ["progress", TrendingUp, "Progress"]].map(([k, Ic, lbl]) => (
+      <div className="sprig-tabbar sprig-glass" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: "rgba(7,20,15,0.82)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        {[["today", Home, "Today"], ["nutrition", Flame, "Food"], ["train", Dumbbell, "Train"], ["sleep", Moon, "Sleep"], ["coach", Sparkles, "Coach"], ["more", User, "More"]].map(([k, Ic, lbl]) => (
           <button key={k} onClick={() => { setTab(k); setResult(null); setComposer(null); setError(""); setFavoriteMode(false); }}
-            style={{ flex: "1 0 auto", minWidth: 64, background: "none", border: "none", cursor: "pointer", padding: "10px 6px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.lime : C.muted }}>
-            <Ic size={19} strokeWidth={tab === k ? 2.4 : 2} />
-            <span style={{ fontSize: 9.5, fontWeight: tab === k ? 700 : 500, whiteSpace: "nowrap" }}>{lbl}</span>
+            style={{ flex: 1, minWidth: 0, background: "none", border: "none", cursor: "pointer", padding: "10px 4px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.lime : C.muted }}>
+            <Ic size={20} strokeWidth={tab === k ? 2.4 : 2} />
+            <span style={{ fontSize: 10, fontWeight: tab === k ? 700 : 500, whiteSpace: "nowrap" }}>{lbl}</span>
           </button>
         ))}
       </div>
@@ -5396,7 +5396,7 @@ function SprigApp() {
       {repRangePrompt && (
         <div style={{ position: "absolute", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 89, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div className="sprig-pop sprig-bottom-sheet"
-            style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "22px 18px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
+            style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "22px 18px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>What rep range do you train in?</div>
             <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 6, marginBottom: 18, lineHeight: 1.5 }}>
               Sprig uses this to guide progressive overload — when you hit the top of your range, it'll suggest adding weight. You can change this anytime in More → Settings.
@@ -5432,7 +5432,7 @@ function SprigApp() {
         return (
           <div onClick={() => setRirPrompt(null)} style={{ position: "absolute", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 88, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
-              style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
+              style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
               <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, textAlign: "center", color: C.ink }}>How many reps in reserve?</div>
               <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 4, marginBottom: 16 }}>
                 How hard was that set?{s ? ` · ${ex.name} ${s.w}${profile.unit || "kg"} × ${s.reps}` : ""}
@@ -5456,7 +5456,7 @@ function SprigApp() {
       {favChooser && (
         <div onClick={() => setFavChooser(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
-            style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
+            style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>New favorite meal</div>
             <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Create it the same way you log food — we'll save the result as a favorite to reuse.</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -5500,7 +5500,7 @@ function SprigApp() {
       )}
       {favDup && (
         <div onClick={() => setFavDup(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 86, padding: 24 }}>
-          <div onClick={(e) => e.stopPropagation()} className="sprig-pop" style={{ width: "100%", maxWidth: 340, background: C.card, borderRadius: 18, padding: 20, boxShadow: "0 12px 40px rgba(0,0,0,.25)" }}>
+          <div onClick={(e) => e.stopPropagation()} className="sprig-pop" style={{ width: "100%", maxWidth: 340, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 20, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Favorite already exists</div>
             <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 16 }}>You already have a favorite called "{favDup.existing.name}". Replace it, or save a copy?</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -5535,7 +5535,7 @@ function SprigApp() {
         <div onClick={() => setPendingConfirm(null)}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 85, padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 340, background: C.card, borderRadius: 18, padding: 20, boxShadow: "0 12px 40px rgba(0,0,0,.25)" }}>
+            style={{ width: "100%", maxWidth: 340, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 20, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>This looks unusual</div>
             <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 16 }}>{pendingConfirm.message}</div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -6394,7 +6394,7 @@ function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
-        style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
+        style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{isNew ? "New favorite meal" : "Edit favorite"}</div>
         <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>Name</div>
         <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Chicken rice bowl"
@@ -6460,6 +6460,19 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, nutriI
 
   return (
     <div className="sprig-rise">
+      {/* Sticky compact Log Food bar — stays visible while scrolling the Food tab */}
+      {(onSnapFood || onScanLabel || onDescribe || onManual) && (
+        <div className="sprig-glass" style={{ position: "sticky", top: -8, zIndex: 30, margin: "-8px -4px 6px", padding: "8px 4px", background: "rgba(7,20,15,0.72)" }}>
+          <div style={{ display: "flex", gap: 7 }}>
+            {[[onSnapFood, Camera, "Snap"], [onScanLabel, ScanLine, "Scan"], [onDescribe, PencilLine, "Describe"], [onManual, Calculator, "Manual"]].map(([fn, Ic, lbl], i) => fn && (
+              <button key={lbl} className="sprig-tap" onClick={fn}
+                style={{ flex: 1, minWidth: 0, ...btn(i === 0 ? C.green : C.bg2, i === 0 ? "#fff" : C.ink), padding: "10px 0", fontSize: 11.5, flexDirection: "column", gap: 3 }}>
+                <Ic size={16} /> {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 2px" }}>Nutrition</div>
       <div style={{ fontSize: 12, color: C.muted, margin: "0 2px 8px" }}>Everything you eat, drink, and supplement — for this Sprig day.</div>
 
@@ -6919,6 +6932,10 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, session, micState,
         </div>
       </div>
 
+      {/* Your energy today — modeled from sleep + check-in + meals */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "18px 2px 8px", display: "flex", alignItems: "center", gap: 7 }}><Zap size={16} color={C.lime} /> Your energy today</div>
+      <EnergyCurveCard sleepInfo={sleepInfo} />
+
       {/* recovery recommendation */}
       {recoveryRec && (() => {
         const lvl = recoveryRec.level;
@@ -7194,6 +7211,60 @@ function sleepTip(log, debtMin, need) {
 }
 
 /* ---------------- Energy tab (Rise-style timeline) -------------- */
+// Energy-today curve graph — extracted so it can render in both the Sleep tab and Energy tab.
+// Reads everything from sleepInfo; shows a calm empty state when there isn't enough data yet.
+function EnergyCurveCard({ sleepInfo }) {
+  const { curve, gym, wakeMin, rec, debtMin, mealMarks } = sleepInfo;
+  if (!curve || !curve.length) {
+    return (
+      <div style={{ background: C.card, borderRadius: 20, padding: "24px 18px", boxShadow: C.shadow, border: `1px solid ${C.line}`, textAlign: "center" }}>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: C.greenSoft + "22", display: "grid", placeItems: "center", margin: "0 auto 10px" }}><Zap size={19} color={C.greenSoft} /></div>
+        <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>Energy graph appears after sleep and check-in data.</div>
+      </div>
+    );
+  }
+  const W = 380, H = 150, padL = 6, padR = 6, top = 12, bot = 22;
+  const minX = curve[0].min, maxX = curve[curve.length - 1].min;
+  const x = (m) => padL + ((m - minX) / (maxX - minX)) * (W - padL - padR);
+  const y = (e) => top + (1 - e / 100) * (H - top - bot);
+  const line = curve.map((p, i) => `${i ? "L" : "M"}${x(p.min).toFixed(1)},${y(p.e).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(maxX).toFixed(1)},${H - bot} L${x(minX).toFixed(1)},${H - bot} Z`;
+  const nowMin = tsToMin(Date.now());
+  const showNow = nowMin >= minX % DAYMIN && nowMin <= maxX;
+  return (
+    <div style={{ background: C.card, borderRadius: 20, padding: "14px 12px 8px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+        <defs>
+          <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={C.leaf} stopOpacity="0.45" />
+            <stop offset="100%" stopColor={C.leaf} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {gym && <rect x={x(gym.start)} y={top} width={x(gym.end) - x(gym.start)} height={H - top - bot} fill={C.green} opacity="0.08" rx="4" />}
+        <path d={area} fill="url(#eg)" />
+        <path d={line} fill="none" stroke={C.leaf} strokeWidth="2.4" strokeLinejoin="round" />
+        {mealMarks.map((m, i) => (
+          <g key={i}>
+            <line x1={x(m.min)} y1={top} x2={x(m.min)} y2={H - bot} stroke={C.amber} strokeWidth="1" strokeDasharray="2 3" opacity="0.6" />
+            <circle cx={x(m.min)} cy={H - bot} r="3.5" fill={C.amber} />
+          </g>
+        ))}
+        {gym && <g><circle cx={x(gym.start + 45)} cy={y(gym.avg)} r="5" fill={C.leaf} stroke={C.bg} strokeWidth="2" /></g>}
+        {showNow && <line x1={x(nowMin)} y1={top} x2={x(nowMin)} y2={H - bot} stroke={C.coral} strokeWidth="1.5" />}
+        {curve.filter((p) => p.min % 180 === 0 || (p.min - minX) % 180 < 15).slice(0, 6).map((p, i) => (
+          <text key={i} x={x(p.min)} y={H - 6} fontSize="9" fill={C.muted} textAnchor="middle" fontFamily="DM Sans">{minToLabel(p.min).replace(":00", "")}</text>
+        ))}
+      </svg>
+      <div style={{ display: "flex", gap: 14, padding: "4px 6px 2px", flexWrap: "wrap" }}>
+        <Legend c={C.leaf} label="Energy" />
+        <Legend c={C.amber} label="Meals logged" />
+        {gym && <Legend c={C.green} label="Gym window" faded />}
+        {showNow && <Legend c={C.coral} label="Now" />}
+      </div>
+    </div>
+  );
+}
+
 function EnergyTab({ sleepInfo, entries, t }) {
   const { curve, gym, wakeMin, todayBed, rec, debtMin, mealMarks } = sleepInfo;
   if (!curve.length) return <div style={{ padding: 30, textAlign: "center", color: C.muted }}>Log some sleep to build your energy schedule.</div>;
@@ -7227,41 +7298,7 @@ function EnergyTab({ sleepInfo, entries, t }) {
       </div>
 
       {/* energy curve */}
-      <div style={{ background: C.card, borderRadius: 20, padding: "14px 12px 8px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
-          <defs>
-            <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={C.leaf} stopOpacity="0.45" />
-              <stop offset="100%" stopColor={C.leaf} stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
-          {/* gym window highlight */}
-          {gym && <rect x={x(gym.start)} y={top} width={x(gym.end) - x(gym.start)} height={H - top - bot} fill={C.green} opacity="0.08" rx="4" />}
-          <path d={area} fill="url(#eg)" />
-          <path d={line} fill="none" stroke={C.green} strokeWidth="2.4" strokeLinejoin="round" />
-          {/* meal markers */}
-          {mealMarks.map((m, i) => (
-            <g key={i}>
-              <line x1={x(m.min)} y1={top} x2={x(m.min)} y2={H - bot} stroke={C.amber} strokeWidth="1" strokeDasharray="2 3" opacity="0.6" />
-              <circle cx={x(m.min)} cy={H - bot} r="3.5" fill={C.amber} />
-            </g>
-          ))}
-          {/* gym marker */}
-          {gym && <g><circle cx={x(gym.start + 45)} cy={y(gym.avg)} r="5" fill={C.green} stroke="#fff" strokeWidth="2" /></g>}
-          {/* now line */}
-          {showNow && <line x1={x(nowMin)} y1={top} x2={x(nowMin)} y2={H - bot} stroke={C.coral} strokeWidth="1.5" />}
-          {/* hour labels */}
-          {curve.filter((p) => p.min % 180 === 0 || (p.min - minX) % 180 < 15).slice(0, 6).map((p, i) => (
-            <text key={i} x={x(p.min)} y={H - 6} fontSize="9" fill={C.muted} textAnchor="middle" fontFamily="DM Sans">{minToLabel(p.min).replace(":00", "")}</text>
-          ))}
-        </svg>
-        <div style={{ display: "flex", gap: 14, padding: "4px 6px 2px", flexWrap: "wrap" }}>
-          <Legend c={C.green} label="Energy" />
-          <Legend c={C.amber} label="Meals logged" />
-          {gym && <Legend c={C.green} label="Gym window" faded />}
-          {showNow && <Legend c={C.coral} label="Now" />}
-        </div>
-      </div>
+      <EnergyCurveCard sleepInfo={sleepInfo} />
 
       {/* gym recommendation */}
       {gym && (
@@ -7787,7 +7824,7 @@ function AccountSection() {
         <div onClick={dismissFirstChoice}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-bottom-sheet"
-            style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "20px 18px 22px", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
+            style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px 22px", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>Welcome!</div>
             <div style={{ fontSize: 12.5, color: C.inkSoft, marginBottom: 14, lineHeight: 1.5 }}>
               Do you want to <b>sync this device's data</b> to your account, or <b>restore existing cloud data</b> onto this device?
@@ -7814,7 +7851,7 @@ function AccountSection() {
 }
 
 /* ---------------- Me / profile tab -------------- */
-function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo }) {
+function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onGoProgress, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo }) {
   const importRef = useRef(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [p, setP] = useState(profile);
@@ -7986,7 +8023,7 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onExportJSON, o
       {/* health link */}
       {onGoHealth && (
         <>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "20px 2px 10px" }}>Health</div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "20px 2px 10px" }}>More tabs</div>
           <button className="sprig-tap" onClick={onGoHealth} style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16, boxShadow: C.shadow, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: C.greenSoft + "22", display: "grid", placeItems: "center", flexShrink: 0 }}><HeartPulse size={18} color={C.greenSoft} /></div>
             <div style={{ flex: 1, textAlign: "left" }}>
@@ -8001,6 +8038,16 @@ function MeTab({ profile, targets, onSave, onGoHealth, onGoMind, onExportJSON, o
               <div style={{ flex: 1, textAlign: "left" }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>Mind &amp; habits</div>
                 <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Mood &amp; focus check-in, habit tracker, focus timer.</div>
+              </div>
+              <ChevronRight size={18} color={C.muted} />
+            </button>
+          )}
+          {onGoProgress && (
+            <button className="sprig-tap" onClick={onGoProgress} style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16, boxShadow: C.shadow, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, marginTop: 9 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 11, background: C.greenSoft + "22", display: "grid", placeItems: "center", flexShrink: 0 }}><TrendingUp size={18} color={C.greenSoft} /></div>
+              <div style={{ flex: 1, textAlign: "left" }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>Progress</div>
+                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Bodyweight, measurements, photos, achievements, and weekly reports.</div>
               </div>
               <ChevronRight size={18} color={C.muted} />
             </button>
@@ -8529,14 +8576,14 @@ function CoachTab({ coach, advanced, moveInfo, timeline, plateaus, patterns, onG
 function SearchSheet({ onClose, onJump, results, query, setQuery }) {
   const kindIcon = (k) => ({ food: "🥗", exercise: "🏋️", workout: "📈", supp: "💊", pain: "⚠️", weight: "⚖️", sleep: "🌙", health: "❤️", focus: "🎯", note: "📝" })[k] || "•";
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 60 }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 90 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
-        style={{ maxWidth: 440, margin: "60px auto 0", background: C.card, borderRadius: 18, padding: 14, maxHeight: "75vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 8px 28px rgba(0,0,0,.25)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        style={{ maxWidth: 440, margin: "60px auto 0", background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 14, maxHeight: "75vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, background: C.bg2, borderRadius: 12, padding: "8px 11px" }}>
           <Search size={17} color={C.muted} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} autoFocus placeholder="Search foods, exercises, workouts, supplements, pain…"
             style={{ flex: 1, border: "none", background: "transparent", outline: "none", fontFamily: "DM Sans", fontSize: 14.5, color: C.ink }} />
-          <button className="sprig-tap" onClick={onClose} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", color: C.muted }}><X size={14} /></button>
+          <button className="sprig-tap" onClick={onClose} style={{ background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.muted, flexShrink: 0 }}><X size={14} /></button>
         </div>
         <div className="sprig-scroll" style={{ flex: 1, overflowY: "auto", borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
           {!query.trim() && (
@@ -8577,9 +8624,9 @@ function CalendarSheet({ onClose, getDayIcons }) {
   const todayStr = new Date().toLocaleDateString("en-CA");
   const dateStr = (d) => `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 60 }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 90 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
-        style={{ maxWidth: 440, margin: "40px auto 0", background: C.card, borderRadius: 20, padding: 16, boxShadow: "0 8px 28px rgba(0,0,0,.25)" }}>
+        style={{ maxWidth: 440, margin: "40px auto 0", background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <BarChart3 size={17} color={C.greenSoft} />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, flex: 1 }}>Calendar</div>
@@ -8644,7 +8691,7 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNot
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 60 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
-        style={{ maxWidth: 440, margin: "0 auto", position: "absolute", bottom: 0, left: 0, right: 0, background: C.card, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
+        style={{ maxWidth: 440, margin: "0 auto", position: "absolute", bottom: 0, left: 0, right: 0, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <Sparkles size={17} color={C.greenSoft} />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, flex: 1 }}>Ask the coach</div>
@@ -8828,7 +8875,7 @@ function QuickLogSheet({ ci, daily, sleepInfo, profile, painActive, onCheckin, o
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", display: "grid", placeItems: "flex-end center", zIndex: 50, padding: 0 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
-        style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
+        style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <Zap size={17} color={C.green} />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700 }}>Quick Log Day</div>
@@ -10013,7 +10060,7 @@ function LiftTrend({ workouts, exName }) {
   );
 }
 
-function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio }) {
+function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio, sleepInfo }) {
   const unit = profile.unit || "kg";
   const [picker, setPicker] = useState(false);
   const [builder, setBuilder] = useState(null); // null | {} (new) | routine (edit)
@@ -10236,16 +10283,16 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
       )}
 
       {/* readiness */}
-      <button className="sprig-tap" onClick={onGoBody} style={{ width: "100%", textAlign: "left", marginTop: 14, background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow, border: "none", cursor: "pointer" }}>
+      <div style={{ width: "100%", textAlign: "left", marginTop: 14, background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
         <Ring value={trainInfo.bodyReadiness} max={100} size={64} stroke={8} label={trainInfo.bodyReadiness} sub="ready" color={trainInfo.bodyReadiness >= 70 ? C.leaf : trainInfo.bodyReadiness >= 45 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 11.5, opacity: .8 }}>TODAY'S READINESS</div>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700 }}>
             {trainInfo.bodyReadiness >= 70 ? "Push hard" : trainInfo.bodyReadiness >= 45 ? "Train moderate" : "Light / recover"}
           </div>
-          <div style={{ fontSize: 11.5, opacity: .85, marginTop: 2 }}>{trainInfo.freshMuscles.length ? `Fresh: ${trainInfo.freshMuscles.slice(0, 3).join(", ")}` : "Most muscles still recovering"} →</div>
+          <div style={{ fontSize: 11.5, opacity: .85, marginTop: 2 }}>{trainInfo.freshMuscles.length ? `Fresh: ${trainInfo.freshMuscles.slice(0, 3).join(", ")}` : "Most muscles still recovering"}</div>
         </div>
-      </button>
+      </div>
 
       {trainInfo.deload.suggest && (
         <div style={{ marginTop: 10, background: "#fdeee8", borderRadius: 14, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -10257,6 +10304,18 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
       )}
 
       <VolumeCoach volume={trainInfo.volume} advanced={advanced} />
+
+      {/* Movement & Cardio — directly under readiness (same data/functions as Today, edits via onDaily) */}
+      {moveInfo && daily && onDaily && (
+        <>
+          <div style={{ margin: "18px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Movement &amp; cardio</div>
+          <MovementCard daily={daily} profile={profile} onDaily={onDaily} />
+        </>
+      )}
+
+      {/* Recovery & strength — moved here from Progress; lives with the rest of training */}
+      <div style={{ margin: "20px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><Crown size={16} color={C.lime} /> Recovery &amp; strength</div>
+      <RecoveryStrengthSection workouts={workouts} profile={profile} trainInfo={trainInfo} sleepInfo={sleepInfo} advanced={advanced} />
 
       {/* PRs */}
       {prs.length > 0 && (
@@ -10279,14 +10338,6 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, routines, on
         <>
           <div style={{ margin: "18px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><BarChart3 size={16} color={C.greenSoft} /> Strength trend</div>
           {standardLifts.map((n) => <LiftTrend key={n} workouts={workouts} exName={n} />)}
-        </>
-      )}
-
-      {/* Movement & Cardio — same data/functions as Today, edits via onDaily (Sprig day) */}
-      {moveInfo && daily && onDaily && (
-        <>
-          <div style={{ margin: "20px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Movement &amp; cardio</div>
-          <MovementCard daily={daily} profile={profile} onDaily={onDaily} />
         </>
       )}
 
@@ -10441,43 +10492,153 @@ function BodyFigure({ colorOf, selected, onPick }) {
   );
 }
 
-function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeries, measureSeries, photoLog, onLogWeight, onSaveMeasurement, onLogPhotoSet, onOpenPhotos, progressPhotosCount }) {
-  const [section, setSection] = useState("progress"); // progress | strength
+// Recovery + strength grades — extracted so it can live in the Train tab (was in Progress).
+// Owns its own mode/gradeMode/selection state; reads training + sleep data via props.
+function RecoveryStrengthSection({ workouts, profile, trainInfo, sleepInfo, advanced }) {
   const [mode, setMode] = useState("recovery"); // recovery | grade
-  const [gradeMode, setGradeMode] = useState("relative"); // relative (my weight) | absolute (everyone)
+  const [gradeMode, setGradeMode] = useState("relative"); // relative | absolute
   const [sel, setSel] = useState(null);
-  const [showMeasure, setShowMeasure] = useState(false);
-  const [weightInput, setWeightInput] = useState("");
   const rec = trainInfo.recovery;
   const rank = ranking(workouts, profile, gradeMode);
-  const wStats = weightStats(weightSeries);
-  const verdict = weightVerdict(wStats, profile.goal);
-  const reminder = photoReminder(photoLog);
-  const measureCur = measurementStats(measureSeries);
-
-  const NEUTRAL = "#D8D0BE";
+  const NEUTRAL = "rgba(255,255,255,0.18)"; // dark-theme "no data" muscle fill
   const colorOf = (k) => {
     if (mode === "recovery") return rec[k].lastTs ? recoveryColor(rec[k].fatigue) : NEUTRAL;
     return rank[k].hasData ? rank[k].tier.color : NEUTRAL;
   };
   const selData = sel ? { name: MUSCLES.find(([k]) => k === sel)[1], rec: rec[sel], rank: rank[sel] } : null;
+  return (
+    <>
+      {/* mode toggle */}
+      <div style={{ display: "flex", gap: 6, background: C.bg2, padding: 4, borderRadius: 13, marginTop: 14 }}>
+        {[["recovery", "Recovery", <RotateCcw size={15} />], ["grade", "Strength grade", <Crown size={15} />]].map(([m, lbl, ic]) => (
+          <button key={m} onClick={() => { setMode(m); setSel(null); }} className="sprig-tap"
+            style={{ flex: 1, border: "none", cursor: "pointer", padding: "10px 0", borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", background: mode === m ? C.card : "transparent", color: mode === m ? C.lime : C.muted, boxShadow: mode === m ? C.shadow : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>{ic}{lbl}</button>
+        ))}
+      </div>
+
+      {mode === "grade" && (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          {[["relative", "My weight class"], ["absolute", "vs Everyone"]].map(([m, lbl]) => (
+            <button key={m} onClick={() => setGradeMode(m)} className="sprig-tap"
+              style={{ flex: 1, border: `1px solid ${gradeMode === m ? C.green : C.line}`, cursor: "pointer", padding: "8px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: gradeMode === m ? C.green : C.card, color: gradeMode === m ? "#fff" : C.inkSoft }}>{lbl}</button>
+          ))}
+        </div>
+      )}
+
+      {/* body figure */}
+      <div style={{ background: C.card, borderRadius: 20, padding: "16px 10px 10px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
+        <BodyFigure colorOf={colorOf} selected={sel} onPick={setSel} />
+        {mode === "recovery" ? (
+          <div style={{ display: "flex", justifyContent: "center", gap: 14, marginTop: 4 }}>
+            <Legend c={recoveryColor(5)} label="Recovered" />
+            <Legend c={recoveryColor(55)} label="Recovering" />
+            <Legend c={recoveryColor(95)} label="Fatigued" />
+          </div>
+        ) : (
+          <div style={{ display: "flex", justifyContent: "center", gap: 9, marginTop: 4, flexWrap: "wrap" }}>
+            {TIERS.map((tt) => <Legend key={tt.name} c={tt.color} label={tt.name} />)}
+          </div>
+        )}
+      </div>
+
+      {/* selected detail */}
+      {selData && (
+        <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{selData.name}</div>
+          {mode === "recovery" ? (
+            selData.rec.lastTs ? (
+              <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.6 }}>
+                {selData.rec.recovered
+                  ? <span style={{ color: C.greenSoft, fontWeight: 600 }}>Fully recovered — ready to train.</span>
+                  : <>~<b style={{ color: recoveryColor(selData.rec.fatigue) }}>{selData.rec.remaining}h</b> until fully recovered{advanced ? ` (${selData.rec.fatigue}% fatigued)` : ""}.</>}
+                {advanced && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Last hit with {selData.rec.setCount} sets · {Math.round((Date.now() - selData.rec.lastTs) / 36e5)}h ago.</div>}
+              </div>
+            ) : <div style={{ fontSize: 13, color: C.muted }}>Not trained recently — fully fresh.</div>
+          ) : (
+            selData.rank.hasData ? (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: selData.rank.tier.color }}>{selData.rank.tier.name}</span>
+                  <span style={{ fontSize: 12.5, color: C.muted }}>top {Math.max(1, Math.round(100 - selData.rank.pct))}% {gradeMode === "relative" ? "at your bodyweight" : "of everyone"}</span>
+                </div>
+                {advanced && <div style={{ fontSize: 12, color: C.muted, marginTop: 5 }}>Best est. 1RM on {MUSCLE_LIFT[sel] || MUSCLE_LIFT_FB[sel]}: {selData.rank.e1}{profile.unit || "kg"}.</div>}
+              </div>
+            ) : <div style={{ fontSize: 13, color: C.muted }}>Log a {MUSCLE_LIFT[sel] || MUSCLE_LIFT_FB[sel] || "main"} lift to get a grade here.</div>
+          )}
+        </div>
+      )}
+
+      {!advanced && !selData && (
+        <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center", marginTop: 10, lineHeight: 1.5 }}>
+          Tap any muscle to see {mode === "recovery" ? "how recovered it is" : "its strength grade"}.
+        </div>
+      )}
+
+      {/* full list (advanced only) */}
+      {advanced && (<>
+      <div style={{ margin: "16px 2px 8px", fontSize: 13, fontWeight: 600, color: C.inkSoft }}>
+        {mode === "recovery" ? "Recovery by muscle" : `Strength grade · ${gradeMode === "relative" ? "your weight class" : "vs everyone"}`}
+      </div>
+      <div style={{ background: C.card, borderRadius: 16, padding: "6px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        {MUSCLES.map(([k, n], i) => (
+          <div key={k} onClick={() => setSel(k)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < MUSCLES.length - 1 ? `1px solid ${C.line}` : "none", cursor: "pointer" }}>
+            <span style={{ width: 11, height: 11, borderRadius: 4, background: colorOf(k), flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 13, color: C.inkSoft }}>{n}</span>
+            {mode === "recovery" ? (
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: rec[k].lastTs ? (rec[k].recovered ? C.greenSoft : recoveryColor(rec[k].fatigue)) : C.muted }}>
+                {!rec[k].lastTs ? "fresh" : rec[k].recovered ? "ready" : `${rec[k].remaining}h left`}
+              </span>
+            ) : (
+              rank[k].hasData
+                ? <span style={{ fontSize: 12.5, fontWeight: 700, color: rank[k].tier.color }}>{rank[k].estimated ? "~" : ""}{rank[k].tier.name} · top {Math.max(1, Math.round(100 - rank[k].pct))}%</span>
+                : <span style={{ fontSize: 11, color: C.muted }}>Not enough data yet</span>
+            )}
+          </div>
+        ))}
+      </div>
+      </>)}
+
+      {/* weak points / advice */}
+      {mode === "grade" && (() => {
+        const graded = MUSCLES.filter(([k]) => rank[k].hasData).sort((a, b) => rank[a[0]].pct - rank[b[0]].pct);
+        if (!graded.length) return null;
+        const weak = graded[0];
+        return (
+          <div style={{ background: C.bg, borderRadius: 14, padding: "12px 14px", marginTop: 12, fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5 }}>
+            <b style={{ color: C.coral }}>Weak point:</b> {weak[1]} ({rank[weak[0]].tier.name}). Add a couple of hard sets here each week to bring it up toward your strongest groups.
+          </div>
+        );
+      })()}
+
+      {mode === "recovery" && trainInfo.deload.stalls.length > 0 && (
+        <div style={{ background: "rgba(255,107,95,0.12)", borderRadius: 14, padding: "12px 14px", marginTop: 12, fontSize: 12.5, color: C.coralSoft, lineHeight: 1.5, display: "flex", gap: 10 }}>
+          <TrendingDown size={17} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div><b>Under-recovery signs:</b> {trainInfo.deload.stalls.join(", ")} {trainInfo.deload.stalls.length === 1 ? "has" : "have"} stalled. Combined with poor sleep, that's the cue to back off before you burn out.</div>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 14, lineHeight: 1.5, padding: "0 8px" }}>
+        Grades are estimated from published strength standards (your best est. 1RM vs bodyweight), not a live user database. Recovery blends your training load with your sleep data.
+      </div>
+    </>
+  );
+}
+
+function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeries, measureSeries, photoLog, onLogWeight, onSaveMeasurement, onLogPhotoSet, onOpenPhotos, progressPhotosCount }) {
+  const [showMeasure, setShowMeasure] = useState(false);
+  const [weightInput, setWeightInput] = useState("");
+  const wStats = weightStats(weightSeries);
+  const verdict = weightVerdict(wStats, profile.goal);
+  const reminder = photoReminder(photoLog);
+  const measureCur = measurementStats(measureSeries);
   const verdictColor = verdict.tag === "good" ? C.greenSoft : verdict.tag === "fast" ? C.coral : verdict.tag === "slow" ? C.amber : C.amber;
 
   return (
     <div className="sprig-rise">
-      {/* section toggle */}
-      <div style={{ display: "flex", gap: 6, background: C.bg2, padding: 4, borderRadius: 13, marginBottom: 12 }}>
-        {[["progress", "Progress", <Activity size={15} />], ["strength", "Recovery & strength", <Crown size={15} />]].map(([s, lbl, ic]) => (
-          <button key={s} onClick={() => setSection(s)} className="sprig-tap"
-            style={{ flex: 1, border: "none", cursor: "pointer", padding: "10px 0", borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: "DM Sans",
-              background: section === s ? C.card : "transparent", color: section === s ? C.green : C.muted,
-              boxShadow: section === s ? C.shadow : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            {ic}{lbl}
-          </button>
-        ))}
-      </div>
-
-      {section === "progress" && (
+      {(
+        <></>
+      )}
+      {(
         <>
           {/* WEIGHT card */}
           <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
@@ -10630,138 +10791,6 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
         </>
       )}
 
-      {section === "strength" && (
-        <>
-      {/* readiness header */}
-      <div style={{ background: "linear-gradient(150deg,#1C5237,#0E2C1E)", borderRadius: 20, padding: 18, color: "#fff", display: "flex", alignItems: "center", gap: 16, boxShadow: C.shadow }}>
-        <Ring value={trainInfo.bodyReadiness} max={100} size={76} stroke={9} label={trainInfo.bodyReadiness} sub="ready"
-          color={trainInfo.bodyReadiness >= 70 ? C.leaf : trainInfo.bodyReadiness >= 45 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700 }}>
-            {trainInfo.bodyReadiness >= 70 ? "Greenlight" : trainInfo.bodyReadiness >= 45 ? "Train smart" : "Recover"}
-          </div>
-          <div style={{ fontSize: 12, opacity: .85, marginTop: 3, lineHeight: 1.45 }}>
-            Sleep readiness {trainInfo.sleepReadiness}/100{sleepInfo.debtMin > 60 ? ` · ${durLabel(sleepInfo.debtMin)} debt slows recovery` : ""}.
-          </div>
-        </div>
-      </div>
-
-      {/* mode toggle */}
-      <div style={{ display: "flex", gap: 6, background: C.bg2, padding: 4, borderRadius: 13, marginTop: 14 }}>
-        {[["recovery", "Recovery", <RotateCcw size={15} />], ["grade", "Strength grade", <Crown size={15} />]].map(([m, lbl, ic]) => (
-          <button key={m} onClick={() => { setMode(m); setSel(null); }} className="sprig-tap"
-            style={{ flex: 1, border: "none", cursor: "pointer", padding: "10px 0", borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", background: mode === m ? C.card : "transparent", color: mode === m ? C.green : C.muted, boxShadow: mode === m ? C.shadow : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>{ic}{lbl}</button>
-        ))}
-      </div>
-
-      {mode === "grade" && (
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          {[["relative", "My weight class"], ["absolute", "vs Everyone"]].map(([m, lbl]) => (
-            <button key={m} onClick={() => setGradeMode(m)} className="sprig-tap"
-              style={{ flex: 1, border: `1px solid ${gradeMode === m ? C.green : C.line}`, cursor: "pointer", padding: "8px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: gradeMode === m ? C.green : C.card, color: gradeMode === m ? "#fff" : C.inkSoft }}>{lbl}</button>
-          ))}
-        </div>
-      )}
-
-      {/* body figure */}
-      <div style={{ background: C.card, borderRadius: 20, padding: "16px 10px 10px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-        <BodyFigure colorOf={colorOf} selected={sel} onPick={setSel} />
-        {/* legend */}
-        {mode === "recovery" ? (
-          <div style={{ display: "flex", justifyContent: "center", gap: 14, marginTop: 4 }}>
-            <Legend c={recoveryColor(5)} label="Recovered" />
-            <Legend c={recoveryColor(55)} label="Recovering" />
-            <Legend c={recoveryColor(95)} label="Fatigued" />
-          </div>
-        ) : (
-          <div style={{ display: "flex", justifyContent: "center", gap: 9, marginTop: 4, flexWrap: "wrap" }}>
-            {TIERS.map((tt) => <Legend key={tt.name} c={tt.color} label={tt.name} />)}
-          </div>
-        )}
-      </div>
-
-      {/* selected detail */}
-      {selData && (
-        <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{selData.name}</div>
-          {mode === "recovery" ? (
-            selData.rec.lastTs ? (
-              <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.6 }}>
-                {selData.rec.recovered
-                  ? <span style={{ color: C.greenSoft, fontWeight: 600 }}>Fully recovered — ready to train.</span>
-                  : <>~<b style={{ color: recoveryColor(selData.rec.fatigue) }}>{selData.rec.remaining}h</b> until fully recovered{advanced ? ` (${selData.rec.fatigue}% fatigued)` : ""}.</>}
-                {advanced && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Last hit with {selData.rec.setCount} sets · {Math.round((Date.now() - selData.rec.lastTs) / 36e5)}h ago.</div>}
-              </div>
-            ) : <div style={{ fontSize: 13, color: C.muted }}>Not trained recently — fully fresh.</div>
-          ) : (
-            selData.rank.hasData ? (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: selData.rank.tier.color }}>{selData.rank.tier.name}</span>
-                  <span style={{ fontSize: 12.5, color: C.muted }}>top {Math.max(1, Math.round(100 - selData.rank.pct))}% {gradeMode === "relative" ? "at your bodyweight" : "of everyone"}</span>
-                </div>
-                {advanced && <div style={{ fontSize: 12, color: C.muted, marginTop: 5 }}>Best est. 1RM on {MUSCLE_LIFT[sel] || MUSCLE_LIFT_FB[sel]}: {selData.rank.e1}{profile.unit || "kg"}.</div>}
-              </div>
-            ) : <div style={{ fontSize: 13, color: C.muted }}>Log a {MUSCLE_LIFT[sel] || MUSCLE_LIFT_FB[sel] || "main"} lift to get a grade here.</div>
-          )}
-        </div>
-      )}
-
-      {!advanced && !selData && (
-        <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center", marginTop: 10, lineHeight: 1.5 }}>
-          Tap any muscle to see {mode === "recovery" ? "how recovered it is" : "its strength grade"}.
-        </div>
-      )}
-
-      {/* full list (advanced only) */}
-      {advanced && (<>
-      <div style={{ margin: "16px 2px 8px", fontSize: 13, fontWeight: 600, color: C.inkSoft }}>
-        {mode === "recovery" ? "Recovery by muscle" : `Strength grade · ${gradeMode === "relative" ? "your weight class" : "vs everyone"}`}
-      </div>
-      <div style={{ background: C.card, borderRadius: 16, padding: "6px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        {MUSCLES.map(([k, n], i) => (
-          <div key={k} onClick={() => setSel(k)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < MUSCLES.length - 1 ? `1px solid ${C.line}` : "none", cursor: "pointer" }}>
-            <span style={{ width: 11, height: 11, borderRadius: 4, background: colorOf(k), flexShrink: 0 }} />
-            <span style={{ flex: 1, fontSize: 13, color: C.inkSoft }}>{n}</span>
-            {mode === "recovery" ? (
-              <span style={{ fontSize: 12.5, fontWeight: 600, color: rec[k].lastTs ? (rec[k].recovered ? C.greenSoft : recoveryColor(rec[k].fatigue)) : C.muted }}>
-                {!rec[k].lastTs ? "fresh" : rec[k].recovered ? "ready" : `${rec[k].remaining}h left`}
-              </span>
-            ) : (
-              rank[k].hasData
-                ? <span style={{ fontSize: 12.5, fontWeight: 700, color: rank[k].tier.color }}>{rank[k].estimated ? "~" : ""}{rank[k].tier.name} · top {Math.max(1, Math.round(100 - rank[k].pct))}%</span>
-                : <span style={{ fontSize: 11, color: C.muted }}>Not enough data yet</span>
-            )}
-          </div>
-        ))}
-      </div>
-      </>)}
-
-      {/* weak points / advice */}
-      {mode === "grade" && (() => {
-        const graded = MUSCLES.filter(([k]) => rank[k].hasData).sort((a, b) => rank[a[0]].pct - rank[b[0]].pct);
-        if (!graded.length) return null;
-        const weak = graded[0];
-        return (
-          <div style={{ background: C.bg, borderRadius: 14, padding: "12px 14px", marginTop: 12, fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5 }}>
-            <b style={{ color: C.coral }}>Weak point:</b> {weak[1]} ({rank[weak[0]].tier.name}). Add a couple of hard sets here each week to bring it up toward your strongest groups.
-          </div>
-        );
-      })()}
-
-      {mode === "recovery" && trainInfo.deload.stalls.length > 0 && (
-        <div style={{ background: "#fdeee8", borderRadius: 14, padding: "12px 14px", marginTop: 12, fontSize: 12.5, color: "#9a3d22", lineHeight: 1.5, display: "flex", gap: 10 }}>
-          <TrendingDown size={17} style={{ flexShrink: 0, marginTop: 1 }} />
-          <div><b>Under-recovery signs:</b> {trainInfo.deload.stalls.join(", ")} {trainInfo.deload.stalls.length === 1 ? "has" : "have"} stalled. Combined with poor sleep, that's the cue to back off before you burn out.</div>
-        </div>
-      )}
-
-      <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 14, lineHeight: 1.5, padding: "0 8px" }}>
-        Grades are estimated from published strength standards (your best est. 1RM vs bodyweight), not a live user database. Recovery blends your training load with your sleep data.
-      </div>
-      <div style={{ height: 6 }} />
-        </>
-      )}
     </div>
   );
 }
