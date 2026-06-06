@@ -107,18 +107,20 @@ const FONTS = `
 .sprig-dim { animation: dimIn .2s ease both; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
-.sprig-tap { transition: transform .1s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-.sprig-tap:active { transform: scale(.97); }
+.sprig-tap { transition: transform .09s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease, filter .14s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.sprig-tap:active { transform: scale(.97); filter: brightness(1.06); }
+.sprig-tap:disabled, .sprig-tap[disabled] { transform: none !important; filter: none !important; }
 .sprig-scroll::-webkit-scrollbar{width:0;height:0;}
-/* iOS momentum scrolling — without this the scroll feels stiff/janky */
-.sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scroll-behavior: smooth; }
+/* iOS momentum scrolling + native rubber-band (don't block overscroll on the scroll area) */
+.sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-y: auto; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .sprig-rise, .sprig-pop, .sprig-sheet, .sprig-dim, .sprig-toast-anim { animation-duration: .01ms !important; }
-  .sprig-tap:active { transform: none; }
+  .sprig-tap:active { transform: none; filter: none; }
   .sprig-scroll { scroll-behavior: auto; }
 }
+:root { --bottom-nav-height: 76px; }
 /* Mobile / PWA baseline — prevents horizontal scroll, honors iOS safe areas, lets the app fill the screen on phones */
-html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #07140F; overscroll-behavior: none; }
+html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #07140F; overscroll-behavior-y: auto; }
 body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
 .sprig-app-frame {
   width: 100%;
@@ -134,7 +136,7 @@ body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
 /* Scrollable content area leaves room for the fixed bottom nav + home indicator.
    Nav is ~64px of buttons + its own safe-area pad, so reserve generously so the last
    card is never hidden and you can always scroll to the very bottom. */
-.sprig-content { flex: 1; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+.sprig-content { flex: 1; padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 24px); }
 /* Bottom nav pinned to the true bottom of the viewport, within the centered frame */
 .sprig-tabbar {
   position: fixed;
@@ -157,7 +159,7 @@ input, textarea, select, button { font-family: inherit; font-size: 16px; }
 input, textarea, select { color: #F4F7F2; }
 input::placeholder, textarea::placeholder { color: rgba(244,247,242,0.4); }
 /* Bottom sheets/toasts need the inset baked in so they don't sit under the home indicator */
-.sprig-bottom-toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
+.sprig-bottom-toast { bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 8px) !important; z-index: 65 !important; }
 .sprig-bottom-sheet { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important; }
 `;
 
@@ -3981,43 +3983,72 @@ const ONB_FOCUS = [
   ["sports", "Sports", "⚽"], ["health", "General health", "🌿"], ["transform", "Body transformation", "✨"],
 ];
 
-function Onboarding({ onDone }) {
+function Onboarding({ onDone, supabaseReady }) {
   const [step, setStep] = useState(0);
-  const [p, setP] = useState({ intent: null, sex: null, age: "", height: "", weight: "", activity: null, experience: null, focus: null, unit: "kg" });
+  const [p, setP] = useState({ intent: null, sex: null, age: "", height: "", weight: "", activity: null, experience: null, focus: null, focusAreas: [], unit: "kg" });
+  const [firstAction, setFirstAction] = useState(null);
   const set = (k, v) => setP((x) => ({ ...x, [k]: v }));
+  const toggleArea = (k) => setP((x) => {
+    const has = (x.focusAreas || []).includes(k);
+    let next = has ? x.focusAreas.filter((a) => a !== k) : [...(x.focusAreas || []), k];
+    if (k === "all") next = has ? [] : ["all"]; else next = next.filter((a) => a !== "all");
+    return { ...x, focusAreas: next };
+  });
 
+  // Step 0 is a full-screen welcome; the rest are one-question screens.
   const steps = [
-    { key: "intent",    title: "What's your main goal?",      sub: "We'll tune everything around this." },
+    { key: "welcome" },
+    { key: "intent",    title: "What are you working toward?",  sub: "We'll tune everything around this." },
+    { key: "focusAreas",title: "What should Sprig help with?",  sub: "Pick as many as you like." },
     { key: "sex",       title: "Sex",                          sub: "Used to estimate your calorie needs." },
     { key: "stats",     title: "A few basics",                 sub: "Age, height, and weight — for accurate targets." },
     { key: "activity",  title: "How active are you?",          sub: "Day-to-day movement and training." },
     { key: "experience",title: "Training experience",          sub: "So strength grades and progression fit you." },
-    { key: "focus",     title: "Main focus",                   sub: "What you care about most right now." },
+    { key: "account",   title: "Save your progress",           sub: "Back up your data and restore it on a new phone." },
+    { key: "firstAction",title: "Start with one small action",  sub: "The fastest way to see Sprig work." },
   ];
   const cur = steps[step];
   const last = step === steps.length - 1;
+  const qIndex = step;                       // for the progress bar (welcome included)
+
+  const FOCUS_AREAS = [
+    ["nutrition", "Nutrition", Flame], ["training", "Training", Dumbbell], ["sleep", "Sleep", Moon],
+    ["recovery", "Recovery", HeartPulse], ["habits", "Habits", Repeat], ["all", "All of it", Sparkles],
+  ];
+  const FIRST_ACTIONS = [
+    ["food", "Log food", Flame], ["workout", "Start a workout", Dumbbell],
+    ["sleep", "Add last night's sleep", Moon], ["coach", "Ask the coach", Sparkles],
+  ];
 
   const canNext = () => {
     switch (cur.key) {
+      case "welcome": return true;
       case "intent": return !!p.intent;
+      case "focusAreas": return (p.focusAreas || []).length > 0;
       case "sex": return !!p.sex;
       case "stats": return p.age && p.height && p.weight;
       case "activity": return !!p.activity;
       case "experience": return !!p.experience;
-      case "focus": return !!p.focus;
+      case "account": return true;       // account is optional
+      case "firstAction": return true;   // can skip
       default: return true;
     }
   };
-  const finish = async () => {
+  const finish = async (action) => {
     const g = ONB_GOALS.find((x) => x.id === p.intent);
+    const areas = (p.focusAreas || []);
+    // keep single `focus` for back-compat (first non-"all" area maps loosely), plus store the full set
+    const focusMap = { nutrition: "health", training: "gym", sleep: "health", recovery: "health", habits: "health" };
+    const focus = areas.includes("training") ? "gym" : areas.includes("nutrition") ? "health" : (focusMap[areas[0]] || "health");
     await onDone({
       sex: p.sex, age: +p.age, height: +p.height, weight: +p.weight,
       activity: p.activity, goal: g.goal, intent: p.intent,
-      experience: p.experience, focus: p.focus, unit: p.unit, mode: "simple",
-    });
+      experience: p.experience, focus, focusAreas: areas, unit: p.unit, mode: "simple",
+      onboardedAt: new Date().toISOString(),
+    }, action || firstAction);
   };
 
-  const Opt = ({ on, onClick, children, sub }) => (
+  const Opt = ({ on, onClick, children, sub, multi }) => (
     <button className="sprig-tap" onClick={onClick}
       style={{ width: "100%", textAlign: "left", border: `1.5px solid ${on ? C.green : C.line}`, background: on ? C.green + "0d" : C.card, cursor: "pointer",
         borderRadius: 14, padding: "14px 16px", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 12, boxShadow: on ? "none" : C.shadow }}>
@@ -4025,11 +4056,54 @@ function Onboarding({ onDone }) {
         <div style={{ fontSize: 14.5, fontWeight: 600, color: C.ink }}>{children}</div>
         {sub && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{sub}</div>}
       </div>
-      <div style={{ width: 22, height: 22, borderRadius: 99, border: `2px solid ${on ? C.green : C.line}`, background: on ? C.green : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>
+      <div style={{ width: 22, height: 22, borderRadius: multi ? 7 : 99, border: `2px solid ${on ? C.green : C.line}`, background: on ? C.green : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>
         {on && <Check size={13} color="#fff" />}
       </div>
     </button>
   );
+
+  // ---- WELCOME (full-screen) ----
+  if (cur.key === "welcome") {
+    const previews = [
+      [Flame, "Know what to eat today"],
+      [Dumbbell, "Train with progressive overload"],
+      [Moon, "Improve sleep and recovery"],
+      [Award, "Track wins and real progress"],
+      [Sparkles, "Ask an AI coach that knows your data"],
+    ];
+    return (
+      <div className="sprig-app-frame" style={{ background: C.pageBg, fontFamily: "DM Sans, sans-serif", color: C.ink, display: "flex", flexDirection: "column" }}>
+        <style>{FONTS}</style>
+        <div className="sprig-rise" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "32px 24px", textAlign: "center" }}>
+          <div style={{ width: 60, height: 60, borderRadius: 18, background: C.green, display: "grid", placeItems: "center", margin: "0 auto 20px", boxShadow: `0 8px 24px ${C.green}55` }}>
+            <Sparkles size={30} color="#fff" />
+          </div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 38, fontWeight: 700, letterSpacing: -.5 }}>Sprig</div>
+          <div style={{ fontSize: 15, color: C.inkSoft, marginTop: 8, lineHeight: 1.5, maxWidth: 300, marginInline: "auto" }}>
+            Your daily coach for food, training, sleep, and recovery.
+          </div>
+          <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 18px 14px", margin: "28px auto 0", maxWidth: 340, textAlign: "left", boxShadow: C.shadow }}>
+            {previews.map(([Ic, txt], i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 0" }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: C.lime + "1a", display: "grid", placeItems: "center", flexShrink: 0 }}><Ic size={16} color={C.lime} /></div>
+                <span style={{ fontSize: 13.5, color: C.ink, fontWeight: 500 }}>{txt}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ padding: "12px 24px 28px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <button className="sprig-tap" onClick={() => setStep(1)}
+            style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "16px 0", fontSize: 16, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}44` }}>
+            Get started
+          </button>
+          <button className="sprig-tap" onClick={() => setStep(1)}
+            style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", padding: "8px 0" }}>
+            I already have an account
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="sprig-app-frame" style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, borderRadius: 24, display: "flex", flexDirection: "column" }}>
@@ -4041,12 +4115,12 @@ function Onboarding({ onDone }) {
             <Sparkles size={18} color="#fff" />
           </div>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700 }}>Sprig</div>
-          <div style={{ marginLeft: "auto", fontSize: 11.5, color: C.muted }}>{step + 1} of {steps.length}</div>
+          <div style={{ marginLeft: "auto", fontSize: 11.5, color: C.muted }}>{qIndex} of {steps.length - 1}</div>
         </div>
         {/* progress */}
         <div style={{ display: "flex", gap: 4 }}>
-          {steps.map((_, i) => (
-            <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= step ? C.green : C.bg2, transition: "background .3s" }} />
+          {steps.slice(1).map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: (i + 1) <= step ? C.green : C.bg2, transition: "background .3s" }} />
           ))}
         </div>
       </div>
@@ -4061,6 +4135,16 @@ function Onboarding({ onDone }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {ONB_GOALS.map((g) => (
                 <Opt key={g.id} on={p.intent === g.id} onClick={() => set("intent", g.id)}>{g.emoji}  {g.label}</Opt>
+              ))}
+            </div>
+          )}
+
+          {cur.key === "focusAreas" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {FOCUS_AREAS.map(([k, lbl, Ic]) => (
+                <Opt key={k} multi on={(p.focusAreas || []).includes(k)} onClick={() => toggleArea(k)}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><Ic size={16} color={C.greenSoft} /> {lbl}</span>
+                </Opt>
               ))}
             </div>
           )}
@@ -4112,10 +4196,36 @@ function Onboarding({ onDone }) {
             </div>
           )}
 
-          {cur.key === "focus" && (
+          {cur.key === "account" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {ONB_FOCUS.map(([k, lbl, emoji]) => (
-                <Opt key={k} on={p.focus === k} onClick={() => set("focus", k)}>{emoji}  {lbl}</Opt>
+              <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 16, boxShadow: C.shadow, marginBottom: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "1a", display: "grid", placeItems: "center" }}><Cloud size={18} color={C.greenSoft} /></div>
+                  <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.5 }}>An account backs up your data so you can restore it on a new phone. Your logs stay private to you.</div>
+                </div>
+              </div>
+              {supabaseReady ? (
+                <>
+                  <Opt on={false} onClick={() => finish()}><span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><LogIn size={16} color={C.greenSoft} /> Create account</span></Opt>
+                  <Opt on={false} onClick={() => finish()}><span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><User size={16} color={C.greenSoft} /> Log in</span></Opt>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2, lineHeight: 1.5, padding: "0 4px" }}>
+                    You can set this up now in the next step, or anytime from Settings → Account.
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.5, padding: "4px 4px 0" }}>
+                  Cloud backup isn't configured in this build — your data saves on this device. You can export a backup anytime from Settings.
+                </div>
+              )}
+            </div>
+          )}
+
+          {cur.key === "firstAction" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {FIRST_ACTIONS.map(([k, lbl, Ic]) => (
+                <Opt key={k} on={firstAction === k} onClick={() => setFirstAction(k)}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><Ic size={16} color={C.greenSoft} /> {lbl}</span>
+                </Opt>
               ))}
             </div>
           )}
@@ -4129,8 +4239,8 @@ function Onboarding({ onDone }) {
             style={{ ...btn(C.bg2, C.inkSoft), padding: "14px 18px" }}><ChevronLeft size={17} /></button>
         )}
         <button className="sprig-tap" disabled={!canNext()} onClick={() => last ? finish() : setStep((s) => s + 1)}
-          style={{ ...btn(canNext() ? C.green : C.bg2, canNext() ? "#fff" : C.muted), flex: 1, padding: "14px 0", fontSize: 15 }}>
-          {last ? "Start using Sprig" : "Continue"} {!last && <ChevronRight size={17} />}
+          style={{ ...btn(canNext() ? C.lime : C.bg2, canNext() ? "#0A1F12" : C.muted), flex: 1, padding: "14px 0", fontSize: 15, fontWeight: 700 }}>
+          {cur.key === "account" ? "Continue without account" : cur.key === "firstAction" ? (firstAction ? "Start" : "Skip for now") : "Continue"} {!last && <ChevronRight size={17} />}
         </button>
       </div>
     </div>
@@ -5162,6 +5272,7 @@ function SprigApp() {
     }
     setResult(null);
     setTab("nutrition");
+    setFoodSub("meals");   // land on the Meals subtab where the new entry is listed
     logged("Meal added", "light");
   }
 
@@ -5169,6 +5280,7 @@ function SprigApp() {
     const entry = { ...meal, id: uid(), mult: 1, time: Date.now() };
     persistEntries((prev) => [...prev, entry]);
     setTab("nutrition");
+    setFoodSub("meals");
     logged("Meal added", "light");
   }
   function addManual(m) {
@@ -5177,7 +5289,7 @@ function SprigApp() {
       calories: +m.calories || 0, protein_g: +m.protein || 0, carbs_g: +m.carbs || 0,
       fat_g: +m.fat || 0, fiber_g: +m.fiber || 0, micros: {}, omega3: null, mult: 1, time: Date.now(),
     };
-    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("nutrition"); logged("Meal added", "light"); };
+    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("nutrition"); setFoodSub("meals"); logged("Meal added", "light"); };
     if (entry.calories > 3000) { askConfirm(`${entry.calories} kcal for one item is unusually high. Save anyway?`, commit); return; }
     commit();
   }
@@ -5389,7 +5501,17 @@ function SprigApp() {
   }
 
   if (!onboarded) {
-    return <Onboarding onDone={async (p) => { await saveProfile(p); setOnboarded(true); setTab("today"); }} />;
+    return <Onboarding supabaseReady={supabaseConfigured()} onDone={async (p, action) => {
+      await saveProfile(p);
+      setOnboarded(true);
+      // route to the chosen first action (premium "first successful action" moment)
+      if (action === "food") { setTab("nutrition"); setLogSheet(true); }
+      else if (action === "workout") { setTab("train"); }
+      else if (action === "sleep") { setTab("sleep"); setSleepSub("alarm"); }
+      else if (action === "coach") { setTab("coach"); setAskOpen(true); }
+      else setTab("today");
+      setTimeout(() => { try { showToast("Nice — Sprig is ready", "success"); haptic("success"); } catch (_) {} }, 400);
+    }} />;
   }
 
   return (
@@ -5515,7 +5637,8 @@ function SprigApp() {
         {tab === "settings" && <MeTab view="settings" onBack={() => setTab("today")} profile={profile} targets={targets} onSave={saveProfile}
           themeMode={themeMode} onSetTheme={setTheme}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
-          reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo} />}
+          reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}
+          onResetOnboarding={() => { setTab("today"); setOnboarded(false); }} />}
       </div>
 
       {/* logging dock — lives on the Nutrition tab (Snap / Scan / Describe / Manual + composer + results) */}
@@ -8351,7 +8474,8 @@ function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress }) {
   );
 }
 
-function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo }) {
+function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding }) {
+  const [confirmResetOnb, setConfirmResetOnb] = useState(false);
   const importRef = useRef(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [p, setP] = useState(profile);
@@ -8761,6 +8885,25 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
             <div style={{ position: "absolute", top: 3, left: profile?.devMode ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
           </button>
         </div>
+        {/* Reset onboarding — re-runs the setup flow without deleting any logged data */}
+        {onResetOnboarding && (
+          <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 12, paddingTop: 12 }}>
+            {!confirmResetOnb ? (
+              <button className="sprig-tap" onClick={() => setConfirmResetOnb(true)}
+                style={{ width: "100%", background: "transparent", border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 12, padding: "11px 0", color: C.inkSoft, fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+                <RotateCcw size={14} /> Reset onboarding
+              </button>
+            ) : (
+              <div>
+                <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, marginBottom: 10 }}>This will show the setup flow again. Your logged data will not be deleted.</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="sprig-tap" onClick={() => setConfirmResetOnb(false)} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "10px 0", fontSize: 13 }}>Cancel</button>
+                  <button className="sprig-tap" onClick={() => { setConfirmResetOnb(false); onResetOnboarding(); }} style={{ ...btn(C.green, "#fff"), flex: 1, padding: "10px 0", fontSize: 13 }}>Show setup</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {reminders && onSaveReminders && (
