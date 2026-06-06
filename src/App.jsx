@@ -93,13 +93,26 @@ try {
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap');
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes rise { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform:none;} }
-@keyframes pop { 0%{transform:scale(.97);opacity:0;} 100%{transform:scale(1);opacity:1;} }
-.sprig-rise { animation: rise .28s cubic-bezier(.22,.7,.25,1) both; }
-.sprig-pop { animation: pop .22s cubic-bezier(.22,.7,.25,1) both; }
-.sprig-tap { transition: transform .14s cubic-bezier(.22,.7,.25,1), background .18s ease, box-shadow .18s ease; -webkit-tap-highlight-color: transparent; }
-.sprig-tap:active { transform: scale(.975); }
+@keyframes rise { from { opacity:0; transform: translateY(8px);} to {opacity:1; transform:none;} }
+@keyframes pop { 0%{transform:scale(.96);opacity:0;} 100%{transform:scale(1);opacity:1;} }
+@keyframes sheetUp { from { transform: translateY(18px); opacity:.6; } to { transform: translateY(0); opacity:1; } }
+@keyframes dimIn { from { opacity:0; } to { opacity:1; } }
+@keyframes toastUp { from { opacity:0; transform: translate(-50%, 10px); } to { opacity:1; transform: translate(-50%, 0); } }
+@keyframes pulse { 0%,100%{opacity:.45;} 50%{opacity:1;} }
+/* Apple-ish easing used consistently across the app */
+.sprig-rise { animation: rise .2s cubic-bezier(.2,.8,.2,1) both; }
+.sprig-pop { animation: pop .22s cubic-bezier(.2,.8,.2,1) both; }
+.sprig-sheet { animation: sheetUp .26s cubic-bezier(.2,.8,.2,1) both; }
+.sprig-dim { animation: dimIn .2s ease both; }
+.sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
+.sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
+.sprig-tap { transition: transform .1s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.sprig-tap:active { transform: scale(.97); }
 .sprig-scroll::-webkit-scrollbar{width:0;height:0;}
+@media (prefers-reduced-motion: reduce) {
+  .sprig-rise, .sprig-pop, .sprig-sheet, .sprig-dim, .sprig-toast-anim { animation-duration: .01ms !important; }
+  .sprig-tap:active { transform: none; }
+}
 /* Mobile / PWA baseline — prevents horizontal scroll, honors iOS safe areas, lets the app fill the screen on phones */
 html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #07140F; overscroll-behavior: none; }
 body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
@@ -2605,6 +2618,60 @@ function recapFor(workout, priorWorkouts) {
     recordLifts: recordLifts.slice(0, 6),
   };
 }
+
+// ---- WINS ENGINE ---------------------------------------------------------
+// Detects meaningful, data-backed wins (not points). Each win has a stable `type`
+// used for per-day dedupe so the same achievement is never recorded twice in a day.
+function makeWin(type, title, detail, source) {
+  return { id: "win_" + Math.random().toString(36).slice(2, 9), type, title, detail, source, createdAt: new Date().toISOString(), kudoed: false };
+}
+// Merge new wins into a day's existing list, skipping any whose `type` already exists that day.
+function mergeWins(existingForDay, candidates) {
+  const seen = new Set((existingForDay || []).map((w) => w.type));
+  const added = [];
+  for (const c of candidates) { if (!seen.has(c.type)) { seen.add(c.type); added.push(c); } }
+  return { merged: [...(existingForDay || []), ...added], added };
+}
+// Daily nutrition/movement wins from the day's snapshot. Pure — returns candidate wins.
+function detectDayWins({ t, daily, targets, sleepInfo, profile }) {
+  const out = [];
+  if (t && targets) {
+    if (targets.protein && t.protein >= targets.protein) out.push(makeWin("protein_goal", "Protein goal reached", `${Math.round(t.protein)}g protein logged today.`, "nutrition"));
+    if (targets.calories && t.calories > 0 && t.calories >= targets.calories * 0.85 && t.calories <= targets.calories * 1.10) out.push(makeWin("calories_on_target", "Calories on target", "You landed in your calorie range today.", "nutrition"));
+    if (targets.fiber && t.fiber >= targets.fiber) out.push(makeWin("fiber_goal", "Fiber goal reached", `${Math.round(t.fiber)}g fiber today.`, "nutrition"));
+  }
+  if (daily) {
+    const waterGoal = (sleepInfo && sleepInfo.waterGoal) || (profile?.weight ? Math.round(profile.weight * 35) : 2500);
+    if ((daily.water || 0) >= waterGoal && waterGoal > 0) out.push(makeWin("water_goal", "Hydration goal reached", "You hit your water target today.", "nutrition"));
+    const stepGoal = profile?.stepGoal || 8000;
+    if ((daily.steps || 0) >= stepGoal) out.push(makeWin("step_goal", "Step goal reached", `${(daily.steps || 0).toLocaleString()} steps today.`, "movement"));
+    if ((daily.cardioMin || 0) >= 15) out.push(makeWin("cardio_done", "Cardio completed", `${daily.cardioMin} min of cardio logged.`, "movement"));
+    if (daily.checkin && (daily.checkin.mood || daily.checkin.energy || daily.checkin.stress)) out.push(makeWin("checkin_done", "Daily check-in completed", "You checked in with how you feel today.", "mind"));
+  }
+  return out;
+}
+// Sleep wins computed when a night is logged.
+function detectSleepWins({ log, sleepInfo, profile }) {
+  const out = [];
+  if (!log) return out;
+  const need = (profile?.sleepNeedMin) || 480;
+  if ((log.durationMin || 0) >= need) out.push(makeWin("sleep_need", "Sleep target reached", `You slept ${Math.floor(log.durationMin / 60)}h ${log.durationMin % 60}m — at or above your need.`, "sleep"));
+  if (sleepInfo && sleepInfo.debtTrend === "down") out.push(makeWin("sleep_debt_down", "Sleep debt reduced", "Your sleep debt is trending down.", "sleep"));
+  if ((log.score || 0) >= 80) out.push(makeWin("sleep_quality", "Great night's sleep", `Sleep score ${log.score}.`, "sleep"));
+  return out;
+}
+// Workout wins from a finished workout's recap.
+function detectWorkoutWins(recap) {
+  const out = [];
+  out.push(makeWin("workout_done", "Workout completed", `${recap.exerciseCount} exercises · ${recap.totalSets} sets · ${recap.totalVolume.toLocaleString()} kg.`, "workout"));
+  (recap.recordLifts || []).forEach((r) => {
+    const slug = r.name.toLowerCase().replace(/\s+/g, "_").slice(0, 24);
+    if (r.firstTime) out.push(makeWin("first_" + slug, "New exercise logged", `${r.name}: first e1RM ${r.e1RM} kg.`, "workout"));
+    else out.push(makeWin("pr_" + slug, "New best", `${r.name}: e1RM ${r.e1RM} kg (was ${r.prev}).`, "workout"));
+  });
+  return out;
+}
+
 function plateLoad(target, bar = 20) {
   let each = (target - bar) / 2; if (each <= 0) return [];
   const avail = [25, 20, 15, 10, 5, 2.5, 1.25]; const res = [];
@@ -3623,6 +3690,72 @@ function SubTabs({ tabs, active, onChange }) {
   );
 }
 
+/* ---------------- Wins / Kudos ---------------- */
+// Maps a win source to a small line icon, keeping the system visually consistent.
+function winIconFor(source) {
+  if (source === "workout") return Dumbbell;
+  if (source === "nutrition") return Flame;
+  if (source === "movement") return Activity;
+  if (source === "sleep") return Moon;
+  if (source === "mind") return Sparkles;
+  return Award;
+}
+// Small premium Kudos pill — muted until tapped, lime when kudoed. Personal acknowledgement, not social.
+function KudosButton({ kudoed, onKudos }) {
+  return (
+    <button className="sprig-tap" onClick={kudoed ? undefined : onKudos} disabled={kudoed} aria-label={kudoed ? "Kudoed" : "Give kudos"}
+      style={{ display: "inline-flex", alignItems: "center", gap: 5, border: `1px solid ${kudoed ? C.lime : C.line}`, cursor: kudoed ? "default" : "pointer",
+        background: kudoed ? C.lime + "1f" : "transparent", color: kudoed ? C.lime : C.muted, borderRadius: 99, padding: "5px 11px", fontSize: 11.5, fontWeight: 700, fontFamily: "DM Sans", flexShrink: 0 }}>
+      {kudoed ? <Check size={13} /> : <Award size={13} />} {kudoed ? "Kudoed" : "Kudos"}
+    </button>
+  );
+}
+// One win line: icon + title/detail + Kudos pill.
+function WinRow({ win, onKudos, compact }) {
+  const Ic = winIconFor(win.source);
+  return (
+    <div className={win.kudoed ? "" : "sprig-rise"} style={{ display: "flex", alignItems: "center", gap: 10, padding: compact ? "7px 0" : "9px 0" }}>
+      <div style={{ width: 28, height: 28, borderRadius: 9, background: C.lime + "1a", display: "grid", placeItems: "center", flexShrink: 0 }}>
+        <Ic size={15} color={C.lime} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{win.title}</div>
+        {!compact && win.detail && <div style={{ fontSize: 11, color: C.muted, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{win.detail}</div>}
+      </div>
+      <KudosButton kudoed={win.kudoed} onKudos={() => onKudos(win.id)} />
+    </div>
+  );
+}
+// Compact Today's Wins card — top 3 wins + count, calm empty state.
+function TodayWinsCard({ wins, onKudos, onViewAll }) {
+  const list = wins || [];
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: list.length ? 6 : 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <Award size={16} color={C.lime} />
+          <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 600, color: C.ink }}>Today's wins</span>
+        </div>
+        {list.length > 0 && <span style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: C.lime }}>{list.length}</span>}
+      </div>
+      {list.length === 0 ? (
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginTop: 6 }}>Complete one small action to earn your first win today.</div>
+      ) : (
+        <>
+          <div>
+            {list.slice(0, 3).map((w) => <WinRow key={w.id} win={w} onKudos={onKudos} compact />)}
+          </div>
+          {list.length > 3 && (
+            <button className="sprig-tap" onClick={onViewAll} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.lime, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", padding: "6px 0 0" }}>
+              View all {list.length} wins →
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- result / edit card -------------- */
 function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode }) {
   const [r, setR] = useState({ ...result, mult: 1 });
@@ -4014,6 +4147,8 @@ function SprigApp() {
   const [trainSub, setTrainSub] = useState("training"); // training | analytics
   const [sleepSub, setSleepSub] = useState("sleep");  // sleep | alarm
   const [quickOpen, setQuickOpen] = useState(false);
+  const [winsOpen, setWinsOpen] = useState(false);
+  const [recapView, setRecapView] = useState(null); // { recap, ts } shown after finishing a workout
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [calOpen, setCalOpen] = useState(false);
@@ -4062,6 +4197,7 @@ function SprigApp() {
   const [habitConfig, setHabitConfig] = useState(null);     // {custom:[{id,label}], hidden:[ids]} — null until loaded
   const [habitDone, setHabitDone] = useState({});           // manual completion: { "<date>": [habitId,...] }
   const [focusSessions, setFocusSessions] = useState([]);   // [{id, ts, date, minutes, label}]
+  const [wins, setWins] = useState({});                     // { "<date>": [ {id,type,title,detail,source,createdAt,kudoed} ] }
   const fileRef = useRef(null);
   const labelRef = useRef(null);
   const suppLabelRef = useRef(null);
@@ -4109,6 +4245,7 @@ function SprigApp() {
         const hc = await store.get("sprig_habitcfg_v1");
         const hd = await store.get("sprig_habitdone_v1");
         const fs = await store.get("sprig_focus_v1");
+        const wns = await store.get("sprig_wins_v1");
         const rm = await store.get("sprig_reminders_v1");
         const pp = await store.get("sprig_progress_photos_v1");
 
@@ -4136,6 +4273,7 @@ function SprigApp() {
         setHabitConfig(migrateHabitCfg(safeParse(hc, null)));
         setHabitDone(safeParse(hd, {}, asObject));
         setFocusSessions(safeParse(fs, [], asArray));
+        setWins(safeParse(wns, {}, asObject));
         setProgressPhotos(safeParse(pp, [], asArray));
         setReminders((prev) => ({ ...prev, ...migrateReminders(safeParse(rm, null)) }));
 
@@ -4318,7 +4456,7 @@ function SprigApp() {
     let keys = await store.list("sprig_");
     if (!keys.length) {
       // fallback: known static keys + recent date-keyed ones
-      const statics = ["sprig_profile_v1", "sprig_meals_v1", "sprig_favorite_meals_v1", "sprig_history_v1", "sprig_supps_v1", "sprig_sleep_v1", "sprig_alarm_v1", "sprig_workouts_v1", "sprig_rests_v1", "sprig_routines_v1", "sprig_weightseries_v1", "sprig_measure_v1", "sprig_photos_v1", "sprig_health_v1", "sprig_pain_v1", "sprig_habitcfg_v1", "sprig_habitdone_v1", "sprig_focus_v1", "sprig_coach_notes_v1"];
+      const statics = ["sprig_profile_v1", "sprig_meals_v1", "sprig_favorite_meals_v1", "sprig_history_v1", "sprig_supps_v1", "sprig_sleep_v1", "sprig_alarm_v1", "sprig_workouts_v1", "sprig_rests_v1", "sprig_routines_v1", "sprig_weightseries_v1", "sprig_measure_v1", "sprig_photos_v1", "sprig_health_v1", "sprig_pain_v1", "sprig_habitcfg_v1", "sprig_habitdone_v1", "sprig_focus_v1", "sprig_coach_notes_v1", "sprig_wins_v1"];
       const dated = [];
       for (let i = 0; i < 90; i++) { const dd = new Date(); dd.setDate(dd.getDate() - i); const ds = dd.toLocaleDateString("en-CA"); dated.push("sprig_log_" + ds, "sprig_daily_" + ds, "sprig_supptaken_" + ds); }
       keys = [...statics, ...dated];
@@ -4457,6 +4595,27 @@ function SprigApp() {
     return writeDaily(patch);
   }, [daily, date, weightSeries, profile, writeDaily]);
   const setCheckin = (k, v) => writeDaily({ checkin: { ...daily.checkin, [k]: v } });
+
+  // ---- WINS: record (dedupe by type per day) + kudos toggle ----
+  const persistWins = useCallback(async (next) => { setWins(next); try { await store.set("sprig_wins_v1", JSON.stringify(next)); } catch (_) {} }, []);
+  const recordWins = useCallback((candidates, forDate = date) => {
+    if (!candidates || !candidates.length) return [];
+    if (profile?.showWins === false) return [];
+    const { merged, added } = mergeWins(wins[forDate] || [], candidates);
+    if (!added.length) return [];
+    persistWins({ ...wins, [forDate]: merged });
+    return added;
+  }, [wins, date, profile, persistWins]);
+  const kudoWin = useCallback((winId, forDate = date) => {
+    const dayWins = wins[forDate] || [];
+    const idx = dayWins.findIndex((w) => w.id === winId);
+    if (idx < 0) return;
+    const w = dayWins[idx];
+    if (w.kudoed) return;
+    const next = { ...wins, [forDate]: dayWins.map((x) => (x.id === winId ? { ...x, kudoed: true } : x)) };
+    persistWins(next);
+    if (profile?.haptics !== false) buzz("success");
+  }, [wins, date, profile, persistWins]);
 
   // body measurements + progress photos
   const saveMeasurement = async (entry) => {
@@ -4599,9 +4758,10 @@ function SprigApp() {
         painNotes: ctx?.painNotes || null,
       },
       supplements: ctx?.supplements || null,
+      todayWins: ctx?.todayWins && ctx.todayWins.length ? ctx.todayWins : null,
     };
 
-    const prompt = `User question: "${question}"\n\nUser data (structured): ${JSON.stringify(coachingContext)}\n\nAnswer the question. Use the data only where it actually helps.`;
+    const prompt = `User question: "${question}"\n\nUser data (structured): ${JSON.stringify(coachingContext)}\n\nAnswer the question. Use the data only where it actually helps. If todayWins exist and it feels natural, you may briefly acknowledge real progress ("kudos") before the main advice — but only when relevant, and never force it.`;
 
     let aiError = null;
     try {
@@ -4677,6 +4837,11 @@ function SprigApp() {
     const next = [...sleepLogs.filter((l) => l.date !== log.date), log].sort((a, b) => a.waketime - b.waketime).slice(-30);
     persistSleep(next);
     logged(isShort ? "Saved as a short nap" : "Sleep logged", "light");
+    if (!isShort) {
+      const newDebt = sleepDebtMin(next, need);
+      const sleepCands = detectSleepWins({ log, sleepInfo: { debtTrend: newDebt < sleepDebtMin(sleepLogs, need) ? "down" : "flat" }, profile });
+      recordWins(sleepCands, log.date);
+    }
     return log;
   }
   // Toggle whether a sleep log counts toward score/debt (Fix 3).
@@ -4913,9 +5078,17 @@ function SprigApp() {
   }
   function finishWorkout() {
     const done = (activeWorkout?.exercises || []).filter((e) => e.sets.length);
+    let doneRecap = null;
     if (done.length) {
       const w = { id: uid(), date, ts: Date.now(), durationMin: Math.max(1, Math.round((Date.now() - activeWorkout.startTs) / 60000)), exercises: done };
+      // recap vs all prior workouts → drives wins + history badges
+      const recap = recapFor(w, workouts);
+      doneRecap = recap;
+      const winCands = detectWorkoutWins(recap);
+      w.recap = recap;
+      w.winCount = winCands.length;
       persistWorkouts([...workouts, w].slice(-300));
+      recordWins(winCands, date);
       // capture any per-exercise pain markers as structured pain logs
       done.forEach((ex) => {
         if (ex.pain && ex.pain !== "none") {
@@ -4928,7 +5101,7 @@ function SprigApp() {
     }
     persistActive(null);
     setTab("train");
-    if (done.length) logged("Workout saved", "finish");
+    if (done.length) { logged("Workout saved", "finish"); setRecapView({ recap: doneRecap, ts: Date.now() }); }
   }
   function cancelWorkout() { persistActive(null); }
   function woSetExercisePain(exIdx, level) {
@@ -4963,6 +5136,11 @@ function SprigApp() {
       micros: normalizeMicros(r.micros), omega3: r.omega3, mult: r.mult || 1, time: Date.now(),
     };
     persistEntries((prev) => [...prev, entry]);
+    // detect nutrition wins right away from the new totals (doesn't wait on the reactive effect)
+    try {
+      const nextT = dayTotals([...entries, entry, ...takenSupps]);
+      recordWins(detectDayWins({ t: nextT, daily, targets, sleepInfo: { waterGoal: profile?.weight ? Math.round(profile.weight * 35) : 2500 }, profile }), date);
+    } catch (_) {}
     // remember text-described meals automatically
     if (resultMode === "text") {
       const exists = library.some((l) => l.name.toLowerCase() === r.name.toLowerCase());
@@ -5022,6 +5200,16 @@ function SprigApp() {
   // last night's score breakdown (main reason + tonight's fix)
   const sleepBreakdown = sleepScoreBreakdown(lastSleep, need, rec, sleepLogs);
   const sleepInfo = { need, debtMin, lastSleep, rec, wakeMin, todayBed, curve, gym, mealMarks, breakdown: sleepBreakdown };
+
+  // Detect daily nutrition/movement wins as the day's data crosses thresholds.
+  // recordWins dedupes by type per day, so re-running on every change is safe (no spam).
+  useEffect(() => {
+    if (profile?.showWins === false) return;
+    if (!ready) return;
+    const cands = detectDayWins({ t, daily, targets, sleepInfo: { waterGoal: profile?.weight ? Math.round(profile.weight * 35) : 2500 }, profile });
+    if (cands.length) recordWins(cands, date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t.protein, t.calories, t.fiber, daily?.water, daily?.steps, daily?.cardioMin, daily?.checkin, ready, date]);
 
   // ---- training derivations (synced to sleep + yesterday's alcohol) ----
   const alcHit = alcoholImpact(daily?.alcohol || 0).recoveryHit;
@@ -5247,6 +5435,7 @@ function SprigApp() {
             onStartWorkout={() => { startWorkout(); setTab("train"); }}
             onGoSleep={() => setTab("sleep")} onGoEnergy={() => setTab("energy")} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")}
             onGoNutrition={() => setTab("nutrition")} onGoTrain={() => setTab("train")}
+            wins={(profile?.showWins === false) ? null : (wins[date] || [])} onKudos={(id) => kudoWin(id, date)} onViewAllWins={() => setWinsOpen(true)}
           />
         )}
         {tab === "nutrition" && (
@@ -5448,6 +5637,63 @@ function SprigApp() {
         painActive={trainInfo.pain?.level !== "none"} onCheckin={setCheckin} onDaily={persistDaily}
         onClose={() => setQuickOpen(false)} />}
 
+      {/* All of today's wins */}
+      {winsOpen && (
+        <div onClick={() => setWinsOpen(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
+          <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
+            style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)", maxHeight: "75vh", overflowY: "auto" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 14px" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <Award size={18} color={C.lime} />
+              <span style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: C.ink }}>Today's wins</span>
+            </div>
+            {(wins[date] || []).length === 0 ? (
+              <div style={{ fontSize: 12.5, color: C.muted, padding: "10px 0" }}>No wins yet today.</div>
+            ) : (
+              (wins[date] || []).map((w) => <WinRow key={w.id} win={w} onKudos={(id) => kudoWin(id, date)} />)
+            )}
+            <button className="sprig-tap" onClick={() => setWinsOpen(false)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", marginTop: 12, padding: "6px 0" }}>Done</button>
+          </div>
+        </div>
+      )}
+
+      {/* Workout recap — premium post-finish summary + kudos earned */}
+      {recapView && (() => {
+        const r = recapView.recap;
+        const dayWins = (wins[date] || []).filter((w) => w.source === "workout");
+        return (
+          <div onClick={() => setRecapView(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 82 }}>
+            <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
+              style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.4)", maxHeight: "82vh", overflowY: "auto" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 16px" }} />
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: C.lime + "1f", display: "grid", placeItems: "center", margin: "0 auto 10px" }}><Check size={24} color={C.lime} /></div>
+                <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink }}>Workout complete</div>
+              </div>
+              {/* stats */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                {[[r.durationMin + "m", "duration"], [r.totalSets, "sets"], [r.totalVolume.toLocaleString(), "kg volume"], [r.records, "records"]].map(([v, l], i) => (
+                  <div key={i} style={{ flex: 1, background: C.bg, borderRadius: 12, padding: "12px 6px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: (l === "records" && r.records > 0) ? C.lime : C.ink }}>{v}</div>
+                    <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              {/* kudos earned */}
+              {dayWins.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.lime, letterSpacing: .3, marginBottom: 4 }}>KUDOS EARNED</div>
+                  <div style={{ marginBottom: 8 }}>
+                    {dayWins.map((w) => <WinRow key={w.id} win={w} onKudos={(id) => kudoWin(id, date)} />)}
+                  </div>
+                </>
+              )}
+              <button className="sprig-tap" onClick={() => setRecapView(null)} style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "14px 0", marginTop: 8, fontWeight: 700 }}>Done</button>
+            </div>
+          </div>
+        );
+      })()}
+
       {searchOpen && (() => {
         const results = searchAll({ q: searchQ, library, workouts, history, supps, painLogs, weightSeries, sleepLogs, healthSeries, focusSessions });
         const jumpTo = (r) => {
@@ -5506,6 +5752,7 @@ function SprigApp() {
           muscleRecovery: muscleRecoveryList,
           trainedToday: !!trainedToday,
           supplements: suppsTodayList.length ? suppsTodayList : null,
+          todayWins: (profile?.showWins === false) ? null : ((wins[date] || []).map((w) => w.title)),
         };
         return <AskCoachSheet onClose={() => setAskOpen(false)} context={ctx} online={online} runAnalysis={(q) => askCoach(q, ctx)}
           onSaveNote={async (question, answer) => {
@@ -5524,7 +5771,7 @@ function SprigApp() {
       {/* First-workout rep-range preference — asked once, stored on the profile, editable in settings */}
       {repRangePrompt && (
         <div style={{ position: "absolute", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 89, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div className="sprig-pop sprig-bottom-sheet"
+          <div className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "22px 18px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>What rep range do you train in?</div>
             <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 6, marginBottom: 18, lineHeight: 1.5 }}>
@@ -5560,7 +5807,7 @@ function SprigApp() {
         const s = ex?.sets?.[rirPrompt.setIdx];
         return (
           <div onClick={() => setRirPrompt(null)} style={{ position: "absolute", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 88, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-            <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
+            <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
               style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
               <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, textAlign: "center", color: C.ink }}>How many reps in reserve?</div>
               <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 4, marginBottom: 16 }}>
@@ -5584,7 +5831,7 @@ function SprigApp() {
       {/* Favorite-source chooser — same 4 methods as food logging, but result is saved as a favorite */}
       {favChooser && (
         <div onClick={() => setFavChooser(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
-          <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
+          <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>New favorite meal</div>
             <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Create it the same way you log food — we'll save the result as a favorite to reuse.</div>
@@ -5679,7 +5926,7 @@ function SprigApp() {
 
       {/* undo toast — appears after a delete and gives a few seconds to bring it back */}
       {undoItem && (
-        <div className="sprig-bottom-toast" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: C.ink, color: "#fff", padding: "11px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 20px rgba(0,0,0,.25)", fontSize: 12.5, fontFamily: "DM Sans", zIndex: 60 }}>
+        <div className="sprig-bottom-toast sprig-toast-anim" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: C.ink, color: "#fff", padding: "11px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 20px rgba(0,0,0,.25)", fontSize: 12.5, fontFamily: "DM Sans", zIndex: 60 }}>
           <span>{(() => {
             const k = undoItem.kind, d = undoItem.data;
             if (k === "food") return `Removed “${d?.name || "entry"}”`;
@@ -5696,7 +5943,7 @@ function SprigApp() {
 
       {/* calm success/info toast */}
       {toast && !undoItem && (
-        <div className="sprig-bottom-toast sprig-pop" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: toast.tone === "error" ? C.coral : C.ink, color: "#fff", padding: "10px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 6px 20px rgba(0,0,0,.22)", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", zIndex: 60 }}>
+        <div className="sprig-bottom-toast sprig-toast-anim" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: toast.tone === "error" ? C.coral : C.ink, color: "#fff", padding: "10px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 6px 20px rgba(0,0,0,.22)", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", zIndex: 60 }}>
           {toast.tone !== "error" && <Check size={14} color={C.leaf} />}
           <span>{toast.text}</span>
         </div>
@@ -6259,7 +6506,7 @@ function TodayChip({ label, onClick, primary }) {
   );
 }
 
-function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain }) {
+function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain, wins, onKudos, onViewAllWins }) {
   const { lastSleep, debtMin, rec, gym } = sleepInfo;
   const { daily, subScores, healthScore, actions, funcHealth } = dailyInfo;
   const [showDrinks, setShowDrinks] = useState(false);
@@ -6381,6 +6628,9 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
           </button>
         </div>
       )}
+
+      {/* Today's wins — compact recognition card */}
+      {wins && <TodayWinsCard wins={wins} onKudos={onKudos} onViewAll={onViewAllWins} />}
 
       {/* mini cards grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
@@ -6523,7 +6773,7 @@ function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
   const valid = nameOk && fieldsOk;
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
-      <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
+      <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
         style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{isNew ? "New favorite meal" : "Edit favorite"}</div>
         <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>Name</div>
@@ -6900,9 +7150,10 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
 
       {/* Log food action sheet — opened by the primary CTA */}
       {logSheet && (
-        <div onClick={() => setLogSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
-          <div onClick={(e) => e.stopPropagation()} className="sprig-pop sprig-bottom-sheet"
-            style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "20px 18px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
+        <div onClick={() => setLogSheet(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
+          <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
+            style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 14px" }} />
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, marginBottom: 4, color: C.ink }}>Log food</div>
             <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>How do you want to add it?</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -8263,6 +8514,20 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         </div>
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
           Subtle vibration when you log, complete a set, or finish a rest timer. Only on supported devices.
+        </div>
+        {/* Show wins on/off */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Award size={16} color={C.lime} />
+            <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Show wins</span>
+          </div>
+          <button className="sprig-tap" onClick={() => { const on = p.showWins === false; const np = { ...p, showWins: on }; setP(np); onSave(np); if (on) buzz("light"); }}
+            style={{ position: "relative", width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: p.showWins === false ? C.bg2 : C.green, transition: "background .2s" }}>
+            <span style={{ position: "absolute", top: 3, left: p.showWins === false ? 3 : 21, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s" }} />
+          </button>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+          Quiet recognition for real progress — protein hits, PRs, sleep, consistency. Kudos are personal, never social. Workout records stay in history either way.
         </div>
       </div>
 
@@ -10565,12 +10830,13 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
               // prior workouts = everything chronologically before this one
               const prior = workouts.filter((x) => x.ts < w.ts);
               const recap = recapFor(w, prior);
+              const winCount = 1 + (recap.recordLifts ? recap.recordLifts.length : 0); // workout_done + records/firsts
               return (
                 <details key={w.id} style={{ background: C.card, borderRadius: 13, padding: "11px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
                   <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 8 }}>
                     <Dumbbell size={15} color={C.greenSoft} />
                     <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{new Date(w.ts).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
-                    {recap.records > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: C.green + "14", color: C.greenSoft, borderRadius: 99, padding: "2px 8px", fontSize: 10.5, fontWeight: 700 }}><Sparkles size={11} /> {recap.records}</span>}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: C.lime + "1a", color: C.lime, borderRadius: 99, padding: "2px 8px", fontSize: 10.5, fontWeight: 700 }}><Award size={11} /> {winCount}</span>
                     <span style={{ fontSize: 11.5, color: C.muted }}>{w.durationMin}m · {sets} sets</span>
                     <ChevronDown size={13} color={C.muted} />
                   </summary>
@@ -10592,6 +10858,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
                   </div>
                   {recap.records > 0 ? (
                     <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: C.lime, letterSpacing: .3, marginBottom: 2 }}>KUDOS EARNED</div>
                       {recap.recordLifts.filter((r) => !r.firstTime).map((r) => (
                         <div key={r.name} style={{ fontSize: 11.5, color: C.inkSoft, display: "flex", alignItems: "center", gap: 6 }}>
                           <Sparkles size={11} color={C.greenSoft} /> {r.name}: new e1RM <b>{r.e1RM}{unit}</b> {r.prev > 0 && <span style={{ color: C.muted }}>(was {r.prev})</span>}
