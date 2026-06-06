@@ -122,7 +122,16 @@ const FONTS = `
   .sprig-tap:active { transform: none; filter: none; }
   .sprig-scroll { scroll-behavior: auto; }
 }
-:root { --bottom-nav-height: 76px; }
+:root {
+  --bottom-nav-height: 88px;
+  --floating-cta-height: 72px;
+  /* z-index scale — nav 1000, floating CTA 1200, rest timer 1300, overlays 3000, medal 3500 */
+  --z-nav: 1000;
+  --z-cta: 1200;
+  --z-timer: 1300;
+  --z-overlay: 3000;
+  --z-medal: 3500;
+}
 /* Mobile / PWA baseline — prevents horizontal scroll, honors iOS safe areas, lets the app fill the screen on phones */
 html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #07140F; overscroll-behavior-y: auto; }
 body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
@@ -137,10 +146,10 @@ body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
   display: flex;
   flex-direction: column;
 }
-/* Scrollable content area leaves room for the fixed bottom nav + home indicator.
-   Nav is ~64px of buttons + its own safe-area pad, so reserve generously so the last
-   card is never hidden and you can always scroll to the very bottom. */
-.sprig-content { flex: 1; padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 24px); }
+/* Scrollable content area leaves room for the fixed bottom nav + home indicator so the last
+   card is never hidden. Pages with a floating CTA/timer get extra room via .sprig-content-cta. */
+.sprig-content { flex: 1; padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 72px); }
+.sprig-content-cta { padding-bottom: calc(var(--bottom-nav-height) + var(--floating-cta-height) + env(safe-area-inset-bottom, 0px) + 96px) !important; }
 /* Bottom nav pinned to the true bottom of the viewport, within the centered frame */
 .sprig-tabbar {
   position: fixed;
@@ -149,7 +158,7 @@ body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
   transform: translateX(-50%);
   width: 100%;
   max-width: 440px;
-  z-index: 60;
+  z-index: var(--z-nav);
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
 }
 .sprig-glass { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
@@ -163,7 +172,7 @@ input, textarea, select, button { font-family: inherit; font-size: 16px; }
 input, textarea, select { color: #F4F7F2; }
 input::placeholder, textarea::placeholder { color: rgba(244,247,242,0.4); }
 /* Bottom sheets/toasts need the inset baked in so they don't sit under the home indicator */
-.sprig-bottom-toast { bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 8px) !important; z-index: 65 !important; }
+.sprig-bottom-toast { bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 8px) !important; z-index: var(--z-timer) !important; }
 .sprig-bottom-sheet { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important; }
 `;
 
@@ -5623,7 +5632,7 @@ function SprigApp() {
         </div>
       </div>
 
-      <div className="sprig-scroll sprig-content" style={{ overflowY: "auto", overflowX: "hidden", padding: "8px 16px 18px" }}>
+      <div className={`sprig-scroll sprig-content${(tab === "nutrition" || activeWorkout) ? " sprig-content-cta" : ""}`} style={{ overflowY: "auto", overflowX: "hidden", padding: "8px 16px 18px" }}>
         {tab === "today" && (
           <TodayTab
             t={t} targets={targets} entries={entries} scores={scores} onRemove={removeEntry}
@@ -5797,11 +5806,22 @@ function SprigApp() {
         ))}
       </div>
 
+      {/* Floating "+ Log food" — page-level, centered above the bottom nav, only on the Food tab.
+          Stays visible while the Food list scrolls; never sits inside the scrolled content. */}
+      {tab === "nutrition" && !logSheet && !activeWorkout && (
+        <Portal>
+          <button className="sprig-tap" onClick={() => setLogSheet(true)}
+            style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", zIndex: "var(--z-cta)", ...btn(C.lime, "#0A1F12"), padding: "13px 22px", fontSize: 15, fontWeight: 700, borderRadius: 99, boxShadow: `0 8px 24px ${C.lime}55, 0 2px 8px rgba(0,0,0,.25)`, display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+            <Plus size={18} /> Log food
+          </button>
+        </Portal>
+      )}
+
       {/* New-record medal — brief, centered, premium. Portaled so it floats over everything. */}
       {prFlash && (
         <Portal>
-          <div style={{ position: "fixed", inset: 0, zIndex: 95, pointerEvents: "none", display: "grid", placeItems: "center" }}>
-            <div className="sprig-medal" style={{ position: "absolute", left: "50%", top: "44%", background: C.cardSolid, border: `1.5px solid ${C.lime}`, borderRadius: 22, padding: "20px 26px", textAlign: "center", minWidth: 180 }}>
+          <div style={{ position: "fixed", inset: 0, zIndex: "var(--z-medal)", pointerEvents: "none", display: "grid", placeItems: "center" }}>
+            <div className="sprig-medal" style={{ position: "fixed", left: "50%", top: "45%", transform: "translate(-50%, -50%)", background: C.cardSolid, border: `1.5px solid ${C.lime}`, borderRadius: 22, padding: "20px 26px", textAlign: "center", minWidth: 180 }}>
               <div style={{ width: 56, height: 56, borderRadius: 99, margin: "0 auto 10px", background: `radial-gradient(circle at 50% 40%, ${C.lime}, ${C.green})`, display: "grid", placeItems: "center", boxShadow: `0 6px 20px ${C.lime}66` }}>
                 <Medal size={30} color="#0A1F12" />
               </div>
@@ -5817,7 +5837,7 @@ function SprigApp() {
           + transformed ancestors that would otherwise clip an absolute/fixed child). */}
       {activeWorkout && rest && (restLeft > 0 || restDone) && (
         <Portal>
-        <div className="sprig-pop" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(440px, calc(100vw - 24px))", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 10px)", background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.32)", zIndex: 70 }}>
+        <div className="sprig-pop" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.32)", zIndex: "var(--z-timer)" }}>
           <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : "#BFD0FF"} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 10.5, opacity: .75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -5842,7 +5862,8 @@ function SprigApp() {
       {/* End-of-day quick-log nudge — gentle, dismissible, never affects the score. Hidden during
           an active workout (rest timer owns that space) and on the Today tab (quick log is right there). */}
       {bedNudge && !bedNudgeDismissed && !activeWorkout && tab !== "today" && !quickOpen && (
-        <div className="sprig-pop" style={{ position: "absolute", left: 12, right: 12, bottom: "calc(64px + env(safe-area-inset-bottom, 0px))", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 11, boxShadow: "0 8px 30px rgba(0,0,0,.18)", zIndex: 44 }}>
+        <Portal>
+        <div className="sprig-pop" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 416px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 11, boxShadow: "0 8px 30px rgba(0,0,0,.18)", zIndex: "var(--z-cta)" }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, background: "#7A6FB022", display: "grid", placeItems: "center", flexShrink: 0 }}><Moon size={17} color="#7A6FB0" /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Wind-down check-in</div>
@@ -5851,6 +5872,7 @@ function SprigApp() {
           <button className="sprig-tap" onClick={() => { setQuickOpen(true); setBedNudgeDismissed(true); }} style={{ ...btn(C.green, "#fff"), padding: "8px 13px", fontSize: 12.5, flexShrink: 0 }}>Quick log</button>
           <button className="sprig-tap" onClick={() => setBedNudgeDismissed(true)} aria-label="Dismiss" style={{ background: "transparent", border: "none", cursor: "pointer", color: C.muted, padding: 4, flexShrink: 0 }}><X size={15} /></button>
         </div>
+        </Portal>
       )}
 
       {quickOpen && <QuickLogSheet ci={daily.checkin || {}} daily={{ ...daily, trainedToday }} sleepInfo={sleepInfo} profile={profile}
@@ -5860,7 +5882,7 @@ function SprigApp() {
       {/* All of today's wins */}
       {winsOpen && (
         <Portal>
-        <div onClick={() => setWinsOpen(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 90 }}>
+        <div onClick={() => setWinsOpen(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: "var(--z-overlay)" }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)", maxHeight: "75vh", overflowY: "auto" }}>
             <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 14px" }} />
@@ -5885,7 +5907,7 @@ function SprigApp() {
         const dayWins = (wins[date] || []).filter((w) => w.source === "workout");
         return (
           <Portal>
-          <div onClick={() => setRecapView(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 91 }}>
+          <div onClick={() => setRecapView(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: "var(--z-overlay)" }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
               style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.4)", maxHeight: "82vh", overflowY: "auto" }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 16px" }} />
@@ -5995,7 +6017,7 @@ function SprigApp() {
       {/* First-workout rep-range preference — asked once, stored on the profile, editable in settings */}
       {repRangePrompt && (
         <Portal>
-        <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 89, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: "var(--z-overlay)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "22px 18px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>What rep range do you train in?</div>
@@ -6033,7 +6055,7 @@ function SprigApp() {
         const s = ex?.sets?.[rirPrompt.setIdx];
         return (
           <Portal>
-          <div onClick={() => setRirPrompt(null)} style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 88, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={() => setRirPrompt(null)} style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: "var(--z-overlay)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
               style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
               <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, textAlign: "center", color: C.ink }}>How many reps in reserve?</div>
@@ -6059,7 +6081,7 @@ function SprigApp() {
       {/* Log food sheet — frame level + portaled so it never renders as a grey/clipped overlay */}
       {logSheet && (
         <Portal>
-          <div onClick={() => setLogSheet(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 90 }}>
+          <div onClick={() => setLogSheet(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: "var(--z-overlay)" }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
               style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 14px" }} />
@@ -6089,7 +6111,7 @@ function SprigApp() {
       {/* Favorite-source chooser — same 4 methods as food logging, but result is saved as a favorite */}
       {favChooser && (
         <Portal>
-        <div onClick={() => setFavChooser(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
+        <div onClick={() => setFavChooser(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: "var(--z-overlay)" }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>New favorite meal</div>
@@ -6136,7 +6158,7 @@ function SprigApp() {
       )}
       {favDup && (
         <Portal>
-        <div onClick={() => setFavDup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 86, padding: 24 }}>
+        <div onClick={() => setFavDup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: "var(--z-overlay)", padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-pop" style={{ width: "100%", maxWidth: 340, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 20, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Favorite already exists</div>
             <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 16 }}>You already have a favorite called "{favDup.existing.name}". Replace it, or save a copy?</div>
@@ -6152,7 +6174,7 @@ function SprigApp() {
 
       {/* storage write-error banner — appears when persistence is failing (quota, rate limit, etc.) */}
       {writeError && Date.now() - writeError.ts < 30000 && (
-        <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", background: writeError.quota ? C.coral : C.amber, color: "#fff", padding: "9px 14px", borderRadius: 11, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 6px 20px rgba(0,0,0,.18)", fontSize: 12, fontFamily: "DM Sans", zIndex: 70, maxWidth: 380 }}>
+        <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", background: writeError.quota ? C.coral : C.amber, color: "#fff", padding: "9px 14px", borderRadius: 11, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 6px 20px rgba(0,0,0,.18)", fontSize: 12, fontFamily: "DM Sans", zIndex: "var(--z-medal)", maxWidth: 380 }}>
           <Square size={13} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1, lineHeight: 1.4 }}>
             {writeError.quota
@@ -6171,7 +6193,7 @@ function SprigApp() {
       {/* mistake-detection confirmation (Fix 9) */}
       {pendingConfirm && (
         <div onClick={() => setPendingConfirm(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 85, padding: 24 }}>
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: "var(--z-overlay)", padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: "100%", maxWidth: 340, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 20, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>This looks unusual</div>
@@ -7036,7 +7058,7 @@ function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
   const valid = nameOk && fieldsOk;
   return (
     <Portal>
-    <div onClick={onClose} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 90 }}>
+    <div onClick={onClose} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: "var(--z-overlay)" }}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
         style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: `calc(20px + env(safe-area-inset-bottom, 0px) + ${kb}px)`, maxHeight: "88%", overflowY: "auto", WebkitOverflowScrolling: "touch", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{isNew ? "New favorite meal" : "Edit favorite"}</div>
@@ -8520,7 +8542,7 @@ function AccountSection() {
       {/* First-login choice prompt — shown once per account on this device. */}
       {showFirstChoice && user && (
         <div onClick={dismissFirstChoice}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: "var(--z-overlay)" }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px 22px", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>Welcome!</div>
@@ -9346,7 +9368,7 @@ function SearchSheet({ onClose, onJump, results, query, setQuery }) {
   const kindIcon = (k) => ({ food: "🥗", exercise: "🏋️", workout: "📈", supp: "💊", pain: "⚠️", weight: "⚖️", sleep: "🌙", health: "❤️", focus: "🎯", note: "📝" })[k] || "•";
   return (
     <Portal>
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 90 }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: "var(--z-overlay)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
         style={{ maxWidth: 440, margin: "60px auto 0", background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 14, maxHeight: "75vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, background: C.bg2, borderRadius: 12, padding: "8px 11px" }}>
@@ -9395,7 +9417,7 @@ function CalendarSheet({ onClose, getDayIcons }) {
   const todayStr = new Date().toLocaleDateString("en-CA");
   const dateStr = (d) => `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 90 }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: "var(--z-overlay)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
         style={{ maxWidth: 440, margin: "40px auto 0", background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -9460,7 +9482,7 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNot
     "Should I cut, bulk, or maintain?",
   ];
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 60 }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: "var(--z-overlay)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
         style={{ maxWidth: 440, margin: "0 auto", position: "absolute", bottom: 0, left: 0, right: 0, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -9535,7 +9557,7 @@ function PhotoSheet({ onClose, photos, onAdd, onRemove }) {
   const comparePics = photos.filter((p) => picked.includes(p.id)).sort((a, b) => a.ts - b.ts);
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 60 }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: "var(--z-overlay)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
         style={{ maxWidth: 440, margin: "30px auto 0", background: C.card, borderRadius: 20, padding: 16, maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 8px 28px rgba(0,0,0,.25)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -9646,7 +9668,7 @@ function QuickLogSheet({ ci, daily, sleepInfo, profile, painActive, onCheckin, o
 
   return (
     <Portal>
-    <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", display: "grid", placeItems: "flex-end center", zIndex: 90, padding: 0 }} onClick={onClose}>
+    <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "grid", placeItems: "flex-end center", zIndex: "var(--z-overlay)", padding: 0 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-sheet"
         style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: `calc(22px + env(safe-area-inset-bottom, 0px) + ${kb}px)`, maxHeight: "88vh", overflowY: "auto", WebkitOverflowScrolling: "touch", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
