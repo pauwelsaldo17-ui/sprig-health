@@ -100,11 +100,14 @@ const FONTS = `
 @keyframes dimIn { from { opacity:0; } to { opacity:1; } }
 @keyframes toastUp { from { opacity:0; transform: translate(-50%, 10px); } to { opacity:1; transform: translate(-50%, 0); } }
 @keyframes pulse { 0%,100%{opacity:.45;} 50%{opacity:1;} }
+@keyframes medalIn { 0%{transform:translate(-50%,-50%) scale(.6);opacity:0;} 35%{transform:translate(-50%,-50%) scale(1.08);opacity:1;} 55%{transform:translate(-50%,-50%) scale(1);} 100%{transform:translate(-50%,-50%) scale(1);opacity:1;} }
+@keyframes medalGlow { 0%,100%{box-shadow:0 0 0 0 rgba(199,255,61,.0),0 10px 40px rgba(0,0,0,.4);} 50%{box-shadow:0 0 36px 6px rgba(199,255,61,.55),0 10px 40px rgba(0,0,0,.4);} }
 /* Apple-ish easing used consistently across the app */
 .sprig-rise { animation: rise .2s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-pop { animation: pop .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-sheet { animation: sheetUp .26s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-dim { animation: dimIn .2s ease both; }
+.sprig-medal { animation: medalIn .5s cubic-bezier(.2,.8,.2,1) both, medalGlow 1.4s ease-in-out .3s; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
 .sprig-tap { transition: transform .09s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease, filter .14s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -115,6 +118,7 @@ const FONTS = `
 .sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-y: auto; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .sprig-rise, .sprig-pop, .sprig-sheet, .sprig-dim, .sprig-toast-anim { animation-duration: .01ms !important; }
+  .sprig-medal { animation: none !important; }
   .sprig-tap:active { transform: none; filter: none; }
   .sprig-scroll { scroll-behavior: auto; }
 }
@@ -284,6 +288,31 @@ function Portal({ children }) {
   if (typeof document === "undefined" || !document.body) return null;
   return createPortal(children, document.body);
 }
+
+// Tracks the on-screen keyboard height via the visualViewport API so bottom sheets can lift
+// their content above the keyboard (keeps inputs + save buttons visible while typing on iOS).
+function useKeyboardInset() {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const onChange = () => {
+      // gap between layout viewport bottom and visual viewport bottom ≈ keyboard height
+      const gap = Math.max(0, (window.innerHeight || 0) - (vv.height + vv.offsetTop));
+      setInset(gap > 90 ? Math.round(gap) : 0); // ignore tiny URL-bar shifts
+    };
+    vv.addEventListener("resize", onChange);
+    vv.addEventListener("scroll", onChange);
+    onChange();
+    return () => { vv.removeEventListener("resize", onChange); vv.removeEventListener("scroll", onChange); };
+  }, []);
+  return inset;
+}
+
+// On focus, scroll the focused input into view so the keyboard never covers it.
+const scrollIntoViewOnFocus = (e) => {
+  try { setTimeout(() => { e.target && e.target.scrollIntoView && e.target.scrollIntoView({ block: "center", behavior: "smooth" }); }, 250); } catch (_) {}
+};
 
 /* ---------------- data version + safe parsing -------------- */
 const DATA_VERSION = 2; // bump when schema needs migration
@@ -2600,6 +2629,29 @@ function exLastBest(workouts, exName) {
   workouts.forEach((w) => w.exercises.forEach((ex) => { if (ex.name === exName) ex.sets.forEach((s) => { const e = est1RM(s.w, s.reps); if (e > best) { best = e; bestSet = s; } }); }));
   return { best, bestSet };
 }
+// Detect whether a just-logged set is a personal record vs all prior history for that exercise.
+// Returns { kind, label } for the strongest PR type, or null. Checks e1RM, weight, reps, single-set volume.
+function detectSetPR(workouts, exName, W, R) {
+  if (!(W > 0) || !(R > 0)) return null;
+  let maxE1 = 0, maxW = 0, maxReps = 0, maxVol = 0;
+  workouts.forEach((wk) => wk.exercises.forEach((ex) => {
+    if (ex.name !== exName) return;
+    ex.sets.forEach((s) => {
+      maxE1 = Math.max(maxE1, est1RM(s.w, s.reps));
+      maxW = Math.max(maxW, s.w || 0);
+      maxReps = Math.max(maxReps, s.reps || 0);
+      maxVol = Math.max(maxVol, (s.w || 0) * (s.reps || 0));
+    });
+  }));
+  if (maxE1 === 0 && maxW === 0) return null; // first time doing this lift — not a "record"
+  const thisE1 = est1RM(W, R), thisVol = W * R;
+  // priority: e1RM (overall strength) > weight > reps > volume
+  if (thisE1 > maxE1 * 1.001) return { kind: "e1rm", label: "New 1RM best" };
+  if (W > maxW) return { kind: "weight", label: "Weight PR" };
+  if (R > maxReps && W >= maxW * 0.95) return { kind: "reps", label: "Rep PR" };
+  if (thisVol > maxVol * 1.001) return { kind: "volume", label: "Volume PR" };
+  return null;
+}
 // Compute a workout recap on the fly. `priorWorkouts` are the sessions BEFORE this one
 // (used to detect records/overloads). Works for old workouts with no stored recap.
 function recapFor(workout, priorWorkouts) {
@@ -4273,6 +4325,8 @@ function SprigApp() {
   const [winsOpen, setWinsOpen] = useState(false);
   const [logSheet, setLogSheet] = useState(false);
   const [recapView, setRecapView] = useState(null); // { recap, ts } shown after finishing a workout
+  const [prFlash, setPrFlash] = useState(null); // { kind, label, exName, ts } — transient new-record medal
+  const [flashEntryId, setFlashEntryId] = useState(null); // briefly highlight a newly-logged meal
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [calOpen, setCalOpen] = useState(false);
@@ -4520,6 +4574,8 @@ function SprigApp() {
     };
     persistEntries((prev) => [...prev, entry]);
     persistFavoriteMeals(favoriteMeals.map((x) => (x.id === id ? { ...x, useCount: (x.useCount || 0) + 1, lastUsedTs: Date.now() } : x)));
+    setFoodSub("meals");
+    setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((eid) => (eid === entry.id ? null : eid)), 2200);
     logged("Meal added", "light");
   }
   // Favorite create/edit modal — rendered at the app-frame level (not inside the scrolled
@@ -5153,6 +5209,12 @@ function SprigApp() {
     persistActive({ ...activeWorkout, exercises: [...activeWorkout.exercises, { name, group: meta?.group, sets: [] }] });
   }
   function woLogSet(exIdx, set) {
+    const exName = activeWorkout.exercises[exIdx]?.name;
+    // PR check BEFORE we append the set (compare against all prior history)
+    try {
+      const pr = detectSetPR(workouts, exName, set.w, set.reps);
+      if (pr) { setPrFlash({ ...pr, exName, ts: Date.now() }); buzz("strong"); setTimeout(() => setPrFlash((f) => (f && f.ts && Date.now() - f.ts >= 1400 ? null : f)), 1600); }
+    } catch (_) {}
     const next = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: [...e.sets, { ...set, ts: Date.now() }] } : e);
     persistActive({ ...activeWorkout, exercises: next });
     buzz("complete"); // set completed
@@ -5273,6 +5335,7 @@ function SprigApp() {
     setResult(null);
     setTab("nutrition");
     setFoodSub("meals");   // land on the Meals subtab where the new entry is listed
+    setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200);
     logged("Meal added", "light");
   }
 
@@ -5281,6 +5344,7 @@ function SprigApp() {
     persistEntries((prev) => [...prev, entry]);
     setTab("nutrition");
     setFoodSub("meals");
+    setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200);
     logged("Meal added", "light");
   }
   function addManual(m) {
@@ -5289,7 +5353,7 @@ function SprigApp() {
       calories: +m.calories || 0, protein_g: +m.protein || 0, carbs_g: +m.carbs || 0,
       fat_g: +m.fat || 0, fiber_g: +m.fiber || 0, micros: {}, omega3: null, mult: 1, time: Date.now(),
     };
-    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("nutrition"); setFoodSub("meals"); logged("Meal added", "light"); };
+    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("nutrition"); setFoodSub("meals"); setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200); logged("Meal added", "light"); };
     if (entry.calories > 3000) { askConfirm(`${entry.calories} kcal for one item is unusually high. Save anyway?`, commit); return; }
     commit();
   }
@@ -5589,7 +5653,7 @@ function SprigApp() {
             onManual={() => { setComposer("manual"); setResult(null); }}
             onOpenCreateFavorite={openFavoriteChooser} onOpenEditFavorite={openEditFavorite}
             onFavoriteDuplicate={(form, existing) => setFavDup({ form, existing })}
-            onOpenLogSheet={() => setLogSheet(true)} />
+            onOpenLogSheet={() => setLogSheet(true)} flashEntryId={flashEntryId} />
         )}
         {tab === "train" && (
           <TrainTab workouts={workouts} active={activeWorkout} profile={profile} trainInfo={trainInfo} advanced={advanced}
@@ -5680,7 +5744,7 @@ function SprigApp() {
               <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                 <Pill size={14} /> New supplement
               </div>
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus
+              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
                 placeholder="e.g. Vitamin D3 2000 IU + magnesium glycinate 400mg, or omega-3 fish oil 1000mg"
                 style={{ width: "100%", border: "none", outline: "none", resize: "none", background: "transparent", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 52, lineHeight: 1.45 }} />
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -5696,7 +5760,7 @@ function SprigApp() {
 
           {composer === "text" && !busy && !result && (
             <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, marginBottom: 10, border: `1px solid ${C.line}` }}>
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus
+              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
                 placeholder="e.g. two eggs, a slice of sourdough, half an avocado and a flat white"
                 style={{ width: "100%", border: "none", outline: "none", resize: "none", background: "transparent", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 56, lineHeight: 1.45 }} />
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -5733,10 +5797,27 @@ function SprigApp() {
         ))}
       </div>
 
-      {/* Floating rest timer — rendered at the app-frame level (absolute, pinned just above the
-          tab bar) so it stays put no matter how far the user scrolls the exercise list. */}
+      {/* New-record medal — brief, centered, premium. Portaled so it floats over everything. */}
+      {prFlash && (
+        <Portal>
+          <div style={{ position: "fixed", inset: 0, zIndex: 95, pointerEvents: "none", display: "grid", placeItems: "center" }}>
+            <div className="sprig-medal" style={{ position: "absolute", left: "50%", top: "44%", background: C.cardSolid, border: `1.5px solid ${C.lime}`, borderRadius: 22, padding: "20px 26px", textAlign: "center", minWidth: 180 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 99, margin: "0 auto 10px", background: `radial-gradient(circle at 50% 40%, ${C.lime}, ${C.green})`, display: "grid", placeItems: "center", boxShadow: `0 6px 20px ${C.lime}66` }}>
+                <Medal size={30} color="#0A1F12" />
+              </div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, color: C.ink }}>{prFlash.label}</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{prFlash.exName}</div>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      {/* Floating rest timer — portaled to document.body + fixed so it stays pinned above the
+          tab bar no matter how far the user scrolls the exercise list (frame has overflow:hidden
+          + transformed ancestors that would otherwise clip an absolute/fixed child). */}
       {activeWorkout && rest && (restLeft > 0 || restDone) && (
-        <div className="sprig-pop" style={{ position: "absolute", left: 12, right: 12, bottom: "calc(64px + env(safe-area-inset-bottom, 0px))", background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.32)", zIndex: 45 }}>
+        <Portal>
+        <div className="sprig-pop" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(440px, calc(100vw - 24px))", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 10px)", background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.32)", zIndex: 70 }}>
           <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : "#BFD0FF"} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 10.5, opacity: .75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -5755,6 +5836,7 @@ function SprigApp() {
           )}
           <button className="sprig-tap" onClick={skipRest} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>{restLeft <= 0 ? "Done" : "Skip"}</button>
         </div>
+        </Portal>
       )}
 
       {/* End-of-day quick-log nudge — gentle, dismissible, never affects the score. Hidden during
@@ -6150,7 +6232,7 @@ function ManualEntry({ onAdd, onCancel }) {
   const Field = ({ k, label, suffix }) => (
     <div style={{ flex: 1 }}>
       <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4, fontWeight: 600 }}>{label}</div>
-      <input value={f[k]} onChange={(e) => set(k, e.target.value)} inputMode="decimal" placeholder="0"
+      <input value={f[k]} onChange={(e) => set(k, e.target.value)} onFocus={scrollIntoViewOnFocus} inputMode="decimal" placeholder="0"
         style={{ width: "100%", textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 4px", fontFamily: "DM Sans", fontSize: 15, fontWeight: 600, background: C.bg, color: C.ink }} />
     </div>
   );
@@ -6159,7 +6241,7 @@ function ManualEntry({ onAdd, onCancel }) {
       <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
         <Calculator size={14} /> Manual entry — no AI, just numbers
       </div>
-      <input value={f.name} onChange={(e) => set("name", e.target.value)} autoFocus placeholder="Name (optional)"
+      <input value={f.name} onChange={(e) => set("name", e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus} placeholder="Name (optional)"
         style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 11px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink, marginBottom: 9 }} />
       <div style={{ display: "flex", gap: 7 }}>
         <Field k="calories" label="Calories" />
@@ -6947,33 +7029,35 @@ const MEAL_TAGS = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post
 
 // Frame-level favorite create/edit sheet (with validation), so it's never clipped by the scroll area.
 function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
+  const kb = useKeyboardInset();
   const nameOk = (form.name || "").trim().length > 0;
   const numOk = (v) => v === "" || (Number.isFinite(+v) && +v >= 0);
   const fieldsOk = ["calories", "protein", "carbs", "fat", "fiber"].every((k) => numOk(form[k]));
   const valid = nameOk && fieldsOk;
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
+    <Portal>
+    <div onClick={onClose} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 90 }}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
-        style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
+        style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: `calc(20px + env(safe-area-inset-bottom, 0px) + ${kb}px)`, maxHeight: "88%", overflowY: "auto", WebkitOverflowScrolling: "touch", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{isNew ? "New favorite meal" : "Edit favorite"}</div>
         <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>Name</div>
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Chicken rice bowl"
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} onFocus={scrollIntoViewOnFocus} placeholder="e.g. Chicken rice bowl"
           style={{ width: "100%", background: C.bg, border: `1px solid ${nameOk || form.name === "" ? C.line : C.coral}`, borderRadius: 11, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, marginBottom: 8, boxSizing: "border-box" }} />
         <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4 }}>Serving</div>
-        <input value={form.serving} onChange={(e) => setForm({ ...form, serving: e.target.value })} placeholder="e.g. 1 bowl"
+        <input value={form.serving} onChange={(e) => setForm({ ...form, serving: e.target.value })} onFocus={scrollIntoViewOnFocus} placeholder="e.g. 1 bowl"
           style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, marginBottom: 8, boxSizing: "border-box" }} />
         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           {[["calories", "kcal"], ["protein", "P (g)"], ["carbs", "C (g)"], ["fat", "F (g)"]].map(([k, lbl]) => (
             <div key={k} style={{ flex: 1 }}>
               <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{lbl}</div>
-              <input type="number" inputMode="decimal" min="0" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+              <input type="number" inputMode="decimal" min="0" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} onFocus={scrollIntoViewOnFocus}
                 style={{ width: "100%", background: C.bg, border: `1px solid ${numOk(form[k]) ? C.line : C.coral}`, borderRadius: 10, padding: "8px 9px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
             </div>
           ))}
         </div>
         <div style={{ width: "33%", marginBottom: 8 }}>
           <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>Fiber (g)</div>
-          <input type="number" inputMode="decimal" min="0" value={form.fiber} onChange={(e) => setForm({ ...form, fiber: e.target.value })}
+          <input type="number" inputMode="decimal" min="0" value={form.fiber} onChange={(e) => setForm({ ...form, fiber: e.target.value })} onFocus={scrollIntoViewOnFocus}
             style={{ width: "100%", background: C.bg, border: `1px solid ${numOk(form.fiber) ? C.line : C.coral}`, borderRadius: 10, padding: "8px 9px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
         </div>
         <div style={{ fontSize: 10.5, color: C.muted, margin: "4px 0 6px" }}>Tag (optional)</div>
@@ -6995,13 +7079,14 @@ function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 
 function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = "meals", onSub, nutriInfo, moveInfo, sleepInfo, daily, onDaily, onAddEntry,
   supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, library, onQuick, entriesHistory,
   favoriteMeals, onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood, onSnapFood, onScanLabel, onDescribe, onManual,
-  onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate, onOpenLogSheet }) {
+  onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate, onOpenLogSheet, flashEntryId }) {
   const [showMicros, setShowMicros] = useState(advanced);
   const [showAllFood, setShowAllFood] = useState(false);
   const [showSupps, setShowSupps] = useState(advanced || (supps?.length || 0) <= 4);
@@ -7293,7 +7378,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
             const ms = mealScore(e, targets);
             const msCol = ms ? (ms.score >= 70 ? C.greenSoft : ms.score >= 45 ? C.amber : C.coral) : C.muted;
             return (
-              <div key={e.id} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+              <div key={e.id} className={flashEntryId === e.id ? "sprig-pop" : ""} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: flashEntryId === e.id ? `0 0 0 2px ${C.lime}, ${C.shadow}` : C.shadow, border: `1px solid ${flashEntryId === e.id ? C.lime : C.line}`, transition: "box-shadow .3s ease, border-color .3s ease" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   {ms && (
                     <div style={{ width: 38, height: 38, borderRadius: 11, background: msCol + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>
@@ -7780,44 +7865,56 @@ function EnergyCurveCard({ sleepInfo }) {
       </div>
     );
   }
-  // Fixed full-day domain: 0 (00:00) → 1440 (24:00). Points past midnight wrap into the same day.
+  // ---- Centered window: Now sits in the middle; past energy on the left, predicted on the right.
   const W = 380, H = 150, padL = 8, padR = 8, top = 12, bot = 22;
-  const DAY = 1440;
-  const x = (m) => padL + (Math.max(0, Math.min(DAY, m)) / DAY) * (W - padL - padR);
+  const DAY = 1440, HALF = 480;                 // ±8 hours → 16h visible span
+  const nowMin = tsToMin(Date.now());           // minutes since midnight (0..1440)
+  const lo = nowMin - HALF, hi = nowMin + HALF;  // absolute-minute domain (may be <0 or >1440)
+  const x = (m) => padL + ((m - lo) / (hi - lo)) * (W - padL - padR);
   const y = (e) => top + (1 - Math.max(0, Math.min(100, e)) / 100) * (H - top - bot);
   const wrap = (m) => ((m % DAY) + DAY) % DAY;
+  // For a wrapped minute-of-day value, return the copy (…-1day, same, +1day) that lands in [lo,hi].
+  const inWin = (mod) => {
+    for (const off of [-DAY, 0, DAY]) { const v = mod + off; if (v >= lo - 1 && v <= hi + 1) return v; }
+    return null;
+  };
 
-  // Recommended sleep window (wraps midnight): from bedtime to wake time.
-  const bedM = wrap(rec?.recBed ?? todayBed ?? 1380);   // e.g. 23:00
-  const wakeM = wrap(rec?.recWake ?? wakeMin ?? 420);    // e.g. 07:00
-  const SLEEP_E = 8; // flat low "asleep" energy level
+  const bedM = wrap(rec?.recBed ?? todayBed ?? 1380);
+  const wakeM = wrap(rec?.recWake ?? wakeMin ?? 420);
+  const SLEEP_E = 8;
+  const inSleep = (mod) => (bedM > wakeM ? (mod >= bedM || mod < wakeM) : (mod >= bedM && mod < wakeM));
 
-  // Build a full 0..1440 curve: low/flat during the sleep window, the modeled curve while awake.
+  // Build the energy curve across the visible window by sampling every 10 min of absolute time.
+  // Awake minutes read the modeled curve (nearest sample); sleep minutes sit flat-low.
   const awake = curve.map((p) => ({ min: wrap(p.min), e: p.e })).sort((a, b) => a.min - b.min);
-  const inSleep = (m) => (bedM > wakeM ? (m >= bedM || m < wakeM) : (m >= bedM && m < wakeM));
-  const full = [];
-  full.push({ min: 0, e: inSleep(0) ? SLEEP_E : (awake[0]?.e ?? 40) });
-  // sleep band edges as anchor points so the line sits flat-low through the night
-  [wakeM, bedM].forEach((edge) => full.push({ min: edge, e: SLEEP_E }));
-  awake.forEach((p) => { if (!inSleep(p.min)) full.push(p); });
-  full.push({ min: DAY, e: inSleep(DAY - 1) ? SLEEP_E : (awake[awake.length - 1]?.e ?? 40) });
-  const pts = full.sort((a, b) => a.min - b.min).filter((p, i, arr) => i === 0 || p.min !== arr[i - 1].min);
+  const sampleAwake = (mod) => {
+    if (!awake.length) return 40;
+    let best = awake[0], bd = 1e9;
+    for (const p of awake) { const d = Math.min(Math.abs(p.min - mod), DAY - Math.abs(p.min - mod)); if (d < bd) { bd = d; best = p; } }
+    return best.e;
+  };
+  const pts = [];
+  for (let m = lo; m <= hi; m += 10) { const mod = wrap(m); pts.push({ m, e: inSleep(mod) ? SLEEP_E : sampleAwake(mod) }); }
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p.m).toFixed(1)},${y(p.e).toFixed(1)}`).join(" ");
+  const area = pts.length ? `${line} L${x(pts[pts.length - 1].m).toFixed(1)},${H - bot} L${x(pts[0].m).toFixed(1)},${H - bot} Z` : "";
 
-  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p.min).toFixed(1)},${y(p.e).toFixed(1)}`).join(" ");
-  const area = pts.length ? `${line} L${x(pts[pts.length - 1].min).toFixed(1)},${H - bot} L${x(pts[0].min).toFixed(1)},${H - bot} Z` : "";
-  const nowMin = tsToMin(Date.now());
-  const nowX = x(nowMin);
-  const ticks = [0, 360, 720, 1080, 1440];
-  const tickLabel = (m) => (m === 1440 ? "24:00" : `${String(Math.floor(m / 60)).padStart(2, "0")}:00`);
+  // Sleep band rect(s) visible in the window
+  const sleepRects = [];
+  for (const off of [-DAY, 0, DAY]) {
+    let a = bedM + off, b = (bedM > wakeM ? wakeM + DAY : wakeM) + off;
+    const ca = Math.max(a, lo), cb = Math.min(b, hi);
+    if (cb > ca) sleepRects.push([ca, cb]);
+  }
+  const nowX = x(nowMin); // == horizontal center by construction
 
-  // sleep band rects (split across midnight if it wraps)
-  const sleepRects = bedM > wakeM
-    ? [[bedM, DAY], [0, wakeM]]           // e.g. 23:00→24:00 and 00:00→07:00
-    : [[bedM, wakeM]];
-  const sleepMidX = bedM > wakeM ? x(wrap((bedM + (DAY - bedM + wakeM) / 2))) : x((bedM + wakeM) / 2);
+  // Hourly ticks at clean clock hours inside the window
+  const ticks = [];
+  const firstHour = Math.ceil(lo / 120) * 120;     // every 2h
+  for (let m = firstHour; m <= hi; m += 120) ticks.push(m);
+  const tickLabel = (m) => `${String(wrap(Math.round(m / 60) * 60) / 60 % 24).padStart(2, "0")}:00`;
 
   return (
-    <div style={{ background: C.card, borderRadius: 20, padding: "14px 12px 8px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+    <div style={{ background: C.card, borderRadius: 20, padding: "14px 12px 8px", boxShadow: C.shadow, border: `1px solid ${C.line}`, overflow: "hidden" }}>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: "auto", display: "block" }}>
         <defs>
           <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
@@ -7825,30 +7922,33 @@ function EnergyCurveCard({ sleepInfo }) {
             <stop offset="100%" stopColor={C.leaf} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        {/* recommended sleep window — shaded indigo band */}
+        {/* faint "past" shade left of Now */}
+        <rect x={padL} y={top} width={Math.max(0, nowX - padL)} height={H - top - bot} fill={C.ink} opacity={C.isDark ? "0.06" : "0.03"} />
+        {/* recommended sleep band */}
         {sleepRects.map(([a, b], i) => (
           <rect key={"sl" + i} x={x(a)} y={top} width={Math.max(0, x(b) - x(a))} height={H - top - bot} fill="#6C7BE0" opacity={C.isDark ? "0.16" : "0.12"} />
         ))}
         {/* hour gridlines */}
-        {ticks.map((m) => <line key={"g" + m} x1={x(m)} y1={top} x2={x(m)} y2={H - bot} stroke={C.line} strokeWidth="1" />)}
-        {gym && <rect x={x(wrap(gym.start))} y={top} width={Math.max(2, x(wrap(gym.end)) - x(wrap(gym.start)))} height={H - top - bot} fill={C.green} opacity="0.10" rx="4" />}
+        {ticks.map((m, i) => <line key={"g" + i} x1={x(m)} y1={top} x2={x(m)} y2={H - bot} stroke={C.line} strokeWidth="1" />)}
+        {/* gym window if it falls in view */}
+        {gym && (() => { const gs = inWin(wrap(gym.start)), ge = inWin(wrap(gym.end)); return gs != null && ge != null ? <rect x={x(gs)} y={top} width={Math.max(2, x(ge) - x(gs))} height={H - top - bot} fill={C.green} opacity="0.10" rx="4" /> : null; })()}
         {area && <path d={area} fill="url(#eg)" />}
         {line && <path d={line} fill="none" stroke={C.leaf} strokeWidth="2.4" strokeLinejoin="round" />}
-        {(mealMarks || []).map((m, i) => (
+        {(mealMarks || []).map((mk, i) => { const mx = inWin(wrap(mk.min)); return mx == null ? null : (
           <g key={i}>
-            <line x1={x(wrap(m.min))} y1={top} x2={x(wrap(m.min))} y2={H - bot} stroke={C.amber} strokeWidth="1" strokeDasharray="2 3" opacity="0.6" />
-            <circle cx={x(wrap(m.min))} cy={H - bot} r="3.5" fill={C.amber} />
+            <line x1={x(mx)} y1={top} x2={x(mx)} y2={H - bot} stroke={C.amber} strokeWidth="1" strokeDasharray="2 3" opacity="0.6" />
+            <circle cx={x(mx)} cy={H - bot} r="3.5" fill={C.amber} />
           </g>
-        ))}
-        {/* sleep moon label centered in the band */}
-        <text x={Math.min(W - 16, Math.max(16, sleepMidX))} y={top + 12} fontSize="9" fill="#8E9BEA" textAnchor="middle" fontFamily="DM Sans" fontWeight="700">Sleep</text>
-        {/* NOW marker */}
+        ); })}
+        {/* sleep label if a band is wide enough */}
+        {sleepRects.map(([a, b], i) => (x(b) - x(a) > 36 ? <text key={"st" + i} x={(x(a) + x(b)) / 2} y={top + 12} fontSize="9" fill="#8E9BEA" textAnchor="middle" fontFamily="DM Sans" fontWeight="700">Sleep</text> : null))}
+        {/* NOW marker — centered */}
         <line x1={nowX} y1={top - 4} x2={nowX} y2={H - bot} stroke={C.coral} strokeWidth="1.8" />
         <circle cx={nowX} cy={top - 4} r="3" fill={C.coral} />
-        <text x={Math.min(W - 18, Math.max(16, nowX))} y={top - 7} fontSize="9" fill={C.coral} textAnchor="middle" fontFamily="DM Sans" fontWeight="700">Now</text>
+        <text x={nowX} y={top - 7} fontSize="9" fill={C.coral} textAnchor="middle" fontFamily="DM Sans" fontWeight="700">Now</text>
         {/* hour labels */}
-        {ticks.map((m) => (
-          <text key={"t" + m} x={Math.min(W - 12, Math.max(12, x(m)))} y={H - 6} fontSize="9" fill={C.muted} textAnchor="middle" fontFamily="DM Sans">{tickLabel(m)}</text>
+        {ticks.map((m, i) => (
+          <text key={"t" + i} x={Math.min(W - 12, Math.max(12, x(m)))} y={H - 6} fontSize="9" fill={C.muted} textAnchor="middle" fontFamily="DM Sans">{tickLabel(m)}</text>
         ))}
       </svg>
       <div style={{ display: "flex", gap: 14, padding: "4px 6px 2px", flexWrap: "wrap" }}>
@@ -9245,6 +9345,7 @@ function CoachTab({ coach, advanced, moveInfo, timeline, plateaus, patterns, onG
 function SearchSheet({ onClose, onJump, results, query, setQuery }) {
   const kindIcon = (k) => ({ food: "🥗", exercise: "🏋️", workout: "📈", supp: "💊", pain: "⚠️", weight: "⚖️", sleep: "🌙", health: "❤️", focus: "🎯", note: "📝" })[k] || "•";
   return (
+    <Portal>
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 90 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
         style={{ maxWidth: 440, margin: "60px auto 0", background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 14, maxHeight: "75vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
@@ -9277,6 +9378,7 @@ function SearchSheet({ onClose, onJump, results, query, setQuery }) {
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -9507,6 +9609,7 @@ function PhotoSheet({ onClose, photos, onAdd, onRemove }) {
 
 /* ================= QUICK LOG SHEET ================= */
 function QuickLogSheet({ ci, daily, sleepInfo, profile, painActive, onCheckin, onDaily, onClose, onOpenWeight, onStartWorkout }) {
+  const kb = useKeyboardInset();
   const trainedYes = (daily?.trainedToday) || false; // derived flag passed in via daily for simplicity
   const [trained, setTrained] = useState(trainedYes ? "yes" : null);
   const [protein, setProtein] = useState(null);
@@ -9542,9 +9645,10 @@ function QuickLogSheet({ ci, daily, sleepInfo, profile, painActive, onCheckin, o
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", display: "grid", placeItems: "flex-end center", zIndex: 50, padding: 0 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
-        style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
+    <Portal>
+    <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", display: "grid", placeItems: "flex-end center", zIndex: 90, padding: 0 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="sprig-sheet"
+        style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: `calc(22px + env(safe-area-inset-bottom, 0px) + ${kb}px)`, maxHeight: "88vh", overflowY: "auto", WebkitOverflowScrolling: "touch", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <Zap size={17} color={C.green} />
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700 }}>Quick Log Day</div>
@@ -9566,7 +9670,7 @@ function QuickLogSheet({ ci, daily, sleepInfo, profile, painActive, onCheckin, o
         <div style={{ background: C.bg, borderRadius: 13, padding: 13, marginBottom: 12 }}>
           <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>Weight today <span style={{ fontSize: 10.5, color: C.muted, fontWeight: 400 }}>· optional</span></div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-            <input value={w} onChange={(e) => setW(e.target.value)} inputMode="decimal" placeholder={profile?.unit || "kg"}
+            <input value={w} onChange={(e) => setW(e.target.value)} onFocus={scrollIntoViewOnFocus} inputMode="decimal" placeholder={profile?.unit || "kg"}
               style={{ width: 80, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 9, padding: "9px 4px", fontFamily: "DM Sans", fontSize: 14, fontWeight: 600, background: C.card, color: C.ink }} />
             <span style={{ fontSize: 11.5, color: C.muted }}>{profile?.unit || "kg"}</span>
           </div>
@@ -9580,6 +9684,7 @@ function QuickLogSheet({ ci, daily, sleepInfo, profile, painActive, onCheckin, o
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -10282,7 +10387,6 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   const [showCue, setShowCue] = useState(false);
   const [showPlate, setShowPlate] = useState(false);
   const [editRest, setEditRest] = useState(false);
-  const [overload, setOverload] = useState(null);   // { text } brief celebration on a PR set
   const restSecs = customRests[ex.name] ?? restDefault(meta);
   const setNo = ex.sets.length + 1;
 
@@ -10296,25 +10400,13 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   function log() {
     const W = parseFloat(w) || 0, R = parseInt(reps) || 0;
     if (R <= 0) return;
-    // Progressive-overload detection: does this set beat the best historical e1RM for this exercise?
-    const histBest = exLastBest(workouts, ex.name).best || 0;
-    const thisE1 = est1RM(W, R);
-    if (histBest > 0 && thisE1 > histBest * 1.001) {
-      setOverload({ text: "New best" });
-      buzz("strong");
-      setTimeout(() => setOverload(null), 2600);
-    }
+    // PR detection + the new-record medal are handled at the app-frame level in woLogSet.
     // Log the set; the RIR prompt is opened at the app-frame level by the parent's woLogSet.
     onLogSet(exIdx, { w: W, reps: R, rir: null });
     onStartRest(ex.name);
   }
   return (
     <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10, position: "relative" }}>
-      {overload && (
-        <div className="sprig-pop" style={{ position: "absolute", top: 10, right: 12, zIndex: 5, display: "inline-flex", alignItems: "center", gap: 5, background: C.green, color: "#fff", borderRadius: 99, padding: "5px 11px", fontSize: 11.5, fontWeight: 700, boxShadow: "0 4px 14px rgba(35,84,58,.35)" }}>
-          <Sparkles size={13} /> {overload.text}
-        </div>
-      )}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{ex.name}</div>
