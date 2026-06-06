@@ -102,14 +102,16 @@ const FONTS = `
 @keyframes toastUp { from { opacity:0; transform: translate(-50%, 10px); } to { opacity:1; transform: translate(-50%, 0); } }
 @keyframes pulse { 0%,100%{opacity:.45;} 50%{opacity:1;} }
 @keyframes medalGlow { 0%,100%{box-shadow:0 0 0 0 rgba(199,255,61,.0),0 6px 20px rgba(0,0,0,.25);} 50%{box-shadow:0 0 22px 3px rgba(199,255,61,.5),0 6px 20px rgba(0,0,0,.25);} }
-@keyframes prToastIn { from{opacity:0;transform:translateX(-50%) translateY(-10px) scale(.96);} to{opacity:1;transform:translateX(-50%) translateY(0) scale(1);} }
+@keyframes prToastIn { from{opacity:0;transform:translateX(-50%) translateY(-12px) scale(.93);} to{opacity:1;transform:translateX(-50%) translateY(0) scale(1);} }
+@keyframes prToastOut { from{opacity:1;transform:translateX(-50%) translateY(0) scale(1);} to{opacity:0;transform:translateX(-50%) translateY(-8px) scale(.95);} }
 /* Apple-ish easing used consistently across the app */
 .sprig-rise { animation: rise .2s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-pop { animation: pop .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-pop-centered { animation: popCentered .18s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-sheet { animation: sheetUp .26s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-dim { animation: dimIn .2s ease both; }
-.sprig-medal { animation: prToastIn .26s cubic-bezier(.2,.8,.2,1) both, medalGlow 1.4s ease-in-out .3s; }
+.sprig-medal { animation: prToastIn .26s cubic-bezier(.2,.8,.2,1) both, medalGlow 2.2s ease-in-out .3s; }
+.sprig-medal-exit { animation: prToastOut .4s cubic-bezier(.4,0,1,1) both !important; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
 .sprig-tap { transition: transform .09s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease, filter .14s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -2641,26 +2643,61 @@ function exLastBest(workouts, exName) {
   return { best, bestSet };
 }
 // Detect whether a just-logged set is a personal record vs all prior history for that exercise.
-// Returns { kind, label } for the strongest PR type, or null. Checks e1RM, weight, reps, single-set volume.
-function detectSetPR(workouts, exName, W, R) {
+// Returns { kind, label, subLabel } for the strongest PR type, or null.
+// Priority: e1RM > weight > reps (at same weight) > single-set volume > session volume.
+// `activeExSets` = sets already logged THIS session for this exercise (for session-volume PR).
+function detectSetPR(workouts, exName, W, R, activeExSets) {
   if (!(W > 0) || !(R > 0)) return null;
-  let maxE1 = 0, maxW = 0, maxReps = 0, maxVol = 0;
-  workouts.forEach((wk) => wk.exercises.forEach((ex) => {
-    if (ex.name !== exName) return;
-    ex.sets.forEach((s) => {
-      maxE1 = Math.max(maxE1, est1RM(s.w, s.reps));
-      maxW = Math.max(maxW, s.w || 0);
-      maxReps = Math.max(maxReps, s.reps || 0);
-      maxVol = Math.max(maxVol, (s.w || 0) * (s.reps || 0));
+  let maxE1 = 0, maxW = 0, maxVol = 0;
+  // repsAtW: map weight → max reps seen historically (for per-weight rep PR detection)
+  const repsAtW = {};
+  // maxSessionVol: highest total volume for this exercise across any prior session
+  let maxSessionVol = 0;
+  workouts.forEach((wk) => {
+    let sessionExVol = 0;
+    wk.exercises.forEach((ex) => {
+      if (ex.name !== exName) return;
+      ex.sets.forEach((s) => {
+        const sw = s.w || 0, sr = s.reps || 0;
+        maxE1 = Math.max(maxE1, est1RM(sw, sr));
+        maxW = Math.max(maxW, sw);
+        maxVol = Math.max(maxVol, sw * sr);
+        if (sw > 0) repsAtW[sw] = Math.max(repsAtW[sw] || 0, sr);
+        sessionExVol += sw * sr;
+      });
     });
-  }));
-  if (maxE1 === 0 && maxW === 0) return null; // first time doing this lift — not a "record"
-  const thisE1 = est1RM(W, R), thisVol = W * R;
-  // priority: e1RM (overall strength) > weight > reps > volume
-  if (thisE1 > maxE1 * 1.001) return { kind: "e1rm", label: "New 1RM best" };
-  if (W > maxW) return { kind: "weight", label: "Weight PR" };
-  if (R > maxReps && W >= maxW * 0.95) return { kind: "reps", label: "Rep PR" };
-  if (thisVol > maxVol * 1.001) return { kind: "volume", label: "Volume PR" };
+    maxSessionVol = Math.max(maxSessionVol, sessionExVol);
+  });
+  if (maxE1 === 0 && maxW === 0) return null; // first ever lift — not a "record"
+
+  const thisE1 = est1RM(W, R);
+  const thisVol = W * R;
+
+  // 1. e1RM PR — overall strength record
+  if (thisE1 > maxE1 * 1.001) {
+    return { kind: "e1rm", label: "New 1RM Record", subLabel: `Est. ${Math.round(thisE1)} kg · ${W} kg × ${R}` };
+  }
+  // 2. Weight PR — heaviest ever loaded
+  if (W > maxW) {
+    return { kind: "weight", label: "Weight PR", subLabel: `${W} kg × ${R} reps` };
+  }
+  // 3. Rep PR at this exact weight — more reps than ever done at the same load
+  const prevRepsAtW = repsAtW[W] || 0;
+  if (R > prevRepsAtW) {
+    return { kind: "reps", label: "Rep PR", subLabel: `${W} kg × ${R} reps` };
+  }
+  // 4. Single-set volume PR
+  if (thisVol > maxVol * 1.001) {
+    return { kind: "volume", label: "Volume PR", subLabel: `${thisVol} kg total` };
+  }
+  // 5. Session volume PR — total volume this session for this exercise beats any prior session
+  if (activeExSets && activeExSets.length > 0) {
+    const prevSetsVol = activeExSets.reduce((acc, s) => acc + (s.w || 0) * (s.reps || 0), 0);
+    const newSessionVol = prevSetsVol + thisVol;
+    if (newSessionVol > maxSessionVol * 1.001) {
+      return { kind: "session-volume", label: "Session PR", subLabel: `${Math.round(newSessionVol)} kg total volume` };
+    }
+  }
   return null;
 }
 // Compute a workout recap on the fly. `priorWorkouts` are the sessions BEFORE this one
@@ -4336,7 +4373,8 @@ function SprigApp() {
   const [winsOpen, setWinsOpen] = useState(false);
   const [logSheet, setLogSheet] = useState(false);
   const [recapView, setRecapView] = useState(null); // { recap, ts } shown after finishing a workout
-  const [prFlash, setPrFlash] = useState(null); // { kind, label, exName, ts } — transient new-record medal
+  const [prFlash, setPrFlash] = useState(null);    // { kind, label, subLabel, exName, ts } — transient new-record medal
+  const [prFlashOut, setPrFlashOut] = useState(false); // true during the exit animation
   const [flashEntryId, setFlashEntryId] = useState(null); // briefly highlight a newly-logged meal
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -4389,6 +4427,16 @@ function SprigApp() {
   const [wins, setWins] = useState({});                     // { "<date>": [ {id,type,title,detail,source,createdAt,kudoed} ] }
   // Track keyboard inset at app level so food overlay can adjust its max-height.
   const kb = useKeyboardInset();
+  // Ref for the "Describe food" textarea — lets us delay-focus after the sheet animation
+  // settles, avoiding the iOS race where autoFocus fires before the keyboard is ready.
+  const describeRef = useRef(null);
+  useEffect(() => {
+    if (composer !== "text") return;
+    const t = setTimeout(() => {
+      try { describeRef.current?.focus(); } catch (_) {}
+    }, 320);
+    return () => clearTimeout(t);
+  }, [composer]);
   const fileRef = useRef(null);
   const labelRef = useRef(null);
   const suppLabelRef = useRef(null);
@@ -5225,8 +5273,16 @@ function SprigApp() {
     const exName = activeWorkout.exercises[exIdx]?.name;
     // PR check BEFORE we append the set (compare against all prior history)
     try {
-      const pr = detectSetPR(workouts, exName, set.w, set.reps);
-      if (pr) { setPrFlash({ ...pr, exName, ts: Date.now() }); buzz("strong"); setTimeout(() => setPrFlash((f) => (f && f.ts && Date.now() - f.ts >= 1400 ? null : f)), 1600); }
+      const activeExSets = activeWorkout.exercises[exIdx]?.sets || [];
+      const pr = detectSetPR(workouts, exName, set.w, set.reps, activeExSets);
+      if (pr) {
+        setPrFlashOut(false);
+        setPrFlash({ ...pr, exName, ts: Date.now() });
+        buzz("strong");
+        // Fade-out starts at 2900ms, unmount at 3300ms (total ~2.9s visible + 0.4s fade)
+        setTimeout(() => setPrFlashOut(true), 2900);
+        setTimeout(() => { setPrFlash(null); setPrFlashOut(false); }, 3300);
+      }
     } catch (_) {}
     const next = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: [...e.sets, { ...set, ts: Date.now() }] } : e);
     persistActive({ ...activeWorkout, exercises: next });
@@ -5733,11 +5789,19 @@ function SprigApp() {
       {(busy || result || composer) && (
         <Portal>
           <div className="sprig-dim" onClick={() => { if (!busy) { setComposer(null); setResult(null); setFavoriteMode(false); setError(""); } }}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000,
+              /* paddingBottom lifts the sheet above the keyboard on iOS Safari where
+                 position:fixed inset:0 tracks the layout viewport (not the visual viewport).
+                 kb = visualViewport gap = keyboard height. */
+              paddingBottom: kb }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet"
-              style={{ width: "100%", maxWidth: 440, background: C.isDark ? "#102018" : "#FFFFFF", border: `1px solid ${C.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`, borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column", maxHeight: `calc(100dvh - env(safe-area-inset-top, 0px) - ${kb}px - 24px)`, boxShadow: "0 -12px 40px rgba(0,0,0,.55)" }}>
+              style={{ width: "100%", maxWidth: 440, background: C.isDark ? "#102018" : "#FFFFFF", border: `1px solid ${C.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`, borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column",
+                /* maxHeight: use visual-viewport height minus safe-area minus padding — no kb subtraction
+                   needed since paddingBottom on the backdrop already lifts us above the keyboard. */
+                maxHeight: `calc(100dvh - env(safe-area-inset-top, 0px) - 20px)`,
+                boxShadow: "0 -12px 40px rgba(0,0,0,.55)" }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "10px auto 4px", flexShrink: 0 }} />
-              <div className="sprig-scroll" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 18px 0" }}>
+              <div className="sprig-scroll" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 18px 0", flex: 1 }}>
                 {error && <div style={{ background: "#fdeee8", color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
 
                 {busy && (
@@ -5776,18 +5840,22 @@ function SprigApp() {
                     </div>
                     <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
                       placeholder="e.g. Vitamin D3 2000 IU + magnesium glycinate 400mg, or omega-3 fish oil 1000mg"
-                      style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, outline: "none", resize: "none", background: C.bg, fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 80, lineHeight: 1.45, boxSizing: "border-box" }} />
+                      style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, outline: "none", resize: "none", background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 80, lineHeight: 1.45, boxSizing: "border-box" }} />
                   </div>
                 )}
 
                 {composer === "text" && !busy && !result && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ display: "flex", flexDirection: "column", marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
                       <PencilLine size={14} /> Describe your food
                     </div>
-                    <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
+                    {/* ref-based textarea — delayed focus via useEffect (not autoFocus) so the
+                        sheet is fully positioned before the keyboard opens, preventing the iOS
+                        race where keyboard fires before our kb offset has applied. */}
+                    <textarea ref={describeRef} value={draft} onChange={(e) => setDraft(e.target.value)}
+                      onFocus={() => setTimeout(() => { try { describeRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {} }, 100)}
                       placeholder="e.g. two eggs, a slice of sourdough, half an avocado and a flat white"
-                      style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, outline: "none", resize: "none", background: C.bg, fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 90, lineHeight: 1.45, boxSizing: "border-box" }} />
+                      style={{ width: "100%", border: `1.5px solid ${C.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`, borderRadius: 14, padding: 14, outline: "none", resize: "none", background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", fontSize: 15, color: C.ink, minHeight: 130, lineHeight: 1.55, boxSizing: "border-box" }} />
                   </div>
                 )}
 
@@ -5840,11 +5908,11 @@ function SprigApp() {
         </Portal>
       )}
 
-      {/* New-record toast — Hevy-like: compact pill, top-anchored, slides down, 1.5s auto-dismiss.
+      {/* New-record toast — Hevy-like: compact pill, top-anchored, ~2.9s visible then fades out.
           z-index 4000 hardcoded so it always renders above every overlay. */}
       {prFlash && (
         <Portal>
-          <div className="sprig-medal" style={{
+          <div className={`sprig-medal${prFlashOut ? " sprig-medal-exit" : ""}`} style={{
             position: "fixed",
             top: "calc(env(safe-area-inset-top, 0px) + 58px)",
             left: "50%",
@@ -5853,20 +5921,23 @@ function SprigApp() {
             background: C.isDark ? "#1A3020" : "#FFFFFF",
             border: `1.5px solid ${C.lime}`,
             borderRadius: 99,
-            padding: "7px 13px 7px 9px",
+            padding: "8px 16px 8px 10px",
             display: "flex",
             alignItems: "center",
-            gap: 7,
+            gap: 8,
             boxShadow: `0 0 16px ${C.lime}44, 0 4px 14px rgba(0,0,0,.3)`,
-            maxWidth: "min(88vw, 320px)",
+            maxWidth: "min(88vw, 340px)",
             whiteSpace: "nowrap",
+            cursor: "default",
           }}>
-            <div style={{ width: 22, height: 22, borderRadius: 99, background: `radial-gradient(circle at 50% 35%, ${C.lime}, ${C.green})`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <Medal size={12} color="#0A1F12" />
+            <div style={{ width: 26, height: 26, borderRadius: 99, background: `radial-gradient(circle at 50% 35%, ${C.lime}, ${C.green})`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Medal size={14} color="#0A1F12" />
             </div>
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.ink, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{prFlash.label}</span>
-              <span style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis" }}>{prFlash.exName}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{prFlash.label}</span>
+              <span style={{ fontSize: 11, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
+                {prFlash.subLabel || prFlash.exName}
+              </span>
             </div>
           </div>
         </Portal>
@@ -11554,7 +11625,6 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
                       <div style={{ fontSize: 11, color: C.muted }}>{lbl}</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3 }}>
                         <span style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700 }}>{m.current}</span>
-                        <span style={{ fontSize: 11, color: C.muted }}>cm</span>
                         {m.change != null && <span style={{ fontSize: 11, color: upCol, fontWeight: 600, marginLeft: "auto" }}>{m.change > 0 ? "+" : ""}{m.change}</span>}
                       </div>
                     </div>
