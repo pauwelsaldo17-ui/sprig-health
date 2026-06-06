@@ -96,18 +96,20 @@ const FONTS = `
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes rise { from { opacity:0; transform: translateY(8px);} to {opacity:1; transform:none;} }
 @keyframes pop { 0%{transform:scale(.96);opacity:0;} 100%{transform:scale(1);opacity:1;} }
+@keyframes popCentered { from{opacity:0;transform:translateX(-50%) scale(.96);} to{opacity:1;transform:translateX(-50%) scale(1);} }
 @keyframes sheetUp { from { transform: translateY(18px); opacity:.6; } to { transform: translateY(0); opacity:1; } }
 @keyframes dimIn { from { opacity:0; } to { opacity:1; } }
 @keyframes toastUp { from { opacity:0; transform: translate(-50%, 10px); } to { opacity:1; transform: translate(-50%, 0); } }
 @keyframes pulse { 0%,100%{opacity:.45;} 50%{opacity:1;} }
-@keyframes medalIn { 0%{transform:translate(-50%,-50%) scale(.6);opacity:0;} 35%{transform:translate(-50%,-50%) scale(1.08);opacity:1;} 55%{transform:translate(-50%,-50%) scale(1);} 100%{transform:translate(-50%,-50%) scale(1);opacity:1;} }
-@keyframes medalGlow { 0%,100%{box-shadow:0 0 0 0 rgba(199,255,61,.0),0 10px 40px rgba(0,0,0,.4);} 50%{box-shadow:0 0 36px 6px rgba(199,255,61,.55),0 10px 40px rgba(0,0,0,.4);} }
+@keyframes medalGlow { 0%,100%{box-shadow:0 0 0 0 rgba(199,255,61,.0),0 6px 20px rgba(0,0,0,.25);} 50%{box-shadow:0 0 22px 3px rgba(199,255,61,.5),0 6px 20px rgba(0,0,0,.25);} }
+@keyframes prToastIn { from{opacity:0;transform:translateX(-50%) translateY(-10px) scale(.96);} to{opacity:1;transform:translateX(-50%) translateY(0) scale(1);} }
 /* Apple-ish easing used consistently across the app */
 .sprig-rise { animation: rise .2s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-pop { animation: pop .22s cubic-bezier(.2,.8,.2,1) both; }
+.sprig-pop-centered { animation: popCentered .18s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-sheet { animation: sheetUp .26s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-dim { animation: dimIn .2s ease both; }
-.sprig-medal { animation: medalIn .5s cubic-bezier(.2,.8,.2,1) both, medalGlow 1.4s ease-in-out .3s; }
+.sprig-medal { animation: prToastIn .26s cubic-bezier(.2,.8,.2,1) both, medalGlow 1.4s ease-in-out .3s; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
 .sprig-tap { transition: transform .09s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease, filter .14s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -117,7 +119,7 @@ const FONTS = `
 /* iOS momentum scrolling + native rubber-band (don't block overscroll on the scroll area) */
 .sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-y: auto; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
-  .sprig-rise, .sprig-pop, .sprig-sheet, .sprig-dim, .sprig-toast-anim { animation-duration: .01ms !important; }
+  .sprig-rise, .sprig-pop, .sprig-pop-centered, .sprig-sheet, .sprig-dim, .sprig-toast-anim { animation-duration: .01ms !important; }
   .sprig-medal { animation: none !important; }
   .sprig-tap:active { transform: none; filter: none; }
   .sprig-scroll { scroll-behavior: auto; }
@@ -5632,7 +5634,7 @@ function SprigApp() {
         </div>
       </div>
 
-      <div className={`sprig-scroll sprig-content${(tab === "nutrition" || activeWorkout) ? " sprig-content-cta" : ""}`} style={{ overflowY: "auto", overflowX: "hidden", padding: "8px 16px 18px" }}>
+      <div className={`sprig-scroll sprig-content${(tab === "nutrition" || activeWorkout) ? " sprig-content-cta" : ""}`} style={{ overflowY: "auto", overflowX: "hidden", paddingTop: 8, paddingLeft: 16, paddingRight: 16 }}>
         {tab === "today" && (
           <TodayTab
             t={t} targets={targets} entries={entries} scores={scores} onRemove={removeEntry}
@@ -5714,85 +5716,100 @@ function SprigApp() {
           onResetOnboarding={() => { setTab("today"); setOnboarded(false); }} />}
       </div>
 
-      {/* logging dock — lives on the Nutrition tab (Snap / Scan / Describe / Manual + composer + results) */}
+      {/* logging dock — file inputs stay mounted on the Nutrition tab; the composer/result/busy
+          states render inside a portaled OVERLAY (above nav, solid sheet, sticky footer) so the
+          Analyze/Save button is never hidden by the keyboard or bottom nav. */}
       {tab === "nutrition" && (
-        <div style={{ padding: "0 16px 14px" }}>
-          {error && <div style={{ background: "#fdeee8", color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
-
-          {busy && (
-            <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: 16, display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow, marginBottom: 10 }}>
-              <Loader2 size={18} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
-              <span style={{ fontSize: 13.5, color: C.inkSoft }}>
-                {resultMode === "supplement" || resultMode === "supp-label" ? "Reading your supplement…" : "Reading your food…"}
-              </span>
-            </div>
-          )}
-
-          {result && !busy && (
-            <div style={{ marginBottom: 10 }}>
-              {favoriteMode && (
-                <div style={{ fontSize: 11.5, color: C.greenSoft, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-                  <BookMarked size={13} /> Saving as a favorite — review & edit next
-                </div>
-              )}
-              <ResultCard
-                result={result}
-                mode={resultMode}
-                isSupp={resultMode === "supplement" || resultMode === "supp-label"}
-                favoriteMode={favoriteMode}
-                onAdd={favoriteMode
-                  ? openFavoriteFromResult
-                  : ((resultMode === "supplement" || resultMode === "supp-label") ? addSupplement : addEntry)}
-                onCancel={() => { setResult(null); setFavoriteMode(false); }}
-              />
-            </div>
-          )}
-
-          {composer === "supp" && !busy && !result && (
-            <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, marginBottom: 10, border: `1px solid ${C.line}` }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                <Pill size={14} /> New supplement
-              </div>
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
-                placeholder="e.g. Vitamin D3 2000 IU + magnesium glycinate 400mg, or omega-3 fish oil 1000mg"
-                style={{ width: "100%", border: "none", outline: "none", resize: "none", background: "transparent", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 52, lineHeight: 1.45 }} />
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button className="sprig-tap" onClick={() => { setComposer(null); setDraft(""); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "11px 0" }}>Cancel</button>
-                <button className="sprig-tap" onClick={() => suppLabelRef.current?.click()} style={{ ...btn(C.bg2, C.ink), flex: 1, padding: "11px 0" }}><ScanLine size={15} /> Scan</button>
-                <button className="sprig-tap" disabled={!draft.trim()} onClick={() => { runAnalysis({ text: draft, mode: "supplement" }); setDraft(""); }}
-                  style={{ ...btn(draft.trim() ? C.green : C.bg2, draft.trim() ? "#fff" : C.muted), flex: 1.6, padding: "11px 0" }}>
-                  <Sparkles size={15} /> Add
-                </button>
-              </div>
-            </div>
-          )}
-
-          {composer === "text" && !busy && !result && (
-            <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, marginBottom: 10, border: `1px solid ${C.line}` }}>
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
-                placeholder="e.g. two eggs, a slice of sourdough, half an avocado and a flat white"
-                style={{ width: "100%", border: "none", outline: "none", resize: "none", background: "transparent", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 56, lineHeight: 1.45 }} />
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button className="sprig-tap" onClick={() => { setComposer(null); setDraft(""); setFavoriteMode(false); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "11px 0" }}>Cancel</button>
-                <button className="sprig-tap" disabled={!draft.trim()} onClick={() => { runAnalysis({ text: draft, mode: "text" }); setDraft(""); }}
-                  style={{ ...btn(draft.trim() ? C.green : C.bg2, draft.trim() ? "#fff" : C.muted), flex: 2, padding: "11px 0" }}>
-                  <Sparkles size={15} /> Analyze
-                </button>
-              </div>
-            </div>
-          )}
-
-          {composer === "manual" && !busy && !result && (
-            <ManualEntry onAdd={addManual} onCancel={() => setComposer(null)} />
-          )}
-
-          {/* Entry buttons (Snap / Scan / Describe / Manual) live in NutritionTab's "Log food"
-              section at the top; this dock keeps the composer, result card, and the hidden
-              file inputs those actions trigger. */}
+        <>
           <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={(e) => onFile(e, "photo")} style={{ display: "none" }} />
           <input ref={labelRef} type="file" accept="image/*" capture="environment" onChange={(e) => onFile(e, "label")} style={{ display: "none" }} />
           <input ref={suppLabelRef} type="file" accept="image/*" capture="environment" onChange={(e) => onFile(e, "supp-label")} style={{ display: "none" }} />
-        </div>
+        </>
+      )}
+
+      {/* Food logging overlay — one layer from menu → describe/manual → result. */}
+      {(busy || result || composer) && (
+        <Portal>
+          <div className="sprig-dim" onClick={() => { if (!busy) { setComposer(null); setResult(null); setFavoriteMode(false); setError(""); } }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: "var(--z-overlay)" }}>
+            <div onClick={(e) => e.stopPropagation()} className="sprig-sheet"
+              style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column", maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px)", boxShadow: "0 -8px 30px rgba(0,0,0,.4)" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "10px auto 4px", flexShrink: 0 }} />
+              <div className="sprig-scroll" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 18px 0" }}>
+                {error && <div style={{ background: "#fdeee8", color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
+
+                {busy && (
+                  <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: 16, display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow, marginBottom: 14 }}>
+                    <Loader2 size={18} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
+                    <span style={{ fontSize: 13.5, color: C.inkSoft }}>
+                      {resultMode === "supplement" || resultMode === "supp-label" ? "Reading your supplement…" : "Reading your food…"}
+                    </span>
+                  </div>
+                )}
+
+                {result && !busy && (
+                  <div style={{ marginBottom: 14 }}>
+                    {favoriteMode && (
+                      <div style={{ fontSize: 11.5, color: C.greenSoft, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                        <BookMarked size={13} /> Saving as a favorite — review & edit next
+                      </div>
+                    )}
+                    <ResultCard
+                      result={result}
+                      mode={resultMode}
+                      isSupp={resultMode === "supplement" || resultMode === "supp-label"}
+                      favoriteMode={favoriteMode}
+                      onAdd={favoriteMode
+                        ? openFavoriteFromResult
+                        : ((resultMode === "supplement" || resultMode === "supp-label") ? addSupplement : addEntry)}
+                      onCancel={() => { setResult(null); setFavoriteMode(false); }}
+                    />
+                  </div>
+                )}
+
+                {composer === "supp" && !busy && !result && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                      <Pill size={14} /> New supplement
+                    </div>
+                    <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
+                      placeholder="e.g. Vitamin D3 2000 IU + magnesium glycinate 400mg, or omega-3 fish oil 1000mg"
+                      style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, outline: "none", resize: "none", background: C.bg, fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 80, lineHeight: 1.45, boxSizing: "border-box" }} />
+                  </div>
+                )}
+
+                {composer === "text" && !busy && !result && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                      <PencilLine size={14} /> Describe your food
+                    </div>
+                    <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
+                      placeholder="e.g. two eggs, a slice of sourdough, half an avocado and a flat white"
+                      style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, outline: "none", resize: "none", background: C.bg, fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 90, lineHeight: 1.45, boxSizing: "border-box" }} />
+                  </div>
+                )}
+
+                {composer === "manual" && !busy && !result && (
+                  <ManualEntry onAdd={addManual} onCancel={() => setComposer(null)} embedded />
+                )}
+              </div>
+
+              {/* Sticky footer — primary action never hidden by keyboard/nav */}
+              {!busy && !result && (composer === "text" || composer === "supp") && (
+                <div style={{ position: "sticky", bottom: 0, background: C.cardSolid, borderTop: `1px solid ${C.line}`, padding: "12px 18px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)", display: "flex", gap: 8, flexShrink: 0 }}>
+                  <button className="sprig-tap" onClick={() => { setComposer(null); setDraft(""); setFavoriteMode(false); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "13px 0" }}>Cancel</button>
+                  {composer === "supp" && (
+                    <button className="sprig-tap" onClick={() => suppLabelRef.current?.click()} style={{ ...btn(C.bg2, C.ink), flex: 1, padding: "13px 0" }}><ScanLine size={15} /> Scan</button>
+                  )}
+                  <button className="sprig-tap" disabled={!draft.trim()} onClick={() => { runAnalysis({ text: draft, mode: composer === "supp" ? "supplement" : "text" }); setDraft(""); }}
+                    style={{ ...btn(draft.trim() ? C.lime : C.bg2, draft.trim() ? "#0A1F12" : C.muted), flex: 1.8, padding: "13px 0", fontWeight: 700 }}>
+                    <Sparkles size={15} /> {composer === "supp" ? "Add" : "Analyze"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </Portal>
       )}
 
       {/* tab bar — 8 tabs, horizontally scrollable on narrow screens */}
@@ -5817,16 +5834,16 @@ function SprigApp() {
         </Portal>
       )}
 
-      {/* New-record medal — brief, centered, premium. Portaled so it floats over everything. */}
+      {/* New-record toast — small, top-anchored (Hevy-like), not a full-screen modal. */}
       {prFlash && (
         <Portal>
-          <div style={{ position: "fixed", inset: 0, zIndex: "var(--z-medal)", pointerEvents: "none", display: "grid", placeItems: "center" }}>
-            <div className="sprig-medal" style={{ position: "fixed", left: "50%", top: "45%", transform: "translate(-50%, -50%)", background: C.cardSolid, border: `1.5px solid ${C.lime}`, borderRadius: 22, padding: "20px 26px", textAlign: "center", minWidth: 180 }}>
-              <div style={{ width: 56, height: 56, borderRadius: 99, margin: "0 auto 10px", background: `radial-gradient(circle at 50% 40%, ${C.lime}, ${C.green})`, display: "grid", placeItems: "center", boxShadow: `0 6px 20px ${C.lime}66` }}>
-                <Medal size={30} color="#0A1F12" />
-              </div>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, color: C.ink }}>{prFlash.label}</div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{prFlash.exName}</div>
+          <div className="sprig-medal" style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 70px)", left: "50%", transform: "translateX(-50%)", zIndex: 4000, background: C.cardSolid, border: `1.5px solid ${C.lime}`, borderRadius: 99, padding: "9px 16px 9px 11px", display: "flex", alignItems: "center", gap: 9, maxWidth: "92vw", whiteSpace: "nowrap" }}>
+            <div style={{ width: 26, height: 26, borderRadius: 99, background: `radial-gradient(circle at 50% 40%, ${C.lime}, ${C.green})`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Medal size={15} color="#0A1F12" />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <span style={{ fontFamily: "DM Sans", fontSize: 13, fontWeight: 700, color: C.ink, lineHeight: 1.15 }}>{prFlash.label}</span>
+              <span style={{ fontSize: 10.5, color: C.muted, overflow: "hidden", textOverflow: "ellipsis" }}>{prFlash.exName}</span>
             </div>
           </div>
         </Portal>
@@ -5837,7 +5854,7 @@ function SprigApp() {
           + transformed ancestors that would otherwise clip an absolute/fixed child). */}
       {activeWorkout && rest && (restLeft > 0 || restDone) && (
         <Portal>
-        <div className="sprig-pop" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.32)", zIndex: "var(--z-timer)" }}>
+        <div className="sprig-pop-centered" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.32)", zIndex: "var(--z-timer)" }}>
           <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : "#BFD0FF"} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 10.5, opacity: .75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -5863,7 +5880,7 @@ function SprigApp() {
           an active workout (rest timer owns that space) and on the Today tab (quick log is right there). */}
       {bedNudge && !bedNudgeDismissed && !activeWorkout && tab !== "today" && !quickOpen && (
         <Portal>
-        <div className="sprig-pop" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 416px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 11, boxShadow: "0 8px 30px rgba(0,0,0,.18)", zIndex: "var(--z-cta)" }}>
+        <div className="sprig-pop-centered" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 416px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 11, boxShadow: "0 8px 30px rgba(0,0,0,.18)", zIndex: "var(--z-cta)" }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, background: "#7A6FB022", display: "grid", placeItems: "center", flexShrink: 0 }}><Moon size={17} color="#7A6FB0" /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Wind-down check-in</div>
@@ -6247,37 +6264,37 @@ function DockBtn({ icon, label, onClick, primary }) {
   );
 }
 
-function ManualEntry({ onAdd, onCancel }) {
+function ManualEntry({ onAdd, onCancel, embedded }) {
   const [f, setF] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", fiber: "" });
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const ok = (f.calories || f.protein || f.carbs || f.fat);
-  const Field = ({ k, label, suffix }) => (
-    <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4, fontWeight: 600 }}>{label}</div>
-      <input value={f[k]} onChange={(e) => set(k, e.target.value)} onFocus={scrollIntoViewOnFocus} inputMode="decimal" placeholder="0"
-        style={{ width: "100%", textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 4px", fontFamily: "DM Sans", fontSize: 15, fontWeight: 600, background: C.bg, color: C.ink }} />
-    </div>
-  );
-  return (
-    <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, marginBottom: 10, border: `1px solid ${C.line}` }}>
+  // Fields inlined (not a nested component) so they don't remount + lose focus on each keystroke.
+  const fieldStyle = { width: "100%", textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 4px", fontFamily: "DM Sans", fontSize: 15, fontWeight: 600, background: C.bg, color: C.ink, boxSizing: "border-box" };
+  const inner = (
+    <>
       <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 9, display: "flex", alignItems: "center", gap: 6 }}>
         <Calculator size={14} /> Manual entry — no AI, just numbers
       </div>
       <input value={f.name} onChange={(e) => set("name", e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus} placeholder="Name (optional)"
-        style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 11px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink, marginBottom: 9 }} />
+        style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 11px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink, marginBottom: 9, boxSizing: "border-box" }} />
       <div style={{ display: "flex", gap: 7 }}>
-        <Field k="calories" label="Calories" />
-        <Field k="protein" label="Protein g" />
-        <Field k="carbs" label="Carbs g" />
-        <Field k="fat" label="Fat g" />
-        <Field k="fiber" label="Fiber g" />
+        {[["calories", "Calories"], ["protein", "Protein g"], ["carbs", "Carbs g"], ["fat", "Fat g"], ["fiber", "Fiber g"]].map(([k, label]) => (
+          <div key={k} style={{ flex: 1 }}>
+            <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 4, fontWeight: 600 }}>{label}</div>
+            <input value={f[k]} onChange={(e) => set(k, e.target.value)} onFocus={scrollIntoViewOnFocus} inputMode="decimal" placeholder="0" style={fieldStyle} />
+          </div>
+        ))}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 11 }}>
         <button className="sprig-tap" onClick={onCancel} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "11px 0" }}>Cancel</button>
         <button className="sprig-tap" disabled={!ok} onClick={() => onAdd(f)}
-          style={{ ...btn(ok ? C.green : C.bg2, ok ? "#fff" : C.muted), flex: 2, padding: "11px 0" }}><Plus size={15} /> Add to today</button>
+          style={{ ...btn(ok ? C.lime : C.bg2, ok ? "#0A1F12" : C.muted), flex: 2, padding: "11px 0", fontWeight: 700 }}><Plus size={15} /> Add to today</button>
       </div>
-    </div>
+    </>
+  );
+  if (embedded) return <div style={{ marginBottom: 8 }}>{inner}</div>;
+  return (
+    <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, marginBottom: 10, border: `1px solid ${C.line}` }}>{inner}</div>
   );
 }
 
@@ -7396,11 +7413,11 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
           text="Log with Snap, Scan, Describe, or add a favorite." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {(showAllFood ? [...entries].reverse() : [...entries].reverse().slice(0, 4)).map((e) => {
+          {(() => { const sorted = [...entries].sort((a, b) => (b.time || 0) - (a.time || 0)); return (showAllFood ? sorted : sorted.slice(0, 4)); })().map((e) => {
             const ms = mealScore(e, targets);
             const msCol = ms ? (ms.score >= 70 ? C.greenSoft : ms.score >= 45 ? C.amber : C.coral) : C.muted;
             return (
-              <div key={e.id} className={flashEntryId === e.id ? "sprig-pop" : ""} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: flashEntryId === e.id ? `0 0 0 2px ${C.lime}, ${C.shadow}` : C.shadow, border: `1px solid ${flashEntryId === e.id ? C.lime : C.line}`, transition: "box-shadow .3s ease, border-color .3s ease" }}>
+              <div key={e.id} ref={flashEntryId === e.id ? (el) => { if (el) setTimeout(() => { try { el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) {} }, 60); } : undefined} className={flashEntryId === e.id ? "sprig-pop" : ""} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: flashEntryId === e.id ? `0 0 0 2px ${C.lime}, ${C.shadow}` : C.shadow, border: `1px solid ${flashEntryId === e.id ? C.lime : C.line}`, transition: "box-shadow .3s ease, border-color .3s ease" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   {ms && (
                     <div style={{ width: 38, height: 38, borderRadius: 11, background: msCol + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>
