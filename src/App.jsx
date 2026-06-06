@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Camera, ScanLine, PencilLine, Home, BookMarked, TrendingUp, User,
   Plus, Check, X, Loader2, Sparkles, Trash2, Minus, RotateCcw, Flame, Pill,
@@ -109,9 +110,12 @@ const FONTS = `
 .sprig-tap { transition: transform .1s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .sprig-tap:active { transform: scale(.97); }
 .sprig-scroll::-webkit-scrollbar{width:0;height:0;}
+/* iOS momentum scrolling — without this the scroll feels stiff/janky */
+.sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .sprig-rise, .sprig-pop, .sprig-sheet, .sprig-dim, .sprig-toast-anim { animation-duration: .01ms !important; }
   .sprig-tap:active { transform: none; }
+  .sprig-scroll { scroll-behavior: auto; }
 }
 /* Mobile / PWA baseline — prevents horizontal scroll, honors iOS safe areas, lets the app fill the screen on phones */
 html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #07140F; overscroll-behavior: none; }
@@ -127,8 +131,10 @@ body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
   display: flex;
   flex-direction: column;
 }
-/* Scrollable content area leaves room for the fixed bottom nav + home indicator */
-.sprig-content { flex: 1; padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+/* Scrollable content area leaves room for the fixed bottom nav + home indicator.
+   Nav is ~64px of buttons + its own safe-area pad, so reserve generously so the last
+   card is never hidden and you can always scroll to the very bottom. */
+.sprig-content { flex: 1; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 /* Bottom nav pinned to the true bottom of the viewport, within the centered frame */
 .sprig-tabbar {
   position: fixed;
@@ -269,6 +275,13 @@ function getSprigDate(now = Date.now(), latestSleepLog = null, mode = "after-wak
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+// Renders children into document.body so overlays (sheets, modals) escape the app frame's
+// overflow:hidden / flex / transform context — fixes "grey screen, no content" on overlays.
+function Portal({ children }) {
+  if (typeof document === "undefined" || !document.body) return null;
+  return createPortal(children, document.body);
+}
 
 /* ---------------- data version + safe parsing -------------- */
 const DATA_VERSION = 2; // bump when schema needs migration
@@ -4148,6 +4161,7 @@ function SprigApp() {
   const [sleepSub, setSleepSub] = useState("sleep");  // sleep | alarm
   const [quickOpen, setQuickOpen] = useState(false);
   const [winsOpen, setWinsOpen] = useState(false);
+  const [logSheet, setLogSheet] = useState(false);
   const [recapView, setRecapView] = useState(null); // { recap, ts } shown after finishing a workout
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -5452,7 +5466,8 @@ function SprigApp() {
             onDescribe={() => { setComposer("text"); setResult(null); }}
             onManual={() => { setComposer("manual"); setResult(null); }}
             onOpenCreateFavorite={openFavoriteChooser} onOpenEditFavorite={openEditFavorite}
-            onFavoriteDuplicate={(form, existing) => setFavDup({ form, existing })} />
+            onFavoriteDuplicate={(form, existing) => setFavDup({ form, existing })}
+            onOpenLogSheet={() => setLogSheet(true)} />
         )}
         {tab === "train" && (
           <TrainTab workouts={workouts} active={activeWorkout} profile={profile} trainInfo={trainInfo} advanced={advanced}
@@ -5639,7 +5654,8 @@ function SprigApp() {
 
       {/* All of today's wins */}
       {winsOpen && (
-        <div onClick={() => setWinsOpen(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
+        <Portal>
+        <div onClick={() => setWinsOpen(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 90 }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)", maxHeight: "75vh", overflowY: "auto" }}>
             <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 14px" }} />
@@ -5655,6 +5671,7 @@ function SprigApp() {
             <button className="sprig-tap" onClick={() => setWinsOpen(false)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", marginTop: 12, padding: "6px 0" }}>Done</button>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* Workout recap — premium post-finish summary + kudos earned */}
@@ -5662,7 +5679,8 @@ function SprigApp() {
         const r = recapView.recap;
         const dayWins = (wins[date] || []).filter((w) => w.source === "workout");
         return (
-          <div onClick={() => setRecapView(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 82 }}>
+          <Portal>
+          <div onClick={() => setRecapView(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 91 }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
               style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.4)", maxHeight: "82vh", overflowY: "auto" }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 16px" }} />
@@ -5691,6 +5709,7 @@ function SprigApp() {
               <button className="sprig-tap" onClick={() => setRecapView(null)} style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "14px 0", marginTop: 8, fontWeight: 700 }}>Done</button>
             </div>
           </div>
+          </Portal>
         );
       })()}
 
@@ -5770,7 +5789,8 @@ function SprigApp() {
       {/* Favorite meal create/edit — frame-level so it's never clipped by the scroll container */}
       {/* First-workout rep-range preference — asked once, stored on the profile, editable in settings */}
       {repRangePrompt && (
-        <div style={{ position: "absolute", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 89, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+        <Portal>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 89, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "22px 18px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>What rep range do you train in?</div>
@@ -5799,6 +5819,7 @@ function SprigApp() {
               style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip — use smart defaults</button>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* Post-set RIR sheet — frame-level (was clipped by overflow:hidden when nested in the workout list) */}
@@ -5806,7 +5827,8 @@ function SprigApp() {
         const ex = activeWorkout.exercises[rirPrompt.exIdx];
         const s = ex?.sets?.[rirPrompt.setIdx];
         return (
-          <div onClick={() => setRirPrompt(null)} style={{ position: "absolute", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 88, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <Portal>
+          <div onClick={() => setRirPrompt(null)} style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 88, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
               style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
               <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, textAlign: "center", color: C.ink }}>How many reps in reserve?</div>
@@ -5825,12 +5847,44 @@ function SprigApp() {
               <button className="sprig-tap" onClick={() => setRirPrompt(null)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip</button>
             </div>
           </div>
+          </Portal>
         );
       })()}
 
+      {/* Log food sheet — frame level + portaled so it never renders as a grey/clipped overlay */}
+      {logSheet && (
+        <Portal>
+          <div onClick={() => setLogSheet(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 90 }}>
+            <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
+              style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 14px" }} />
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, marginBottom: 4, color: C.ink }}>Log food</div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>How do you want to add it?</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {[
+                  [() => { setResult(null); fileRef.current?.click(); }, Camera, "Snap food", "Photo → AI estimate"],
+                  [() => { setResult(null); labelRef.current?.click(); }, ScanLine, "Scan label", "Nutrition label → AI"],
+                  [() => { setComposer("text"); setResult(null); }, PencilLine, "Describe", "Type it, AI estimates"],
+                  [() => { setComposer("manual"); setResult(null); }, Calculator, "Manual", "Enter values yourself"],
+                ].map(([fn, Ic, title, subt]) => (
+                  <button key={title} className="sprig-tap" onClick={() => { setLogSheet(false); fn(); }}
+                    style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 5, textAlign: "left", fontFamily: "DM Sans" }}>
+                    <Ic size={18} color={C.lime} />
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{title}</span>
+                    <span style={{ fontSize: 10.5, color: C.muted }}>{subt}</span>
+                  </button>
+                ))}
+              </div>
+              <button className="sprig-tap" onClick={() => setLogSheet(false)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Cancel</button>
+            </div>
+          </div>
+        </Portal>
+      )}
+
       {/* Favorite-source chooser — same 4 methods as food logging, but result is saved as a favorite */}
       {favChooser && (
-        <div onClick={() => setFavChooser(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
+        <Portal>
+        <div onClick={() => setFavChooser(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>New favorite meal</div>
@@ -5853,6 +5907,7 @@ function SprigApp() {
             <button className="sprig-tap" onClick={() => setFavChooser(false)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Cancel</button>
           </div>
         </div>
+        </Portal>
       )}
 
       {favForm && (
@@ -5875,7 +5930,8 @@ function SprigApp() {
           }} />
       )}
       {favDup && (
-        <div onClick={() => setFavDup(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 86, padding: 24 }}>
+        <Portal>
+        <div onClick={() => setFavDup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 86, padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-pop" style={{ width: "100%", maxWidth: 340, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 20, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Favorite already exists</div>
             <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 16 }}>You already have a favorite called "{favDup.existing.name}". Replace it, or save a copy?</div>
@@ -5886,6 +5942,7 @@ function SprigApp() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* storage write-error banner — appears when persistence is failing (quota, rate limit, etc.) */}
@@ -6772,7 +6829,7 @@ function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
   const fieldsOk = ["calories", "protein", "carbs", "fat", "fiber"].every((k) => numOk(form[k]));
   const valid = nameOk && fieldsOk;
   return (
-    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 84 }}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
         style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{isNew ? "New favorite meal" : "Edit favorite"}</div>
@@ -6821,10 +6878,9 @@ function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
 function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = "meals", onSub, nutriInfo, moveInfo, sleepInfo, daily, onDaily, onAddEntry,
   supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, library, onQuick, entriesHistory,
   favoriteMeals, onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood, onSnapFood, onScanLabel, onDescribe, onManual,
-  onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate }) {
+  onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate, onOpenLogSheet }) {
   const [showMicros, setShowMicros] = useState(advanced);
   const [showAllFood, setShowAllFood] = useState(false);
-  const [logSheet, setLogSheet] = useState(false);
   const [showSupps, setShowSupps] = useState(advanced || (supps?.length || 0) <= 4);
   const [favSearch, setFavSearch] = useState("");
   const [favSort, setFavSort] = useState("recent"); // recent | most
@@ -6844,17 +6900,15 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
     <div className="sprig-rise">
       <SubTabs tabs={[["meals", "Meals"], ["nutrition", "Nutrition"]]} active={sub} onChange={onSub} />
 
-      {sub === "meals" && (<>
-      {/* Sticky primary CTA — one obvious action; opens a sheet with the four methods */}
+      {/* Sticky primary CTA — visible in BOTH subtabs; opens the frame-level log sheet */}
       {(onSnapFood || onScanLabel || onDescribe || onManual) && (
         <div className="sprig-glass" style={{ position: "sticky", top: -8, zIndex: 30, margin: "-8px -4px 8px", padding: "8px 4px", background: C.navBg }}>
-          <button className="sprig-tap" onClick={() => setLogSheet(true)}
+          <button className="sprig-tap" onClick={() => onOpenLogSheet && onOpenLogSheet()}
             style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "14px 0", fontSize: 15, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
             <Plus size={19} /> Log food
           </button>
         </div>
       )}
-      </>)}
 
       {sub === "nutrition" && (<>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 2px" }}>Nutrition</div>
@@ -7148,33 +7202,6 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
 
       <div style={{ height: 6 }} />
 
-      {/* Log food action sheet — opened by the primary CTA */}
-      {logSheet && (
-        <div onClick={() => setLogSheet(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 80 }}>
-          <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
-            style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
-            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 14px" }} />
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, marginBottom: 4, color: C.ink }}>Log food</div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>How do you want to add it?</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {[
-                [onSnapFood, Camera, "Snap food", "Photo → AI estimate"],
-                [onScanLabel, ScanLine, "Scan label", "Nutrition label → AI"],
-                [onDescribe, PencilLine, "Describe", "Type it, AI estimates"],
-                [onManual, Calculator, "Manual", "Enter values yourself"],
-              ].map(([fn, Ic, title, sub]) => fn && (
-                <button key={title} className="sprig-tap" onClick={() => { setLogSheet(false); fn(); }}
-                  style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 5, textAlign: "left", fontFamily: "DM Sans" }}>
-                  <Ic size={18} color={C.lime} />
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{title}</span>
-                  <span style={{ fontSize: 10.5, color: C.muted }}>{sub}</span>
-                </button>
-              ))}
-            </div>
-            <button className="sprig-tap" onClick={() => setLogSheet(false)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Cancel</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -7294,9 +7321,41 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
   return (
     <div className="sprig-rise">
       <SubTabs tabs={[["sleep", "Sleep"], ["alarm", "Alarm & Routine"]]} active={sub} onChange={onSub} />
+
+      {/* Primary sleep actions — visible in BOTH subtabs */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
+        <button className="sprig-tap" onClick={() => onStart(true)} style={{ ...btn(C.lime, "#0A1F12"), flex: 2, padding: "15px 0", flexDirection: "column", gap: 3, boxShadow: `0 6px 18px ${C.lime}33` }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 15, fontWeight: 700 }}><Moon size={17} /> Start sleep &amp; smart alarm</span>
+          <span style={{ fontSize: 11, opacity: .8, fontWeight: 600 }}>wakes you by {alarm.latest}</span>
+        </button>
+        <button className="sprig-tap" onClick={() => setShowManual((s) => !s)} style={{ ...btn(C.card, C.ink), flex: 1, padding: "15px 0", border: `1px solid ${C.line}`, flexDirection: "column", gap: 4, boxShadow: C.shadow }}>
+          <PencilLine size={17} /><span style={{ fontSize: 11.5 }}>Log past night</span>
+        </button>
+      </div>
+      {micState === "denied" && (
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, marginBottom: 4, lineHeight: 1.45 }}>
+          Movement sensing needs mic access (often blocked in this preview) — no problem, the smart alarm still uses the sleep-cycle model.
+        </div>
+      )}
+      {showManual && (
+        <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, margin: "12px 0" }}>
+          <div style={{ display: "flex", gap: 12 }}>
+            <label style={{ flex: 1, fontSize: 12, color: C.inkSoft }}>Fell asleep
+              <input type="time" value={bed} onChange={(e) => setBed(e.target.value)} style={{ width: "100%", marginTop: 5, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg }} /></label>
+            <label style={{ flex: 1, fontSize: 12, color: C.inkSoft }}>Woke up
+              <input type="time" value={wake} onChange={(e) => setWake(e.target.value)} style={{ width: "100%", marginTop: 5, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg }} /></label>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.inkSoft }}><span>How rested?</span><span style={{ fontWeight: 700, color: C.green }}>{qual}%</span></div>
+            <input type="range" min="10" max="100" value={qual} onChange={(e) => setQual(+e.target.value)} style={{ width: "100%", marginTop: 6, accentColor: C.green }} />
+          </div>
+          <button className="sprig-tap" onClick={submitManual} style={{ ...btn(C.green, "#fff"), width: "100%", padding: "12px 0", marginTop: 14 }}><Check size={16} /> Save sleep</button>
+        </div>
+      )}
+
       {sub === "sleep" && (<>
       {/* sleep debt hero */}
-      <div style={{ background: C.heroGrad1, borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow }}>
+      <div style={{ background: C.heroGrad1, borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow, marginTop: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: 11.5, opacity: .75, letterSpacing: .3 }}>SLEEP DEBT · WEIGHTED, LAST 14 NIGHTS</div>
@@ -7357,39 +7416,6 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
       </>)}
 
       {sub === "alarm" && (<>
-      {/* start session */}
-      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-        <button className="sprig-tap" onClick={() => onStart(true)} style={{ ...btn(C.lime, "#0A1F12"), flex: 2, padding: "15px 0", flexDirection: "column", gap: 3, boxShadow: `0 6px 18px ${C.lime}33` }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 15, fontWeight: 700 }}><Moon size={17} /> Start sleep &amp; smart alarm</span>
-          <span style={{ fontSize: 11, opacity: .8, fontWeight: 600 }}>wakes you by {alarm.latest}</span>
-        </button>
-        <button className="sprig-tap" onClick={() => setShowManual((s) => !s)} style={{ ...btn(C.card, C.ink), flex: 1, padding: "15px 0", border: `1px solid ${C.line}`, flexDirection: "column", gap: 4, boxShadow: C.shadow }}>
-          <PencilLine size={17} /><span style={{ fontSize: 11.5 }}>Log past night</span>
-        </button>
-      </div>
-
-      {micState === "denied" && (
-        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.45 }}>
-          Movement sensing needs mic access (often blocked in this preview) — no problem, the smart alarm still uses the sleep-cycle model.
-        </div>
-      )}
-
-      {showManual && (
-        <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-          <div style={{ display: "flex", gap: 12 }}>
-            <label style={{ flex: 1, fontSize: 12, color: C.inkSoft }}>Fell asleep
-              <input type="time" value={bed} onChange={(e) => setBed(e.target.value)} style={{ width: "100%", marginTop: 5, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg }} /></label>
-            <label style={{ flex: 1, fontSize: 12, color: C.inkSoft }}>Woke up
-              <input type="time" value={wake} onChange={(e) => setWake(e.target.value)} style={{ width: "100%", marginTop: 5, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg }} /></label>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.inkSoft }}><span>How rested?</span><span style={{ fontWeight: 700, color: C.green }}>{qual}%</span></div>
-            <input type="range" min="10" max="100" value={qual} onChange={(e) => setQual(+e.target.value)} style={{ width: "100%", marginTop: 6, accentColor: C.green }} />
-          </div>
-          <button className="sprig-tap" onClick={submitManual} style={{ ...btn(C.green, "#fff"), width: "100%", padding: "12px 0", marginTop: 14 }}><Check size={16} /> Save sleep</button>
-        </div>
-      )}
-
       {/* last night detail */}
       {lastSleep && (
         <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 14 }}>
@@ -7619,7 +7645,7 @@ function sleepTip(log, debtMin, need) {
 // Energy-today curve graph — extracted so it can render in both the Sleep tab and Energy tab.
 // Reads everything from sleepInfo; shows a calm empty state when there isn't enough data yet.
 function EnergyCurveCard({ sleepInfo }) {
-  const { curve, gym, mealMarks } = sleepInfo;
+  const { curve, gym, mealMarks, rec, wakeMin, todayBed } = sleepInfo;
   // tick every 2 min so the "Now" marker advances while the app is open
   const [, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick((n) => n + 1), 120000); return () => clearInterval(id); }, []);
@@ -7636,15 +7662,37 @@ function EnergyCurveCard({ sleepInfo }) {
   const DAY = 1440;
   const x = (m) => padL + (Math.max(0, Math.min(DAY, m)) / DAY) * (W - padL - padR);
   const y = (e) => top + (1 - Math.max(0, Math.min(100, e)) / 100) * (H - top - bot);
-  // normalize curve minutes into 0..1440 (wrap values >1440), keep sorted, dedupe ends
-  const pts = curve.map((p) => ({ min: ((p.min % DAY) + DAY) % DAY, e: p.e })).sort((a, b) => a.min - b.min);
+  const wrap = (m) => ((m % DAY) + DAY) % DAY;
+
+  // Recommended sleep window (wraps midnight): from bedtime to wake time.
+  const bedM = wrap(rec?.recBed ?? todayBed ?? 1380);   // e.g. 23:00
+  const wakeM = wrap(rec?.recWake ?? wakeMin ?? 420);    // e.g. 07:00
+  const SLEEP_E = 8; // flat low "asleep" energy level
+
+  // Build a full 0..1440 curve: low/flat during the sleep window, the modeled curve while awake.
+  const awake = curve.map((p) => ({ min: wrap(p.min), e: p.e })).sort((a, b) => a.min - b.min);
+  const inSleep = (m) => (bedM > wakeM ? (m >= bedM || m < wakeM) : (m >= bedM && m < wakeM));
+  const full = [];
+  full.push({ min: 0, e: inSleep(0) ? SLEEP_E : (awake[0]?.e ?? 40) });
+  // sleep band edges as anchor points so the line sits flat-low through the night
+  [wakeM, bedM].forEach((edge) => full.push({ min: edge, e: SLEEP_E }));
+  awake.forEach((p) => { if (!inSleep(p.min)) full.push(p); });
+  full.push({ min: DAY, e: inSleep(DAY - 1) ? SLEEP_E : (awake[awake.length - 1]?.e ?? 40) });
+  const pts = full.sort((a, b) => a.min - b.min).filter((p, i, arr) => i === 0 || p.min !== arr[i - 1].min);
+
   const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p.min).toFixed(1)},${y(p.e).toFixed(1)}`).join(" ");
   const area = pts.length ? `${line} L${x(pts[pts.length - 1].min).toFixed(1)},${H - bot} L${x(pts[0].min).toFixed(1)},${H - bot} Z` : "";
-  const nowMin = tsToMin(Date.now());           // minutes since midnight, 0..1440
+  const nowMin = tsToMin(Date.now());
   const nowX = x(nowMin);
-  const wrap = (m) => ((m % DAY) + DAY) % DAY;
-  const ticks = [0, 360, 720, 1080, 1440];      // 00:00 06:00 12:00 18:00 24:00
+  const ticks = [0, 360, 720, 1080, 1440];
   const tickLabel = (m) => (m === 1440 ? "24:00" : `${String(Math.floor(m / 60)).padStart(2, "0")}:00`);
+
+  // sleep band rects (split across midnight if it wraps)
+  const sleepRects = bedM > wakeM
+    ? [[bedM, DAY], [0, wakeM]]           // e.g. 23:00→24:00 and 00:00→07:00
+    : [[bedM, wakeM]];
+  const sleepMidX = bedM > wakeM ? x(wrap((bedM + (DAY - bedM + wakeM) / 2))) : x((bedM + wakeM) / 2);
+
   return (
     <div style={{ background: C.card, borderRadius: 20, padding: "14px 12px 8px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: "auto", display: "block" }}>
@@ -7654,6 +7702,10 @@ function EnergyCurveCard({ sleepInfo }) {
             <stop offset="100%" stopColor={C.leaf} stopOpacity="0.02" />
           </linearGradient>
         </defs>
+        {/* recommended sleep window — shaded indigo band */}
+        {sleepRects.map(([a, b], i) => (
+          <rect key={"sl" + i} x={x(a)} y={top} width={Math.max(0, x(b) - x(a))} height={H - top - bot} fill="#6C7BE0" opacity={C.isDark ? "0.16" : "0.12"} />
+        ))}
         {/* hour gridlines */}
         {ticks.map((m) => <line key={"g" + m} x1={x(m)} y1={top} x2={x(m)} y2={H - bot} stroke={C.line} strokeWidth="1" />)}
         {gym && <rect x={x(wrap(gym.start))} y={top} width={Math.max(2, x(wrap(gym.end)) - x(wrap(gym.start)))} height={H - top - bot} fill={C.green} opacity="0.10" rx="4" />}
@@ -7665,7 +7717,9 @@ function EnergyCurveCard({ sleepInfo }) {
             <circle cx={x(wrap(m.min))} cy={H - bot} r="3.5" fill={C.amber} />
           </g>
         ))}
-        {/* NOW marker — always shown, positioned at nowMin/1440 */}
+        {/* sleep moon label centered in the band */}
+        <text x={Math.min(W - 16, Math.max(16, sleepMidX))} y={top + 12} fontSize="9" fill="#8E9BEA" textAnchor="middle" fontFamily="DM Sans" fontWeight="700">Sleep</text>
+        {/* NOW marker */}
         <line x1={nowX} y1={top - 4} x2={nowX} y2={H - bot} stroke={C.coral} strokeWidth="1.8" />
         <circle cx={nowX} cy={top - 4} r="3" fill={C.coral} />
         <text x={Math.min(W - 18, Math.max(16, nowX))} y={top - 7} fontSize="9" fill={C.coral} textAnchor="middle" fontFamily="DM Sans" fontWeight="700">Now</text>
@@ -7676,8 +7730,9 @@ function EnergyCurveCard({ sleepInfo }) {
       </svg>
       <div style={{ display: "flex", gap: 14, padding: "4px 6px 2px", flexWrap: "wrap" }}>
         <Legend c={C.leaf} label="Energy" />
+        <Legend c="#8E9BEA" label={`Sleep ${minToLabel(bedM)}–${minToLabel(wakeM)}`} />
         <Legend c={C.amber} label="Meals" />
-        {gym && <Legend c={C.green} label="Gym window" faded />}
+        {gym && <Legend c={C.green} label="Gym" faded />}
         <Legend c={C.coral} label="Now" />
       </div>
     </div>
