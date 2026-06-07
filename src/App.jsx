@@ -8,7 +8,7 @@ import {
   Timer, Trophy, Medal, BarChart3, ChevronLeft, ChevronDown, Award, Crown,
   Target, BookOpen, Calculator, Repeat, Gauge, Play, PersonStanding, Square,
   ArrowUp, HeartPulse, Search, TrendingDown,
-  Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal
+  Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal, Volume2
 } from "lucide-react";
 import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
 
@@ -143,15 +143,34 @@ const FONTS = `
 .record-icon       { animation: recordIconPop .54s cubic-bezier(.2,.9,.2,1) .10s both; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
-.sprig-tap { transition: transform .09s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease, filter .14s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-.sprig-tap:active { transform: scale(.97); filter: brightness(1.06); }
-.sprig-tap:disabled, .sprig-tap[disabled] { transform: none !important; filter: none !important; }
+/* Tab-switch fade+slide — keyed wrapper re-mounts on each tab change */
+@keyframes tabSlideIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+.tab-enter { animation: tabSlideIn 200ms cubic-bezier(.2,.8,.2,1) both; }
+/* ── Press feedback (Apple-level) ──────────────────────────────────────────
+   120ms matches the Human Interface Guidelines' "immediate" window.
+   will-change promotes to a GPU compositing layer so the scale is sub-frame.
+   Scale 0.975 + brightness 1.08 is Apple's visual language for tap confirmation.
+   ────────────────────────────────────────────────────────────────────────── */
+.sprig-tap {
+  transition:
+    transform 120ms cubic-bezier(.2,.8,.2,1),
+    background .18s ease,
+    box-shadow .18s ease,
+    opacity 120ms cubic-bezier(.2,.8,.2,1),
+    filter 120ms cubic-bezier(.2,.8,.2,1);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  will-change: transform;          /* GPU composite layer — eliminates paint on press */
+}
+.sprig-tap:active { transform: scale(.975); filter: brightness(1.08); }
+.sprig-tap:disabled, .sprig-tap[disabled] { transform: none !important; filter: none !important; will-change: auto; }
 .sprig-scroll::-webkit-scrollbar{width:0;height:0;}
 /* iOS momentum scrolling + native rubber-band (don't block overscroll on the scroll area) */
 .sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-y: auto; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
-  .sprig-rise, .sprig-pop, .sprig-pop-centered, .sprig-sheet, .sprig-dim, .sprig-toast-anim { animation-duration: .01ms !important; }
+  .sprig-rise, .sprig-pop, .sprig-pop-centered, .sprig-sheet, .sprig-dim, .sprig-toast-anim, .tab-enter { animation-duration: .01ms !important; }
   .record-toast, .record-toast-exit, .record-icon { animation-duration: .01ms !important; }
+  .sprig-tap { will-change: auto; }
   .sprig-tap:active { transform: none; filter: none; }
   .sprig-scroll { scroll-behavior: auto; }
 }
@@ -163,27 +182,57 @@ const FONTS = `
   --z-cta: 1200;
   --z-timer: 1300;
   --z-overlay: 3000;
+  --z-modal: 3000;
   --z-medal: 3500;
+  --z-toast: 4000;
 }
-/* Mobile / PWA baseline — prevents horizontal scroll, honors iOS safe areas, lets the app fill the screen on phones */
-html, body, #root { margin: 0; padding: 0; min-height: 100%; background: #07140F; overscroll-behavior-y: auto; }
+/* ── Apple-level layout foundation ──────────────────────────────────────────
+   Fills the viewport, enables native scrolling, and layers the shell correctly.
+   Z-index scale: content 1 · nav 1000 · floating 1500 · overlays 3000 · toasts 4000
+   ──────────────────────────────────────────────────────────────────────────── */
+html, body, #root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: #07140F;
+  overscroll-behavior-y: auto;
+  /* prevent horizontal bounce / rubber-band on the root */
+  overflow-x: hidden;
+}
 body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
+/* App shell — centered 440px column that fills the screen.
+   overflow:hidden constrains the scroll child so flex:1 gives it a real height,
+   enabling overflow-y:auto to actually scroll. */
 .sprig-app-frame {
   width: 100%;
   max-width: 440px;
   margin: 0 auto;
   min-height: 100vh;
   min-height: 100dvh;
-  padding-top: env(safe-area-inset-top, 0);
+  padding-top: env(safe-area-inset-top, 0px);
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;        /* constrains scroll child height so flex:1 produces real clipping */
 }
-/* Scrollable content area leaves room for the fixed bottom nav + home indicator so the last
-   card is never hidden. Pages with a floating CTA/timer get extra room via .sprig-content-cta. */
-.sprig-content { flex: 1; padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 72px); }
-.sprig-content-cta { padding-bottom: calc(var(--bottom-nav-height) + var(--floating-cta-height) + env(safe-area-inset-bottom, 0px) + 96px) !important; }
-/* Bottom nav pinned to the true bottom of the viewport, within the centered frame */
+/* Main scroll area — fills remaining height, scrolls natively, never hides last card.
+   overflow-y/x are here in CSS so they don't need to be repeated inline everywhere. */
+.sprig-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+  /* padding-bottom keeps the last card above the fixed nav + home-indicator gap */
+  padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 72px);
+}
+/* Extra room when a floating CTA (Log Food) or rest timer is also visible */
+.sprig-content-cta {
+  padding-bottom: calc(var(--bottom-nav-height) + var(--floating-cta-height) + env(safe-area-inset-bottom, 0px) + 96px) !important;
+}
+/* Bottom nav — fixed to the real bottom of the viewport, centered in the 440px frame.
+   Portaled to <body> so it never sits inside an overflow:hidden ancestor. */
 .sprig-tabbar {
   position: fixed;
   bottom: 0;
@@ -196,16 +245,19 @@ body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
 }
 .sprig-glass { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .sprig-bottom-pad { height: calc(env(safe-area-inset-bottom, 0px) + 8px); }
-/* On phones, drop the rounded outer corners — the "app" should fill the whole screen */
+/* On phones fill the whole screen — no rounded outer frame */
 @media (max-width: 480px) {
   .sprig-app-frame { border-radius: 0 !important; box-shadow: none !important; }
 }
 input, textarea, select, button { font-family: inherit; font-size: 16px; }
-/* dark inputs read correctly on glass */
 input, textarea, select { color: #F4F7F2; }
 input::placeholder, textarea::placeholder { color: rgba(244,247,242,0.4); }
-/* Bottom sheets/toasts need the inset baked in so they don't sit under the home indicator */
-.sprig-bottom-toast { bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 8px) !important; z-index: var(--z-timer) !important; }
+/* Bottom-anchored toasts sit above the nav, overlays, and record animation */
+.sprig-bottom-toast {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 8px) !important;
+  z-index: var(--z-toast) !important;
+}
+/* Bottom sheets respect the home-indicator gap */
 .sprig-bottom-sheet { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important; }
 `;
 
@@ -2702,29 +2754,32 @@ function detectSetPR(workouts, exName, W, R, activeExSets) {
   const thisE1 = est1RM(W, R);
   const thisVol = W * R;
 
-  // 1. e1RM PR — overall strength record
+  // 1. e1RM PR — overall strength record (highest priority)
   if (thisE1 > maxE1 * 1.001) {
-    return { kind: "e1rm", label: "New 1RM Record", subLabel: `Est. ${Math.round(thisE1)} kg · ${W} kg × ${R}` };
+    const delta = maxE1 > 0 ? ` ↑ ${Math.round(thisE1 - maxE1)} kg` : "";
+    return { kind: "e1rm", label: "New 1RM Record", subLabel: `${Math.round(thisE1)} kg e1RM${delta}` };
   }
   // 2. Weight PR — heaviest ever loaded
   if (W > maxW) {
-    return { kind: "weight", label: "Weight PR", subLabel: `${W} kg × ${R} reps` };
+    const delta = maxW > 0 ? ` (+${+(W - maxW).toFixed(1)} kg)` : "";
+    return { kind: "weight", label: "Weight PR", subLabel: `${W} kg × ${R}${delta}` };
   }
-  // 3. Rep PR at this exact weight — more reps than ever done at the same load
+  // 3. Rep PR at this exact weight
   const prevRepsAtW = repsAtW[W] || 0;
   if (R > prevRepsAtW) {
-    return { kind: "reps", label: "Rep PR", subLabel: `${W} kg × ${R} reps` };
+    const delta = prevRepsAtW > 0 ? ` (+${R - prevRepsAtW} rep${R - prevRepsAtW > 1 ? "s" : ""})` : "";
+    return { kind: "reps", label: "Rep PR", subLabel: `${W} kg × ${R}${delta}` };
   }
   // 4. Single-set volume PR
   if (thisVol > maxVol * 1.001) {
-    return { kind: "volume", label: "Volume PR", subLabel: `${thisVol} kg total` };
+    return { kind: "volume", label: "Set Volume PR", subLabel: `${thisVol} kg · ${W}kg × ${R}` };
   }
-  // 5. Session volume PR — total volume this session for this exercise beats any prior session
+  // 5. Session volume PR
   if (activeExSets && activeExSets.length > 0) {
     const prevSetsVol = activeExSets.reduce((acc, s) => acc + (s.w || 0) * (s.reps || 0), 0);
     const newSessionVol = prevSetsVol + thisVol;
     if (newSessionVol > maxSessionVol * 1.001) {
-      return { kind: "session-volume", label: "Session PR", subLabel: `${Math.round(newSessionVol)} kg total volume` };
+      return { kind: "session-volume", label: "Session Volume PR", subLabel: `${Math.round(newSessionVol)} kg total` };
     }
   }
   return null;
@@ -2756,6 +2811,7 @@ function recapFor(workout, priorWorkouts) {
   return {
     totalVolume: Math.round(totalVolume),
     totalSets,
+    exercises,
     exerciseCount: exercises.length,
     durationMin: workout.durationMin || 0,
     records,
@@ -3011,7 +3067,7 @@ function suggestSplit({ workouts, recovery, volume, sleepReadiness, debtMin, dai
 }
 
 // progression decision per exercise
-function progressionFor(workouts, exName, daily, sleepReadiness, prefRange) {
+function progressionFor(workouts, exName, daily, sleepReadiness, prefRange, intensityStyle) {
   // gather this exercise's history, most recent session's best set as the reference
   const byTs = {};
   workouts.forEach((w) => w.exercises.forEach((ex) => { if (ex.name === exName) { (byTs[w.ts] = byTs[w.ts] || []).push(...ex.sets); } }));
@@ -3036,32 +3092,42 @@ function progressionFor(workouts, exName, daily, sleepReadiness, prefRange) {
   const base = { prevW, prevReps, prevRir };
 
   // ---- caution branches: only when genuinely warranted (kept rare) ----
-  if (daily?.deloadMode) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: "Deload week — drop ~10% and move smooth." };
-  if (stalls) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: "Stalled 3 sessions — drop ~10% this week, then build back up past your old best." };
-  if ((daily?.checkin?.pain) === "serious") return { ...base, action: "hold", w: prevW, reps: prevReps, text: "Pain logged today — match last time and stop early if it flares. Skip if it hurts." };
-  if (sleepReadiness < 40) return { ...base, action: "hold", w: prevW, reps: prevReps, text: "Recovery is low, so match last time today. If warm-ups feel great, try +1 rep." };
+  if (daily?.deloadMode) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: "Deload week — drop ~10%, move smooth, own the pattern." };
+  if (stalls) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: "Stalled 3 sessions — reset ~10% this week. You'll blast past your old best on the way back up." };
+  if ((daily?.checkin?.pain) === "serious") return { ...base, action: "hold", w: prevW, reps: prevReps, text: `Pain logged — match ${prevW}kg × ${prevReps} and stop early if it flares.` };
+  if (sleepReadiness < 40) return { ...base, action: "hold", w: prevW, reps: prevReps, text: `Recovery is low — match ${prevW}kg × ${prevReps}. Push only if it feels great.` };
 
-  // ---- aggressive default: beat last time ----
-  // If last set already hit/exceeded the top of the rep range → add weight, reset to bottom of range.
+  // ---- default: beat last time ----
+  // Hit/exceeded top of rep range → add weight, reset to bottom.
   if (prevReps >= repTop) {
-    return { ...base, action: "add_w", w: +(prevW + inc).toFixed(2), reps: repRange[0], text: `You hit ${prevReps} reps last time — add ${inc}${"kg"} and aim for ${repRange[0]}+.` };
+    return { ...base, action: "add_w", w: +(prevW + inc).toFixed(2), reps: repRange[0], text: `${prevReps} reps last time — load +${inc}kg and go for ${repRange[0]}+.` };
   }
-  // RIR-driven progression (most sessions land here, pushing +1 rep or weight)
+  // RIR-driven progression
   if (prevRir == null) {
-    // no RIR captured last time — still push for one more rep by default
-    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `Goal: beat last time — aim for ${prevReps + 1} reps at ${prevW}${"kg"}.` };
+    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `Push for ${prevReps + 1} reps — beat last time at ${prevW}kg.` };
   }
   if (prevRir >= 3) {
-    return { ...base, action: "add_w", w: +(prevW + inc).toFixed(2), reps: prevReps, text: `You had 3+ in reserve — add ${inc}kg and hold ${prevReps} reps.` };
+    return { ...base, action: "add_w", w: +(prevW + inc).toFixed(2), reps: prevReps, text: `${prevRir}+ reps in reserve — load +${inc}kg and hold ${prevReps}.` };
   }
+  // Intensity-style aware logic
+  if (intensityStyle === "leave_reps") {
+    if (prevRir >= 2) return { ...base, action: "repeat", w: prevW, reps: prevReps, text: `${prevRir} RIR — hold ${prevW}kg × ${prevReps} and add a rep when it feels right.` };
+    return { ...base, action: "repeat", w: prevW, reps: prevReps, text: `Match ${prevW}kg × ${prevReps} — stay in control.` };
+  }
+  if (intensityStyle === "failure" || intensityStyle === "close_to_failure") {
+    if (prevRir === 0) return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `Went to failure — push for ${prevReps + 1}, or add ${inc}kg if ${prevReps} moves fast.` };
+    if (prevRir === 1) return { ...base, action: "add_w", w: +(prevW + inc).toFixed(2), reps: prevReps, text: `1 RIR — add ${inc}kg and drive ${prevReps} reps.` };
+    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `${prevRir} RIR — push for ${prevReps + 1} today.` };
+  }
+  // Default balanced behavior
   if (prevRir === 2) {
-    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `You had 2 RIR last time, so aim for +1 rep (${prevReps + 1}).` };
+    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `2 in reserve — go for ${prevReps + 1} reps at ${prevW}kg.` };
   }
   if (prevRir === 1) {
-    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `Close to your limit — go for +1 rep (${prevReps + 1}) if it's there, otherwise match last time.` };
+    return { ...base, action: "add_rep", w: prevW, reps: prevReps + 1, text: `1 RIR — push for ${prevReps + 1} today.` };
   }
-  // prevRir === 0 (failure): only push if they'd been climbing; default to matching, with a stretch
-  return { ...base, action: "repeat", w: prevW, reps: prevReps, text: `Hit failure last time — match ${prevW}kg × ${prevReps}. Beat it by a rep if it moves clean.` };
+  // prevRir === 0 (failure): match with stretch target
+  return { ...base, action: "repeat", w: prevW, reps: prevReps, text: `Went to failure — match ${prevW}kg × ${prevReps}. Sneak a rep if it moves clean.` };
 }
 
 // workout templates (seed routines a user can save with one tap)
@@ -4400,7 +4466,7 @@ function SprigApp() {
   const [sleepSub, setSleepSub] = useState("sleep");  // sleep | alarm
   const [quickOpen, setQuickOpen] = useState(false);
   const [winsOpen, setWinsOpen] = useState(false);
-  const [logSheet, setLogSheet] = useState(false);
+  const [foodOverlayMode, setFoodOverlayMode] = useState(null); // null | "menu" | "text" | "manual" | "supp"
   const [recapView, setRecapView] = useState(null); // { recap, ts } shown after finishing a workout
   // recordToast: { kind, label, subLabel, exName, phase: "entering"|"visible"|"exiting" }
   // Phase flow: entering (entrance anim) → visible (idle) → exiting (exit anim) → null
@@ -4430,7 +4496,7 @@ function SprigApp() {
   const [resultMode, setResultMode] = useState("photo");
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
-  const [composer, setComposer] = useState(null); // 'text' | 'supp' | null
+  // foodOverlayMode above replaces composer + logSheet
   const [favoriteMode, setFavoriteMode] = useState(false); // when true, an AI/photo/text result is saved as a favorite (not logged to today)
   const [supps, setSupps] = useState([]);       // saved supplement stack
   const [takenIds, setTakenIds] = useState([]); // supplement ids taken today
@@ -4463,12 +4529,12 @@ function SprigApp() {
   // settles, avoiding the iOS race where autoFocus fires before the keyboard is ready.
   const describeRef = useRef(null);
   useEffect(() => {
-    if (composer !== "text") return;
+    if (foodOverlayMode !== "text") return;
     const t = setTimeout(() => {
       try { describeRef.current?.focus(); } catch (_) {}
     }, 320);
     return () => clearTimeout(t);
-  }, [composer]);
+  }, [foodOverlayMode]);
   const fileRef = useRef(null);
   const labelRef = useRef(null);
   const suppLabelRef = useRef(null);
@@ -4703,9 +4769,9 @@ function SprigApp() {
     // result is saved as a favorite rather than logged to today.
     setFavoriteMode(true); setResult(null);
     setTab("nutrition");
-    if (src === "snap") { setComposer(null); setTimeout(() => fileRef.current?.click(), 0); }
-    else if (src === "scan") { setComposer(null); setTimeout(() => labelRef.current?.click(), 0); }
-    else if (src === "describe") { setComposer("text"); }
+    if (src === "snap") { setFoodOverlayMode(null); setTimeout(() => fileRef.current?.click(), 0); }
+    else if (src === "scan") { setFoodOverlayMode(null); setTimeout(() => labelRef.current?.click(), 0); }
+    else if (src === "describe") { setFoodOverlayMode("text"); }
   }
   function openEditFavorite(f) { setFavEditing(f.id); setFavForm({ name: f.name, serving: f.serving, calories: f.calories, protein: f.protein_g, carbs: f.carbs_g, fat: f.fat_g, fiber: f.fiber_g, tags: f.tags || [] }); }
   function closeFavForm() { setFavForm(null); setFavEditing(null); }
@@ -5121,6 +5187,10 @@ function SprigApp() {
   const toggleSleepIgnored = (id) => {
     persistSleep(sleepLogs.map((l) => (l.id === id ? { ...l, ignoredFromScore: !l.ignoredFromScore } : l)));
   };
+  const markSleepNap = (id) => {
+    persistSleep(sleepLogs.map((l) => l.id === id ? { ...l, nap: true, ignoredFromScore: true, short: true } : l));
+    logged("Saved as nap", "light");
+  };
   // Edit a sleep log's bed/wake times — recompute duration, stages, score, and re-flag short sessions.
   const editSleepLog = (id, bedTs, wakeTs) => {
     const need = sleepNeedMin(profile.age);
@@ -5296,6 +5366,16 @@ function SprigApp() {
     if (!profile.repRange && !profile.repRangeAsked) setRepRangePrompt(true);
   }
   const [repRangePrompt, setRepRangePrompt] = useState(false);
+  const [rirPref, setRirPref] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("sprig_rir_preference_v1") || "null"); } catch { return null; }
+  });
+  const [rrpStep, setRrpStep] = useState("rep_range"); // "rep_range" | "rir_tracking" | "intensity_style"
+  const [rrpPending, setRrpPending] = useState({});    // accumulates selections across flow steps
+  function saveRirPref(pref) {
+    const full = { ...pref, createdAt: pref.createdAt || Date.now() };
+    localStorage.setItem("sprig_rir_preference_v1", JSON.stringify(full));
+    setRirPref(full);
+  }
   const [bedNudgeDismissed, setBedNudgeDismissed] = useState(false);
   function addWoExercise(name) {
     const meta = findEx(name);
@@ -5344,9 +5424,19 @@ function SprigApp() {
     const next = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: [...e.sets, { ...set, ts: Date.now() }] } : e);
     persistActive({ ...activeWorkout, exercises: next });
     buzz("complete"); // set completed
-    // open the post-set RIR prompt for the set we just appended (frame-level so it's never clipped)
-    const setIdx = activeWorkout.exercises[exIdx].sets.length;
-    setRirPrompt({ exIdx, setIdx });
+    // open the post-set RIR prompt — gated behind user's RIR tracking preference
+    const _trackRir = rirPref?.trackRir || "always";
+    if (_trackRir !== "off") {
+      const setIdx = activeWorkout.exercises[exIdx].sets.length;
+      if (_trackRir === "always") {
+        setRirPrompt({ exIdx, setIdx });
+      } else {
+        // "hard_sets": only ask on sets that look like working sets (reps near the working range)
+        const _repRange = profile?.repRange || [8, 12];
+        const _threshold = Math.max(3, _repRange[0] - 2);
+        if (set.reps >= _threshold) setRirPrompt({ exIdx, setIdx });
+      }
+    }
   }
   // Set a set's RIR after it's logged (used by the post-set RIR prompt + row editor).
   function woSetRir(exIdx, setIdx, rir) {
@@ -5422,7 +5512,7 @@ function SprigApp() {
   }
 
   async function runAnalysis(opts) {
-    setError(""); setBusy(true); setComposer(null);
+    setError(""); setBusy(true); setFoodOverlayMode(null);
     try {
       const res = await analyze(opts);
       setResult(res); setResultMode(opts.mode);
@@ -5479,7 +5569,7 @@ function SprigApp() {
       calories: +m.calories || 0, protein_g: +m.protein || 0, carbs_g: +m.carbs || 0,
       fat_g: +m.fat || 0, fiber_g: +m.fiber || 0, micros: {}, omega3: null, mult: 1, time: Date.now(),
     };
-    const commit = () => { persistEntries((prev) => [...prev, entry]); setComposer(null); setTab("nutrition"); setFoodSub("meals"); setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200); logged("Meal added", "light"); };
+    const commit = () => { persistEntries((prev) => [...prev, entry]); setFoodOverlayMode(null); setTab("nutrition"); setFoodSub("meals"); setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200); logged("Meal added", "light"); };
     if (entry.calories > 3000) { askConfirm(`${entry.calories} kcal for one item is unusually high. Save anyway?`, commit); return; }
     commit();
   }
@@ -5695,7 +5785,7 @@ function SprigApp() {
       await saveProfile(p);
       setOnboarded(true);
       // route to the chosen first action (premium "first successful action" moment)
-      if (action === "food") { setTab("nutrition"); setLogSheet(true); }
+      if (action === "food") { setTab("nutrition"); setFoodOverlayMode("menu"); }
       else if (action === "workout") { setTab("train"); }
       else if (action === "sleep") { setTab("sleep"); setSleepSub("alarm"); }
       else if (action === "coach") { setTab("coach"); setAskOpen(true); }
@@ -5705,7 +5795,7 @@ function SprigApp() {
   }
 
   return (
-    <div className="sprig-app-frame" style={{ background: C.pageBg, fontFamily: "DM Sans, sans-serif", color: C.ink, position: "relative", overflow: "hidden", borderRadius: 24 }}>
+    <div className="sprig-app-frame" style={{ background: C.pageBg, fontFamily: "DM Sans, sans-serif", color: C.ink }}>
       <style>{FONTS}</style>
 
       {/* alarm ring overlay */}
@@ -5742,7 +5832,7 @@ function SprigApp() {
             title="Calendar" aria-label="Calendar" style={{ background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center" }}>
             <BarChart3 size={18} />
           </button>
-          <button className="sprig-tap" onClick={() => { setTab("settings"); setResult(null); setComposer(null); }}
+          <button className="sprig-tap" onClick={() => { setTab("settings"); setResult(null); setFoodOverlayMode(null); }}
             title="Settings" aria-label="Settings" style={{ background: tab === "settings" ? C.green : C.bg2, color: tab === "settings" ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center" }}>
             <SlidersHorizontal size={18} />
           </button>
@@ -5750,12 +5840,14 @@ function SprigApp() {
       </div>
 
       <div className={`sprig-scroll sprig-content${(tab === "nutrition" || activeWorkout) ? " sprig-content-cta" : ""}`} style={{ overflowY: "auto", overflowX: "hidden", paddingTop: 8, paddingLeft: 16, paddingRight: 16 }}>
+        {/* key=tab causes this div to remount on every tab change, triggering the tab-enter fade+slide */}
+        <div key={tab} className="tab-enter">
         {tab === "today" && (
           <TodayTab
             t={t} targets={targets} entries={entries} scores={scores} onRemove={removeEntry}
             library={library} onQuick={logFromLibrary} profile={profile}
             supps={supps} takenIds={takenIds} onToggleSupp={toggleTaken} onRemoveSupp={removeSupp}
-            onAddSupp={() => { setComposer("supp"); setResult(null); }}
+            onAddSupp={() => { setFoodOverlayMode("supp"); setResult(null); }}
             sleepInfo={sleepInfo} trainInfo={trainInfo} advanced={advanced}
             dailyInfo={dailyInfo} nutriInfo={nutriInfo} healthInfo={healthInfo} mindInfo={mindInfo} moveInfo={moveInfo} onDaily={persistDaily} onAddEntry={addEntry} onCheckin={setCheckin} onQuickLog={() => setQuickOpen(true)}
             onStartWorkout={() => { startWorkout(); setTab("train"); }}
@@ -5768,18 +5860,18 @@ function SprigApp() {
           <NutritionTab t={t} targets={targets} entries={entries} onRemove={removeEntry} profile={profile} advanced={advanced}
             sub={foodSub} onSub={setFoodSub}
             nutriInfo={nutriInfo} moveInfo={moveInfo} sleepInfo={sleepInfo} daily={daily} onDaily={persistDaily} onAddEntry={addEntry}
-            supps={supps} takenIds={takenIds} onToggleSupp={toggleTaken} onRemoveSupp={removeSupp} onAddSupp={() => { setComposer("supp"); setResult(null); }}
+            supps={supps} takenIds={takenIds} onToggleSupp={toggleTaken} onRemoveSupp={removeSupp} onAddSupp={() => { setFoodOverlayMode("supp"); setResult(null); }}
             library={library} onQuick={logFromLibrary} entriesHistory={entriesHistory}
             favoriteMeals={favoriteMeals} onSaveFavorite={saveFavoriteMeal} onReplaceFavorite={replaceFavoriteMeal}
             onUpdateFavorite={updateFavoriteMeal} onRemoveFavorite={removeFavoriteMeal} onAddFavorite={addFavoriteToToday}
-            onNewFood={() => { setComposer("text"); setResult(null); }}
+            onNewFood={() => { setFoodOverlayMode("text"); setResult(null); }}
             onSnapFood={() => { setResult(null); fileRef.current?.click(); }}
             onScanLabel={() => { setResult(null); labelRef.current?.click(); }}
-            onDescribe={() => { setComposer("text"); setResult(null); }}
-            onManual={() => { setComposer("manual"); setResult(null); }}
+            onDescribe={() => { setFoodOverlayMode("text"); setResult(null); }}
+            onManual={() => { setFoodOverlayMode("manual"); setResult(null); }}
             onOpenCreateFavorite={openFavoriteChooser} onOpenEditFavorite={openEditFavorite}
             onFavoriteDuplicate={(form, existing) => setFavDup({ form, existing })}
-            onOpenLogSheet={() => setLogSheet(true)} flashEntryId={flashEntryId} />
+            onOpenLogSheet={() => setFoodOverlayMode("menu")} flashEntryId={flashEntryId} />
         )}
         {tab === "train" && (
           <TrainTab workouts={workouts} active={activeWorkout} profile={profile} trainInfo={trainInfo} advanced={advanced}
@@ -5801,13 +5893,13 @@ function SprigApp() {
           </>
         )}
         {tab === "meals" && (
-          <MealsTab library={library} onLog={logFromLibrary} onRemove={removeLibrary} onNew={() => { setTab("today"); setComposer("text"); }} />
+          <MealsTab library={library} onLog={logFromLibrary} onRemove={removeLibrary} onNew={() => { setTab("today"); setFoodOverlayMode("text"); }} />
         )}
         {tab === "sleep" && (
           <SleepTab sleepLogs={sleepLogs} sleepInfo={sleepInfo} alarm={alarm} onSaveAlarm={saveAlarm}
             sub={sleepSub} onSub={setSleepSub}
             session={session} micState={micState} onStart={startSession} onEnd={endSession}
-            onManual={saveSleepLog} onRemove={removeSleep} onToggleIgnore={toggleSleepIgnored} onEditLog={editSleepLog} profile={profile} advanced={advanced}
+            onManual={saveSleepLog} onRemove={removeSleep} onToggleIgnore={toggleSleepIgnored} onMarkNap={markSleepNap} onEditLog={editSleepLog} profile={profile} advanced={advanced}
             daily={daily} onDaily={persistDaily} recoveryRec={trainInfo.recoveryRec} />
         )}
         {tab === "energy" && (
@@ -5829,6 +5921,7 @@ function SprigApp() {
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}
           onResetOnboarding={() => { setTab("today"); setOnboarded(false); }} />}
+        </div>{/* /tab-enter */}
       </div>
 
       {/* logging dock — file inputs stay mounted on the Nutrition tab; the composer/result/busy
@@ -5842,98 +5935,120 @@ function SprigApp() {
         </>
       )}
 
-      {/* Food logging overlay — one layer from menu → describe/manual → result. */}
-      {(busy || result || composer) && (
+      {/* Food logging overlay — unified single sheet: menu → text/manual/supp → loading → result.
+          No close/reopen gap: mode switches happen inside the same Portal+sheet DOM node. */}
+      {(foodOverlayMode || busy || result) && (
         <Portal>
-          <div className="sprig-dim" onClick={() => { if (!busy) { setComposer(null); setResult(null); setFavoriteMode(false); setError(""); } }}
+          <div className="sprig-dim" onClick={() => { if (!busy) { setFoodOverlayMode(null); setResult(null); setFavoriteMode(false); setError(""); setDraft(""); } }}
             style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000,
-              /* paddingBottom lifts the sheet above the keyboard on iOS Safari where
-                 position:fixed inset:0 tracks the layout viewport (not the visual viewport).
-                 kb = visualViewport gap = keyboard height. */
               paddingBottom: kb }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet"
               style={{ width: "100%", maxWidth: 440, background: C.isDark ? "#102018" : "#FFFFFF", border: `1px solid ${C.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`, borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column",
-                /* maxHeight: use visual-viewport height minus safe-area minus padding — no kb subtraction
-                   needed since paddingBottom on the backdrop already lifts us above the keyboard. */
                 maxHeight: `calc(100dvh - env(safe-area-inset-top, 0px) - 20px)`,
                 boxShadow: "0 -12px 40px rgba(0,0,0,.55)" }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "10px auto 4px", flexShrink: 0 }} />
-              <div className="sprig-scroll" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 18px 0", flex: 1 }}>
-                {error && <div style={{ background: "#fdeee8", color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
 
-                {busy && (
-                  <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: 16, display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow, marginBottom: 14 }}>
-                    <Loader2 size={18} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
-                    <span style={{ fontSize: 13.5, color: C.inkSoft }}>
-                      {resultMode === "supplement" || resultMode === "supp-label" ? "Reading your supplement…" : "Reading your food…"}
-                    </span>
+              {/* ── MENU MODE ── */}
+              {foodOverlayMode === "menu" && !busy && !result && (
+                <div style={{ padding: "4px 18px 24px", paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))" }}>
+                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 2, textAlign: "center" }}>Log food</div>
+                  <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14, textAlign: "center" }}>How do you want to add it?</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[
+                      [() => { setResult(null); setFoodOverlayMode(null); setTimeout(() => fileRef.current?.click(), 50); }, Camera, "Snap food", "Photo → AI estimate"],
+                      [() => { setResult(null); setFoodOverlayMode(null); setTimeout(() => labelRef.current?.click(), 50); }, ScanLine, "Scan label", "Nutrition label → AI"],
+                      [() => { setResult(null); setDraft(""); setFoodOverlayMode("text"); }, PencilLine, "Describe", "Type it, AI estimates"],
+                      [() => { setResult(null); setFoodOverlayMode("manual"); }, Calculator, "Manual", "Enter values yourself"],
+                    ].map(([fn, Ic, title, subt]) => (
+                      <button key={title} className="sprig-tap" onClick={fn}
+                        style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 5, textAlign: "left", fontFamily: "DM Sans" }}>
+                        <Ic size={18} color={C.lime} />
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{title}</span>
+                        <span style={{ fontSize: 10.5, color: C.muted }}>{subt}</span>
+                      </button>
+                    ))}
                   </div>
-                )}
+                  <button className="sprig-tap" onClick={() => setFoodOverlayMode(null)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Cancel</button>
+                </div>
+              )}
 
-                {result && !busy && (
-                  <div style={{ marginBottom: 14 }}>
-                    {favoriteMode && (
-                      <div style={{ fontSize: 11.5, color: C.greenSoft, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-                        <BookMarked size={13} /> Saving as a favorite — review & edit next
+              {/* ── COMPOSE / RESULT MODE ── */}
+              {(foodOverlayMode !== "menu") && (
+                <>
+                  <div className="sprig-scroll" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 18px 0", flex: 1 }}>
+                    {error && <div style={{ background: "#fdeee8", color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
+
+                    {busy && (
+                      <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: 16, display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow, marginBottom: 14 }}>
+                        <Loader2 size={18} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
+                        <span style={{ fontSize: 13.5, color: C.inkSoft }}>
+                          {resultMode === "supplement" || resultMode === "supp-label" ? "Reading your supplement…" : "Reading your food…"}
+                        </span>
                       </div>
                     )}
-                    <ResultCard
-                      result={result}
-                      mode={resultMode}
-                      isSupp={resultMode === "supplement" || resultMode === "supp-label"}
-                      favoriteMode={favoriteMode}
-                      onAdd={favoriteMode
-                        ? openFavoriteFromResult
-                        : ((resultMode === "supplement" || resultMode === "supp-label") ? addSupplement : addEntry)}
-                      onCancel={() => { setResult(null); setFavoriteMode(false); }}
-                    />
-                  </div>
-                )}
 
-                {composer === "supp" && !busy && !result && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                      <Pill size={14} /> New supplement
+                    {result && !busy && (
+                      <div style={{ marginBottom: 14 }}>
+                        {favoriteMode && (
+                          <div style={{ fontSize: 11.5, color: C.greenSoft, fontWeight: 600, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                            <BookMarked size={13} /> Saving as a favorite — review & edit next
+                          </div>
+                        )}
+                        <ResultCard
+                          result={result}
+                          mode={resultMode}
+                          isSupp={resultMode === "supplement" || resultMode === "supp-label"}
+                          favoriteMode={favoriteMode}
+                          onAdd={favoriteMode
+                            ? openFavoriteFromResult
+                            : ((resultMode === "supplement" || resultMode === "supp-label") ? addSupplement : addEntry)}
+                          onCancel={() => { setResult(null); setFavoriteMode(false); }}
+                        />
+                      </div>
+                    )}
+
+                    {foodOverlayMode === "supp" && !busy && !result && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                          <Pill size={14} /> New supplement
+                        </div>
+                        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
+                          placeholder="e.g. Vitamin D3 2000 IU + magnesium glycinate 400mg, or omega-3 fish oil 1000mg"
+                          style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, outline: "none", resize: "none", background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 80, lineHeight: 1.45, boxSizing: "border-box" }} />
+                      </div>
+                    )}
+
+                    {foodOverlayMode === "text" && !busy && !result && (
+                      <div style={{ display: "flex", flexDirection: "column", marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                          <PencilLine size={14} /> Describe your food
+                        </div>
+                        <textarea ref={describeRef} value={draft} onChange={(e) => setDraft(e.target.value)}
+                          onFocus={() => setTimeout(() => { try { describeRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {} }, 100)}
+                          placeholder="e.g. two eggs, a slice of sourdough, half an avocado and a flat white"
+                          style={{ width: "100%", border: `1.5px solid ${C.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`, borderRadius: 14, padding: 14, outline: "none", resize: "none", background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", fontSize: 15, color: C.ink, minHeight: 130, lineHeight: 1.55, boxSizing: "border-box" }} />
+                      </div>
+                    )}
+
+                    {foodOverlayMode === "manual" && !busy && !result && (
+                      <ManualEntry onAdd={addManual} onCancel={() => setFoodOverlayMode(null)} embedded />
+                    )}
+                  </div>
+
+                  {/* Sticky footer — always visible above keyboard */}
+                  {!busy && !result && (foodOverlayMode === "text" || foodOverlayMode === "supp") && (
+                    <div style={{ position: "sticky", bottom: 0, background: C.isDark ? "#102018" : "#FFFFFF", borderTop: `1px solid ${C.line}`, padding: "12px 18px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)", display: "flex", gap: 8, flexShrink: 0 }}>
+                      <button className="sprig-tap" onClick={() => { setFoodOverlayMode(null); setDraft(""); setFavoriteMode(false); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "13px 0" }}>Cancel</button>
+                      {foodOverlayMode === "supp" && (
+                        <button className="sprig-tap" onClick={() => suppLabelRef.current?.click()} style={{ ...btn(C.bg2, C.ink), flex: 1, padding: "13px 0" }}><ScanLine size={15} /> Scan</button>
+                      )}
+                      <button className="sprig-tap" disabled={!draft.trim()} onClick={() => { runAnalysis({ text: draft, mode: foodOverlayMode === "supp" ? "supplement" : "text" }); setDraft(""); }}
+                        style={{ ...btn(draft.trim() ? C.lime : C.bg2, draft.trim() ? "#0A1F12" : C.muted), flex: 1.8, padding: "13px 0", fontWeight: 700 }}>
+                        <Sparkles size={15} /> {foodOverlayMode === "supp" ? "Add" : "Analyze"}
+                      </button>
                     </div>
-                    <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
-                      placeholder="e.g. Vitamin D3 2000 IU + magnesium glycinate 400mg, or omega-3 fish oil 1000mg"
-                      style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, outline: "none", resize: "none", background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 80, lineHeight: 1.45, boxSizing: "border-box" }} />
-                  </div>
-                )}
-
-                {composer === "text" && !busy && !result && (
-                  <div style={{ display: "flex", flexDirection: "column", marginBottom: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                      <PencilLine size={14} /> Describe your food
-                    </div>
-                    {/* ref-based textarea — delayed focus via useEffect (not autoFocus) so the
-                        sheet is fully positioned before the keyboard opens, preventing the iOS
-                        race where keyboard fires before our kb offset has applied. */}
-                    <textarea ref={describeRef} value={draft} onChange={(e) => setDraft(e.target.value)}
-                      onFocus={() => setTimeout(() => { try { describeRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {} }, 100)}
-                      placeholder="e.g. two eggs, a slice of sourdough, half an avocado and a flat white"
-                      style={{ width: "100%", border: `1.5px solid ${C.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`, borderRadius: 14, padding: 14, outline: "none", resize: "none", background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", fontSize: 15, color: C.ink, minHeight: 130, lineHeight: 1.55, boxSizing: "border-box" }} />
-                  </div>
-                )}
-
-                {composer === "manual" && !busy && !result && (
-                  <ManualEntry onAdd={addManual} onCancel={() => setComposer(null)} embedded />
-                )}
-              </div>
-
-              {/* Sticky footer — keyboard-safe: lives inside the sheet which already shrinks
-                  via kb-adjusted maxHeight, so this button is always above the keyboard. */}
-              {!busy && !result && (composer === "text" || composer === "supp") && (
-                <div style={{ position: "sticky", bottom: 0, background: C.isDark ? "#102018" : "#FFFFFF", borderTop: `1px solid ${C.line}`, padding: "12px 18px", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)", display: "flex", gap: 8, flexShrink: 0 }}>
-                  <button className="sprig-tap" onClick={() => { setComposer(null); setDraft(""); setFavoriteMode(false); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "13px 0" }}>Cancel</button>
-                  {composer === "supp" && (
-                    <button className="sprig-tap" onClick={() => suppLabelRef.current?.click()} style={{ ...btn(C.bg2, C.ink), flex: 1, padding: "13px 0" }}><ScanLine size={15} /> Scan</button>
                   )}
-                  <button className="sprig-tap" disabled={!draft.trim()} onClick={() => { runAnalysis({ text: draft, mode: composer === "supp" ? "supplement" : "text" }); setDraft(""); }}
-                    style={{ ...btn(draft.trim() ? C.lime : C.bg2, draft.trim() ? "#0A1F12" : C.muted), flex: 1.8, padding: "13px 0", fontWeight: 700 }}>
-                    <Sparkles size={15} /> {composer === "supp" ? "Add" : "Analyze"}
-                  </button>
-                </div>
+                </>
               )}
             </div>
           </div>
@@ -5945,7 +6060,7 @@ function SprigApp() {
       <Portal>
       <div className="sprig-tabbar sprig-glass" style={{ display: "flex", borderTop: `1px solid ${C.line}`, background: C.navBg, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {[["today", Home, "Today"], ["nutrition", Flame, "Food"], ["train", Dumbbell, "Train"], ["sleep", Moon, "Sleep"], ["coach", Sparkles, "Coach"], ["more", User, "More"]].map(([k, Ic, lbl]) => (
-          <button key={k} onClick={() => { setTab(k); setResult(null); setComposer(null); setError(""); setFavoriteMode(false); }}
+          <button key={k} onClick={() => { setTab(k); setResult(null); setFoodOverlayMode(null); setError(""); setFavoriteMode(false); }}
             style={{ flex: 1, minWidth: 0, background: "none", border: "none", cursor: "pointer", padding: "10px 4px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.lime : C.muted }}>
             <Ic size={20} strokeWidth={tab === k ? 2.4 : 2} />
             <span style={{ fontSize: 10, fontWeight: tab === k ? 700 : 500, whiteSpace: "nowrap" }}>{lbl}</span>
@@ -5956,9 +6071,9 @@ function SprigApp() {
 
       {/* Floating "+ Log food" — page-level, centered above the bottom nav, only on the Food tab.
           Stays visible while the Food list scrolls; never sits inside the scrolled content. */}
-      {tab === "nutrition" && !logSheet && !activeWorkout && (
+      {tab === "nutrition" && !foodOverlayMode && !busy && !result && !activeWorkout && (
         <Portal>
-          <button className="sprig-tap" onClick={() => setLogSheet(true)}
+          <button className="sprig-tap" onClick={() => setFoodOverlayMode("menu")}
             style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", zIndex: 1500, ...btn(C.lime, "#0A1F12"), padding: "13px 22px", fontSize: 15, fontWeight: 700, borderRadius: 99, boxShadow: `0 8px 24px ${C.lime}55, 0 2px 8px rgba(0,0,0,.25)`, display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
             <Plus size={18} /> Log food
           </button>
@@ -6141,63 +6256,95 @@ function SprigApp() {
       {recapView && (() => {
         const r = recapView.recap;
         const dayWins = (wins[date] || []).filter((w) => w.source === "workout");
+        const trueRecords = (r.recordLifts || []).filter((rl) => !rl.firstTime && rl.prev > 0);
+        const motivatingMsg = (() => {
+          const recs = r.records || 0;
+          const vol = r.totalVolume || 0;
+          const sets = r.totalSets || 0;
+          if (recs >= 3) return `Strong session — ${recs} new records and ${vol.toLocaleString()} kg lifted.`;
+          if (recs >= 2) return `Solid session — ${recs} new bests today.`;
+          if (recs === 1) return `New record set. ${vol.toLocaleString()} kg lifted.`;
+          if (sets >= 15) return `High volume day — ${sets} sets and ${vol.toLocaleString()} kg lifted.`;
+          if (sets >= 8) return `Solid session — consistency is the game.`;
+          return "Consistency counts. Keep showing up.";
+        })();
         return (
           <Portal>
-          <div onClick={() => setRecapView(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
+          <div onClick={() => setRecapView(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.62)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
-              style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -8px 30px rgba(0,0,0,.4)", maxHeight: "82vh", overflowY: "auto" }}>
+              style={{ width: "100%", maxWidth: 440, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 0", boxShadow: "0 -8px 30px rgba(0,0,0,.5)", maxHeight: "82vh", overflowY: "auto" }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 16px" }} />
-              <div style={{ textAlign: "center", marginBottom: 16 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 14, background: C.lime + "1f", display: "grid", placeItems: "center", margin: "0 auto 10px" }}><Check size={24} color={C.lime} /></div>
+              <div style={{ textAlign: "center", marginBottom: 10 }}>
+                <div style={{ width: 52, height: 52, borderRadius: 16, background: `linear-gradient(135deg, ${C.lime}2a, ${C.green}22)`, border: `1.5px solid ${C.lime}44`, display: "grid", placeItems: "center", margin: "0 auto 10px" }}>
+                  <Dumbbell size={24} color={C.lime} />
+                </div>
                 <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink }}>Workout complete</div>
+                <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 5, lineHeight: 1.4 }}>{motivatingMsg}</div>
               </div>
-              {/* stats */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                {[[r.durationMin + "m", "duration"], [r.totalSets, "sets"], [r.totalVolume.toLocaleString(), "kg volume"], [r.records, "records"]].map(([v, l], i) => (
-                  <div key={i} style={{ flex: 1, background: C.bg, borderRadius: 12, padding: "12px 6px", textAlign: "center" }}>
-                    <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: (l === "records" && r.records > 0) ? C.lime : C.ink }}>{v}</div>
+              {/* stats grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginBottom: 16, marginTop: 14 }}>
+                {[
+                  [r.durationMin + "m", "Duration"],
+                  [r.totalSets, "Sets"],
+                  [r.totalVolume >= 1000 ? (r.totalVolume / 1000).toFixed(1) + "t" : r.totalVolume.toLocaleString(), "Volume"],
+                  [r.records > 0 ? r.records : "—", "Records"],
+                ].map(([v, l], i) => (
+                  <div key={i} style={{ background: C.bg, borderRadius: 12, padding: "11px 6px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: (l === "Records" && r.records > 0) ? C.lime : C.ink }}>{v}</div>
                     <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{l}</div>
                   </div>
                 ))}
               </div>
-              {/* Record lifts — shown individually so the user feels the achievement */}
-              {r.recordLifts?.filter((rl) => !rl.firstTime && rl.prev > 0).length > 0 && (
+              {/* New records — each lift with e1RM delta */}
+              {trueRecords.length > 0 && (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.lime, letterSpacing: .3, marginBottom: 6 }}>NEW RECORDS</div>
-                  {r.recordLifts.filter((rl) => !rl.firstTime && rl.prev > 0).map((rl) => (
-                    <div key={rl.name} style={{ display: "flex", alignItems: "center", gap: 9, background: C.lime + "10", border: `1px solid ${C.lime}44`, borderRadius: 12, padding: "9px 12px", marginBottom: 5 }}>
-                      <Medal size={14} color={C.lime} style={{ flexShrink: 0 }} />
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.lime, letterSpacing: .5, marginBottom: 8 }}>NEW BESTS</div>
+                  {trueRecords.map((rl) => (
+                    <div key={rl.name} style={{ display: "flex", alignItems: "center", gap: 10, background: C.lime + "0f", border: `1px solid ${C.lime}33`, borderRadius: 12, padding: "10px 12px", marginBottom: 6 }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 10, background: `radial-gradient(circle, ${C.lime}, ${C.green})`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                        <Medal size={14} color="#0A1F12" />
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rl.name}</div>
-                        <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>e1RM {rl.e1RM} kg <span style={{ color: C.greenSoft }}>↑ from {rl.prev} kg</span></div>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
+                          e1RM {rl.e1RM} kg <span style={{ color: C.greenSoft, fontWeight: 600 }}>↑ {rl.e1RM - rl.prev} kg from {rl.prev}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-              {/* Exercise list — compact, no bloat */}
+              {/* Exercise list */}
               {(r.exercises || []).length > 0 && (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: .3, marginBottom: 6 }}>EXERCISES</div>
-                  {r.exercises.slice(0, 6).map((ex, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: C.inkSoft, padding: "4px 0", borderBottom: `1px solid ${C.line}` }}>
-                      <span style={{ flex: 1, fontWeight: 600, color: C.ink }}>{ex.name}</span>
-                      <span style={{ color: C.muted }}>{ex.sets?.length ?? 0} sets</span>
-                    </div>
-                  ))}
-                  {(r.exercises || []).length > 6 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>+{r.exercises.length - 6} more</div>}
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: .5, marginBottom: 8 }}>EXERCISES</div>
+                  {(r.exercises || []).slice(0, 7).map((ex, i) => {
+                    const bestSet = (ex.sets || []).reduce((b, s) => (est1RM(s.w, s.reps) > est1RM(b.w, b.reps) ? s : b), ex.sets?.[0] || { w: 0, reps: 0 });
+                    return (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.line}` }}>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</span>
+                        <span style={{ fontSize: 11.5, color: C.muted, flexShrink: 0 }}>{ex.sets?.length ?? 0} sets</span>
+                        {bestSet.w > 0 && <span style={{ fontSize: 11, color: C.inkSoft, flexShrink: 0 }}>{bestSet.w}kg×{bestSet.reps}</span>}
+                      </div>
+                    );
+                  })}
+                  {(r.exercises || []).length > 7 && <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>+{r.exercises.length - 7} more</div>}
                 </div>
               )}
               {/* kudos earned */}
               {dayWins.length > 0 && (
-                <>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.lime, letterSpacing: .3, marginBottom: 4 }}>KUDOS EARNED</div>
-                  <div style={{ marginBottom: 8 }}>
-                    {dayWins.map((w) => <WinRow key={w.id} win={w} onKudos={(id) => kudoWin(id, date)} />)}
-                  </div>
-                </>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.lime, letterSpacing: .5, marginBottom: 6 }}>KUDOS EARNED</div>
+                  {dayWins.map((w) => <WinRow key={w.id} win={w} onKudos={(id) => kudoWin(id, date)} />)}
+                </div>
               )}
-              <button className="sprig-tap" onClick={() => setRecapView(null)} style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "14px 0", marginTop: 8, fontWeight: 700 }}>Done</button>
+              {/* action buttons */}
+              <div style={{ display: "flex", gap: 8, padding: "12px 0 2px" }}>
+                <button className="sprig-tap" onClick={() => { setRecapView(null); setTab("train"); setTrainSub("analytics"); }}
+                  style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "13px 0", fontWeight: 600 }}>View history</button>
+                <button className="sprig-tap" onClick={() => setRecapView(null)}
+                  style={{ ...btn(C.lime, "#0A1F12"), flex: 1.8, padding: "13px 0", fontWeight: 700 }}>Done</button>
+              </div>
             </div>
           </div>
           </Portal>
@@ -6281,33 +6428,110 @@ function SprigApp() {
       {/* First-workout rep-range preference — asked once, stored on the profile, editable in settings */}
       {repRangePrompt && (
         <Portal>
-        <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 3000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+        <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 3000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "22px 18px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>What rep range do you train in?</div>
-            <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 6, marginBottom: 18, lineHeight: 1.5 }}>
-              Sprig uses this to guide progressive overload — when you hit the top of your range, it'll suggest adding weight. You can change this anytime in More → Settings.
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { range: [5, 8], title: "5–8 reps", sub: "Strength focus — heavier loads" },
-                { range: [8, 10], title: "8–10 reps", sub: "Strength + size balance" },
-                { range: [10, 12], title: "10–12 reps", sub: "Hypertrophy — muscle growth" },
-                { range: [12, 15], title: "12–15 reps", sub: "Endurance & higher volume" },
-              ].map((opt) => (
-                <button key={opt.title} className="sprig-tap" onClick={() => { saveProfile({ ...profile, repRange: opt.range, repRangeAsked: true }); setRepRangePrompt(false); }}
-                  style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 13, padding: "13px 15px", display: "flex", alignItems: "center", gap: 12, textAlign: "left", fontFamily: "DM Sans" }}>
-                  <Dumbbell size={17} color={C.greenSoft} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{opt.title}</div>
-                    <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{opt.sub}</div>
-                  </div>
-                  <ChevronRight size={16} color={C.muted} />
-                </button>
-              ))}
-            </div>
-            <button className="sprig-tap" onClick={() => { saveProfile({ ...profile, repRangeAsked: true }); setRepRangePrompt(false); }}
-              style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip — use smart defaults</button>
+
+            {/* Step 1 — rep range */}
+            {rrpStep === "rep_range" && <>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>What rep range do you train in?</div>
+              <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 6, marginBottom: 18, lineHeight: 1.5 }}>
+                Sprig uses this to guide progressive overload. You can change it anytime in Settings.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  { range: [5, 8],   title: "5–8 reps",   sub: "Strength focus — heavier loads" },
+                  { range: [8, 10],  title: "8–10 reps",  sub: "Strength + size balance" },
+                  { range: [10, 12], title: "10–12 reps", sub: "Hypertrophy — muscle growth" },
+                  { range: [12, 15], title: "12–15 reps", sub: "Endurance & higher volume" },
+                ].map((opt) => (
+                  <button key={opt.title} className="sprig-tap"
+                    onClick={() => {
+                      saveProfile({ ...profile, repRange: opt.range, repRangeAsked: true });
+                      setRrpPending({ repRange: opt.range });
+                      setRrpStep("rir_tracking");
+                    }}
+                    style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 13, padding: "13px 15px", display: "flex", alignItems: "center", gap: 12, textAlign: "left", fontFamily: "DM Sans" }}>
+                    <Dumbbell size={17} color={C.greenSoft} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{opt.title}</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{opt.sub}</div>
+                    </div>
+                    <ChevronRight size={16} color={C.muted} />
+                  </button>
+                ))}
+              </div>
+              <button className="sprig-tap" onClick={() => { saveProfile({ ...profile, repRangeAsked: true }); setRepRangePrompt(false); setRrpStep("rep_range"); setRrpPending({}); }}
+                style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip — use smart defaults</button>
+            </>}
+
+            {/* Step 2 — RIR tracking preference */}
+            {rrpStep === "rir_tracking" && <>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>Track reps in reserve?</div>
+              <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 6, marginBottom: 18, lineHeight: 1.5 }}>
+                After each set, Sprig can ask how many reps you had left — this makes overload suggestions more accurate.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  { val: "always",    title: "After every set",    sub: "Most accurate — great for serious tracking" },
+                  { val: "hard_sets", title: "On working sets only", sub: "Skip warmups, ask on heavier sets" },
+                  { val: "off",       title: "Don't ask",          sub: "Sprig will use rep count alone" },
+                ].map((opt) => (
+                  <button key={opt.val} className="sprig-tap"
+                    onClick={() => {
+                      const pending = { ...rrpPending, trackRir: opt.val };
+                      setRrpPending(pending);
+                      if (opt.val === "off") {
+                        saveRirPref({ trackRir: "off", intensityStyle: "balanced" });
+                        setRepRangePrompt(false); setRrpStep("rep_range"); setRrpPending({});
+                      } else {
+                        setRrpStep("intensity_style");
+                      }
+                    }}
+                    style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 13, padding: "13px 15px", display: "flex", alignItems: "center", gap: 12, textAlign: "left", fontFamily: "DM Sans" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{opt.title}</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{opt.sub}</div>
+                    </div>
+                    <ChevronRight size={16} color={C.muted} />
+                  </button>
+                ))}
+              </div>
+              <button className="sprig-tap" onClick={() => { saveRirPref({ trackRir: "always", intensityStyle: "balanced" }); setRepRangePrompt(false); setRrpStep("rep_range"); setRrpPending({}); }}
+                style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip — use defaults</button>
+            </>}
+
+            {/* Step 3 — intensity style */}
+            {rrpStep === "intensity_style" && <>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, textAlign: "center", color: C.ink }}>How hard do you push?</div>
+              <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginTop: 6, marginBottom: 18, lineHeight: 1.5 }}>
+                Sprig uses this to calibrate when to push harder vs. when to hold steady.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  { val: "failure",          title: "To failure",         sub: "You push every working set to your absolute limit" },
+                  { val: "close_to_failure", title: "Close to failure",   sub: "0–1 reps in reserve — very hard but not always all-out" },
+                  { val: "balanced",         title: "Balanced effort",    sub: "1–2 RIR — hard sets with something left in the tank" },
+                  { val: "leave_reps",       title: "Leave reps behind",  sub: "2–3+ RIR — controlled, technique-focused training" },
+                ].map((opt) => (
+                  <button key={opt.val} className="sprig-tap"
+                    onClick={() => {
+                      saveRirPref({ ...rrpPending, intensityStyle: opt.val });
+                      setRepRangePrompt(false); setRrpStep("rep_range"); setRrpPending({});
+                    }}
+                    style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 13, padding: "13px 15px", display: "flex", alignItems: "center", gap: 12, textAlign: "left", fontFamily: "DM Sans" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{opt.title}</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{opt.sub}</div>
+                    </div>
+                    <ChevronRight size={16} color={C.muted} />
+                  </button>
+                ))}
+              </div>
+              <button className="sprig-tap" onClick={() => { saveRirPref({ ...rrpPending, intensityStyle: "balanced" }); setRepRangePrompt(false); setRrpStep("rep_range"); setRrpPending({}); }}
+                style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip — use balanced</button>
+            </>}
+
           </div>
         </div>
         </Portal>
@@ -6319,7 +6543,7 @@ function SprigApp() {
         const s = ex?.sets?.[rirPrompt.setIdx];
         return (
           <Portal>
-          <div onClick={() => setRirPrompt(null)} style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.5)", zIndex: 3000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={() => setRirPrompt(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", zIndex: 3000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
             <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
               style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.25)" }}>
               <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, textAlign: "center", color: C.ink }}>How many reps in reserve?</div>
@@ -6327,27 +6551,18 @@ function SprigApp() {
                 How hard was that set?{s ? ` · ${ex.name} ${s.w}${profile.unit || "kg"} × ${s.reps}` : ""}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-                {/* RIR 2 (Solid) is the coaching default — subtly accented with a lime border so users
-                    develop the habit of aiming for 2 reps in reserve on working sets. */}
-                {[["0", "0", "Failure"], ["1", "1", "Hard"], ["2", "2", "Solid"], ["3", "3+", "Easy"]].map(([val, big, lbl]) => {
-                  const isDefault = val === "2";
-                  return (
-                    <button key={val} className="sprig-tap" onClick={() => chooseRir(rirPrompt.exIdx, rirPrompt.setIdx, +val)}
-                      style={{
-                        background: isDefault ? C.green + "14" : C.bg2,
-                        border: `1.5px solid ${isDefault ? C.green + "66" : C.line}`,
-                        cursor: "pointer", borderRadius: 14, padding: "14px 0",
-                        display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: "DM Sans",
-                        position: "relative",
-                      }}>
-                      <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: isDefault ? C.green : C.inkSoft }}>{big}</span>
-                      <span style={{ fontSize: 10.5, color: isDefault ? C.greenSoft : C.muted, fontWeight: 600 }}>{lbl}</span>
-                      {isDefault && (
-                        <span style={{ position: "absolute", top: -7, fontSize: 9, fontWeight: 700, color: C.green, background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 99, padding: "1px 5px", letterSpacing: "0.02em" }}>TARGET</span>
-                      )}
-                    </button>
-                  );
-                })}
+                {[["0", "0", "Failure"], ["1", "1", "Hard"], ["2", "2", "Solid"], ["3", "3+", "Easy"]].map(([val, big, lbl]) => (
+                  <button key={val} className="sprig-tap" onClick={() => chooseRir(rirPrompt.exIdx, rirPrompt.setIdx, +val)}
+                    style={{
+                      background: C.bg2,
+                      border: `1.5px solid ${C.line}`,
+                      cursor: "pointer", borderRadius: 14, padding: "14px 0",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: "DM Sans",
+                    }}>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.inkSoft }}>{big}</span>
+                    <span style={{ fontSize: 10.5, color: C.muted, fontWeight: 600 }}>{lbl}</span>
+                  </button>
+                ))}
               </div>
               <button className="sprig-tap" onClick={() => setRirPrompt(null)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip</button>
             </div>
@@ -6356,40 +6571,12 @@ function SprigApp() {
         );
       })()}
 
-      {/* Log food sheet — frame level + portaled so it never renders as a grey/clipped overlay */}
-      {logSheet && (
-        <Portal>
-          <div onClick={() => setLogSheet(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
-            <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
-              style={{ width: "100%", maxWidth: 440, background: C.isDark ? "#102018" : "#FFFFFF", border: `1px solid ${C.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`, borderRadius: "20px 20px 0 0", padding: "12px 18px 20px", boxShadow: "0 -12px 40px rgba(0,0,0,.55)" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line, margin: "0 auto 14px" }} />
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, marginBottom: 4, color: C.ink }}>Log food</div>
-              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>How do you want to add it?</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {[
-                  [() => { setResult(null); fileRef.current?.click(); }, Camera, "Snap food", "Photo → AI estimate"],
-                  [() => { setResult(null); labelRef.current?.click(); }, ScanLine, "Scan label", "Nutrition label → AI"],
-                  [() => { setComposer("text"); setResult(null); }, PencilLine, "Describe", "Type it, AI estimates"],
-                  [() => { setComposer("manual"); setResult(null); }, Calculator, "Manual", "Enter values yourself"],
-                ].map(([fn, Ic, title, subt]) => (
-                  <button key={title} className="sprig-tap" onClick={() => { setLogSheet(false); fn(); }}
-                    style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 5, textAlign: "left", fontFamily: "DM Sans" }}>
-                    <Ic size={18} color={C.lime} />
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{title}</span>
-                    <span style={{ fontSize: 10.5, color: C.muted }}>{subt}</span>
-                  </button>
-                ))}
-              </div>
-              <button className="sprig-tap" onClick={() => setLogSheet(false)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Cancel</button>
-            </div>
-          </div>
-        </Portal>
-      )}
+      {/* logSheet merged into unified foodOverlayMode overlay above */}
 
       {/* Favorite-source chooser — same 4 methods as food logging, but result is saved as a favorite */}
       {favChooser && (
         <Portal>
-        <div onClick={() => setFavChooser(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
+        <div onClick={() => setFavChooser(false)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>New favorite meal</div>
@@ -6436,7 +6623,7 @@ function SprigApp() {
       )}
       {favDup && (
         <Portal>
-        <div onClick={() => setFavDup(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 24 }}>
+        <div onClick={() => setFavDup(null)} className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} className="sprig-pop" style={{ width: "100%", maxWidth: 340, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 20, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Favorite already exists</div>
             <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 16 }}>You already have a favorite called "{favDup.existing.name}". Replace it, or save a copy?</div>
@@ -6470,7 +6657,7 @@ function SprigApp() {
 
       {/* mistake-detection confirmation (Fix 9) */}
       {pendingConfirm && (
-        <div onClick={() => setPendingConfirm(null)}
+        <div onClick={() => setPendingConfirm(null)} className="sprig-dim"
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: "100%", maxWidth: 340, background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 20, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
@@ -6488,7 +6675,7 @@ function SprigApp() {
 
       {/* undo toast — appears after a delete and gives a few seconds to bring it back */}
       {undoItem && (
-        <div className="sprig-bottom-toast sprig-toast-anim" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: C.ink, color: "#fff", padding: "11px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 20px rgba(0,0,0,.25)", fontSize: 12.5, fontFamily: "DM Sans", zIndex: 60 }}>
+        <div className="sprig-bottom-toast sprig-toast-anim" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: C.ink, color: "#fff", padding: "11px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 20px rgba(0,0,0,.25)", fontSize: 12.5, fontFamily: "DM Sans", zIndex: 4000 }}>
           <span>{(() => {
             const k = undoItem.kind, d = undoItem.data;
             if (k === "food") return `Removed “${d?.name || "entry"}”`;
@@ -6505,7 +6692,7 @@ function SprigApp() {
 
       {/* calm success/info toast */}
       {toast && !undoItem && (
-        <div className="sprig-bottom-toast sprig-toast-anim" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: toast.tone === "error" ? C.coral : C.ink, color: "#fff", padding: "10px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 6px 20px rgba(0,0,0,.22)", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", zIndex: 60 }}>
+        <div className="sprig-bottom-toast sprig-toast-anim" style={{ position: "fixed", bottom: 76, left: "50%", transform: "translateX(-50%)", background: toast.tone === "error" ? C.coral : C.ink, color: "#fff", padding: "10px 16px", borderRadius: 99, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 6px 20px rgba(0,0,0,.22)", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", zIndex: 4000 }}>
           {toast.tone !== "error" && <Check size={14} color={C.leaf} />}
           <span>{toast.text}</span>
         </div>
@@ -7770,7 +7957,7 @@ function StageBar({ stages, advanced }) {
   );
 }
 
-function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onEditLog, profile, advanced, daily, onDaily, recoveryRec }) {
+function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec }) {
   const { debtMin, lastSleep, rec, need } = sleepInfo;
   const [showManual, setShowManual] = useState(false);
   const [bed, setBed] = useState("23:00");
@@ -8050,6 +8237,10 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
         <div style={{ fontSize: 10.5, color: C.amber, marginTop: 8, lineHeight: 1.45 }}>
           Phone alarms require the app to stay open. For a guaranteed alarm, also set your phone's built-in alarm.
         </div>
+        <button className="sprig-tap" onClick={() => { try { playAlarmTone(profile?.alarmSound || "bells", profile?.alarmVolume ?? 0.7); } catch (_) {} }}
+          style={{ marginTop: 10, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "8px 14px", fontSize: 12, fontWeight: 600, color: C.inkSoft, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          <Volume2 size={13} /> Test alarm sound
+        </button>
       </div>
       </>)}
 
@@ -8065,11 +8256,15 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
             if (!latest || dismissShortBanner) return null;
             if ((latest.durationMin || 0) >= 20 || latest.ignoredFromScore) return null;
             return (
-              <div style={{ background: "#fdf6e9", border: `1px solid ${C.amber}66`, borderRadius: 12, padding: "11px 13px", marginBottom: 10, fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>
-                <b style={{ color: C.amber }}>This sleep looks unusually short</b> ({durLabel(latest.durationMin)}). It's already excluded from your score and debt. Keep it excluded, or delete it?
+              <div style={{ background: C.isDark ? "#2a200a" : "#fdf6e9", border: `1px solid ${C.amber}66`, borderRadius: 12, padding: "11px 13px", marginBottom: 10, fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>
+                <b style={{ color: C.amber }}>This sleep looks unusually short</b> ({durLabel(latest.durationMin)}). It's excluded from your score and debt — was it intentional?
                 <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
-                  <button className="sprig-tap" onClick={() => setDismissShortBanner(true)} style={{ flex: 1, background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", borderRadius: 9, padding: "8px 0", fontSize: 12, fontWeight: 600 }}>Keep excluded</button>
-                  <button className="sprig-tap" onClick={() => { onRemove(latest.id); setDismissShortBanner(true); }} style={{ flex: 1, background: C.coral, color: "#fff", border: "none", cursor: "pointer", borderRadius: 9, padding: "8px 0", fontSize: 12, fontWeight: 700 }}>Delete it</button>
+                  <button className="sprig-tap" onClick={() => { onRemove(latest.id); setDismissShortBanner(true); }}
+                    style={{ flex: 1, background: C.bg2, color: C.muted, border: "none", cursor: "pointer", borderRadius: 9, padding: "8px 0", fontSize: 11.5, fontWeight: 600 }}>Discard</button>
+                  <button className="sprig-tap" onClick={() => { onMarkNap && onMarkNap(latest.id); setDismissShortBanner(true); }}
+                    style={{ flex: 1, background: C.amber + "22", color: C.amber, border: `1px solid ${C.amber}44`, cursor: "pointer", borderRadius: 9, padding: "8px 0", fontSize: 11.5, fontWeight: 700 }}>Save as nap</button>
+                  <button className="sprig-tap" onClick={() => { setEditId(latest.id); setEditBed(minToHm(tsToMin(latest.bedtime))); setEditWake(minToHm(tsToMin(latest.waketime))); setDismissShortBanner(true); }}
+                    style={{ flex: 1, background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", borderRadius: 9, padding: "8px 0", fontSize: 11.5, fontWeight: 600 }}>Edit</button>
                 </div>
               </div>
             );
@@ -8651,6 +8846,7 @@ function AccountSection() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null); // { ok, text }
   const [confirmRestore, setConfirmRestore] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [showFirstChoice, setShowFirstChoice] = useState(false);
   const [lastSynced, setLastSynced] = useState(() => {
     try { return window.localStorage.getItem("sprig_last_synced_at"); } catch (_) { return null; }
@@ -8697,6 +8893,9 @@ function AccountSection() {
     setEmail(""); setPassword("");
   }
   async function handleSignOut() {
+    // Guard: if the user has never synced, warn before losing local data
+    if (!lastSynced && !confirmSignOut) { setConfirmSignOut(true); return; }
+    setConfirmSignOut(false);
     setBusy(true); setMsg(null);
     const { error } = await supabase.auth.signOut();
     setBusy(false);
@@ -8787,7 +8986,7 @@ function AccountSection() {
               ) : (
                 <div style={{ background: "#fdf6e9", border: `1px solid ${C.amber}55`, borderRadius: 11, padding: 11 }}>
                   <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 8, lineHeight: 1.45 }}>
-                    Restoring overwrites this device's data with the cloud backup. Continue?
+                    Restore will overwrite this device's local Vitae data.
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button className="sprig-tap" onClick={() => setConfirmRestore(false)} style={{ flex: 1, background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 600 }}>Cancel</button>
@@ -8795,10 +8994,22 @@ function AccountSection() {
                   </div>
                 </div>
               )}
-              <button className="sprig-tap" onClick={handleSignOut} disabled={busy}
-                style={{ background: "transparent", color: C.muted, border: `1px solid ${C.line}`, cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "10px 0", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
-                <LogOut size={13} /> Log out
-              </button>
+              {confirmSignOut ? (
+                <div style={{ background: C.isDark ? "#2a200a" : "#fdf6e9", border: `1px solid ${C.amber}55`, borderRadius: 11, padding: 11 }}>
+                  <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 8, lineHeight: 1.45 }}>
+                    Your data hasn't been synced. Log out and lose unsynced changes?
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="sprig-tap" onClick={() => setConfirmSignOut(false)} style={{ flex: 1, background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 600 }}>Cancel</button>
+                    <button className="sprig-tap" onClick={handleSignOut} style={{ flex: 1, background: C.coral, color: "#fff", border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 700 }}>Log out anyway</button>
+                  </div>
+                </div>
+              ) : (
+                <button className="sprig-tap" onClick={handleSignOut} disabled={busy}
+                  style={{ background: "transparent", color: C.muted, border: `1px solid ${C.line}`, cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "10px 0", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                  <LogOut size={13} /> Log out
+                </button>
+              )}
             </div>
           </>
         )}
@@ -8812,9 +9023,9 @@ function AccountSection() {
 
       {/* First-login choice prompt — shown once per account on this device. */}
       {showFirstChoice && user && (
-        <div onClick={dismissFirstChoice}
+        <div onClick={dismissFirstChoice} className="sprig-dim"
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
-          <div onClick={(e) => e.stopPropagation()} className="sprig-bottom-sheet"
+          <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
             style={{ width: "100%", maxWidth: 440, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "20px 18px 22px", boxShadow: "0 -8px 30px rgba(0,0,0,.18)" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>Welcome!</div>
             <div style={{ fontSize: 12.5, color: C.inkSoft, marginBottom: 14, lineHeight: 1.5 }}>
@@ -9164,6 +9375,66 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
           );
         })()}
         {!profile?.repRange && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 9 }}>Currently using smart per-exercise defaults. Pick a range to standardize it.</div>}
+      </div>
+
+      {/* RIR TRACKING */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Reps in reserve (RIR)</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
+          After each set, Sprig can ask how close to failure you were. This sharpens progression suggestions.
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, marginBottom: 6 }}>Ask after sets</div>
+        {(() => {
+          const cur = rirPref?.trackRir || "always";
+          const OPTS = [
+            ["always",    "Every set",         "Most accurate"],
+            ["hard_sets", "Working sets only", "Skip warmups"],
+            ["off",       "Never",             "Rep count only"],
+          ];
+          return (
+            <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>
+              {OPTS.map(([k, lbl, sub]) => {
+                const active = cur === k;
+                return (
+                  <button key={k} className="sprig-tap" onClick={() => { const next = { ...(rirPref || {}), trackRir: k }; saveRirPref(next); }}
+                    style={{ flex: 1, background: active ? C.green + "11" : C.bg, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 11, padding: "10px 4px", cursor: "pointer", textAlign: "center", fontFamily: "DM Sans" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.green : C.ink }}>{lbl}</div>
+                    <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, marginBottom: 6 }}>Intensity style</div>
+        {(() => {
+          const cur = rirPref?.intensityStyle || "balanced";
+          const OPTS = [
+            ["failure",          "To failure",    "Maximum effort every set"],
+            ["close_to_failure", "Near failure",  "0–1 RIR, very hard"],
+            ["balanced",         "Balanced",      "1–2 RIR, strong but controlled"],
+            ["leave_reps",       "Leave reps",    "2–3 RIR, technique-first"],
+          ];
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {OPTS.map(([k, lbl, sub]) => {
+                const active = cur === k;
+                return (
+                  <button key={k} className="sprig-tap" onClick={() => { const next = { ...(rirPref || {}), intensityStyle: k }; saveRirPref(next); }}
+                    style={{ background: active ? C.green + "11" : C.bg, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "DM Sans" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${active ? C.green : C.muted}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      {active && <div style={{ width: 7, height: 7, borderRadius: 99, background: C.green }} />}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{lbl}</div>
+                      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>{sub}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* DAY RESET MODE */}
@@ -9639,7 +9910,7 @@ function SearchSheet({ onClose, onJump, results, query, setQuery }) {
   const kindIcon = (k) => ({ food: "🥗", exercise: "🏋️", workout: "📈", supp: "💊", pain: "⚠️", weight: "⚖️", sleep: "🌙", health: "❤️", focus: "🎯", note: "📝" })[k] || "•";
   return (
     <Portal>
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 3000 }} onClick={onClose}>
+    <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 3000 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
         style={{ maxWidth: 440, margin: "60px auto 0", background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 14, maxHeight: "75vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, background: C.bg2, borderRadius: 12, padding: "8px 11px" }}>
@@ -9688,7 +9959,7 @@ function CalendarSheet({ onClose, getDayIcons }) {
   const todayStr = new Date().toLocaleDateString("en-CA");
   const dateStr = (d) => `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 3000 }} onClick={onClose}>
+    <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 3000 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
         style={{ maxWidth: 440, margin: "40px auto 0", background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 18, padding: 16, boxShadow: "0 18px 45px rgba(0,0,0,.45)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -9753,8 +10024,8 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNot
     "Should I cut, bulk, or maintain?",
   ];
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 3000 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
+    <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 3000 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
         style={{ maxWidth: 440, margin: "0 auto", position: "absolute", bottom: 0, left: 0, right: 0, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: "calc(22px + env(safe-area-inset-bottom, 0px))", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <Sparkles size={17} color={C.greenSoft} />
@@ -9828,7 +10099,7 @@ function PhotoSheet({ onClose, photos, onAdd, onRemove }) {
   const comparePics = photos.filter((p) => picked.includes(p.id)).sort((a, b) => a.ts - b.ts);
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 3000 }} onClick={onClose}>
+    <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(28,38,33,.55)", zIndex: 3000 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="sprig-pop"
         style={{ maxWidth: 440, margin: "30px auto 0", background: C.card, borderRadius: 20, padding: 16, maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 8px 28px rgba(0,0,0,.25)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -10670,9 +10941,9 @@ function PlateView({ target, unit }) {
   );
 }
 
-function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
+function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
   const meta = findEx(ex.name);
-  const prog = progressionFor(workouts, ex.name, daily, sleepReadiness, repRangePref);  // richer: action + text + suggested w/reps
+  const prog = progressionFor(workouts, ex.name, daily, sleepReadiness, repRangePref, intensityStyle);  // richer: action + text + suggested w/reps
   const sug = prog || suggestNext(workouts, ex.name);                     // fall back to lightweight hint
   const last = ex.sets[ex.sets.length - 1];
   const [w, setW] = useState(last ? String(last.w) : sug ? String(sug.w) : "");
@@ -11143,7 +11414,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         {active.exercises.map((ex, i) => (
           <ExerciseCard key={i} ex={ex} exIdx={i} workouts={workouts} unit={unit} customRests={trainInfo.customRests} advanced={advanced}
             sleepReadiness={trainInfo.sleepReadiness} daily={trainInfo.daily}
-            painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations} repRangePref={profile.repRange}
+            painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations} repRangePref={profile.repRange} intensityStyle={rirPref?.intensityStyle}
             onLogSet={onLogSet} onSetRir={onSetRir} onOpenRirPrompt={onOpenRirPrompt} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
             onSetExercisePain={onSetExercisePain} />
         ))}
@@ -11695,7 +11966,6 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
   const wStats = weightStats(weightSeries);
   const verdict = weightVerdict(wStats, profile.goal);
   const reminder = photoReminder(photoLog);
-  const measureCur = measurementStats(measureSeries);
   const verdictColor = verdict.tag === "good" ? C.greenSoft : verdict.tag === "fast" ? C.coral : verdict.tag === "slow" ? C.amber : C.amber;
 
   return (
