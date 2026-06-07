@@ -8,7 +8,8 @@ import {
   Timer, Trophy, Medal, BarChart3, ChevronLeft, ChevronDown, Award, Crown,
   Target, BookOpen, Calculator, Repeat, Gauge, Play, PersonStanding, Square,
   ArrowUp, HeartPulse, Search, TrendingDown,
-  Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal, Volume2
+  Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal, Volume2,
+  Archive, Bell
 } from "lucide-react";
 import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
 
@@ -2027,6 +2028,164 @@ function exercisePainRisk(exName, painLevel, painLocations) {
 
 /* ---------------- mind & habits engine -------------- */
 // default habits. `auto` = derive completion from existing tracked data; otherwise manual toggle.
+/* ---- Habits V2 engine ---- */
+const HABIT_CATEGORIES = [
+  { id: "health",       label: "Health" },
+  { id: "training",     label: "Training" },
+  { id: "nutrition",    label: "Nutrition" },
+  { id: "sleep",        label: "Sleep" },
+  { id: "mind",         label: "Mind" },
+  { id: "productivity", label: "Productivity" },
+  { id: "custom",       label: "Custom" },
+];
+const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function daysLabel(days) {
+  if (!days || !days.length) return "Custom";
+  if (days.length === 7) return "Daily";
+  const s = [...days].sort((a, b) => a - b);
+  if (JSON.stringify(s) === "[1,2,3,4,5]") return "Weekdays";
+  if (JSON.stringify(s) === "[0,6]") return "Weekends";
+  if (JSON.stringify(s) === "[1,3,5]") return "Mon/Wed/Fri";
+  if (JSON.stringify(s) === "[2,4]") return "Tue/Thu";
+  return s.map((d) => DAY_NAMES_SHORT[d]).join(", ");
+}
+
+// Monday-of-week as period key for all weekly frequency types
+function habitWeekKey(dateStr) {
+  const d = new Date(dateStr + "T12:00:00");
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return monday.toLocaleDateString("en-CA") + "-W";
+}
+
+function habitPeriodKey(frequencyType, dateStr) {
+  if (!frequencyType || frequencyType === "daily") return dateStr;
+  if (frequencyType === "monthly") return dateStr.slice(0, 7);
+  return habitWeekKey(dateStr); // weekly_x, specific_days, weekly
+}
+
+function getHabitStatus(habit, completions, today) {
+  const ft = habit.frequencyType || "daily";
+  const pk = habitPeriodKey(ft, today);
+  const dow = new Date(today + "T12:00:00").getDay();
+  const periodComps = (completions || []).filter((c) => c.habitId === habit.id && c.periodKey === pk);
+  const todayComps  = (completions || []).filter((c) => c.habitId === habit.id && c.sprigDate === today);
+  switch (ft) {
+    case "daily":
+      return { isDue: true, isComplete: todayComps.length >= 1, progress: todayComps.length, target: 1, periodKey: pk, freqLabel: "Daily" };
+    case "weekly_x": {
+      const target = habit.weeklyTarget || 3;
+      return { isDue: periodComps.length < target, isComplete: periodComps.length >= target, progress: periodComps.length, target, periodKey: pk, freqLabel: `${target}× / week` };
+    }
+    case "specific_days": {
+      const days = habit.specificDays || [];
+      return { isDue: days.includes(dow), isComplete: todayComps.length >= 1, progress: todayComps.length, target: 1, periodKey: pk, freqLabel: daysLabel(days) };
+    }
+    case "weekly":
+      return { isDue: periodComps.length < 1, isComplete: periodComps.length >= 1, progress: periodComps.length, target: 1, periodKey: pk, freqLabel: "Weekly" };
+    case "monthly":
+      return { isDue: periodComps.length < 1, isComplete: periodComps.length >= 1, progress: periodComps.length, target: 1, periodKey: pk, freqLabel: "Monthly" };
+    default:
+      return { isDue: true, isComplete: todayComps.length >= 1, progress: todayComps.length, target: 1, periodKey: pk, freqLabel: "Daily" };
+  }
+}
+
+function computeHabitStreak(habit, completions, today) {
+  const ft = habit.frequencyType || "daily";
+  if (ft === "daily") {
+    let streak = 0;
+    for (let i = 0; i <= 365; i++) {
+      const d = new Date(today + "T12:00:00"); d.setDate(d.getDate() - i);
+      const ds = d.toLocaleDateString("en-CA");
+      const done = (completions || []).some((c) => c.habitId === habit.id && c.sprigDate === ds);
+      if (done) streak++; else if (i > 0) break;
+    }
+    return streak;
+  }
+  let streak = 0;
+  const currentPk = habitPeriodKey(ft, today);
+  for (let i = 1; i <= 52; i++) {
+    const d = new Date(today + "T12:00:00");
+    if (ft === "monthly") d.setMonth(d.getMonth() - i); else d.setDate(d.getDate() - i * 7);
+    const pk = habitPeriodKey(ft, d.toLocaleDateString("en-CA"));
+    if (pk === currentPk) continue;
+    const comps = (completions || []).filter((c) => c.habitId === habit.id && c.periodKey === pk);
+    const target = ft === "weekly_x" ? (habit.weeklyTarget || 3) : 1;
+    if (comps.length >= target) streak++; else break;
+  }
+  return streak;
+}
+
+function computeHabitConsistencyV2(habits2, completions, today) {
+  const active = (habits2 || []).filter((h) => !h.archived);
+  if (!active.length) return { pct: null, label: "No habits yet", details: [] };
+  const details = active.map((habit) => {
+    const ft = habit.frequencyType || "daily";
+    let hits = 0, total = 0;
+    const currentPk = habitPeriodKey(ft, today);
+    if (ft === "daily") {
+      for (let i = 1; i <= 14; i++) {
+        const d = new Date(today + "T12:00:00"); d.setDate(d.getDate() - i);
+        const ds = d.toLocaleDateString("en-CA");
+        total++;
+        if ((completions || []).some((c) => c.habitId === habit.id && c.sprigDate === ds)) hits++;
+      }
+    } else if (ft === "weekly_x" || ft === "specific_days" || ft === "weekly") {
+      for (let w = 1; w <= 4; w++) {
+        const d = new Date(today + "T12:00:00"); d.setDate(d.getDate() - w * 7);
+        const pk = habitPeriodKey(ft, d.toLocaleDateString("en-CA"));
+        if (pk === currentPk) continue;
+        total++;
+        const comps = (completions || []).filter((c) => c.habitId === habit.id && c.periodKey === pk);
+        const target = ft === "weekly_x" ? (habit.weeklyTarget || 3) : 1;
+        if (comps.length >= target) hits++;
+      }
+    } else if (ft === "monthly") {
+      for (let m = 1; m <= 4; m++) {
+        const d = new Date(today + "T12:00:00"); d.setMonth(d.getMonth() - m);
+        const pk = d.toLocaleDateString("en-CA").slice(0, 7);
+        if (pk === currentPk) continue;
+        total++;
+        if ((completions || []).some((c) => c.habitId === habit.id && c.periodKey === pk)) hits++;
+      }
+    }
+    const rate = total > 0 ? hits / total : null;
+    return { habit, hits, total, rate };
+  });
+  const scored = details.filter((d) => d.rate !== null);
+  const pct = scored.length ? Math.round(scored.reduce((a, d) => a + d.rate, 0) / scored.length * 100) : null;
+  const label = pct === null ? "Building…" : pct >= 90 ? "Excellent" : pct >= 75 ? "Strong" : pct >= 50 ? "Building" : "Needs attention";
+  return { pct, label, details };
+}
+
+function migrateHabitsV1toV2(habitConfig, habitDone) {
+  const habits2 = [];
+  const nonAuto = [
+    { id: "sleep_time", label: "Sleep on time", category: "sleep" },
+    { id: "stretch",    label: "Stretching",    category: "training" },
+    { id: "study",      label: "Studying",      category: "mind" },
+    { id: "reading",    label: "Reading",       category: "mind" },
+  ];
+  const hidden = new Set(habitConfig?.hidden || []);
+  nonAuto.forEach((d) => {
+    if (!hidden.has(d.id)) habits2.push({ id: d.id, name: d.label, category: d.category, frequencyType: "daily", weeklyTarget: null, specificDays: null, reminderEnabled: false, reminderTime: null, createdAt: Date.now(), archived: false, autoHabit: false, notes: "" });
+  });
+  (habitConfig?.custom || []).forEach((c) => {
+    habits2.push({ id: c.id, name: c.label || c.name || "Habit", category: "custom", frequencyType: "daily", weeklyTarget: null, specificDays: null, reminderEnabled: false, reminderTime: null, createdAt: Date.now(), archived: false, autoHabit: false, notes: "" });
+  });
+  const completions = [];
+  const seen = new Set();
+  Object.entries(habitDone || {}).forEach(([dateStr, ids]) => {
+    (ids || []).forEach((id) => {
+      if (!habits2.find((h) => h.id === id)) return;
+      const cid = id + "_" + dateStr; if (seen.has(cid)) return; seen.add(cid);
+      completions.push({ id: "m_" + Math.random().toString(36).slice(2, 10), habitId: id, completedAt: new Date(dateStr + "T12:00:00").getTime(), sprigDate: dateStr, periodKey: dateStr, notes: "" });
+    });
+  });
+  return { habits2, completions };
+}
+
 const DEFAULT_HABITS = [
   { id: "water",      label: "Water",        auto: true,  icon: "water" },
   { id: "protein",    label: "Protein",      auto: true,  icon: "protein" },
@@ -4516,12 +4675,17 @@ function SprigApp() {
   const [photoLog, setPhotoLog] = useState([]);              // [{date, kinds:['front','side','back']}]
   // health markers: vitals + blood work + symptoms, date-keyed series
   const [healthSeries, setHealthSeries] = useState([]);      // [{date, bpSys, bpDia, rhr, smoking, blood:{...}, symptoms:'...'}]
+  // AI-extracted bloodwork logs: [{id, date, markers:[{name,value,unit,range,status,summary,lifestyle}], summary, actions}]
+  const [bloodworkLogs, setBloodworkLogs] = useState([]);
   // pain logs: structured entries beyond the daily check-in
   const [painLogs, setPainLogs] = useState([]);              // [{id, ts, date, level, location, type, note, exercise, status}]
   // mind & habits
   const [habitConfig, setHabitConfig] = useState(null);     // {custom:[{id,label}], hidden:[ids]} — null until loaded
   const [habitDone, setHabitDone] = useState({});           // manual completion: { "<date>": [habitId,...] }
   const [focusSessions, setFocusSessions] = useState([]);   // [{id, ts, date, minutes, label}]
+  // Habits V2
+  const [habits2, setHabits2] = useState([]);               // [{id, name, category, frequencyType, ...}]
+  const [habitCompletions, setHabitCompletions] = useState([]); // [{id, habitId, completedAt, sprigDate, periodKey}]
   const [wins, setWins] = useState({});                     // { "<date>": [ {id,type,title,detail,source,createdAt,kudoed} ] }
   // Track keyboard inset at app level so food overlay can adjust its max-height.
   const kb = useKeyboardInset();
@@ -4578,10 +4742,13 @@ function SprigApp() {
         const ms = await store.get("sprig_measure_v1");
         const ph = await store.get("sprig_photos_v1");
         const hl = await store.get("sprig_health_v1");
+        const bwl = await store.get("sprig_bloodwork_v1");
         const pn = await store.get("sprig_pain_v1");
         const hc = await store.get("sprig_habitcfg_v1");
         const hd = await store.get("sprig_habitdone_v1");
         const fs = await store.get("sprig_focus_v1");
+        const hb2raw = await store.get("sprig_habits_v2");
+        const hc2raw = await store.get("sprig_habit_completions_v2");
         const wns = await store.get("sprig_wins_v1");
         const rm = await store.get("sprig_reminders_v1");
         const pp = await store.get("sprig_progress_photos_v1");
@@ -4606,10 +4773,29 @@ function SprigApp() {
         setMeasureSeries(safeParse(ms, [], asArray));
         setPhotoLog(safeParse(ph, [], asArray));
         setHealthSeries(safeParse(hl, [], asArray));
+        setBloodworkLogs(safeParse(bwl, [], asArray));
         setPainLogs(safeParse(pn, [], asArray));
         setHabitConfig(migrateHabitCfg(safeParse(hc, null)));
         setHabitDone(safeParse(hd, {}, asObject));
         setFocusSessions(safeParse(fs, [], asArray));
+        // Load V2 habits — migrate from V1 if V2 is empty
+        let parsedH2 = safeParse(hb2raw, [], asArray);
+        let parsedHC2 = safeParse(hc2raw, [], asArray);
+        if (!parsedH2.length) {
+          const v1Cfg = safeParse(hc, null, asObject);
+          const v1Done = safeParse(hd, {}, asObject);
+          if (v1Cfg || Object.keys(v1Done).length) {
+            const migrated = migrateHabitsV1toV2(v1Cfg, v1Done);
+            parsedH2 = migrated.habits2;
+            parsedHC2 = migrated.completions.length ? migrated.completions : parsedHC2;
+            if (parsedH2.length) {
+              await store.set("sprig_habits_v2", JSON.stringify(parsedH2));
+              if (parsedHC2.length) await store.set("sprig_habit_completions_v2", JSON.stringify(parsedHC2));
+            }
+          }
+        }
+        setHabits2(parsedH2);
+        setHabitCompletions(parsedHC2);
         setWins(safeParse(wns, {}, asObject));
         setProgressPhotos(safeParse(pp, [], asArray));
         setReminders((prev) => ({ ...prev, ...migrateReminders(safeParse(rm, null)) }));
@@ -4795,7 +4981,7 @@ function SprigApp() {
     let keys = await store.list("sprig_");
     if (!keys.length) {
       // fallback: known static keys + recent date-keyed ones
-      const statics = ["sprig_profile_v1", "sprig_meals_v1", "sprig_favorite_meals_v1", "sprig_history_v1", "sprig_supps_v1", "sprig_sleep_v1", "sprig_alarm_v1", "sprig_workouts_v1", "sprig_rests_v1", "sprig_routines_v1", "sprig_weightseries_v1", "sprig_measure_v1", "sprig_photos_v1", "sprig_health_v1", "sprig_pain_v1", "sprig_habitcfg_v1", "sprig_habitdone_v1", "sprig_focus_v1", "sprig_coach_notes_v1", "sprig_wins_v1"];
+      const statics = ["sprig_profile_v1", "sprig_meals_v1", "sprig_favorite_meals_v1", "sprig_history_v1", "sprig_supps_v1", "sprig_sleep_v1", "sprig_alarm_v1", "sprig_workouts_v1", "sprig_rests_v1", "sprig_routines_v1", "sprig_weightseries_v1", "sprig_measure_v1", "sprig_photos_v1", "sprig_health_v1", "sprig_bloodwork_v1", "sprig_pain_v1", "sprig_habitcfg_v1", "sprig_habitdone_v1", "sprig_habits_v2", "sprig_habit_completions_v2", "sprig_focus_v1", "sprig_coach_notes_v1", "sprig_wins_v1"];
       const dated = [];
       for (let i = 0; i < 90; i++) { const dd = new Date(); dd.setDate(dd.getDate() - i); const ds = dd.toLocaleDateString("en-CA"); dated.push("sprig_log_" + ds, "sprig_daily_" + ds, "sprig_supptaken_" + ds); }
       keys = [...statics, ...dated];
@@ -4987,6 +5173,10 @@ function SprigApp() {
     await store.set("sprig_health_v1", JSON.stringify(next));
   };
 
+  const persistBloodwork = async (next) => { setBloodworkLogs(next); await store.set("sprig_bloodwork_v1", JSON.stringify(next)); };
+  const saveBloodworkEntry = (entry) => persistBloodwork([entry, ...bloodworkLogs].slice(0, 20));
+  const deleteBloodworkEntry = (id) => persistBloodwork(bloodworkLogs.filter((b) => b.id !== id));
+
   // pain logs
   const persistPain = async (next) => { setPainLogs(next); await store.set("sprig_pain_v1", JSON.stringify(next)); };
   function addPainLog(entry) {
@@ -5025,6 +5215,42 @@ function SprigApp() {
   function restoreHabit(id) {
     const cfg = habitConfig || { custom: [], hidden: [] };
     persistHabitCfg({ ...cfg, hidden: (cfg.hidden || []).filter((h) => h !== id) });
+  }
+
+  // Habits V2
+  const persistHabits2 = async (next) => { setHabits2(next); await store.set("sprig_habits_v2", JSON.stringify(next)); };
+  const persistHabitCompletions = async (next) => { setHabitCompletions(next); await store.set("sprig_habit_completions_v2", JSON.stringify(next)); };
+  function toggleHabit2(habitId, dateStr) {
+    const habit = habits2.find((h) => h.id === habitId);
+    if (!habit) return;
+    const pk = habitPeriodKey(habit.frequencyType || "daily", dateStr);
+    const ft = habit.frequencyType || "daily";
+    // For daily + specific_days: toggle today's completion; for others: add one completion per tap
+    const existing = ft === "daily" || ft === "specific_days"
+      ? habitCompletions.find((c) => c.habitId === habitId && c.sprigDate === dateStr)
+      : null;
+    if (existing) {
+      persistHabitCompletions(habitCompletions.filter((c) => c.id !== existing.id));
+    } else {
+      persistHabitCompletions([...habitCompletions, { id: uid(), habitId, completedAt: Date.now(), sprigDate: dateStr, periodKey: pk, notes: "" }]);
+      logged("Habit completed", "light");
+    }
+  }
+  function addHabit2(def) {
+    const h = { id: "h_" + uid(), name: (def.name || "").trim() || "Habit", category: def.category || "custom", frequencyType: def.frequencyType || "daily", weeklyTarget: def.weeklyTarget || null, specificDays: def.specificDays || null, reminderEnabled: !!def.reminderEnabled, reminderTime: def.reminderTime || null, createdAt: Date.now(), archived: false, autoHabit: false, notes: def.notes || "" };
+    persistHabits2([...habits2, h]);
+  }
+  function editHabit2(id, patch) { persistHabits2(habits2.map((h) => h.id === id ? { ...h, ...patch } : h)); }
+  function archiveHabit2(id) { persistHabits2(habits2.map((h) => h.id === id ? { ...h, archived: true } : h)); }
+  function restoreHabit2(id) { persistHabits2(habits2.map((h) => h.id === id ? { ...h, archived: false } : h)); }
+  function deleteHabit2(id) {
+    persistHabits2(habits2.filter((h) => h.id !== id));
+    persistHabitCompletions(habitCompletions.filter((c) => c.habitId !== id));
+  }
+  // Un-do a completion for weekly_x / weekly / monthly habits
+  function undoHabitCompletion(habitId, periodKey) {
+    const last = habitCompletions.filter((c) => c.habitId === habitId && c.periodKey === periodKey).slice(-1)[0];
+    if (last) persistHabitCompletions(habitCompletions.filter((c) => c.id !== last.id));
   }
 
   // focus sessions
@@ -5097,6 +5323,13 @@ function SprigApp() {
         painNotes: ctx?.painNotes || null,
       },
       supplements: ctx?.supplements || null,
+      healthReport: healthReport ? { score: healthReport.score, confidence: healthReport.confidence, hurting: healthReport.hurting, improvements: healthReport.improvements } : null,
+      bloodwork: bloodworkLogs?.length ? bloodworkLogs[0] : null,
+      habits: consistencyV2 ? {
+        consistencyPct: consistencyV2.pct,
+        activeCount: (habits2 || []).filter((h) => !h.archived).length,
+        details: (consistencyV2.details || []).slice(0, 8).map((d) => ({ name: d.habit.name, freq: d.habit.frequencyType, rate: d.rate !== null ? Math.round(d.rate * 100) + "%" : "new" })),
+      } : null,
       todayWins: ctx?.todayWins && ctx.todayWins.length ? ctx.todayWins : null,
     };
 
@@ -5660,6 +5893,12 @@ function SprigApp() {
     latest: latestHealth(healthSeries),
     radar: healthRiskRadar({ healthSeries, sleepLogs, sleepInfo, t, targets, daily, dailyHistory, weightSeries, measureSeries, workouts, profile }),
   };
+  const healthReport = computeHealthReport({
+    history7: (history || []).filter((h) => Date.now() - new Date(h.date).getTime() < 7 * 864e5),
+    sleepLogs7: (sleepLogs || []).filter((l) => !l.ignoredFromScore && l.waketime > Date.now() - 7 * 864e5),
+    workouts7: (workouts || []).filter((w) => w.ts > Date.now() - 7 * 864e5),
+    daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo,
+  });
 
   // ---- safety: red flags + interaction warnings ----
   const _latestH = healthInfo.latest;
@@ -5730,10 +5969,18 @@ function SprigApp() {
   const consistency = habitConsistency(habits, ctxByDate, habitDone, last7Dates, date);
   const focusToday = focusSessions.filter((f) => f.date === date);
   const focusWeek = focusSessions.filter((f) => last7Dates.includes(f.date));
+  // V2 habit data
+  const habitStatusMap = {};
+  (habits2 || []).filter((h) => !h.archived).forEach((h) => {
+    habitStatusMap[h.id] = getHabitStatus(h, habitCompletions, date);
+  });
+  const consistencyV2 = computeHabitConsistencyV2(habits2, habitCompletions, date);
   const mindInfo = {
     checkin: daily.checkin || {}, habits: habitsTodayState, consistency,
     focusToday, focusWeek, focusMinutesToday: focusToday.reduce((a, f) => a + f.minutes, 0),
     hiddenDefaults: (habitConfig?.hidden || []).map((id) => DEFAULT_HABITS.find((h) => h.id === id)).filter(Boolean),
+    // V2
+    habits2, habitCompletions, habitStatusMap, consistencyV2,
   };
 
   // rule-based coach (no AI) — synthesizes everything above into 4 cards
@@ -5905,11 +6152,13 @@ function SprigApp() {
         {tab === "energy" && (
           <EnergyTab sleepInfo={sleepInfo} entries={entries} t={t} advanced={advanced} />
         )}
-        {tab === "health" && <HealthTab healthInfo={healthInfo} advanced={advanced} onSave={saveHealth} safety={safetyInfo}
+        {tab === "health" && <HealthTab healthInfo={healthInfo} healthReport={healthReport} advanced={advanced} onSave={saveHealth} safety={safetyInfo}
           pain={trainInfo.pain} onAddPain={addPainLog} onUpdatePain={updatePainLog} onRemovePain={removePainLog}
-          checkin={daily.checkin || {}} onCheckin={setCheckin} />}
-        {tab === "mind" && <MindTab mindInfo={mindInfo} advanced={advanced} checkin={daily.checkin || {}} onCheckin={setCheckin} profile={profile}
-          onToggleHabit={toggleHabit} onAddHabit={addHabit} onRemoveHabit={removeHabit} onRestoreHabit={restoreHabit} onLogFocus={logFocus} />}
+          bloodwork={bloodworkLogs} onSaveBloodwork={saveBloodworkEntry} onDeleteBloodwork={deleteBloodworkEntry} />}
+        {tab === "mind" && <MindTab mindInfo={mindInfo} advanced={advanced} profile={profile} today={date}
+          onToggleHabit2={(id) => toggleHabit2(id, date)} onAddHabit2={addHabit2} onEditHabit2={editHabit2}
+          onArchiveHabit2={archiveHabit2} onRestoreHabit2={restoreHabit2} onDeleteHabit2={deleteHabit2}
+          onUndoCompletion={undoHabitCompletion} />}
         {tab === "coach" && <CoachTab coach={coach2} advanced={advanced} moveInfo={moveInfo} timeline={timeline} plateaus={plateaus} patterns={patterns}
           onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={() => setAskOpen(true)} />}
         {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} />}
@@ -10312,150 +10561,430 @@ function FocusTimer({ onLogFocus }) {
   );
 }
 
-function MindTab({ mindInfo, advanced, checkin, onCheckin, profile, onToggleHabit, onAddHabit, onRemoveHabit, onRestoreHabit, onLogFocus }) {
-  const [adding, setAdding] = useState(false);
-  const [newHabit, setNewHabit] = useState("");
-  const [manage, setManage] = useState(false);
-  const ci = checkin || {};
-  const { habits, consistency, focusToday, focusWeek, focusMinutesToday, hiddenDefaults } = mindInfo;
-  const doneCount = habits.filter((h) => h.done).length;
+function AddHabitForm({ onSave, onCancel, initial }) {
+  const [name, setName] = useState(initial?.name || "");
+  const [category, setCategory] = useState(initial?.category || "custom");
+  const [freqType, setFreqType] = useState(initial?.frequencyType || "daily");
+  const [weeklyTarget, setWeeklyTarget] = useState(initial?.weeklyTarget || 3);
+  const [specificDays, setSpecificDays] = useState(initial?.specificDays || []);
+  const [reminderOn, setReminderOn] = useState(initial?.reminderEnabled || false);
+  const [reminderTime, setReminderTime] = useState(initial?.reminderTime || "09:00");
+  const [notes, setNotes] = useState(initial?.notes || "");
+
+  const toggleDay = (d) => setSpecificDays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b));
+  const valid = name.trim().length > 0;
+
+  const FreqBtn = ({ id, label }) => (
+    <button className="sprig-tap" onClick={() => setFreqType(id)}
+      style={{ flex: 1, border: "none", cursor: "pointer", padding: "9px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
+        background: freqType === id ? C.green : C.bg2, color: freqType === id ? "#fff" : C.muted }}>{label}</button>
+  );
+  const CatBtn = ({ id, label }) => (
+    <button className="sprig-tap" onClick={() => setCategory(id)}
+      style={{ border: "none", cursor: "pointer", padding: "7px 11px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
+        background: category === id ? C.green : C.bg2, color: category === id ? "#fff" : C.muted }}>{label}</button>
+  );
+
+  return (
+    <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 16, border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 13 }}>{initial ? "Edit habit" : "Add habit"}</div>
+
+      <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="e.g. Stretch hips, Read 10 pages, Take creatine"
+        style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 11, padding: "11px 13px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink, marginBottom: 12 }} />
+
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>CATEGORY</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 13 }}>
+        {HABIT_CATEGORIES.map((c) => <CatBtn key={c.id} id={c.id} label={c.label} />)}
+      </div>
+
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>FREQUENCY</div>
+      <div style={{ display: "flex", gap: 5, marginBottom: freqType === "weekly_x" || freqType === "specific_days" ? 10 : 13 }}>
+        <FreqBtn id="daily"         label="Daily" />
+        <FreqBtn id="weekly_x"      label="X / week" />
+        <FreqBtn id="specific_days" label="Specific days" />
+        <FreqBtn id="weekly"        label="Weekly" />
+        <FreqBtn id="monthly"       label="Monthly" />
+      </div>
+
+      {freqType === "weekly_x" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 13 }}>
+          <span style={{ fontSize: 12.5, color: C.inkSoft }}>Times per week:</span>
+          {[1,2,3,4,5,6,7].map((n) => (
+            <button key={n} className="sprig-tap" onClick={() => setWeeklyTarget(n)}
+              style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "DM Sans",
+                background: weeklyTarget === n ? C.green : C.bg2, color: weeklyTarget === n ? "#fff" : C.muted }}>{n}</button>
+          ))}
+        </div>
+      )}
+
+      {freqType === "specific_days" && (
+        <div style={{ display: "flex", gap: 5, marginBottom: 13 }}>
+          {DAY_NAMES_SHORT.map((d, i) => (
+            <button key={i} className="sprig-tap" onClick={() => toggleDay(i)}
+              style={{ flex: 1, border: "none", cursor: "pointer", padding: "8px 0", borderRadius: 9, fontSize: 11.5, fontWeight: 700, fontFamily: "DM Sans",
+                background: specificDays.includes(i) ? C.green : C.bg2, color: specificDays.includes(i) ? "#fff" : C.muted }}>{d}</button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: reminderOn ? 8 : 13 }}>
+        <span style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600 }}>Reminder</span>
+        <button className="sprig-tap" onClick={() => setReminderOn((v) => !v)}
+          style={{ width: 40, height: 22, borderRadius: 99, border: "none", cursor: "pointer", position: "relative",
+            background: reminderOn ? C.green : C.bg2, transition: "background .2s" }}>
+          <span style={{ position: "absolute", top: 3, width: 16, height: 16, borderRadius: 99, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+            left: reminderOn ? 21 : 3, transition: "left .2s" }} />
+        </button>
+      </div>
+      {reminderOn && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
+            style={{ flex: 1, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 12px", fontFamily: "DM Sans", fontSize: 13, background: C.bg, color: C.ink }} />
+          <span style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.4 }}>In-app reminder (push notifications require device permission)</span>
+        </div>
+      )}
+
+      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes — optional (e.g. context, target, reason)"
+        style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 12px", fontFamily: "DM Sans", fontSize: 13, background: C.bg, color: C.ink, minHeight: 44, resize: "vertical", lineHeight: 1.4, marginBottom: 12 }} />
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="sprig-tap" onClick={onCancel} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "11px 0" }}>Cancel</button>
+        <button className="sprig-tap" disabled={!valid} onClick={() => valid && onSave({ name, category, frequencyType: freqType, weeklyTarget: freqType === "weekly_x" ? weeklyTarget : null, specificDays: freqType === "specific_days" ? specificDays : null, reminderEnabled: reminderOn, reminderTime: reminderOn ? reminderTime : null, notes })}
+          style={{ ...btn(valid ? C.green : C.bg2, valid ? "#fff" : C.muted), flex: 2, padding: "11px 0" }}>
+          <Check size={14} /> {initial ? "Save changes" : "Add habit"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabit2, onEditHabit2, onArchiveHabit2, onRestoreHabit2, onDeleteHabit2, onUndoCompletion }) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingHabit, setEditingHabit] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [manageMode, setManageMode] = useState(false);
+
+  const { habits2 = [], habitCompletions = [], habitStatusMap = {}, consistencyV2 } = mindInfo;
+  const active = habits2.filter((h) => !h.archived);
+  const archived = habits2.filter((h) => h.archived);
+  const cv2 = consistencyV2 || { pct: null, label: "No habits yet", details: [] };
+
+  // Group active habits by frequency bucket
+  const dailyHabits    = active.filter((h) => h.frequencyType === "daily" || !h.frequencyType);
+  const specificDaysH  = active.filter((h) => h.frequencyType === "specific_days");
+  const weeklyXHabits  = active.filter((h) => h.frequencyType === "weekly_x");
+  const weeklyHabits   = active.filter((h) => h.frequencyType === "weekly");
+  const monthlyHabits  = active.filter((h) => h.frequencyType === "monthly");
+
+  // Due today
+  const dueToday = active.filter((h) => { const s = habitStatusMap[h.id]; return s && s.isDue && !s.isComplete; });
+  const doneToday = active.filter((h) => { const s = habitStatusMap[h.id]; return s && s.isComplete; }).length;
+  const totalDueToday = active.filter((h) => { const s = habitStatusMap[h.id]; return s && s.isDue; }).length;
+
+  // This week / this period (non-daily)
+  const periodHabits = [...specificDaysH, ...weeklyXHabits, ...weeklyHabits, ...monthlyHabits];
+
+  const scoreColor = cv2.pct == null ? C.muted : cv2.pct >= 75 ? C.greenSoft : cv2.pct >= 50 ? C.amber : C.coral;
+
+  const handleSaveForm = (def) => {
+    if (editingHabit) { onEditHabit2(editingHabit.id, def); setEditingHabit(null); }
+    else { onAddHabit2(def); setShowAddForm(false); }
+  };
+  const handleCancelForm = () => { setShowAddForm(false); setEditingHabit(null); };
+
+  // Habit row for Due Today
+  const DueTodayRow = ({ habit }) => {
+    const status = habitStatusMap[habit.id] || {};
+    const streak = computeHabitStreak(habit, habitCompletions, today);
+    return (
+      <div className="sprig-tap" onClick={() => onToggleHabit2(habit.id)}
+        style={{ display: "flex", alignItems: "center", gap: 11, background: C.card, border: `1px solid ${C.line}`, borderRadius: 13, padding: "12px 14px", boxShadow: C.shadow, cursor: "pointer" }}>
+        <div style={{ width: 26, height: 26, borderRadius: 99, border: `2px solid ${C.line}`, background: "transparent", display: "grid", placeItems: "center", flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>{habit.name}</div>
+          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
+            {status.freqLabel || "Daily"}{streak > 1 ? <span style={{ color: C.amber, marginLeft: 6 }}>🔥 {streak}</span> : null}
+          </div>
+        </div>
+        {habit.reminderEnabled && <Bell size={13} color={C.muted} />}
+      </div>
+    );
+  };
+
+  // Habit row for All Habits list
+  const HabitRow = ({ habit }) => {
+    const status = habitStatusMap[habit.id] || {};
+    const streak = computeHabitStreak(habit, habitCompletions, today);
+    const ft = habit.frequencyType || "daily";
+    const isDaily = ft === "daily" || ft === "specific_days";
+    const canComplete = status.isDue && !status.isComplete;
+    const canUndo = status.progress > 0;
+
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 11, background: status.isComplete ? C.green + "0d" : C.card, border: `1px solid ${status.isComplete ? C.leaf + "55" : C.line}`, borderRadius: 13, padding: "11px 13px", boxShadow: C.shadow }}>
+        {/* Complete button */}
+        <button className="sprig-tap"
+          onClick={() => { if (isDaily) onToggleHabit2(habit.id); else if (canComplete) onToggleHabit2(habit.id); else if (canUndo) onUndoCompletion(habit.id, status.periodKey); }}
+          style={{ width: 26, height: 26, borderRadius: 99, flexShrink: 0, border: status.isComplete ? "none" : `2px solid ${C.line}`, background: status.isComplete ? C.green : "transparent", cursor: "pointer", display: "grid", placeItems: "center", color: "#fff" }}>
+          {status.isComplete && <Check size={14} />}
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: status.isComplete ? C.ink : C.inkSoft }}>{habit.name}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
+            {status.freqLabel || "Daily"}
+            {ft === "weekly_x" && <span style={{ marginLeft: 5 }}>{status.progress}/{status.target} this week</span>}
+            {ft === "monthly"  && <span style={{ marginLeft: 5 }}>{status.progress}/{status.target} this month</span>}
+            {streak > 1 && <span style={{ color: C.amber, marginLeft: 6 }}>🔥 {streak}</span>}
+            {habit.category && habit.category !== "custom" && <span style={{ marginLeft: 6, color: C.muted, fontSize: 10 }}>· {habit.category}</span>}
+          </div>
+        </div>
+        {habit.reminderEnabled && <Bell size={13} color={C.muted} style={{ flexShrink: 0 }} />}
+        {manageMode && (
+          <div style={{ display: "flex", gap: 4 }}>
+            <button className="sprig-tap" onClick={() => { setEditingHabit(habit); setShowAddForm(false); }}
+              style={{ background: C.bg2, border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center" }}><PencilLine size={13} /></button>
+            <button className="sprig-tap" onClick={() => onArchiveHabit2(habit.id)}
+              style={{ background: C.bg2, border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.muted }}><Archive size={14} /></button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Period progress row (for weekly/monthly habits in "This Period" section)
+  const PeriodRow = ({ habit }) => {
+    const status = habitStatusMap[habit.id] || {};
+    const ft = habit.frequencyType || "daily";
+    const progressPct = status.target > 0 ? Math.min(1, status.progress / status.target) : 0;
+    const label = ft === "monthly"
+      ? `${status.progress}/${status.target} this month`
+      : ft === "weekly_x"
+      ? `${status.progress}/${status.target} this week`
+      : ft === "weekly"
+      ? `${status.progress > 0 ? "Done" : "Pending"} this week`
+      : `${status.progress}/${status.target}`;
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}` }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>{habit.name}</span>
+            <span style={{ fontSize: 11, color: C.muted }}>{status.freqLabel}</span>
+          </div>
+          <div style={{ marginTop: 5, height: 5, borderRadius: 99, background: C.bg2, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${progressPct * 100}%`, background: status.isComplete ? C.green : C.amber, borderRadius: 99, transition: "width .3s" }} />
+          </div>
+          <div style={{ fontSize: 11, color: status.isComplete ? C.greenSoft : C.muted, marginTop: 3 }}>{label}</div>
+        </div>
+        {!status.isComplete && status.isDue && (
+          <button className="sprig-tap" onClick={() => onToggleHabit2(habit.id)}
+            style={{ ...btn(C.green, "#fff"), padding: "7px 11px", borderRadius: 10, fontSize: 12, flexShrink: 0 }}>
+            {ft === "weekly_x" ? "+ Log" : "Mark done"}
+          </button>
+        )}
+        {status.isComplete && <Check size={17} color={C.greenSoft} style={{ flexShrink: 0 }} />}
+      </div>
+    );
+  };
 
   return (
     <div className="sprig-rise">
-      {/* DAILY CHECK-IN */}
-      <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: C.inkSoft, fontWeight: 600, marginBottom: 6 }}>
-          <Sparkles size={15} color={C.greenSoft} /> How are you today?
-        </div>
-        <CheckinRow label="Mood" value={ci.mood} onPick={(v) => onCheckin("mood", v)} opts={[["bad", "Bad", C.coral], ["okay", "Okay", C.amber], ["good", "Good", C.greenSoft]]} />
-        <CheckinRow label="Energy" value={ci.energy} onPick={(v) => onCheckin("energy", v)} opts={[["low", "Low", C.coral], ["normal", "Normal", C.amber], ["high", "High", C.greenSoft]]} />
-        <CheckinRow label="Focus" value={ci.focus} onPick={(v) => onCheckin("focus", v)} opts={[["low", "Low", C.coral], ["normal", "Normal", C.amber], ["high", "High", C.greenSoft]]} />
-        <CheckinRow label="Stress" value={ci.stress} onPick={(v) => onCheckin("stress", v)} opts={[["low", "Low", C.greenSoft], ["medium", "Med", C.amber], ["high", "High", C.coral]]} />
-        {advanced && <>
-          <CheckinRow label="Motiv." value={ci.motivation} onPick={(v) => onCheckin("motivation", v)} opts={[["low", "Low", C.coral], ["normal", "Normal", C.amber], ["high", "High", C.greenSoft]]} />
-          <CheckinRow label="Confid." value={ci.confidence} onPick={(v) => onCheckin("confidence", v)} opts={[["low", "Low", C.coral], ["normal", "Normal", C.amber], ["high", "High", C.greenSoft]]} />
-        </>}
-      </div>
-
-      {/* WEEKLY CONSISTENCY */}
-      <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginTop: 12, display: "flex", alignItems: "center", gap: 16 }}>
-        <Ring value={consistency.pct} max={100} size={78} stroke={9} label={consistency.pct + "%"} sub="this week"
-          color={consistency.pct >= 70 ? C.leaf : consistency.pct >= 40 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, opacity: .75, letterSpacing: .3 }}>HABIT CONSISTENCY</div>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, marginTop: 1 }}>
-            {consistency.pct >= 80 ? "Dialed in" : consistency.pct >= 55 ? "Solid week" : consistency.pct >= 30 ? "Building" : "Fresh start"}
+      {/* ---- HEADER ---- */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "4px 2px 14px" }}>
+        <div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, lineHeight: 1 }}>Habits</div>
+          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>
+            {active.length === 0 ? "Add habits to start tracking." : `${active.length} habit${active.length !== 1 ? "s" : ""} · tap to manage`}
           </div>
-          {consistency.best && consistency.best.hits > 0 && (
-            <div style={{ fontSize: 11.5, opacity: .85, marginTop: 5 }}>🏆 Best: {consistency.best.label} ({consistency.best.hits}/{consistency.best.total})</div>
+        </div>
+        <div style={{ display: "flex", gap: 7 }}>
+          {!showAddForm && !editingHabit && (
+            <button className="sprig-tap" onClick={() => { setManageMode((s) => !s); setShowAddForm(false); setEditingHabit(null); }}
+              style={{ ...btn(manageMode ? C.green : C.bg2, manageMode ? "#fff" : C.inkSoft), padding: "8px 12px", fontSize: 12 }}>
+              {manageMode ? "Done" : "Edit"}
+            </button>
           )}
-          {consistency.weakest && consistency.weakest.hits < consistency.weakest.total && consistency.weakest.label !== consistency.best?.label && (
-            <div style={{ fontSize: 11.5, opacity: .85, marginTop: 2 }}>📌 Work on: {consistency.weakest.label} ({consistency.weakest.hits}/{consistency.weakest.total})</div>
+          {!showAddForm && !editingHabit && (
+            <button className="sprig-tap" onClick={() => { setShowAddForm(true); setManageMode(false); }}
+              style={{ ...btn(C.green, "#fff"), padding: "8px 12px", fontSize: 12 }}>
+              <Plus size={14} /> Add
+            </button>
           )}
         </div>
       </div>
 
-      {/* FOCUS TIMER */}
-      <div style={{ marginTop: 12 }}><FocusTimer onLogFocus={onLogFocus} /></div>
-      {(focusToday.length > 0 || focusWeek.length > 0) && (
-        <div style={{ display: "flex", gap: 9, marginTop: 9 }}>
-          <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "11px 13px", boxShadow: C.shadow }}>
-            <div style={{ fontSize: 11, color: C.muted }}>Today</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700 }}>{focusMinutesToday} <span style={{ fontSize: 11, color: C.muted }}>min</span></div>
-            <div style={{ fontSize: 10.5, color: C.muted }}>{focusToday.length} session{focusToday.length !== 1 ? "s" : ""}</div>
-          </div>
-          <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "11px 13px", boxShadow: C.shadow }}>
-            <div style={{ fontSize: 11, color: C.muted }}>This week</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700 }}>{Math.round(focusWeek.reduce((a, f) => a + f.minutes, 0) / 60 * 10) / 10} <span style={{ fontSize: 11, color: C.muted }}>h</span></div>
-            <div style={{ fontSize: 10.5, color: C.muted }}>{focusWeek.length} session{focusWeek.length !== 1 ? "s" : ""}</div>
+      {/* ---- ADD / EDIT FORM ---- */}
+      {(showAddForm || editingHabit) && (
+        <div style={{ marginBottom: 14 }}>
+          <AddHabitForm initial={editingHabit} onSave={handleSaveForm} onCancel={handleCancelForm} />
+        </div>
+      )}
+
+      {/* ---- CONSISTENCY SCORE ---- */}
+      {active.length > 0 && (
+        <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginBottom: 12, display: "flex", alignItems: "center", gap: 18 }}>
+          {cv2.pct !== null ? (
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <svg width="76" height="76" viewBox="0 0 76 76">
+                <circle cx="38" cy="38" r="30" fill="none" stroke="rgba(255,255,255,.18)" strokeWidth="8" />
+                <circle cx="38" cy="38" r="30" fill="none" stroke={scoreColor} strokeWidth="8"
+                  strokeDasharray={`${cv2.pct / 100 * 188} 188`} strokeLinecap="round"
+                  transform="rotate(-90 38 38)" style={{ transition: "stroke-dasharray .6s" }} />
+                <text x="38" y="43" textAnchor="middle" fontFamily="Fraunces, serif" fontSize="18" fontWeight="700" fill="#fff">{cv2.pct}%</text>
+              </svg>
+            </div>
+          ) : (
+            <div style={{ width: 76, height: 76, borderRadius: 99, border: "3px solid rgba(255,255,255,.25)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Activity size={24} color="rgba(255,255,255,.6)" />
+            </div>
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, opacity: .75, letterSpacing: .4, textTransform: "uppercase" }}>Consistency</div>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, marginTop: 2, lineHeight: 1 }}>{cv2.label}</div>
+            {totalDueToday > 0 && (
+              <div style={{ fontSize: 12, opacity: .85, marginTop: 6 }}>
+                {doneToday === totalDueToday ? `All ${totalDueToday} due today ✓` : `${doneToday}/${totalDueToday} due today done`}
+              </div>
+            )}
+            {cv2.pct !== null && (
+              <div style={{ fontSize: 11, opacity: .7, marginTop: 3 }}>
+                {cv2.pct >= 90 ? "Outstanding — keep going." : cv2.pct >= 75 ? "Solid work — stay consistent." : cv2.pct >= 50 ? "Building the habit — every day counts." : "Small steps. Pick one habit and nail it today."}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* HABITS */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "20px 2px 10px" }}>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Today's habits <span style={{ fontSize: 12, color: C.muted, fontFamily: "DM Sans" }}>· {doneCount}/{habits.length}</span></div>
-        <button className="sprig-tap" onClick={() => setManage((s) => !s)} style={{ background: "none", border: "none", cursor: "pointer", color: C.green, fontSize: 12, fontWeight: 600 }}>{manage ? "Done" : "Edit"}</button>
-      </div>
-      {/* Goal-based habit suggestions (only when active habit list is thin) */}
-      {profile?.goal && habits.length < 3 && (() => {
-        const sugg = suggestedHabitsFor(profile).filter((k) => !habits.some((h) => h.id === k || (h.label || "").toLowerCase() === (HABIT_META[k]?.name || "").toLowerCase()));
-        if (!sugg.length) return null;
-        return (
-          <div style={{ background: C.greenSoft + "12", border: `1px solid ${C.greenSoft}55`, borderRadius: 13, padding: "11px 13px", marginBottom: 10 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: C.green, marginBottom: 6 }}>
-              💡 Suggested for your goal ({profile.goal === "gain" ? "muscle gain" : profile.goal === "lose" ? "fat loss" : "maintain"})
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {sugg.map((k) => {
-                const meta = HABIT_META[k];
-                if (!meta) return null;
-                return (
-                  <button key={k} className="sprig-tap" onClick={() => onAddHabit(meta.name)}
-                    style={{ background: C.card, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 8, padding: "6px 10px", fontSize: 11.5, fontWeight: 600, fontFamily: "DM Sans", color: C.inkSoft }}>
-                    + {meta.icon} {meta.name}
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
-              Tap to add. You can edit or remove any time.
-            </div>
-          </div>
-        );
-      })()}
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        {habits.map((h) => (
-          <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 11, background: h.done ? C.green + "0d" : C.card, border: `1px solid ${h.done ? C.leaf + "55" : C.line}`, borderRadius: 13, padding: "11px 13px", boxShadow: C.shadow }}>
-            <button className="sprig-tap" disabled={h.auto} onClick={() => !h.auto && onToggleHabit(h.id)}
-              style={{ width: 26, height: 26, borderRadius: 99, flexShrink: 0, border: h.done ? "none" : `2px solid ${C.line}`, background: h.done ? C.green : "transparent", cursor: h.auto ? "default" : "pointer", display: "grid", placeItems: "center", color: "#fff" }}>
-              {h.done && <Check size={15} />}
-            </button>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600, color: h.done ? C.ink : C.inkSoft }}>{h.label}</div>
-              {h.auto && <div style={{ fontSize: 10.5, color: C.muted }}>auto · {h.done ? "completed from your data" : "tracked automatically"}</div>}
-            </div>
-            {manage && <button className="sprig-tap" onClick={() => onRemoveHabit(h.id)} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.muted }}><Trash2 size={14} /></button>}
-          </div>
-        ))}
-      </div>
-
-      {/* add habit + restore hidden */}
-      {manage && (
-        <div style={{ marginTop: 10 }}>
-          {adding ? (
-            <div style={{ display: "flex", gap: 7 }}>
-              <input value={newHabit} onChange={(e) => setNewHabit(e.target.value)} autoFocus placeholder="New habit (e.g. French, Skincare, Meditate)"
-                style={{ flex: 1, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 12px", fontFamily: "DM Sans", fontSize: 13, background: C.bg, color: C.ink }} />
-              <button className="sprig-tap" disabled={!newHabit.trim()} onClick={() => { onAddHabit(newHabit); setNewHabit(""); setAdding(false); }}
-                style={{ ...btn(newHabit.trim() ? C.green : C.bg2, newHabit.trim() ? "#fff" : C.muted), padding: "10px 14px", fontSize: 13 }}>Add</button>
+      {/* ---- DUE TODAY ---- */}
+      {active.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, textTransform: "uppercase", marginBottom: 8 }}>Due today</div>
+          {dueToday.length === 0 ? (
+            <div style={{ background: C.green + "18", border: `1px solid ${C.leaf + "55"}`, borderRadius: 14, padding: "13px 14px", display: "flex", alignItems: "center", gap: 9 }}>
+              <Check size={18} color={C.greenSoft} />
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: C.greenSoft }}>All done for today</div>
+                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Come back tomorrow. 🌿</div>
+              </div>
             </div>
           ) : (
-            <button className="sprig-tap" onClick={() => setAdding(true)} style={{ width: "100%", background: C.card, border: `1px dashed ${C.line}`, borderRadius: 12, padding: "11px 0", cursor: "pointer", color: C.green, fontSize: 13, fontWeight: 600, fontFamily: "DM Sans" }}>
-              <Plus size={15} /> Add custom habit
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {dueToday.map((h) => <DueTodayRow key={h.id} habit={h} />)}
+            </div>
           )}
-          {hiddenDefaults.length > 0 && (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>Removed — tap to restore:</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {hiddenDefaults.map((h) => (
-                  <button key={h.id} className="sprig-tap" onClick={() => onRestoreHabit(h.id)}
-                    style={{ border: `1px solid ${C.line}`, background: C.bg2, cursor: "pointer", padding: "6px 11px", borderRadius: 8, fontSize: 12, color: C.inkSoft, fontFamily: "DM Sans" }}>+ {h.label}</button>
-                ))}
+        </div>
+      )}
+
+      {/* ---- THIS PERIOD (weekly + monthly habits) ---- */}
+      {periodHabits.length > 0 && (
+        <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, textTransform: "uppercase", marginBottom: 4 }}>This period</div>
+          {periodHabits.map((h, i) => <PeriodRow key={h.id} habit={h} />)}
+        </div>
+      )}
+
+      {/* ---- ALL HABITS ---- */}
+      {active.length === 0 && !showAddForm && (
+        <div style={{ textAlign: "center", padding: "32px 16px", color: C.muted }}>
+          <Activity size={32} color={C.muted} style={{ margin: "0 auto 12px" }} />
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.inkSoft, marginBottom: 6 }}>No habits yet</div>
+          <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>Add habits like "Take creatine", "Read 10 pages", or "Stretch hips" to start tracking consistency.</div>
+          <button className="sprig-tap" onClick={() => setShowAddForm(true)} style={{ ...btn(C.green, "#fff"), padding: "11px 20px", marginTop: 14, fontSize: 13 }}>
+            <Plus size={14} /> Add first habit
+          </button>
+        </div>
+      )}
+
+      {active.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, textTransform: "uppercase" }}>All habits</div>
+          </div>
+
+          {/* Daily */}
+          {dailyHabits.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600 }}>Daily</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {dailyHabits.map((h) => <HabitRow key={h.id} habit={h} />)}
+              </div>
+            </div>
+          )}
+
+          {/* Specific days */}
+          {specificDaysH.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600 }}>Specific days</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {specificDaysH.map((h) => <HabitRow key={h.id} habit={h} />)}
+              </div>
+            </div>
+          )}
+
+          {/* X times/week */}
+          {weeklyXHabits.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600 }}>X times / week</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {weeklyXHabits.map((h) => <HabitRow key={h.id} habit={h} />)}
+              </div>
+            </div>
+          )}
+
+          {/* Weekly */}
+          {weeklyHabits.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600 }}>Weekly</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {weeklyHabits.map((h) => <HabitRow key={h.id} habit={h} />)}
+              </div>
+            </div>
+          )}
+
+          {/* Monthly */}
+          {monthlyHabits.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600 }}>Monthly</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {monthlyHabits.map((h) => <HabitRow key={h.id} habit={h} />)}
               </div>
             </div>
           )}
         </div>
       )}
 
-      <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 16, lineHeight: 1.5, padding: "0 12px" }}>
-        Auto habits tick themselves from your water, protein, steps, workouts, and supplements. This is a wellbeing tracker, not a mental-health diagnosis — be kind to yourself. 🌿
+      {/* ---- ARCHIVED ---- */}
+      {archived.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <button className="sprig-tap" onClick={() => setShowArchived((s) => !s)}
+            style={{ width: "100%", background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12.5, fontWeight: 600, color: C.muted, fontFamily: "DM Sans" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 7 }}><Archive size={14} /> Archived ({archived.length})</span>
+            <ChevronDown size={14} style={{ transform: showArchived ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+          </button>
+          {showArchived && (
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 7 }}>
+              {archived.map((h) => (
+                <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "10px 13px", opacity: .65 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>{h.name}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>{h.frequencyType || "daily"}</div>
+                  </div>
+                  <button className="sprig-tap" onClick={() => onRestoreHabit2(h.id)} style={{ ...btn(C.bg2, C.green), padding: "6px 11px", fontSize: 12 }}>Restore</button>
+                  <button className="sprig-tap" onClick={() => onDeleteHabit2(h.id)} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.muted }}><Trash2 size={13} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 8, lineHeight: 1.5, padding: "0 12px" }}>
+        Vitae tracks what you log — consistency builds over time. Be kind to yourself. 🌿
       </div>
       <div style={{ height: 8 }} />
     </div>
   );
 }
+
 
 function PainLogForm({ initial, onSave, onCancel }) {
   const [level, setLevel] = useState(initial?.level || "mild");
@@ -10501,21 +11030,178 @@ function PainLogForm({ initial, onSave, onCancel }) {
   );
 }
 
-function HealthTab({ healthInfo, advanced, onSave, safety, pain, onAddPain, onUpdatePain, onRemovePain, checkin, onCheckin }) {
-  const ci = checkin || {};
+/* ---- Health Report engine ---- */
+function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo }) {
+  const helping = [], hurting = [], improvements = [], continueDoing = [];
+  const now7 = Date.now() - 7 * 864e5;
+
+  // data coverage
+  const hasNutrition = (history7 || []).filter((h) => h.calories > 0).length >= 2;
+  const hasSleep = (sleepLogs7 || []).length >= 2;
+  const hasTraining = (workouts7 || []).length >= 1;
+  const hasSteps = (daily?.steps || 0) > 0 || (moveInfo?.movement?.steps || 0) > 0;
+  const dataPoints = [hasNutrition, hasSleep, hasTraining, hasSteps].filter(Boolean).length;
+  const confidence = dataPoints >= 3 ? "high" : dataPoints >= 2 ? "medium" : "low";
+
+  // --- NUTRITION (weight 0.25) ---
+  let nutScore = 50;
+  if (hasNutrition) {
+    const loggedDays = (history7 || []).filter((h) => h.calories > 0);
+    const avgCal = loggedDays.reduce((a, h) => a + h.calories, 0) / loggedDays.length;
+    const avgProt = loggedDays.reduce((a, h) => a + (h.protein || 0), 0) / loggedDays.length;
+    const avgFiber = loggedDays.reduce((a, h) => a + (h.fiber || 0), 0) / loggedDays.length;
+    const calTarget = targets?.calories || 2000;
+    const protTarget = targets?.protein || 150;
+    const fiberTarget = targets?.fiber || 25;
+    const calDiff = Math.abs(avgCal - calTarget) / calTarget;
+    const calScore = calDiff < 0.1 ? 90 : calDiff < 0.2 ? 75 : calDiff < 0.35 ? 60 : 40;
+    const protRatio = avgProt / protTarget;
+    const protScore = protRatio >= 0.95 ? 90 : protRatio >= 0.8 ? 75 : protRatio >= 0.6 ? 55 : 35;
+    const fiberScore = avgFiber >= fiberTarget * 0.9 ? 90 : avgFiber >= fiberTarget * 0.6 ? 70 : 50;
+    nutScore = Math.round((calScore + protScore + fiberScore) / 3);
+    if (protRatio >= 0.9) helping.push(`Protein has been consistent (avg ${Math.round(avgProt)}g).`);
+    else if (protRatio < 0.65) {
+      hurting.push(`Protein averaged ${Math.round(avgProt)}g — below your ${protTarget}g target.`);
+      if (improvements.length < 3) improvements.push(`Aim for ${protTarget}g protein today. Add eggs, Greek yogurt, or a lean protein source.`);
+    }
+    if (avgFiber < fiberTarget * 0.6) {
+      hurting.push("Fiber is below target most days.");
+      if (improvements.length < 3) improvements.push("Add a high-fiber food today — beans, lentils, oats, or extra vegetables.");
+    } else if (avgFiber >= fiberTarget * 0.85) {
+      helping.push("Fiber intake is solid.");
+    }
+    if (calDiff > 0.3) {
+      if (avgCal > calTarget) hurting.push(`Calories averaged ${Math.round(avgCal - calTarget)} above target this week.`);
+      else hurting.push(`Calories averaged ${Math.round(calTarget - avgCal)} below target this week.`);
+    }
+    if (protRatio >= 0.9 && avgFiber >= fiberTarget * 0.8 && calDiff <= 0.15) continueDoing.push("Keep protein and fiber consistent.");
+  }
+
+  // --- SLEEP (weight 0.25) ---
+  let sleepScore = 50;
+  if (hasSleep) {
+    const valid = (sleepLogs7 || []).filter((l) => !l.ignoredFromScore);
+    const need = sleepInfo?.need || 480;
+    const debtMin = sleepInfo?.debtMin || 0;
+    const avgDur = valid.reduce((a, l) => a + l.durationMin, 0) / Math.max(1, valid.length);
+    const avgQ = valid.reduce((a, l) => a + l.score, 0) / Math.max(1, valid.length);
+    sleepScore = Math.round(
+      (avgDur >= need * 0.95 ? 90 : avgDur >= need * 0.85 ? 75 : avgDur >= need * 0.7 ? 55 : 35) * 0.4 +
+      (avgQ >= 80 ? 90 : avgQ >= 65 ? 75 : avgQ >= 50 ? 55 : 35) * 0.3 +
+      (debtMin < 30 ? 90 : debtMin < 60 ? 75 : debtMin < 120 ? 55 : 35) * 0.3
+    );
+    const durH = (avgDur / 60).toFixed(1);
+    if (avgDur >= need * 0.9) helping.push(`Sleep averaging ${durH}h — close to your ${(need / 60).toFixed(0)}h need.`);
+    else {
+      hurting.push(`Sleep averaging ${durH}h — below your ${(need / 60).toFixed(0)}h need.`);
+      if (improvements.length < 3) improvements.push("Sleep 30–45 min earlier to reduce sleep debt.");
+    }
+    if (debtMin > 90) hurting.push(`Sleep debt is around ${Math.round(debtMin / 60 * 10) / 10}h — earlier bedtimes help.`);
+    else if (debtMin < 30 && avgDur >= need * 0.9) continueDoing.push("Keep your sleep schedule consistent.");
+  }
+
+  // --- TRAINING / CARDIO (weight 0.25) ---
+  let trainScore = 50;
+  const wkCount = (workouts7 || []).length;
+  const steps = daily?.steps || moveInfo?.movement?.steps || 0;
+  const stepGoalVal = moveInfo?.stepGoal || 8000;
+  const cardioMin = daily?.cardioMin || 0;
+  if (wkCount > 0 || steps > 0 || cardioMin > 0) {
+    const wkScore = wkCount >= 4 ? 90 : wkCount >= 3 ? 80 : wkCount >= 2 ? 65 : wkCount >= 1 ? 50 : 30;
+    const stepRatio = steps / stepGoalVal;
+    const stepScore = stepRatio >= 1 ? 90 : stepRatio >= 0.7 ? 75 : stepRatio >= 0.4 ? 55 : 35;
+    const cardioScore = cardioMin >= 30 ? 90 : cardioMin >= 15 ? 70 : cardioMin >= 5 ? 55 : 40;
+    trainScore = Math.round(wkScore * 0.5 + stepScore * 0.3 + cardioScore * 0.2);
+    if (wkCount >= 3) helping.push(`Trained ${wkCount} time${wkCount !== 1 ? "s" : ""} this week.`);
+    else if (wkCount === 0) {
+      hurting.push("No strength training logged this week.");
+      if (improvements.length < 3) improvements.push("Add one 30–45 min workout this week to maintain muscle and strength.");
+    }
+    if (stepRatio >= 0.85) helping.push(`Steps close to your ${(stepGoalVal / 1000).toFixed(0)}k goal.`);
+    else if (stepRatio < 0.4 && cardioMin < 10) {
+      hurting.push("Cardio and steps are low this week.");
+      if (improvements.length < 3) improvements.push("Add a 20–30 min walk or easy zone-2 cardio today.");
+    }
+    if (wkCount >= 3) continueDoing.push(`Keep training ${wkCount >= 4 ? "4–5" : "3–4"} times weekly.`);
+    // overdoing check
+    const avgSleepDur = hasSleep
+      ? (sleepLogs7 || []).filter((l) => !l.ignoredFromScore).reduce((a, l) => a + l.durationMin, 0) / Math.max(1, (sleepLogs7 || []).filter((l) => !l.ignoredFromScore).length)
+      : 0;
+    if (wkCount >= 5 && avgSleepDur > 0 && avgSleepDur < 390) {
+      hurting.push(`Trained hard ${wkCount} days while sleep averaged ${Math.round(avgSleepDur / 60)}h ${Math.round(avgSleepDur % 60)}m — consider a lighter session.`);
+    }
+    if (wkCount >= 3 && (trainInfo?.sleepReadiness || 70) < 50) {
+      if (improvements.length < 3) improvements.push("Recovery is low — a lighter session or active rest today will help more than pushing through.");
+    }
+  }
+
+  // --- ALCOHOL (weight 0.15) ---
+  let alcScore = 85;
+  const alcToday = daily?.alcohol || 0;
+  const alcHistory = (history7 || []).map((h) => h.alcohol || 0);
+  const weekAlc = alcHistory.reduce((a, b) => a + b, 0) + (alcHistory.length === 0 ? alcToday : 0);
+  const avgAlc = alcHistory.length > 0 ? weekAlc / alcHistory.length : alcToday;
+  if (avgAlc <= 0.3) helping.push("Alcohol intake is low.");
+  else if (avgAlc <= 1) alcScore = 75;
+  else if (avgAlc <= 2) { alcScore = 55; hurting.push("Alcohol reduced recovery on some days this week."); }
+  else {
+    alcScore = 35;
+    hurting.push(`Alcohol was high this week (~${Math.round(weekAlc)} drinks) — this reduces sleep quality and recovery.`);
+    if (improvements.length < 3) improvements.push("Keep alcohol at 0–1 drinks tonight — alcohol close to sleep significantly reduces recovery.");
+  }
+
+  // --- CONSISTENCY (weight 0.10) ---
+  const loggedFoodDays = (history7 || []).filter((h) => h.calories > 0).length;
+  const loggedSleepNights = (sleepLogs7 || []).filter((l) => !l.ignoredFromScore).length;
+  const consistScore = Math.round((loggedFoodDays / 7) * 50 + (loggedSleepNights / 7) * 50);
+
+  // steps continue-doing
+  if (stepRatio >= 0.85) continueDoing.push(`Keep steps above ${Math.round(stepGoalVal * 0.8 / 1000)}k.`);
+
+  // --- WEIGHTED SCORE ---
+  const cats = [];
+  if (hasNutrition) cats.push({ score: nutScore, w: 0.25 });
+  if (hasSleep) cats.push({ score: sleepScore, w: 0.25 });
+  if (wkCount > 0 || steps > 0) cats.push({ score: trainScore, w: 0.25 });
+  cats.push({ score: alcScore, w: 0.15 });
+  if (hasNutrition || hasSleep) cats.push({ score: consistScore, w: 0.10 });
+  const totalW = cats.reduce((a, c) => a + c.w, 0) || 1;
+  const rawScore = Math.round(cats.reduce((a, c) => a + c.score * (c.w / totalW), 0));
+  const minScore = confidence === "low" ? 42 : confidence === "medium" ? 38 : 30;
+  const score = Math.max(minScore, Math.min(98, rawScore));
+
+  return {
+    score, confidence,
+    helping: helping.slice(0, 4),
+    hurting: hurting.slice(0, 4),
+    improvements: improvements.slice(0, 3),
+    continueDoing: continueDoing.slice(0, 3),
+  };
+}
+
+function HealthTab({ healthInfo, healthReport, bloodwork, onSaveBloodwork, onDeleteBloodwork, advanced, onSave, safety, pain, onAddPain, onUpdatePain, onRemovePain }) {
+  const hr = healthReport || {};
   const latest = healthInfo?.latest || {};
   const radar = healthInfo?.radar || [];
-  const series = healthInfo?.series || [];
 
-  // local input state
+  // --- Advanced panel state (BP, symptoms, etc.) ---
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [bpS, setBpS] = useState(latest.bpSys?.value != null ? String(latest.bpSys.value) : "");
   const [bpD, setBpD] = useState(latest.bpDia?.value != null ? String(latest.bpDia.value) : "");
   const [rhr, setRhr] = useState(latest.rhr?.value != null ? String(latest.rhr.value) : "");
   const [symptoms, setSymptoms] = useState(latest.symptoms?.value || "");
   const [showBlood, setShowBlood] = useState(false);
   const [bloodDraft, setBloodDraft] = useState({});
+
+  // --- Pain state ---
   const [painOpen, setPainOpen] = useState(false);
   const [editingPain, setEditingPain] = useState(null);
+
+  // --- Bloodwork AI extraction ---
+  const [bwMode, setBwMode] = useState(null); // null | "describe" | "view"
+  const [bwText, setBwText] = useState("");
+  const [bwBusy, setBwBusy] = useState(false);
+  const [bwErr, setBwErr] = useState("");
 
   const saveVitals = () => {
     const patch = {};
@@ -10524,22 +11210,47 @@ function HealthTab({ healthInfo, advanced, onSave, safety, pain, onAddPain, onUp
     if (symptoms.trim() !== (latest.symptoms?.value || "")) patch.symptoms = symptoms.trim();
     if (Object.keys(patch).length) onSave(patch);
   };
-  const saveBlood = () => {
+  const saveBloodManual = () => {
     const out = {};
     Object.entries(bloodDraft).forEach(([k, v]) => { const n = parseFloat(v); if (!isNaN(n)) out[k] = +n.toFixed(2); });
     if (Object.keys(out).length) { onSave({ blood: out }); setBloodDraft({}); setShowBlood(false); }
   };
-  // recent BP trend for sparkline
-  const bpSeries = series.filter((h) => h.bpSys != null && h.bpDia != null).slice(-14);
 
-  // group radar by tag severity
+  async function extractBloodwork() {
+    if (!bwText.trim()) return;
+    setBwBusy(true); setBwErr("");
+    try {
+      const system = `You are a health assistant. Extract blood test markers from the user's input. Return ONLY valid JSON: {"markers":[{"name":"...","value":"...","unit":"...","range":"...","status":"low|normal|high|unknown","summary":"plain one-sentence explanation","lifestyle":"one lifestyle tip"}],"summary":"2–3 sentence plain summary","actions":["...","..."]}. Never diagnose. For abnormal values say "worth discussing with a doctor". Keep language cautious.`;
+      const raw = await analyzeText({ prompt: `Extract health markers from this bloodwork report: "${bwText}"`, system });
+      let parsed = null;
+      try { const m = raw.match(/\{[\s\S]*\}/); if (m) parsed = JSON.parse(m[0]); } catch (_) {}
+      if (parsed?.markers?.length) {
+        const entry = { id: uid(), date: new Date().toLocaleDateString("en-CA"), ...parsed };
+        onSaveBloodwork(entry);
+        setBwMode(null); setBwText("");
+      } else {
+        setBwErr("Could not extract markers. Try pasting clearer values, e.g. 'Vitamin D: 22 ng/mL, HbA1c: 5.4%'.");
+      }
+    } catch (_) {
+      setBwErr("AI unavailable right now. Try again later.");
+    }
+    setBwBusy(false);
+  }
+
+  const score = hr.score ?? null;
+  const conf = hr.confidence || "low";
+  const scoreColor = score == null ? C.muted : score >= 78 ? C.greenSoft : score >= 58 ? C.amber : C.coral;
+  const scoreLabel = score == null ? "—" : score >= 78 ? "Good" : score >= 58 ? "Fair" : "Needs work";
+  const latestBw = (bloodwork || []).slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+
+  // radar severity helper
   const ORDER = { high: 0, elevated: 1, moderate: 2, low: 3, unknown: 4 };
-  const sortedRadar = [...radar].sort((a, b) => ORDER[a.tag] - ORDER[b.tag]);
+  const sortedRadar = [...radar].sort((a, b) => (ORDER[a.tag] ?? 4) - (ORDER[b.tag] ?? 4));
   const flagged = sortedRadar.filter((r) => r.tag === "high" || r.tag === "elevated");
 
   return (
     <div className="sprig-rise">
-      {/* RED-FLAG / URGENT banner */}
+      {/* ---- Safety banners (always visible) ---- */}
       {safety?.urgent && (
         <div style={{ background: "#C0392B", color: "#fff", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: C.shadow }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14.5 }}>
@@ -10547,378 +11258,413 @@ function HealthTab({ healthInfo, advanced, onSave, safety, pain, onAddPain, onUp
           </div>
           <div style={{ fontSize: 12.5, opacity: .95, marginTop: 7, lineHeight: 1.5 }}>
             {safety.hasCrisis
-              ? "If you're thinking about harming yourself, you're not alone and help is available right now. Contact a local crisis line or emergency services — in many countries you can call or text 988 (US), 112 (EU), or your local emergency number."
-              : "Based on what you logged, consider urgent medical help — call your local emergency number or get to urgent care. Sprig can't assess symptoms; when in doubt, get checked."}
+              ? "If you're thinking about harming yourself, you're not alone and help is available right now. Contact a local crisis line or emergency services."
+              : "Based on what you logged, consider urgent medical help. Vitae can't assess symptoms — when in doubt, get checked."}
           </div>
-          {!safety.hasCrisis && (safety.redFlags.length > 0 || safety.bpFlag) && (
+          {!safety.hasCrisis && (safety.redFlags?.length > 0 || safety.bpFlag) && (
             <div style={{ fontSize: 11.5, opacity: .9, marginTop: 8, background: "rgba(255,255,255,.14)", borderRadius: 9, padding: "8px 10px" }}>
               Flagged: {[...safety.redFlags.map((f) => f.text), safety.bpFlag?.text].filter(Boolean).join(" · ")}
             </div>
           )}
         </div>
       )}
-
-      {/* interaction flags */}
       {safety?.interactions?.length > 0 && (
-        <div style={{ background: "#fdeee8", border: `1px solid ${C.coral}44`, borderRadius: 14, padding: "12px 14px", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontWeight: 600, fontSize: 12.5, color: "#9a3d22", marginBottom: 6 }}>
+        <div style={{ background: C.isDark ? "#2a1a0a" : "#fdeee8", border: `1px solid ${C.coral}44`, borderRadius: 14, padding: "12px 14px", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontWeight: 600, fontSize: 12.5, color: C.coral, marginBottom: 6 }}>
             <Pill size={15} color={C.coral} /> Things to check
           </div>
           {safety.interactions.map((txt, i) => (
-            <div key={i} style={{ fontSize: 11.5, color: "#9a3d22", lineHeight: 1.5, display: "flex", gap: 6, marginTop: i ? 5 : 0 }}>
+            <div key={i} style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5, display: "flex", gap: 6, marginTop: i ? 5 : 0 }}>
               <span>•</span><span>{txt}</span>
             </div>
           ))}
-          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 7 }}>Not medical advice — Sprig flags combinations to ask a pharmacist or doctor about. It never recommends doses.</div>
+          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 7 }}>Not medical advice — flags combinations to ask a pharmacist or doctor about.</div>
         </div>
       )}
 
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 2px" }}>Health</div>
-      <div style={{ fontSize: 11.5, color: C.muted, margin: "0 2px 14px", lineHeight: 1.5 }}>
-        Sprig is not medical advice. See a doctor for serious or persistent symptoms.
-      </div>
+      <div style={{ fontSize: 11.5, color: C.muted, margin: "0 2px 14px", lineHeight: 1.5 }}>A summary of your health based on what you've logged.</div>
 
-      {/* DAILY CHECK-IN */}
-      {onCheckin && (
-        <>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "4px 2px 10px" }}>Daily check-in</div>
-          <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
-            {[
-              ["energy", "Energy", [["low", "Low"], ["normal", "OK"], ["high", "High"]]],
-              ["mood", "Mood", [["low", "Low"], ["ok", "OK"], ["good", "Good"]]],
-              ["stress", "Stress", [["low", "Low"], ["mid", "Mid"], ["high", "High"]]],
-              ["focus", "Focus", [["low", "Low"], ["mid", "Mid"], ["high", "High"]]],
-              ["pain", "Soreness/pain", [["none", "None"], ["mild", "Mild"], ["moderate", "Mod"], ["serious", "Bad"]]],
-              ["sick", "Sick", [["no", "No"], ["yes", "Yes"]]],
-            ].map(([key, label, opts]) => (
-              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0" }}>
-                <span style={{ flex: 1, fontSize: 13, color: C.inkSoft }}>{label}</span>
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                  {opts.map(([v, lbl]) => {
-                    const on = ci[key] === v;
-                    return (
-                      <button key={v} className="sprig-tap" onClick={() => onCheckin(key, v)}
-                        style={{ background: on ? C.green : C.bg, color: on ? "#fff" : C.inkSoft, border: `1px solid ${on ? C.green : C.line}`, borderRadius: 99, padding: "5px 11px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans" }}>{lbl}</button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* HERO: latest vitals */}
-      <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 11 }}>
-          <HeartPulse size={15} color={C.coral} /> Latest readings
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div style={{ background: C.bg, borderRadius: 12, padding: "11px 12px" }}>
-            <div style={{ fontSize: 11, color: C.muted }}>Blood pressure</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, marginTop: 2 }}>
-              {latest.bpSys?.value != null && latest.bpDia?.value != null
-                ? `${latest.bpSys.value}/${latest.bpDia.value}` : "—"}
-              <span style={{ fontSize: 11, color: C.muted, marginLeft: 4 }}>mmHg</span>
+      {/* ---- HEALTH SCORE ---- */}
+      <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
+        {score == null ? (
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <Activity size={28} color={C.muted} style={{ margin: "0 auto 10px" }} />
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>Health Report</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
+              Log food, sleep, movement, and training for a personalised health report.
             </div>
-            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>{latest.bpSys?.date || "Not logged"}</div>
-          </div>
-          <div style={{ background: C.bg, borderRadius: 12, padding: "11px 12px" }}>
-            <div style={{ fontSize: 11, color: C.muted }}>Resting HR</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, marginTop: 2 }}>
-              {latest.rhr?.value != null ? latest.rhr.value : "—"}
-              <span style={{ fontSize: 11, color: C.muted, marginLeft: 4 }}>bpm</span>
-            </div>
-            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>{latest.rhr?.date || "Not logged"}</div>
-          </div>
-        </div>
-
-        {/* BP sparkline */}
-        {bpSeries.length >= 2 && (() => {
-          const W = 320, H = 50, p = 4;
-          const sysMax = Math.max(...bpSeries.map((s) => s.bpSys)), sysMin = Math.min(...bpSeries.map((s) => s.bpSys));
-          const range = (sysMax - sysMin) || 1;
-          const x = (i) => p + (i / (bpSeries.length - 1)) * (W - 2 * p);
-          const y = (v) => p + (1 - (v - sysMin) / range) * (H - 2 * p);
-          const path = bpSeries.map((s, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(s.bpSys).toFixed(1)}`).join(" ");
-          return (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>Systolic trend</div>
-              <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 50, display: "block" }} preserveAspectRatio="none">
-                <path d={path} fill="none" stroke={C.coral} strokeWidth="2.2" strokeLinejoin="round" />
-                {bpSeries.map((s, i) => <circle key={i} cx={x(i)} cy={y(s.bpSys)} r="2" fill={C.coral} />)}
-              </svg>
-            </div>
-          );
-        })()}
-
-        {/* inputs */}
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
-          <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 8 }}>Log today's reading</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: C.inkSoft, width: 28 }}>BP</span>
-            <input value={bpS} onChange={(e) => setBpS(e.target.value)} inputMode="numeric" placeholder="120"
-              style={{ width: 58, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 9, padding: "8px 4px", fontFamily: "DM Sans", fontSize: 14, fontWeight: 600, background: C.bg }} />
-            <span style={{ color: C.muted }}>/</span>
-            <input value={bpD} onChange={(e) => setBpD(e.target.value)} inputMode="numeric" placeholder="80"
-              style={{ width: 58, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 9, padding: "8px 4px", fontFamily: "DM Sans", fontSize: 14, fontWeight: 600, background: C.bg }} />
-            <span style={{ fontSize: 12, color: C.inkSoft, marginLeft: 10 }}>RHR</span>
-            <input value={rhr} onChange={(e) => setRhr(e.target.value)} inputMode="numeric" placeholder="60"
-              style={{ width: 58, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 9, padding: "8px 4px", fontFamily: "DM Sans", fontSize: 14, fontWeight: 600, background: C.bg }} />
-            <button className="sprig-tap" onClick={saveVitals}
-              style={{ ...btn(C.green, "#fff"), padding: "8px 12px", fontSize: 13 }}><Check size={14} /> Save</button>
-          </div>
-        </div>
-      </div>
-
-      {/* RISK RADAR */}
-      <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 11 }}>
-          <Activity size={15} color={C.greenSoft} /> Risk radar
-        </div>
-        {sortedRadar.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
-            Log a few days of sleep, food, and your first BP reading to see your long-term health picture.
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-            {sortedRadar.map((r) => {
-              const t = RISK_TAG[r.tag] || RISK_TAG.unknown;
-              return (
-                <div key={r.key} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 99, background: t.color, flexShrink: 0, marginTop: 6 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{r.label}</span>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: t.color, textTransform: "uppercase", letterSpacing: .4 }}>{t.label}</span>
-                    </div>
-                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.5 }}>{r.text}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {flagged.length > 0 && (
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${C.line}`, lineHeight: 1.5 }}>
-            ⚕️ <b>Not a diagnosis.</b> If anything here stays elevated, talk it through with a doctor — Sprig tracks trends, not medical conclusions.
+          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            {/* Score ring */}
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <svg width="80" height="80" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="32" fill="none" stroke={C.bg2} strokeWidth="9" />
+                <circle cx="40" cy="40" r="32" fill="none" stroke={scoreColor} strokeWidth="9"
+                  strokeDasharray={`${score / 100 * 201} 201`} strokeLinecap="round"
+                  transform="rotate(-90 40 40)" style={{ transition: "stroke-dasharray .6s" }} />
+                <text x="40" y="44" textAnchor="middle" fontFamily="Fraunces, serif" fontSize="19" fontWeight="700" fill={scoreColor}>{score}</text>
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: scoreColor, lineHeight: 1 }}>{scoreLabel}</div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>
+                {conf === "high" ? "Based on food, sleep, training & movement." : conf === "medium" ? "Log more data for a fuller picture." : "Limited data — log food, sleep, or training."}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* SYMPTOMS / NOTES */}
-      <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-        <div style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 8 }}>Symptoms &amp; notes</div>
-        <textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)}
-          placeholder="Anything off? Headaches, joint pain, dizziness, fatigue patterns…"
-          style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontFamily: "DM Sans", fontSize: 13, color: C.ink, background: C.bg, minHeight: 52, resize: "vertical", lineHeight: 1.45 }} />
-        <button className="sprig-tap" onClick={() => onSave({ symptoms: symptoms.trim() })}
-          style={{ ...btn(C.green, "#fff"), padding: "8px 14px", fontSize: 12.5, marginTop: 9 }}>Save notes</button>
-      </div>
+      {/* ---- WHAT'S HELPING ---- */}
+      {(hr.helping?.length ?? 0) > 0 && (
+        <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700, color: C.greenSoft, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>
+            <Check size={13} color={C.greenSoft} /> What's helping
+          </div>
+          {hr.helping.map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13, color: C.inkSoft, lineHeight: 1.45, marginTop: i ? 8 : 0 }}>
+              <span style={{ color: C.greenSoft, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>{item}
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* PAIN & INJURY */}
+      {/* ---- WHAT'S HURTING ---- */}
+      {(hr.hurting?.length ?? 0) > 0 && (
+        <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700, color: C.amber, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>
+            <Activity size={13} color={C.amber} /> What's hurting
+          </div>
+          {hr.hurting.map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13, color: C.inkSoft, lineHeight: 1.45, marginTop: i ? 8 : 0 }}>
+              <span style={{ color: C.amber, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↓</span>{item}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ---- TOP IMPROVEMENTS ---- */}
+      {(hr.improvements?.length ?? 0) > 0 && (
+        <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>Top improvements</div>
+          {hr.improvements.map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderTop: i > 0 ? `1px solid ${C.line}` : "none" }}>
+              <span style={{ width: 22, height: 22, borderRadius: 99, background: C.green + "22", color: C.green, fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</span>
+              <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{item}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ---- CONTINUE DOING ---- */}
+      {(hr.continueDoing?.length ?? 0) > 0 && (
+        <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>Continue doing</div>
+          {hr.continueDoing.map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13, color: C.inkSoft, lineHeight: 1.45, marginTop: i ? 7 : 0 }}>
+              <span style={{ color: C.green, fontWeight: 700, flexShrink: 0 }}>→</span>{item}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ---- PAIN & INJURY ---- */}
       {onAddPain && (
-        <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
+        <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600 }}>
               <HeartPulse size={15} color={C.coral} /> Pain &amp; injury
             </div>
             {!painOpen && !editingPain && (
-              <button className="sprig-tap" onClick={() => setPainOpen(true)}
-                style={{ ...btn(C.bg2, C.green), padding: "6px 11px", fontSize: 12, borderRadius: 10 }}>
+              <button className="sprig-tap" onClick={() => setPainOpen(true)} style={{ ...btn(C.bg2, C.green), padding: "6px 11px", fontSize: 12, borderRadius: 10 }}>
                 <Plus size={13} /> Log pain
               </button>
             )}
           </div>
-
-          {/* form (new or edit) */}
           {(painOpen || editingPain) && (
             <PainLogForm initial={editingPain}
               onCancel={() => { setPainOpen(false); setEditingPain(null); }}
-              onSave={(entry) => {
-                if (editingPain) onUpdatePain(editingPain.id, entry);
-                else onAddPain(entry);
-                setPainOpen(false); setEditingPain(null);
-              }} />
+              onSave={(entry) => { if (editingPain) onUpdatePain(editingPain.id, entry); else onAddPain(entry); setPainOpen(false); setEditingPain(null); }} />
           )}
-
-          {/* active pain — cards grouped per location */}
           {!painOpen && !editingPain && pain?.summary?.active?.length > 0 && (
-            <div style={{ marginTop: 4 }}>
-              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, letterSpacing: .3, marginBottom: 7 }}>ACTIVE</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {pain.summary.active.map((a) => {
-                  const lvl = PAIN_LEVELS[a.latest.level] || PAIN_LEVELS.mild;
-                  const locLabel = PAIN_LOCATIONS.find(([k]) => k === a.location)?.[1] || a.location;
-                  const trendIcon = a.trend === "improving" ? "↘" : a.trend === "worsening" ? "↗" : "→";
-                  const trendColor = a.trend === "improving" ? C.greenSoft : a.trend === "worsening" ? C.coral : C.muted;
-                  return (
-                    <div key={a.location} style={{ background: lvl.color + "12", border: `1px solid ${lvl.color}44`, borderRadius: 12, padding: "10px 12px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 99, background: lvl.color, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-                            <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{locLabel}</span>
-                            <span style={{ fontSize: 10.5, fontWeight: 700, color: lvl.color, textTransform: "uppercase", letterSpacing: .3 }}>{lvl.label}</span>
-                            {a.recurring && <span style={{ fontSize: 10, color: C.coral, fontWeight: 700, background: C.coral + "1a", padding: "2px 6px", borderRadius: 4 }}>RECURRING</span>}
-                          </div>
-                          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
-                            {a.daysActive} day{a.daysActive > 1 ? "s" : ""} active · <span style={{ color: trendColor, fontWeight: 600 }}>{trendIcon} {a.trend}</span>
-                            {a.latest.exercise ? ` · ${a.latest.exercise}` : ""}
-                          </div>
-                          {a.latest.note && <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 4, lineHeight: 1.45 }}>{a.latest.note}</div>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {pain.summary.active.map((a) => {
+                const lvl = PAIN_LEVELS[a.latest.level] || PAIN_LEVELS.mild;
+                const locLabel = PAIN_LOCATIONS.find(([k]) => k === a.location)?.[1] || a.location;
+                const trendColor = a.trend === "improving" ? C.greenSoft : a.trend === "worsening" ? C.coral : C.muted;
+                return (
+                  <div key={a.location} style={{ background: lvl.color + "12", border: `1px solid ${lvl.color}44`, borderRadius: 12, padding: "10px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 99, background: lvl.color, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 700 }}>{locLabel}</span>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: lvl.color, textTransform: "uppercase" }}>{lvl.label}</span>
+                          {a.recurring && <span style={{ fontSize: 10, color: C.coral, fontWeight: 700, background: C.coral + "1a", padding: "2px 6px", borderRadius: 4 }}>RECURRING</span>}
                         </div>
-                        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                          <button className="sprig-tap" onClick={() => setEditingPain(a.latest)} title="Update"
-                            style={{ background: C.bg2, border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.inkSoft }}><PencilLine size={13} /></button>
-                          <button className="sprig-tap" onClick={() => onUpdatePain(a.latest.id, { status: "resolved" })} title="Mark resolved"
-                            style={{ background: C.greenSoft + "22", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.green }}><Check size={14} /></button>
+                        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
+                          {a.daysActive}d active · <span style={{ color: trendColor, fontWeight: 600 }}>{a.trend === "improving" ? "↘" : a.trend === "worsening" ? "↗" : "→"} {a.trend}</span>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* coach lines (training mods) */}
-              {pain.coach?.lines?.length > 0 && (
-                <div style={{ marginTop: 10, padding: "10px 12px", background: C.bg, borderRadius: 11 }}>
-                  <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 600, letterSpacing: .3, marginBottom: 5 }}>TRAINING MODS</div>
-                  <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                    {pain.coach.lines.map((l, i) => (
-                      <li key={i} style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, display: "flex", gap: 7, padding: "2px 0" }}>
-                        <span style={{ color: C.greenSoft }}>•</span><span>{l}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {pain.coach.seekHelp && (
-                    <div style={{ fontSize: 11, color: C.coral, marginTop: 7, lineHeight: 1.5, paddingTop: 7, borderTop: `1px dashed ${C.line}` }}>
-                      ⚕️ Sharp pain, swelling, or pain lasting 2+ weeks → see a doctor or physiotherapist. Sprig isn't medical advice.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* recent history (advanced or when there's something to show) */}
-          {!painOpen && !editingPain && pain?.summary?.history?.length > 0 && advanced && (
-            <details style={{ marginTop: pain?.summary?.active?.length ? 12 : 4 }}>
-              <summary style={{ cursor: "pointer", listStyle: "none", fontSize: 11, color: C.muted, fontWeight: 600, letterSpacing: .3, padding: "4px 0" }}>▾ RECENT HISTORY ({pain.summary.history.length})</summary>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-                {pain.summary.history.slice(0, 12).map((h) => {
-                  const lvl = PAIN_LEVELS[h.level] || PAIN_LEVELS.mild;
-                  const locLabel = PAIN_LOCATIONS.find(([k]) => k === h.location)?.[1] || h.location || "Other";
-                  return (
-                    <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 10px", background: C.bg, borderRadius: 9, fontSize: 11.5 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: 99, background: lvl.color, flexShrink: 0 }} />
-                      <span style={{ color: C.inkSoft, fontWeight: 600 }}>{locLabel}</span>
-                      <span style={{ color: lvl.color, fontWeight: 600, textTransform: "uppercase", fontSize: 10 }}>{lvl.label}</span>
-                      <span style={{ color: C.muted, fontSize: 10.5, marginLeft: "auto" }}>{h.date}{h.status === "resolved" ? " · resolved" : ""}</span>
-                      <button className="sprig-tap" onClick={() => onRemovePain(h.id)} title="Delete"
-                        style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 2 }}><Trash2 size={12} /></button>
-                    </div>
-                  );
-                })}
-              </div>
-            </details>
-          )}
-
-          {/* empty state */}
-          {!painOpen && !editingPain && !pain?.summary?.active?.length && !pain?.summary?.history?.length && (
-            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-              No pain logged. Track any nagging issues here so Sprig can suggest exercises to avoid and track whether things are improving.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* SMOKING — quick pick */}
-      {advanced && (
-        <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-          <div style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 10 }}>Smoking / vaping</div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {[["no", "None"], ["vape", "Vape"], ["light", "Light"], ["regular", "Regular"]].map(([k, lbl]) => {
-              const on = latest.smoking?.value === k || (!latest.smoking && k === "no");
-              return (
-                <button key={k} className="sprig-tap" onClick={() => onSave({ smoking: k })}
-                  style={{ flex: 1, border: "none", cursor: "pointer", padding: "9px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
-                    background: on ? (k === "no" ? C.greenSoft : C.coral) : C.bg2, color: on ? "#fff" : C.muted }}>{lbl}</button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* BLOOD WORK — advanced */}
-      {advanced && (
-        <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}>
-              <Pill size={15} color="#7A6FB0" /> Blood work
-            </div>
-            <button className="sprig-tap" onClick={() => setShowBlood((s) => !s)} style={{ ...btn(C.bg2, C.green), padding: "6px 11px", fontSize: 12, borderRadius: 10 }}>
-              {showBlood ? "Close" : (latest.blood && Object.keys(latest.blood).length ? "Update" : "Add results")}
-            </button>
-          </div>
-          {/* current values */}
-          {latest.blood && Object.keys(latest.blood).length > 0 && !showBlood && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px 12px" }}>
-              {BLOOD_MARKERS.filter((b) => latest.blood[b.key] != null).map((b) => {
-                const v = latest.blood[b.key].value;
-                const f = bloodFlag(b.key, v);
-                const col = f?.tag === "ok" ? C.greenSoft : f?.tag ? (f.tag === "high" || f.tag === "above" ? C.coral : C.amber) : C.muted;
-                return (
-                  <div key={b.key} style={{ background: C.bg, borderRadius: 11, padding: "9px 11px" }}>
-                    <div style={{ fontSize: 11, color: C.muted }}>{b.label}</div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 2 }}>
-                      <span style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, color: C.ink }}>{v}</span>
-                      <span style={{ fontSize: 10.5, color: C.muted }}>{b.unit}</span>
-                      <span style={{ fontSize: 10, color: col, fontWeight: 700, marginLeft: "auto", textTransform: "uppercase" }}>{f?.label}</span>
+                      <div style={{ display: "flex", gap: 5 }}>
+                        <button className="sprig-tap" onClick={() => setEditingPain(a.latest)} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center" }}><PencilLine size={13} /></button>
+                        <button className="sprig-tap" onClick={() => onUpdatePain(a.latest.id, { status: "resolved" })} style={{ background: C.greenSoft + "22", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.green }}><Check size={14} /></button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-          {(!latest.blood || !Object.keys(latest.blood).length) && !showBlood && (
-            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-              Add lab results when you get a panel done. Optional — Sprig will flag any markers outside common reference ranges.
+          {pain?.coach?.lines?.length > 0 && !painOpen && !editingPain && (
+            <div style={{ marginTop: 10, padding: "10px 12px", background: C.bg, borderRadius: 11 }}>
+              {pain.coach.lines.map((l, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, display: "flex", gap: 7, padding: "2px 0" }}>
+                  <span style={{ color: C.greenSoft }}>•</span><span>{l}</span>
+                </div>
+              ))}
+              {pain.coach.seekHelp && (
+                <div style={{ fontSize: 11, color: C.coral, marginTop: 7, lineHeight: 1.5, borderTop: `1px dashed ${C.line}`, paddingTop: 7 }}>
+                  ⚕️ Sharp pain, swelling, or pain lasting 2+ weeks → see a doctor or physio.
+                </div>
+              )}
             </div>
           )}
-          {/* form */}
-          {showBlood && (
-            <div className="sprig-pop" style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
-                Enter only the markers from your most recent panel. Leave blank to keep the previous value.
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px 12px", maxHeight: 320, overflowY: "auto" }}>
-                {BLOOD_MARKERS.map((b) => (
-                  <div key={b.key}>
-                    <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{b.label}<span style={{ marginLeft: 4 }}>· {b.unit}</span></div>
-                    <input value={bloodDraft[b.key] ?? ""} onChange={(e) => setBloodDraft((x) => ({ ...x, [b.key]: e.target.value }))} inputMode="decimal"
-                      placeholder={latest.blood?.[b.key]?.value != null ? String(latest.blood[b.key].value) : ""}
-                      style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 9px", fontFamily: "DM Sans", fontSize: 13, fontWeight: 600, background: C.bg, color: C.ink }} />
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 7, marginTop: 12 }}>
-                <button className="sprig-tap" onClick={() => { setShowBlood(false); setBloodDraft({}); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "10px 0" }}>Cancel</button>
-                <button className="sprig-tap" disabled={!Object.values(bloodDraft).some((v) => v && v !== "")} onClick={saveBlood}
-                  style={{ ...btn(Object.values(bloodDraft).some((v) => v && v !== "") ? C.green : C.bg2, Object.values(bloodDraft).some((v) => v && v !== "") ? "#fff" : C.muted), flex: 2, padding: "10px 0" }}><Check size={15} /> Save results</button>
-              </div>
-            </div>
+          {!painOpen && !editingPain && !pain?.summary?.active?.length && (
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>No active pain logged. Track issues here so Vitae can suggest training modifications.</div>
           )}
         </div>
       )}
 
-      <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 14, lineHeight: 1.5, padding: "0 12px" }}>
-        ⚕️ Sprig isn't a medical app and doesn't diagnose. It tracks trends so you and your doctor can spot patterns.
+      {/* ---- BLOODWORK ---- */}
+      <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>
+            <Pill size={15} color="#7A6FB0" /> Bloodwork
+          </div>
+          {bwMode === null && (
+            <button className="sprig-tap" onClick={() => { setBwMode("describe"); setBwErr(""); setBwText(""); }}
+              style={{ ...btn(C.bg2, "#7A6FB0"), padding: "6px 11px", fontSize: 12, borderRadius: 10 }}>
+              <Plus size={13} /> Import results
+            </button>
+          )}
+        </div>
+
+        {/* AI extraction form */}
+        {bwMode === "describe" && (
+          <div className="sprig-pop">
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 8, lineHeight: 1.5 }}>
+              Paste your lab values (e.g. "Vitamin D: 22 ng/mL, HbA1c: 5.4%, Ferritin: 18 ng/mL"). Vitae will extract and explain each marker.
+            </div>
+            <textarea value={bwText} onChange={(e) => setBwText(e.target.value)}
+              placeholder="Paste bloodwork values here…"
+              style={{ width: "100%", minHeight: 80, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 12px", fontFamily: "DM Sans", fontSize: 13, color: C.ink, background: C.bg, resize: "vertical", lineHeight: 1.45 }} />
+            {bwErr && <div style={{ fontSize: 11.5, color: C.coral, marginTop: 6 }}>{bwErr}</div>}
+            <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
+              <button className="sprig-tap" onClick={() => { setBwMode(null); setBwText(""); setBwErr(""); }}
+                style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "10px 0" }}>Cancel</button>
+              <button className="sprig-tap" disabled={bwBusy || !bwText.trim()} onClick={extractBloodwork}
+                style={{ ...btn(bwText.trim() && !bwBusy ? "#7A6FB0" : C.bg2, bwText.trim() && !bwBusy ? "#fff" : C.muted), flex: 2, padding: "10px 0", fontSize: 13 }}>
+                {bwBusy ? <><Loader2 size={14} className="sprig-spin" /> Extracting…</> : <><Sparkles size={14} /> Extract with AI</>}
+              </button>
+            </div>
+            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 10, lineHeight: 1.5, borderTop: `1px dashed ${C.line}`, paddingTop: 8 }}>
+              ⚕️ <b>Vitae is not medical advice.</b> Bloodwork interpretation can be wrong. Always discuss abnormal results with a healthcare professional.
+            </div>
+          </div>
+        )}
+
+        {/* Latest bloodwork result */}
+        {latestBw && bwMode === null && (
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Latest · {latestBw.date}</div>
+            {latestBw.markers?.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px", marginBottom: 10 }}>
+                {latestBw.markers.slice(0, 8).map((m, i) => {
+                  const statusColor = m.status === "normal" ? C.greenSoft : m.status === "low" ? C.amber : m.status === "high" ? C.coral : C.muted;
+                  return (
+                    <div key={i} style={{ background: C.bg, borderRadius: 11, padding: "9px 11px" }}>
+                      <div style={{ fontSize: 11, color: C.muted }}>{m.name}</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 2 }}>
+                        <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: C.ink }}>{m.value}</span>
+                        <span style={{ fontSize: 10, color: C.muted }}>{m.unit}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: statusColor, marginLeft: "auto", textTransform: "uppercase" }}>{m.status}</span>
+                      </div>
+                      {m.range && <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>ref {m.range}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {latestBw.summary && <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 8 }}>{latestBw.summary}</div>}
+            {latestBw.actions?.length > 0 && (
+              <div style={{ padding: "10px 12px", background: C.bg, borderRadius: 11, marginBottom: 8 }}>
+                {latestBw.actions.map((a, i) => (
+                  <div key={i} style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, display: "flex", gap: 7, marginTop: i ? 5 : 0 }}>
+                    <span style={{ color: C.greenSoft }}>→</span><span>{a}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 7 }}>
+              <button className="sprig-tap" onClick={() => { setBwMode("describe"); setBwText(""); setBwErr(""); }}
+                style={{ ...btn(C.bg2, "#7A6FB0"), flex: 1, padding: "8px 0", fontSize: 12 }}><Plus size={12} /> New results</button>
+              {onDeleteBloodwork && (
+                <button className="sprig-tap" onClick={() => onDeleteBloodwork(latestBw.id)}
+                  style={{ ...btn(C.bg2, C.muted), padding: "8px 12px", fontSize: 12, borderRadius: 10 }}><Trash2 size={13} /></button>
+              )}
+            </div>
+            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+              ⚕️ <b>Not medical advice.</b> Discuss abnormal markers with a healthcare professional.
+            </div>
+          </div>
+        )}
+        {!latestBw && bwMode === null && (
+          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+            Import blood test results and Vitae will explain each marker in plain language and suggest lifestyle actions.
+          </div>
+        )}
+      </div>
+
+      {/* ---- ADVANCED (collapsed) ---- */}
+      <button className="sprig-tap" onClick={() => setShowAdvanced((s) => !s)}
+        style={{ width: "100%", background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, fontWeight: 600, color: C.inkSoft, fontFamily: "DM Sans", marginBottom: 10 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 7 }}><SlidersHorizontal size={14} color={C.muted} /> Advanced health data</span>
+        <ChevronDown size={15} color={C.muted} style={{ transform: showAdvanced ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+      </button>
+
+      {showAdvanced && (
+        <>
+          {/* Blood pressure / RHR */}
+          <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 11 }}>
+              <HeartPulse size={15} color={C.coral} /> Vitals
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div style={{ background: C.bg, borderRadius: 12, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: C.muted }}>Blood pressure</div>
+                <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, marginTop: 2 }}>
+                  {latest.bpSys?.value != null ? `${latest.bpSys.value}/${latest.bpDia?.value}` : "—"}<span style={{ fontSize: 10, color: C.muted, marginLeft: 3 }}>mmHg</span>
+                </div>
+              </div>
+              <div style={{ background: C.bg, borderRadius: 12, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: C.muted }}>Resting HR</div>
+                <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, marginTop: 2 }}>
+                  {latest.rhr?.value != null ? latest.rhr.value : "—"}<span style={{ fontSize: 10, color: C.muted, marginLeft: 3 }}>bpm</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11.5, color: C.muted }}>BP</span>
+              <input value={bpS} onChange={(e) => setBpS(e.target.value)} inputMode="numeric" placeholder="120" style={{ width: 54, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 4px", fontFamily: "DM Sans", fontSize: 13, fontWeight: 600, background: C.bg }} />
+              <span style={{ color: C.muted }}>/</span>
+              <input value={bpD} onChange={(e) => setBpD(e.target.value)} inputMode="numeric" placeholder="80" style={{ width: 54, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 4px", fontFamily: "DM Sans", fontSize: 13, fontWeight: 600, background: C.bg }} />
+              <span style={{ fontSize: 11.5, color: C.muted, marginLeft: 6 }}>RHR</span>
+              <input value={rhr} onChange={(e) => setRhr(e.target.value)} inputMode="numeric" placeholder="60" style={{ width: 54, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 4px", fontFamily: "DM Sans", fontSize: 13, fontWeight: 600, background: C.bg }} />
+              <button className="sprig-tap" onClick={saveVitals} style={{ ...btn(C.green, "#fff"), padding: "7px 12px", fontSize: 12 }}><Check size={13} /> Save</button>
+            </div>
+          </div>
+
+          {/* Symptoms & notes */}
+          <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 8 }}>Symptoms &amp; notes</div>
+            <textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)}
+              placeholder="Anything off? Headaches, joint pain, fatigue patterns…"
+              style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", fontFamily: "DM Sans", fontSize: 13, color: C.ink, background: C.bg, minHeight: 52, resize: "vertical", lineHeight: 1.45 }} />
+            <button className="sprig-tap" onClick={() => onSave({ symptoms: symptoms.trim() })}
+              style={{ ...btn(C.green, "#fff"), padding: "8px 14px", fontSize: 12, marginTop: 8 }}>Save notes</button>
+          </div>
+
+          {/* Smoking */}
+          <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 10 }}>Smoking / vaping</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["no", "None"], ["vape", "Vape"], ["light", "Light"], ["regular", "Regular"]].map(([k, lbl]) => {
+                const on = latest.smoking?.value === k || (!latest.smoking && k === "no");
+                return (
+                  <button key={k} className="sprig-tap" onClick={() => onSave({ smoking: k })}
+                    style={{ flex: 1, border: "none", cursor: "pointer", padding: "9px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
+                      background: on ? (k === "no" ? C.greenSoft : C.coral) : C.bg2, color: on ? "#fff" : C.muted }}>{lbl}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Risk radar */}
+          {sortedRadar.length > 0 && (
+            <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 11 }}>
+                <Activity size={15} color={C.greenSoft} /> Risk radar
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {sortedRadar.map((r) => {
+                  const t = RISK_TAG[r.tag] || RISK_TAG.unknown;
+                  return (
+                    <div key={r.key} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 99, background: t.color, flexShrink: 0, marginTop: 6 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{r.label}</span>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: t.color, textTransform: "uppercase", letterSpacing: .4 }}>{t.label}</span>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.5 }}>{r.text}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {flagged.length > 0 && (
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 12, borderTop: `1px dashed ${C.line}`, paddingTop: 10, lineHeight: 1.5 }}>
+                  ⚕️ <b>Not a diagnosis.</b> If anything stays elevated, talk with a doctor.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Manual blood work entry */}
+          <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}>
+                <Pill size={15} color="#7A6FB0" /> Manual lab entry
+              </div>
+              <button className="sprig-tap" onClick={() => setShowBlood((s) => !s)} style={{ ...btn(C.bg2, C.green), padding: "6px 11px", fontSize: 12, borderRadius: 10 }}>
+                {showBlood ? "Close" : "Enter values"}
+              </button>
+            </div>
+            {showBlood && (
+              <div className="sprig-pop">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px 12px", maxHeight: 280, overflowY: "auto" }}>
+                  {BLOOD_MARKERS.map((b) => (
+                    <div key={b.key}>
+                      <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{b.label} · {b.unit}</div>
+                      <input value={bloodDraft[b.key] ?? ""} onChange={(e) => setBloodDraft((x) => ({ ...x, [b.key]: e.target.value }))} inputMode="decimal"
+                        placeholder={latest.blood?.[b.key]?.value != null ? String(latest.blood[b.key].value) : ""}
+                        style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 9px", fontFamily: "DM Sans", fontSize: 13, fontWeight: 600, background: C.bg, color: C.ink }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
+                  <button className="sprig-tap" onClick={() => { setShowBlood(false); setBloodDraft({}); }} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "9px 0" }}>Cancel</button>
+                  <button className="sprig-tap" disabled={!Object.values(bloodDraft).some((v) => v && v !== "")} onClick={saveBloodManual}
+                    style={{ ...btn(Object.values(bloodDraft).some((v) => v && v !== "") ? C.green : C.bg2, Object.values(bloodDraft).some((v) => v && v !== "") ? "#fff" : C.muted), flex: 2, padding: "9px 0" }}>
+                    <Check size={14} /> Save results
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 6, lineHeight: 1.5, padding: "0 12px" }}>
+        ⚕️ Vitae is not a medical app and does not diagnose. Always discuss abnormal results with a healthcare professional.
       </div>
       <div style={{ height: 8 }} />
     </div>
   );
 }
-
 /* ================= TRAIN TAB ================= */
 const fmtClock = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const RIR_OPTS = [["0", "0 · failure"], ["1", "1 left"], ["2", "2 left"], ["3", "3+ left"]];
