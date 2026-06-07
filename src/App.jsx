@@ -101,17 +101,46 @@ const FONTS = `
 @keyframes dimIn { from { opacity:0; } to { opacity:1; } }
 @keyframes toastUp { from { opacity:0; transform: translate(-50%, 10px); } to { opacity:1; transform: translate(-50%, 0); } }
 @keyframes pulse { 0%,100%{opacity:.45;} 50%{opacity:1;} }
-@keyframes medalGlow { 0%,100%{box-shadow:0 0 0 0 rgba(199,255,61,.0),0 6px 20px rgba(0,0,0,.25);} 50%{box-shadow:0 0 22px 3px rgba(199,255,61,.5),0 6px 20px rgba(0,0,0,.25);} }
-@keyframes prToastIn { from{opacity:0;transform:translateX(-50%) translateY(-12px) scale(.93);} to{opacity:1;transform:translateX(-50%) translateY(0) scale(1);} }
-@keyframes prToastOut { from{opacity:1;transform:translateX(-50%) translateY(0) scale(1);} to{opacity:0;transform:translateX(-50%) translateY(-8px) scale(.95);} }
+/* ── New Record achievement toast ── */
+@keyframes recordToastIn {
+  0%   { opacity:0; transform:translateX(-50%) translateY(-18px) scale(.88); }
+  62%  { opacity:1; transform:translateX(-50%) translateY(2px)   scale(1.04); }
+  100% { opacity:1; transform:translateX(-50%) translateY(0)     scale(1); }
+}
+@keyframes recordToastOut {
+  0%   { opacity:1; transform:translateX(-50%) translateY(0)     scale(1); }
+  100% { opacity:0; transform:translateX(-50%) translateY(-10px) scale(.96); }
+}
+@keyframes recordIconPop {
+  0%   { transform:scale(.5) rotate(-12deg); opacity:.4; }
+  58%  { transform:scale(1.24) rotate(5deg); opacity:1; }
+  100% { transform:scale(1)   rotate(0deg); opacity:1; }
+}
+@keyframes recordGlowPulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(199,255,61,0), 0 10px 32px rgba(0,0,0,.35); }
+  45%     { box-shadow:0 0 28px 5px rgba(199,255,61,.42), 0 10px 32px rgba(0,0,0,.35); }
+}
+@keyframes recordBgBloom {
+  0%   { opacity:0; transform:translateX(-50%) scale(.6); }
+  40%  { opacity:1; transform:translateX(-50%) scale(1); }
+  100% { opacity:0; transform:translateX(-50%) scale(1.4); }
+}
+/* Food entry flash — border-glow pulse for the newly-logged meal row */
+@keyframes entryFlash {
+  0%   { box-shadow: 0 0 0 2px rgba(199,255,61,.85), 0 2px 12px rgba(199,255,61,.25); }
+  55%  { box-shadow: 0 0 0 3px rgba(199,255,61,.55), 0 4px 20px rgba(199,255,61,.18); }
+  100% { box-shadow: 0 0 0 0 rgba(199,255,61,0), 0 2px 8px rgba(0,0,0,.08); }
+}
+.entry-flash { animation: entryFlash 2s cubic-bezier(.4,0,.6,1) both; }
 /* Apple-ish easing used consistently across the app */
 .sprig-rise { animation: rise .2s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-pop { animation: pop .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-pop-centered { animation: popCentered .18s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-sheet { animation: sheetUp .26s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-dim { animation: dimIn .2s ease both; }
-.sprig-medal { animation: prToastIn .26s cubic-bezier(.2,.8,.2,1) both, medalGlow 2.2s ease-in-out .3s; }
-.sprig-medal-exit { animation: prToastOut .4s cubic-bezier(.4,0,1,1) both !important; }
+.record-toast      { animation: recordToastIn .44s cubic-bezier(.2,.9,.2,1) both, recordGlowPulse 2.1s ease-in-out .38s 1; }
+.record-toast-exit { animation: recordToastOut .28s cubic-bezier(.5,0,1,1) both !important; }
+.record-icon       { animation: recordIconPop .54s cubic-bezier(.2,.9,.2,1) .10s both; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
 .sprig-tap { transition: transform .09s cubic-bezier(.2,.8,.2,1), background .16s ease, box-shadow .16s ease, opacity .16s ease, filter .14s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -122,7 +151,7 @@ const FONTS = `
 .sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-y: auto; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .sprig-rise, .sprig-pop, .sprig-pop-centered, .sprig-sheet, .sprig-dim, .sprig-toast-anim { animation-duration: .01ms !important; }
-  .sprig-medal { animation: none !important; }
+  .record-toast, .record-toast-exit, .record-icon { animation-duration: .01ms !important; }
   .sprig-tap:active { transform: none; filter: none; }
   .sprig-scroll { scroll-behavior: auto; }
 }
@@ -2631,10 +2660,10 @@ function suggestNext(workouts, exName) {
   const inc = meta?.type === "compound" ? (meta.bar ? 2.5 : 2) : 1.25;
   const rir = top.rir ?? 2;
   let w = top.w, reps = top.reps, note = "";
-  if (rir >= 3) { w += inc; note = "had reps in reserve — add weight"; }
-  else if (rir === 2) { reps = top.reps + 1; note = "one more rep, then add weight next time"; }
-  else if (rir === 1) { note = "hold weight, nail the same reps clean"; }
-  else { w = Math.round((top.w * 0.95) * 2) / 2; note = "you hit failure — small back-off to recover"; }
+  if (rir >= 3) { w += inc; note = `Easy last time — add ${inc}kg and hold ${top.reps} reps.`; }
+  else if (rir === 2) { reps = top.reps + 1; note = `Beat last time — aim for ${top.reps + 1} reps at ${top.w}kg.`; }
+  else if (rir === 1) { note = `Close to your limit — match ${top.reps} reps. If it moves clean, try one more.`; }
+  else { w = Math.round((top.w * 0.95) * 2) / 2; note = `Hit failure last time — drop ~5% and build back. Quality over grinding.`; }
   return { w: Math.round(w * 2) / 2, reps, prevW: top.w, prevReps: top.reps, prevRir: top.rir, note };
 }
 function exLastBest(workouts, exName) {
@@ -4373,8 +4402,11 @@ function SprigApp() {
   const [winsOpen, setWinsOpen] = useState(false);
   const [logSheet, setLogSheet] = useState(false);
   const [recapView, setRecapView] = useState(null); // { recap, ts } shown after finishing a workout
-  const [prFlash, setPrFlash] = useState(null);    // { kind, label, subLabel, exName, ts } — transient new-record medal
-  const [prFlashOut, setPrFlashOut] = useState(false); // true during the exit animation
+  // recordToast: { kind, label, subLabel, exName, phase: "entering"|"visible"|"exiting" }
+  // Phase flow: entering (entrance anim) → visible (idle) → exiting (exit anim) → null
+  const [recordToast, setRecordToast] = useState(null);
+  const recordToastTimers = useRef([]); // pending setTimeout ids — cleared on new PR
+  const recordToastPriorityRef = useRef(0); // PR_PRIORITY value of the currently shown toast
   const [flashEntryId, setFlashEntryId] = useState(null); // briefly highlight a newly-logged meal
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -5271,17 +5303,42 @@ function SprigApp() {
   }
   function woLogSet(exIdx, set) {
     const exName = activeWorkout.exercises[exIdx]?.name;
-    // PR check BEFORE we append the set (compare against all prior history)
+    // PR detection BEFORE we append the set (compare against all prior history).
+    // Priority: e1RM=5 > weight=4 > reps=3 > volume=2 > session-volume=1.
+    // If a higher-priority toast is already visible, the incoming lower-priority one is dropped.
+    // Equal or higher priority replaces the current toast, resetting all timers.
     try {
+      const PR_PRIORITY = { "e1rm": 5, "weight": 4, "reps": 3, "volume": 2, "session-volume": 1 };
       const activeExSets = activeWorkout.exercises[exIdx]?.sets || [];
       const pr = detectSetPR(workouts, exName, set.w, set.reps, activeExSets);
       if (pr) {
-        setPrFlashOut(false);
-        setPrFlash({ ...pr, exName, ts: Date.now() });
-        buzz("strong");
-        // Fade-out starts at 2900ms, unmount at 3300ms (total ~2.9s visible + 0.4s fade)
-        setTimeout(() => setPrFlashOut(true), 2900);
-        setTimeout(() => { setPrFlash(null); setPrFlashOut(false); }, 3300);
+        const newPri = PR_PRIORITY[pr.kind] ?? 0;
+        const curPri = recordToastPriorityRef.current;
+        // Drop if a more important record is still animating in / visible
+        if (curPri > newPri) { /* keep current */ } else {
+          // Clear pending phase timers from any previous toast
+          recordToastTimers.current.forEach(id => clearTimeout(id));
+          recordToastTimers.current = [];
+          recordToastPriorityRef.current = newPri;
+          // Custom haptic: two-pulse pattern that reads as "achievement" not just "complete"
+          try { navigator.vibrate?.([18, 30, 18]); } catch (_) {}
+          // Phase 1 — entering (entrance animation plays)
+          setRecordToast({ ...pr, exName, phase: "entering" });
+          // Phase 2 — visible (entrance done, idle)
+          const t1 = setTimeout(() =>
+            setRecordToast(t => t && t.phase === "entering" ? { ...t, phase: "visible" } : t),
+            440); // matches recordToastIn duration
+          // Phase 3 — exiting (exit animation plays, ~2s after fully visible)
+          const t2 = setTimeout(() =>
+            setRecordToast(t => t ? { ...t, phase: "exiting" } : t),
+            440 + 2000);
+          // Phase 4 — unmount (after exit anim completes)
+          const t3 = setTimeout(() => {
+            setRecordToast(null);
+            recordToastPriorityRef.current = 0;
+          }, 440 + 2000 + 300);
+          recordToastTimers.current = [t1, t2, t3];
+        }
       }
     } catch (_) {}
     const next = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, sets: [...e.sets, { ...set, ts: Date.now() }] } : e);
@@ -5908,36 +5965,104 @@ function SprigApp() {
         </Portal>
       )}
 
-      {/* New-record toast — Hevy-like: compact pill, top-anchored, ~2.9s visible then fades out.
-          z-index 4000 hardcoded so it always renders above every overlay. */}
-      {prFlash && (
+      {/* ── New Record achievement toast ──
+          Phase-based: entering → visible → exiting → unmounted.
+          Portaled to body so it's never clipped by overflow:hidden ancestors.
+          z-index 4000 puts it above every overlay including the rest timer (1600). */}
+      {recordToast && (
         <Portal>
-          <div className={`sprig-medal${prFlashOut ? " sprig-medal-exit" : ""}`} style={{
+          {/* Subtle lime bloom behind the toast — fades in with the card, fades out on exit */}
+          <div style={{
             position: "fixed",
-            top: "calc(env(safe-area-inset-top, 0px) + 58px)",
+            top: "calc(env(safe-area-inset-top, 0px) + 64px)",
             left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 4000,
-            background: C.isDark ? "#1A3020" : "#FFFFFF",
-            border: `1.5px solid ${C.lime}`,
+            zIndex: 3999,
+            width: 260,
+            height: 56,
             borderRadius: 99,
-            padding: "8px 16px 8px 10px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            boxShadow: `0 0 16px ${C.lime}44, 0 4px 14px rgba(0,0,0,.3)`,
-            maxWidth: "min(88vw, 340px)",
-            whiteSpace: "nowrap",
-            cursor: "default",
-          }}>
-            <div style={{ width: 26, height: 26, borderRadius: 99, background: `radial-gradient(circle at 50% 35%, ${C.lime}, ${C.green})`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <Medal size={14} color="#0A1F12" />
+            background: `radial-gradient(ellipse at 50% 50%, ${C.lime}2A 0%, transparent 72%)`,
+            pointerEvents: "none",
+            animation: recordToast.phase === "exiting"
+              ? "recordToastOut .28s cubic-bezier(.5,0,1,1) both"
+              : "recordBgBloom .7s ease-out both",
+            transform: "translateX(-50%)",
+          }} />
+          {/* Toast card */}
+          <div
+            className={`record-toast${recordToast.phase === "exiting" ? " record-toast-exit" : ""}`}
+            style={{
+              position: "fixed",
+              top: "calc(env(safe-area-inset-top, 0px) + 64px)",
+              left: "50%",
+              zIndex: 4000,
+              // Dark glass card — matches Vitae dark forest aesthetic
+              background: C.isDark
+                ? "rgba(14, 36, 20, 0.95)"
+                : "rgba(255, 255, 255, 0.97)",
+              border: `1.5px solid ${C.lime}`,
+              borderRadius: 20,
+              padding: "11px 18px 11px 11px",
+              display: "flex",
+              alignItems: "center",
+              gap: 11,
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              maxWidth: "min(92vw, 420px)",
+              minWidth: 210,
+              cursor: "default",
+              pointerEvents: "none",
+              // transform is managed entirely by the CSS animation — do NOT set it here
+              // or it will fight with translateX(-50%) in the keyframes
+            }}
+          >
+            {/* Medal icon — has its own pop animation */}
+            <div className="record-icon" style={{
+              width: 38,
+              height: 38,
+              borderRadius: 99,
+              background: `radial-gradient(circle at 50% 32%, ${C.lime}, ${C.green})`,
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+              boxShadow: `0 0 14px ${C.lime}55`,
+            }}>
+              <Medal size={18} color="#0A1F12" />
             </div>
+            {/* Text block */}
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{prFlash.label}</span>
-              <span style={{ fontSize: 11, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
-                {prFlash.subLabel || prFlash.exName}
+              <span style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: C.ink,
+                lineHeight: 1.2,
+                letterSpacing: "-0.015em",
+              }}>
+                New Record
               </span>
+              <span style={{
+                fontSize: 11.5,
+                color: C.muted,
+                marginTop: 2.5,
+                lineHeight: 1.3,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {recordToast.exName} · {recordToast.label}
+              </span>
+              {recordToast.subLabel && (
+                <span style={{
+                  fontSize: 10.5,
+                  color: C.greenSoft,
+                  fontWeight: 600,
+                  marginTop: 1.5,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}>
+                  {recordToast.subLabel}
+                </span>
+              )}
             </div>
           </div>
         </Portal>
@@ -6035,6 +6160,34 @@ function SprigApp() {
                   </div>
                 ))}
               </div>
+              {/* Record lifts — shown individually so the user feels the achievement */}
+              {r.recordLifts?.filter((rl) => !rl.firstTime && rl.prev > 0).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.lime, letterSpacing: .3, marginBottom: 6 }}>NEW RECORDS</div>
+                  {r.recordLifts.filter((rl) => !rl.firstTime && rl.prev > 0).map((rl) => (
+                    <div key={rl.name} style={{ display: "flex", alignItems: "center", gap: 9, background: C.lime + "10", border: `1px solid ${C.lime}44`, borderRadius: 12, padding: "9px 12px", marginBottom: 5 }}>
+                      <Medal size={14} color={C.lime} style={{ flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rl.name}</div>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>e1RM {rl.e1RM} kg <span style={{ color: C.greenSoft }}>↑ from {rl.prev} kg</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Exercise list — compact, no bloat */}
+              {(r.exercises || []).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: .3, marginBottom: 6 }}>EXERCISES</div>
+                  {r.exercises.slice(0, 6).map((ex, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: C.inkSoft, padding: "4px 0", borderBottom: `1px solid ${C.line}` }}>
+                      <span style={{ flex: 1, fontWeight: 600, color: C.ink }}>{ex.name}</span>
+                      <span style={{ color: C.muted }}>{ex.sets?.length ?? 0} sets</span>
+                    </div>
+                  ))}
+                  {(r.exercises || []).length > 6 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>+{r.exercises.length - 6} more</div>}
+                </div>
+              )}
               {/* kudos earned */}
               {dayWins.length > 0 && (
                 <>
@@ -6174,13 +6327,27 @@ function SprigApp() {
                 How hard was that set?{s ? ` · ${ex.name} ${s.w}${profile.unit || "kg"} × ${s.reps}` : ""}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-                {[["0", "0", "Failure"], ["1", "1", "Hard"], ["2", "2", "Solid"], ["3", "3+", "Easy"]].map(([val, big, lbl]) => (
-                  <button key={val} className="sprig-tap" onClick={() => chooseRir(rirPrompt.exIdx, rirPrompt.setIdx, +val)}
-                    style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: "DM Sans" }}>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.green }}>{big}</span>
-                    <span style={{ fontSize: 10.5, color: C.muted, fontWeight: 600 }}>{lbl}</span>
-                  </button>
-                ))}
+                {/* RIR 2 (Solid) is the coaching default — subtly accented with a lime border so users
+                    develop the habit of aiming for 2 reps in reserve on working sets. */}
+                {[["0", "0", "Failure"], ["1", "1", "Hard"], ["2", "2", "Solid"], ["3", "3+", "Easy"]].map(([val, big, lbl]) => {
+                  const isDefault = val === "2";
+                  return (
+                    <button key={val} className="sprig-tap" onClick={() => chooseRir(rirPrompt.exIdx, rirPrompt.setIdx, +val)}
+                      style={{
+                        background: isDefault ? C.green + "14" : C.bg2,
+                        border: `1.5px solid ${isDefault ? C.green + "66" : C.line}`,
+                        cursor: "pointer", borderRadius: 14, padding: "14px 0",
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: "DM Sans",
+                        position: "relative",
+                      }}>
+                      <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: isDefault ? C.green : C.inkSoft }}>{big}</span>
+                      <span style={{ fontSize: 10.5, color: isDefault ? C.greenSoft : C.muted, fontWeight: 600 }}>{lbl}</span>
+                      {isDefault && (
+                        <span style={{ position: "absolute", top: -7, fontSize: 9, fontWeight: 700, color: C.green, background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 99, padding: "1px 5px", letterSpacing: "0.02em" }}>TARGET</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               <button className="sprig-tap" onClick={() => setRirPrompt(null)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", marginTop: 14, padding: "6px 0" }}>Skip</button>
             </div>
@@ -7224,7 +7391,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
   const [showAllFood, setShowAllFood] = useState(false);
   const [showSupps, setShowSupps] = useState(advanced || (supps?.length || 0) <= 4);
   const [favSearch, setFavSearch] = useState("");
-  const [favSort, setFavSort] = useState("recent"); // recent | most
+  const [favSort, setFavSort] = useState("most"); // most | recent — default to most-used so top meals are one-tap
   const takenCount = supps.filter((s) => takenIds.includes(s.id)).length;
   const adjTarget = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
   const delta = moveInfo?.calAdjust?.delta || 0;
@@ -7504,7 +7671,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
             const ms = mealScore(e, targets);
             const msCol = ms ? (ms.score >= 70 ? C.greenSoft : ms.score >= 45 ? C.amber : C.coral) : C.muted;
             return (
-              <div key={e.id} ref={flashEntryId === e.id ? (el) => { if (el) setTimeout(() => { try { el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) {} }, 60); } : undefined} className={flashEntryId === e.id ? "sprig-pop" : ""} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: flashEntryId === e.id ? `0 0 0 2px ${C.lime}, ${C.shadow}` : C.shadow, border: `1px solid ${flashEntryId === e.id ? C.lime : C.line}`, transition: "box-shadow .3s ease, border-color .3s ease" }}>
+              <div key={e.id} ref={flashEntryId === e.id ? (el) => { if (el) setTimeout(() => { try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {} }, 80); } : undefined} className={flashEntryId === e.id ? "entry-flash" : ""} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: C.shadow, border: `1px solid ${flashEntryId === e.id ? C.lime : C.line}`, transition: "border-color .4s ease" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   {ms && (
                     <div style={{ width: 38, height: 38, borderRadius: 11, background: msCol + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>
@@ -11624,7 +11791,6 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
                     <div key={k} style={{ background: C.bg, borderRadius: 11, padding: "10px 12px" }}>
                       <div style={{ fontSize: 11, color: C.muted }}>{lbl}</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3 }}>
-                        <span style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700 }}>{m.current}</span>
                         {m.change != null && <span style={{ fontSize: 11, color: upCol, fontWeight: 600, marginLeft: "auto" }}>{m.change > 0 ? "+" : ""}{m.change}</span>}
                       </div>
                     </div>
