@@ -4293,10 +4293,11 @@ class ErrorBoundary extends React.Component {
             <div style={{ background: C.bg, borderRadius: 11, padding: 11, fontSize: 11.5, color: C.inkSoft, lineHeight: 1.55, marginBottom: 14 }}>
               Try reloading. If the same error keeps appearing, you can wipe local data from <b>Me → Data &amp; privacy</b> after reloading.
               {this.state.error?.message && (
-                <details style={{ marginTop: 8 }}>
-                  <summary style={{ cursor: "pointer", listStyle: "none", fontSize: 10.5, color: C.muted, fontWeight: 600 }}>Technical details</summary>
-                  <code style={{ display: "block", fontSize: 10, color: C.muted, marginTop: 5, wordBreak: "break-word", fontFamily: "monospace" }}>{this.state.error.message}</code>
-                </details>
+                <div style={{ marginTop: 8, background: C.bg2, borderRadius: 8, padding: 8 }}>
+                  <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 600, marginBottom: 4 }}>Error:</div>
+                  <code style={{ display: "block", fontSize: 10, color: C.coral, wordBreak: "break-all", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>{this.state.error.message}</code>
+                  {this.state.error?.stack && <code style={{ display: "block", fontSize: 9, color: C.muted, wordBreak: "break-all", fontFamily: "monospace", whiteSpace: "pre-wrap", marginTop: 6, maxHeight: 160, overflow: "auto" }}>{this.state.error.stack}</code>}
+                </div>
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -5893,13 +5894,6 @@ function SprigApp() {
     latest: latestHealth(healthSeries),
     radar: healthRiskRadar({ healthSeries, sleepLogs, sleepInfo, t, targets, daily, dailyHistory, weightSeries, measureSeries, workouts, profile }),
   };
-  const healthReport = computeHealthReport({
-    history7: (history || []).filter((h) => Date.now() - new Date(h.date).getTime() < 7 * 864e5),
-    sleepLogs7: (sleepLogs || []).filter((l) => !l.ignoredFromScore && l.waketime > Date.now() - 7 * 864e5),
-    workouts7: (workouts || []).filter((w) => w.ts > Date.now() - 7 * 864e5),
-    daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo,
-  });
-
   // ---- safety: red flags + interaction warnings ----
   const _latestH = healthInfo.latest;
   const _symptomText = _latestH.symptoms?.value || "";
@@ -6006,6 +6000,13 @@ function SprigApp() {
   // overwrite nutriInfo.waterGoal to use the smart-hydration goal so it's consistent everywhere
   nutriInfo.waterGoal = hydration.goal;
   nutriInfo.needsElectrolytes = hydration.needsElectrolytes;
+  // health report — computed here so moveInfo + nutriInfo are both in scope
+  const healthReport = computeHealthReport({
+    history7: (history || []).filter((h) => Date.now() - new Date(h.date).getTime() < 7 * 864e5),
+    sleepLogs7: (sleepLogs || []).filter((l) => !l.ignoredFromScore && l.waketime > Date.now() - 7 * 864e5),
+    workouts7: (workouts || []).filter((w) => w.ts > Date.now() - 7 * 864e5),
+    daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo,
+  });
   // achievements
   const achievements = detectAchievements({ workouts, weightSeries, sleepLogs, history, focusSessions, dailyHistory, painLogs });
   const timeline = goalTimeline({ profile, weightSeries, workouts, targets });
