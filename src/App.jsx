@@ -11106,9 +11106,9 @@ function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, target
   const steps = daily?.steps || moveInfo?.movement?.steps || 0;
   const stepGoalVal = moveInfo?.stepGoal || 8000;
   const cardioMin = daily?.cardioMin || 0;
+  const stepRatio = steps / stepGoalVal;
   if (wkCount > 0 || steps > 0 || cardioMin > 0) {
     const wkScore = wkCount >= 4 ? 90 : wkCount >= 3 ? 80 : wkCount >= 2 ? 65 : wkCount >= 1 ? 50 : 30;
-    const stepRatio = steps / stepGoalVal;
     const stepScore = stepRatio >= 1 ? 90 : stepRatio >= 0.7 ? 75 : stepRatio >= 0.4 ? 55 : 35;
     const cardioScore = cardioMin >= 30 ? 90 : cardioMin >= 15 ? 70 : cardioMin >= 5 ? 55 : 40;
     trainScore = Math.round(wkScore * 0.5 + stepScore * 0.3 + cardioScore * 0.2);
