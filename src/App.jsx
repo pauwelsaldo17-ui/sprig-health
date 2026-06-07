@@ -5881,7 +5881,7 @@ function SprigApp() {
             onRemoveExercise={woRemoveExercise} onFinish={finishWorkout} onCancel={cancelWorkout}
             onSaveRest={saveRest} onSetExercisePain={woSetExercisePain} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")}
             onStartRest={startRest} restActive={!!rest}
-            moveInfo={moveInfo} daily={daily} onDaily={persistDaily} sleepInfo={sleepInfo} />
+            moveInfo={moveInfo} daily={daily} onDaily={persistDaily} sleepInfo={sleepInfo} rirPref={rirPref} />
         )}
         {(tab === "progress" || tab === "body" || tab === "trends") && (
           <>
@@ -11385,7 +11385,7 @@ function LiftTrend({ workouts, exName }) {
   );
 }
 
-function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "training", onSub, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio, sleepInfo }) {
+function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "training", onSub, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio, sleepInfo, rirPref }) {
   const unit = profile.unit || "kg";
   const [picker, setPicker] = useState(false);
   const [builder, setBuilder] = useState(null); // null | {} (new) | routine (edit)
@@ -11963,6 +11963,7 @@ function RecoveryStrengthSection({ workouts, profile, trainInfo, sleepInfo, adva
 function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeries, measureSeries, photoLog, onLogWeight, onSaveMeasurement, onLogPhotoSet, onOpenPhotos, progressPhotosCount }) {
   const [showMeasure, setShowMeasure] = useState(false);
   const [weightInput, setWeightInput] = useState("");
+  const measureCur = measurementStats(measureSeries);
   const wStats = weightStats(weightSeries);
   const verdict = weightVerdict(wStats, profile.goal);
   const reminder = photoReminder(photoLog);
@@ -12119,7 +12120,6 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
               </div>
             );
           })()}
-
           <div style={{ height: 10 }} />
         </>
       )}
