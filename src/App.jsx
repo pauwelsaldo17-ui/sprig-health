@@ -2522,7 +2522,7 @@ function sleepDebtLabel(debtMin) {
 //   • the user hasn't logged anything for a few hours (stale)
 //   • their most important daily goals aren't met yet
 // We never reduce the health score for not logging — this is a gentle prompt, nothing more.
-function bedtimeReminder({ nowTs, recBedMin, lastLogTs, t, targets, daily, waterGoalMl, trainedToday }) {
+function bedtimeReminder({ nowTs, recBedMin, lastLogTs, t, targets, daily, waterGoalMl, trainedToday, tp = {} }) {
   if (recBedMin == null) return null;
   const nowMin = tsToMin(nowTs);
   // circular minutes-until-bed (handle wrap past midnight); treat the window as 90 min before bed
@@ -2536,12 +2536,12 @@ function bedtimeReminder({ nowTs, recBedMin, lastLogTs, t, targets, daily, water
   const stale = hoursSinceLog >= 4;
   if (!stale) return null;
 
-  // key goals — the few that matter most for a daily picture
+  // key goals — only suggest logging for enabled categories
   const missing = [];
-  if ((t?.calories || 0) < (targets?.calories || 0) * 0.6) missing.push("food");
-  if ((daily?.water || 0) < (waterGoalMl || 2500) * 0.6) missing.push("water");
+  if (tp.nutrition !== false && (t?.calories || 0) < (targets?.calories || 0) * 0.6) missing.push("food");
+  if (tp.water !== false && (daily?.water || 0) < (waterGoalMl || 2500) * 0.6) missing.push("water");
   if (!daily?.checkin || !daily.checkin.mood) missing.push("check-in");
-  if ((daily?.steps || 0) === 0 && !trainedToday && (daily?.cardioMin || 0) === 0) missing.push("movement");
+  if (tp.movement !== false && (daily?.steps || 0) === 0 && !trainedToday && (daily?.cardioMin || 0) === 0) missing.push("movement");
   if (missing.length < 2) return null; // most things already logged → no need to nudge
 
   return { missing: missing.slice(0, 3), nearBed: true };
@@ -2635,6 +2635,11 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
   let dataPoints = 0;
   const ql = quickLog || null;
   let qlEstimated = false; // track if we used quick log to fill any gap
+  // Hoisted so checklist/muscleStatus sections can read them regardless of which guard branch ran
+  let protein = 0, pTarget = 0, calories = 0, cTarget = 0;
+  let water = 0, wGoal = 2000;
+  let alcohol = 0;
+  let recovery = {};
 
   // === SLEEP ===
   const lastSleep = sleepInfo?.lastSleep;
@@ -2671,7 +2676,7 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
   if (tp.training === false) {
     helpers.push("Training tracking is off");
   } else {
-  const recovery = trainInfo?.recovery || {};
+  recovery = trainInfo?.recovery || {};
   const volume = trainInfo?.volume || {};
   const highFat = MUSCLES.filter(([k]) => (recovery[k]?.fatigue||0) >= 70).map(([,n]) => n);
   const veryHighFat = MUSCLES.filter(([k]) => (recovery[k]?.fatigue||0) >= 90).map(([,n]) => n);
@@ -2717,10 +2722,10 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
   if (tp.nutrition === false) {
     helpers.push("Nutrition tracking is off");
   } else {
-  const protein = t?.protein || 0;
-  const calories = t?.calories || 0;
-  const pTarget = targets?.protein || 0;
-  const cTarget = targets?.calories || 0;
+  protein = t?.protein || 0;
+  calories = t?.calories || 0;
+  pTarget = targets?.protein || 0;
+  cTarget = targets?.calories || 0;
 
   if (pTarget > 0) {
     if (protein >= pTarget * 0.9) {
@@ -2759,8 +2764,8 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
 
   // === WATER — own tp.water guard, separate from nutrition ===
   if (tp.water !== false) {
-  const water = daily?.water || 0;
-  const wGoal = nutriInfo?.waterGoal || 2000;
+  water = daily?.water || 0;
+  wGoal = nutriInfo?.waterGoal || 2000;
   if (wGoal > 0 && water > 0) {
     dataPoints++;
     if (water >= wGoal)               { score += 5; helpers.push("Water goal reached"); }
@@ -2777,7 +2782,7 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
 
   // === ALCOHOL — own tp.alcohol guard, separate from nutrition ===
   if (tp.alcohol !== false) {
-  const alcohol = daily?.alcohol || 0;
+  alcohol = daily?.alcohol || 0;
   if (alcohol > 0) {
     dataPoints++;
     score -= Math.min(14, alcohol * 4);
@@ -3859,8 +3864,8 @@ function dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, pr
     : (ql?.enoughSleep === true ? 72 : ql?.enoughSleep === false ? 42 : null);
   const sleep = tp.sleep === false ? null : sleepRaw;
 
-  // training/recovery readiness
-  const training = clamp100(trainInfo.bodyReadiness);
+  // training/recovery readiness — null when training is disabled
+  const training = tp.training === false ? null : clamp100(trainInfo.bodyReadiness);
 
   // movement: steps + workout + quickLog — null only when no signal at all
   const stepP = Math.min(1, (daily.steps || 0) / STEPS_TARGET);
@@ -3880,8 +3885,10 @@ function dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, pr
 
   // health habits: water, low alcohol, hydration, not sick
   const waterP = Math.min(1, (daily.water || 0) / waterGoal(profile));
-  let habits = 55 + waterP * 35;
-  if ((daily.alcohol || 0) > 0) habits -= Math.min(35, daily.alcohol * 12);
+  // water only counts toward habits if water tracking is enabled
+  let habits = tp.water !== false ? 55 + waterP * 35 : 70;
+  // alcohol only penalises if alcohol tracking is enabled
+  if (tp.alcohol !== false && (daily.alcohol || 0) > 0) habits -= Math.min(35, daily.alcohol * 12);
   if (ci.sick === "yes") habits -= 30;
   habits = clamp100(habits);
 
@@ -4286,8 +4293,14 @@ function bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, pr
 
 /* ---------------- rule-based AI-free coach -------------- */
 // assembles 4 coach cards from existing derivations. No API calls — fast & free.
-function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, daily, profile, workouts }) {
+function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, daily, profile, workouts, quickLog, tp = {}, dt = null }) {
   const muscleName = (k) => (MUSCLES.find(([m]) => m === k) || [k, k])[1];
+  const ql = quickLog || null;
+  const dtN = dt?.nutrition;   // daily truth for nutrition
+  const dtT = dt?.training;    // daily truth for training
+  const dtS = dt?.sleep;       // daily truth for sleep
+  const dtW = dt?.water;       // daily truth for water
+  const dtA = dt?.alcohol;     // daily truth for alcohol
 
   // ---- DAILY COACH: top 3 actions ----
   const daily3 = (dailyInfo.actions || []).slice(0, 3).map((a) => a.text);
@@ -4303,45 +4316,68 @@ function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, d
   const overMuscles = volRows.filter((r) => r.st.tag === "over").map((r) => r.n);
   const stalls = stallingLifts(workouts);
   const trainBullets = [];
-  if (sug) trainBullets.push(`${sug.label}: ${sug.reason}`);
-  if (lowMuscles.length) trainBullets.push(`Add volume to ${lowMuscles.slice(0, 3).join(", ")}.`);
-  if (overMuscles.length) trainBullets.push(`Ease off ${overMuscles.join(", ")} — likely junk volume.`);
-  if (stalls.length) trainBullets.push(`Stalled: ${stalls.slice(0, 2).join(", ")}. Deload that lift ~10% then rebuild.`);
-  if (trainInfo.deload?.suggest) trainBullets.push(`Deload week suggested — ${trainInfo.deload.reasons[0]}.`);
-  // sport-specific bullets (folded in if profile.sport set and daily.sportLog has data)
-  if (trainInfo.sportAdvice?.length) trainBullets.push(...trainInfo.sportAdvice);
-  if (!trainBullets.length) trainBullets.push("Volume and recovery look balanced — keep progressing.");
-  const trainSummary = sug ? `Best session today: ${sug.label}.` : "Train based on what's recovered.";
+  if (tp.training === false) {
+    trainBullets.push("Training tracking is off. Enable it from More → Tracking preferences to see training advice.");
+  } else {
+    if (dtT?.source === "quick_log") trainBullets.push(`Trained today via Quick Log (${dtT.label || "type unknown"}) — exact data not logged.`);
+    else if (dtT?.source === "exact") trainBullets.push("Exact workout logged today.");
+    if (sug) trainBullets.push(`${sug.label}: ${sug.reason}`);
+    if (lowMuscles.length) trainBullets.push(`Add volume to ${lowMuscles.slice(0, 3).join(", ")}.`);
+    if (overMuscles.length) trainBullets.push(`Ease off ${overMuscles.join(", ")} — likely junk volume.`);
+    if (stalls.length) trainBullets.push(`Stalled: ${stalls.slice(0, 2).join(", ")}. Deload that lift ~10% then rebuild.`);
+    if (trainInfo.deload?.suggest) trainBullets.push(`Deload week suggested — ${trainInfo.deload.reasons[0]}.`);
+    if (trainInfo.sportAdvice?.length) trainBullets.push(...trainInfo.sportAdvice);
+    if (!trainBullets.length) trainBullets.push("Volume and recovery look balanced — keep progressing.");
+  }
+  const trainSummary = tp.training === false ? "Training tracking is off."
+    : sug ? `Best session today: ${sug.label}.` : "Train based on what's recovered.";
 
   // ---- NUTRITION COACH ----
-  const proteinLeft = Math.max(0, Math.round(targets.protein - t.protein));
-  const calLeft = Math.round(targets.calories - t.calories);
   const nutriBullets = [];
-  if (t.calories === 0) nutriBullets.push("Nothing logged yet — add your first meal to start tracking.");
-  else {
+  if (tp.nutrition === false) {
+    nutriBullets.push("You're not tracking nutrition right now. Start tracking from More → Tracking preferences if you want nutrition advice.");
+  } else if (dtN?.source === "exact") {
+    const proteinLeft = Math.max(0, Math.round(targets.protein - t.protein));
+    const calLeft = Math.round(targets.calories - t.calories);
     if (proteinLeft >= 20) nutriBullets.push(`Protein: ${Math.round(t.protein)}/${targets.protein}g — eat ${proteinLeft}g more.`);
     else nutriBullets.push(`Protein on track (${Math.round(t.protein)}/${targets.protein}g).`);
     if (Math.abs(calLeft) > 250) nutriBullets.push(calLeft > 0 ? `${calLeft} kcal left for your ${targets.goal === "lose" ? "cut" : targets.goal === "gain" ? "bulk" : "day"}.` : `${Math.abs(calLeft)} kcal over — lighter dinner or a walk.`);
     if (t.fiber < targets.fiber * 0.7) nutriBullets.push(`Fiber low (${Math.round(t.fiber)}/${targets.fiber}g) — add fruit, veg, or oats.`);
+    if (nutriInfo.missing?.length) { const top = nutriInfo.missing[0]; nutriBullets.push(`Lowest: ${top.label} (${top.pct}%) — try ${top.food.split(",").slice(0, 2).join(",")}.`); }
+  } else if (dtN?.source === "quick_log") {
+    nutriBullets.push(ql?.hitProtein === true ? "Protein target hit · Quick Log. Log meals for exact gram tracking." : "Nutrition marked via Quick Log — no exact data available.");
+    if (ql?.hitCalories === true) nutriBullets.push("Calories on track · Quick Log.");
+    else if (ql?.hitCalories === false) nutriBullets.push(`Calories marked low today. Log a meal to track precisely.`);
+  } else {
+    nutriBullets.push("No food logged yet today. Add your first meal or use Quick Log to mark nutrition status.");
   }
-  if (nutriInfo.missing?.length) {
-    const top = nutriInfo.missing[0];
-    nutriBullets.push(`Lowest: ${top.label} (${top.pct}%) — try ${top.food.split(",").slice(0, 2).join(",")}.`);
+  // water note regardless of nutrition source
+  if (tp.water !== false) {
+    if (dtW?.source === "quick_log") { /* QL covered it — no nudge */ }
+    else if ((daily.water || 0) < nutriInfo.waterGoal * 0.5) nutriBullets.push("Hydration is behind — drink a glass now.");
   }
-  if ((daily.water || 0) < nutriInfo.waterGoal * 0.5) nutriBullets.push("Hydration's behind — drink a glass now.");
-  const nutriSummary = nutriInfo.coach?.lines?.[0]?.text || (t.calories ? `Diet quality ${nutriInfo.dietQ.score}/100.` : "Track today's food for tailored advice.");
+  const nutriSummary = tp.nutrition === false ? "Nutrition tracking is off."
+    : dtN?.source === "exact" ? (nutriInfo.coach?.lines?.[0]?.text || (t.calories ? `Diet quality ${nutriInfo.dietQ.score}/100.` : "Track today's food for tailored advice."))
+    : dtN?.source === "quick_log" ? "Nutrition status from Quick Log — no exact data."
+    : "No nutrition data logged today.";
 
   // ---- RECOVERY COACH ----
   const rr = trainInfo.recoveryRec;
   const recBullets = [];
-  if (sleepInfo.lastSleep) recBullets.push(`Last night: ${durLabel(sleepInfo.lastSleep.durationMin)}, score ${sleepInfo.lastSleep.score}.`);
-  if (sleepInfo.debtMin > 90) recBullets.push(`Sleep debt ${durLabel(sleepInfo.debtMin)} — bed by ${minToLabel(sleepInfo.rec.recBed)} tonight.`);
-  if ((daily.alcohol || 0) > 0) recBullets.push(`${alcoholImpact(daily.alcohol).label} alcohol logged — recovery takes a hit.`);
-  if (trainInfo.pain?.level && trainInfo.pain.level !== "none") recBullets.push(`Pain active (${trainInfo.pain.level}) — ${trainInfo.pain.coach.lines[0]}`);
+  if (tp.sleep !== false) {
+    if (dtS?.source === "exact" && sleepInfo.lastSleep) recBullets.push(`Last night: ${durLabel(sleepInfo.lastSleep.durationMin)}, score ${sleepInfo.lastSleep.score}.`);
+    else if (dtS?.source === "quick_log") recBullets.push(ql?.enoughSleep === true ? "Slept enough · Quick Log." : "Sleep was insufficient · Quick Log.");
+    if (sleepInfo.debtMin > 90) recBullets.push(`Sleep debt ${durLabel(sleepInfo.debtMin)} — bed by ${minToLabel(sleepInfo.rec?.recBed || 1380)} tonight.`);
+  }
+  if (tp.alcohol !== false) {
+    if (dtA?.source === "exact" && (daily.alcohol || 0) > 0) recBullets.push(`${alcoholImpact(daily.alcohol).label} alcohol logged — recovery takes a hit.`);
+    else if (dtA?.source === "quick_log" && ql?.noAlcohol === false) recBullets.push("Alcohol consumed today · Quick Log.");
+  }
+  if (trainInfo.pain?.level && trainInfo.pain.level !== "none") recBullets.push(`Pain active (${trainInfo.pain.level}) — ${trainInfo.pain.coach?.lines?.[0] || "train around it"}`);
   const ci = daily.checkin || {};
   if (ci.stress === "high") recBullets.push("Stress high — a walk or breath work tonight helps sleep.");
   if (!recBullets.length) recBullets.push("Sleep, stress, and recovery markers look clear.");
-  const recSummary = rr ? rr.text : "Recovery looks fine.";
+  const recSummary = tp.sleep === false ? "Sleep tracking is off." : rr ? rr.text : "Recovery looks fine.";
 
   return {
     daily:    { summary: dailySummary, bullets: daily3.length ? daily3 : ["Check in and log a meal to get started."] },
@@ -5373,12 +5409,76 @@ function Onboarding({ onDone, supabaseReady }) {
   );
 }
 
+// ---- Forgot-to-log detection (pure, no side effects) ----
+function detectLoggingGap({ date, entries, workouts, sleepLogs, quickLog, trackingPrefs, dayStatus, logGapSnoozes }) {
+  // Already handled for today
+  const status = (dayStatus || {})[date];
+  if (status === "logged" || status === "nothing" || status === "dismissed") return { show: false };
+  // Snoozed?
+  const snooze = (logGapSnoozes || []).find((s) => s.date === date);
+  if (snooze && snooze.snoozedUntil > Date.now()) return { show: false };
+  // Only prompt after noon
+  if (new Date().getHours() < 12) return { show: false };
+  // If quick log exists, no prompt needed
+  if (quickLog) return { show: false };
+  const tp = trackingPrefs || {};
+  const hasFood = (entries || []).some((e) => (e.date || "") === date && (e.calories || 0) > 0);
+  const hasWorkout = (workouts || []).some((w) => (w.date || "") === date);
+  const hasSleep = (sleepLogs || []).some((l) => (l.date || "") === date);
+  const missing = [];
+  if (tp.nutrition !== false && !hasFood) missing.push("nutrition");
+  if (tp.training !== false && !hasWorkout) missing.push("training");
+  if (tp.sleep !== false && !hasSleep) missing.push("sleep");
+  if (missing.length === 0) return { show: false };
+  return { show: true, date, missing };
+}
+
+// ---- Forgot-to-log bottom sheet ----
+function ForgotToLogPrompt({ missing = [], onQuickLog, onNothingDay, onSnooze, onDismiss }) {
+  const label = missing.length === 1 ? missing[0] : missing.length === 2
+    ? missing.join(" or ") : missing.slice(0, -1).join(", ") + ", or " + missing[missing.length - 1];
+  return (
+    <Portal>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", zIndex: 2800, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+        <div style={{ background: C.card, borderRadius: "22px 22px 0 0", padding: "18px 20px 36px", width: "100%", maxWidth: 480, boxShadow: "0 -4px 40px rgba(0,0,0,0.3)" }}>
+          <div style={{ width: 36, height: 4, background: C.line, borderRadius: 2, margin: "0 auto 16px", opacity: 0.5 }} />
+          <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "Fraunces, serif", marginBottom: 5 }}>Anything to log?</div>
+          <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 20, lineHeight: 1.5 }}>
+            No {label} logged yet today. Want to update your day?
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            <button className="sprig-tap" onClick={onQuickLog}
+              style={{ background: C.green, color: "#fff", border: "none", borderRadius: 14, padding: "14px 18px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans" }}>
+              Quick Log Day
+            </button>
+            <button className="sprig-tap" onClick={onNothingDay}
+              style={{ background: C.bg2, color: C.inkSoft, border: `1px solid ${C.line}`, borderRadius: 14, padding: "12px 18px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans" }}>
+              Nothing to log — quiet day
+            </button>
+            <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+              <button className="sprig-tap" onClick={onSnooze}
+                style={{ flex: 1, background: "transparent", color: C.muted, border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer", padding: "10px", fontFamily: "DM Sans" }}>
+                Remind me later
+              </button>
+              <button className="sprig-tap" onClick={onDismiss}
+                style={{ flex: 1, background: "transparent", color: C.muted, border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer", padding: "10px", fontFamily: "DM Sans" }}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
 export default function SprigRoot() {
   return <ErrorBoundary><SprigApp /></ErrorBoundary>;
 }
 
 function SprigApp() {
   const [tab, setTab] = useState("today");
+  const [trackingPrefs, setTrackingPrefs] = useState({ ...DEFAULT_TRACKING_PREFS }); // sprig_tracking_preferences_v1 — declared here to avoid TDZ in useEffect below
   // Guard: redirect off tabs whose tracking category gets disabled
   useEffect(() => {
     const TAB_KEY = { nutrition: "nutrition", train: "training", sleep: "sleep", coach: "coach", progress: "progress", health: "health", mind: "habits" };
@@ -5466,7 +5566,8 @@ function SprigApp() {
   const [habitCompletions, setHabitCompletions] = useState([]); // [{id, habitId, completedAt, sprigDate, periodKey}]
   const [wins, setWins] = useState({});                     // { "<date>": [ {id,type,title,detail,source,createdAt,kudoed} ] }
   const [quickDayLogs, setQuickDayLogs] = useState([]);     // [{date, trainedToday, trainingType, ...}]
-  const [trackingPrefs, setTrackingPrefs] = useState({ ...DEFAULT_TRACKING_PREFS }); // sprig_tracking_preferences_v1
+  const [dayStatus, setDayStatus] = useState({});           // { [date]: "logged"|"nothing"|"dismissed" }
+  const [logGapSnoozes, setLogGapSnoozes] = useState([]);   // [{ date, snoozedUntil }]
   // Track keyboard inset at app level so food overlay can adjust its max-height.
   const kb = useKeyboardInset();
   // Ref for the "Describe food" textarea — lets us delay-focus after the sheet animation
@@ -5579,6 +5680,10 @@ function SprigApp() {
         setWins(safeParse(wns, {}, asObject));
         setProgressPhotos(safeParse(pp, [], asArray));
         setQuickDayLogs(safeParse(qdl, [], asArray));
+        const dsRaw = await store.get("sprig_day_status_v1");
+        const lgsRaw = await store.get("sprig_log_gap_snoozes_v1");
+        setDayStatus(safeParse(dsRaw, {}, asObject));
+        setLogGapSnoozes(safeParse(lgsRaw, [], asArray));
         // Tracking prefs — migrate from onboarding focusAreas if not yet explicitly saved
         const tpParsed = safeParse(tpRaw, null, asObject);
         const onbFocusAreas = profileParsed?.focusAreas || [];
@@ -6051,6 +6156,15 @@ function SprigApp() {
     const next = [...quickDayLogs.filter((q) => q.date !== ql.date), ql].slice(-90);
     setQuickDayLogs(next);
     await store.set("sprig_quick_day_logs_v1", JSON.stringify(next));
+  };
+
+  const persistDayStatus = async (next) => {
+    setDayStatus(next);
+    try { await store.set("sprig_day_status_v1", JSON.stringify(next)); } catch (_) {}
+  };
+  const persistLogGapSnoozes = async (next) => {
+    setLogGapSnoozes(next);
+    try { await store.set("sprig_log_gap_snoozes_v1", JSON.stringify(next)); } catch (_) {}
   };
 
   const persistTrackingPrefs = async (next) => {
@@ -6745,8 +6859,9 @@ function SprigApp() {
   ) || null;
   const bedNudge = bedtimeReminder({
     nowTs: Date.now(), recBedMin: sleepInfo?.rec?.recBed, lastLogTs,
-    t, targets, daily, waterGoalMl: waterGoal(profile), trainedToday,
+    t, targets, daily, waterGoalMl: waterGoal(profile), trainedToday, tp: trackingPrefs,
   });
+  const logGap = detectLoggingGap({ date, entries, workouts, sleepLogs, quickLog, trackingPrefs, dayStatus, logGapSnoozes });
 
   // nutrition coaching
   const dietQ = dietQuality(t, targets, daily, profile);
@@ -6787,8 +6902,12 @@ function SprigApp() {
   // mindInfo assembled below after moveInfo is defined
   // recoveryInfo assembled below too
 
+  // Central daily truth — single source of truth for all tabs (must be before coach2)
+  const dt = getDailyTruth({ date, tp: trackingPrefs, t, daily, quickLog, workouts, sleepInfo, targets, profile, supps, takenIds });
+  const dailyTruth = dt;
+
   // rule-based coach (no AI) — synthesizes everything above into 4 cards
-  const coach2 = coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, daily, profile, workouts });
+  const coach2 = coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, daily, profile, workouts, quickLog, tp: trackingPrefs, dt: dailyTruth });
 
   // weekly report (rule-based)
   const report = weeklyReport({ history, workouts, sleepLogs, weightSeries, daily, dailyHistory, painLogs, focusSessions, consistency, targets, profile, sleepInfo });
@@ -6812,9 +6931,6 @@ function SprigApp() {
   const autoToday = computeAutoHabitToday(habits2, { nutriInfo, moveInfo, sleepInfo, daily, targets, supps, takenIds, quickLog, tp: trackingPrefs });
   // Perfect Recovery (needs sleepInfo, trainInfo, moveInfo, nutriInfo)
   const recoveryInfo = calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targets, t, workouts, quickLog, tp: trackingPrefs });
-  // Central daily truth — single source of truth for all tabs
-  const dt = getDailyTruth({ date, tp: trackingPrefs, t, daily, quickLog, workouts, sleepInfo, targets, profile, supps, takenIds });
-  const dailyTruth = dt;
   const mindInfo = {
     checkin: daily.checkin || {}, habits: habitsTodayState, consistency,
     focusToday, focusWeek, focusMinutesToday: focusToday.reduce((a, f) => a + f.minutes, 0),
@@ -6830,7 +6946,7 @@ function SprigApp() {
     history7: (history || []).filter((h) => Date.now() - new Date(h.date).getTime() < 7 * 864e5),
     sleepLogs7: (sleepLogs || []).filter((l) => !l.ignoredFromScore && l.waketime > Date.now() - 7 * 864e5),
     workouts7: (workouts || []).filter((w) => w.ts > Date.now() - 7 * 864e5),
-    daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo, tp: trackingPrefs,
+    daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo, tp: trackingPrefs, quickLog,
   });
   // achievements
   const achievements = detectAchievements({ workouts, weightSeries, sleepLogs, history, focusSessions, dailyHistory, painLogs });
@@ -7316,6 +7432,16 @@ function SprigApp() {
         </Portal>
       )}
 
+      {logGap.show && !quickOpen && (
+        <ForgotToLogPrompt
+          missing={logGap.missing}
+          onQuickLog={() => { setQuickOpen(true); }}
+          onNothingDay={() => persistDayStatus({ ...dayStatus, [date]: "nothing" })}
+          onSnooze={() => persistLogGapSnoozes([...(logGapSnoozes || []).filter((s) => s.date !== date), { date, snoozedUntil: Date.now() + 2 * 60 * 60 * 1000 }])}
+          onDismiss={() => persistDayStatus({ ...dayStatus, [date]: "dismissed" })}
+        />
+      )}
+
       {quickOpen && <QuickLogSheet
         profile={profile}
         quickLog={quickLog}
@@ -7334,6 +7460,7 @@ function SprigApp() {
           if (todayList.size !== (hdNow[date] || []).length) {
             persistHabitDone({ ...hdNow, [date]: Array.from(todayList) });
           }
+          await persistDayStatus({ ...dayStatus, [date]: "logged" });
           setQuickOpen(false);
           showToast("Day quick logged ⚡");
         }}
@@ -8461,7 +8588,14 @@ function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }) {
       {/* Muscle Status */}
       {(() => {
         const muscles = MUSCLES.map(([k,n]) => ({ k, n, ...ri.muscleStatus[k] })).filter(m => m.fatigue > 0);
-        if (!muscles.length) return null;
+        if (!muscles.length) return (
+          <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
+            <div className="sprig-eyebrow" style={{ marginBottom: 5 }}>Muscle recovery</div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+              No training data logged — muscle status unknown. Log a workout or use Quick Log to update muscle fatigue.
+            </div>
+          </div>
+        );
         const shown = expanded ? muscles : muscles.filter(m => m.fatigue >= 30);
         if (!shown.length) return null;
         return (
@@ -8470,7 +8604,7 @@ function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }) {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {shown.map(m => (
                 <span key={m.k} style={{ fontSize: 11, fontWeight: 600, color: m.color, background: m.color + "18", padding: "3px 9px", borderRadius: 99, border: `1px solid ${m.color}44` }}>
-                  {m.name}: {m.status}
+                  {m.name}: {m.status}{m.quickLogged ? <span style={{ fontSize: 9, opacity: .7, marginLeft: 4 }}>QL</span> : null}
                 </span>
               ))}
               {muscles.length > shown.length && (
@@ -8497,7 +8631,31 @@ function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }) {
           💡 Active recovery suggestion: 20–40 min easy walk, light mobility, or easy bike. Keep it easy — if it turns into a workout, it is not recovery.
         </div>
       )}
+
+      {/* Data sources — transparency */}
+      {ri.sourceLines?.length > 0 && (
+        <details style={{ marginTop: 10 }}>
+          <summary style={{ cursor: "pointer", listStyle: "none", fontSize: 11, color: C.muted, fontWeight: 600, fontFamily: "DM Sans" }}>▾ Data sources</summary>
+          <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>
+            {ri.sourceLines.map((l, i) => (
+              <div key={i} style={{ fontSize: 11, color: C.muted, lineHeight: 1.4 }}>· {l}</div>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
+  );
+}
+
+// Inline badge showing data source — Quick logged / Estimated / null (no badge)
+function SrcPill({ source }) {
+  if (!source || source === "exact" || source === "disabled" || source === "unknown") return null;
+  const label = source === "quick_log" ? "Quick logged" : source === "estimated" ? "Estimated" : null;
+  if (!label) return null;
+  return (
+    <span style={{ fontSize: 9.5, fontWeight: 700, color: C.amber, background: C.amber + "22", border: `1px solid ${C.amber}44`, borderRadius: 99, padding: "1px 6px", letterSpacing: .2, verticalAlign: "middle" }}>
+      {label}
+    </span>
   );
 }
 
@@ -8544,6 +8702,10 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
   // dt-derived source labels — drive mini-card display
   const dtNutrSrc  = dt?.nutrition?.source  || null;
   const dtSleepSrc = dt?.sleep?.source      || null;
+  const dtTrainSrc = dt?.training?.source   || null;
+  const dtWaterSrc = dt?.water?.source      || null;
+  const dtMoveSrc  = dt?.movement?.source   || null;
+  const dtAlcSrc   = dt?.alcohol?.source    || null;
 
   const stepGoalV = moveInfo?.stepGoal || 8000;
   const steps = daily.steps || 0;
@@ -8727,10 +8889,13 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         {/* Water mini */}
         {tp.water !== false && <TodaySummaryCard
           icon={<Coffee size={15} color="#5B9BD5" />} accent="#5B9BD5"
-          title="Water" value={litres(waterMl)} sub={"/ " + litres(waterGoal)}
-          note={waterLeft > 0 ? `About ${litres(waterLeft)} more today.` : "Hydration goal hit. 💧"}
+          title={<span>Water <SrcPill source={dtWaterSrc} /></span>}
+          value={dtWaterSrc === "quick_log" ? (dt?.water?.label || "Quick logged") : litres(waterMl)}
+          sub={dtWaterSrc === "quick_log" ? "" : "/ " + litres(waterGoal)}
+          note={dtWaterSrc === "quick_log" ? "Water goal marked hit · Quick Log. Log litres for exact tracking."
+            : waterLeft > 0 ? `About ${litres(waterLeft)} more today.` : "Hydration goal hit. 💧"}
           actions={<>
-            <TodayChip label="+250ml" primary onClick={() => onDaily({ water: waterMl + 250 })} />
+            {dtWaterSrc !== "quick_log" && <TodayChip label="+250ml" primary onClick={() => onDaily({ water: waterMl + 250 })} />}
             <TodayChip label="Nutrition" onClick={onGoNutrition} />
           </>}
         />}
@@ -8738,21 +8903,29 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         {/* 5 — MOVEMENT mini (steps + cardio) */}
         {tp.movement !== false && <TodaySummaryCard
           icon={<Activity size={15} color={C.greenSoft} />} accent={C.greenSoft}
-          title="Movement" value={steps.toLocaleString()} sub={"/ " + stepGoalV.toLocaleString() + " steps"}
-          note={cardioMin > 0 ? `${cardioMin} min cardio logged.` : (steps >= stepGoalV ? "Step goal hit. 🏃" : `${Math.max(0, stepGoalV - steps).toLocaleString()} steps to goal.`)}
+          title={<span>Movement <SrcPill source={dtMoveSrc} /></span>}
+          value={dtMoveSrc === "quick_log" ? (dt?.movement?.label || "Quick logged") : steps.toLocaleString()}
+          sub={dtMoveSrc === "quick_log" ? "" : "/ " + stepGoalV.toLocaleString() + " steps"}
+          note={dtMoveSrc === "quick_log" ? "Movement goal marked hit · Quick Log. Log steps for exact tracking."
+            : cardioMin > 0 ? `${cardioMin} min cardio logged.` : (steps >= stepGoalV ? "Step goal hit. 🏃" : `${Math.max(0, stepGoalV - steps).toLocaleString()} steps to goal.`)}
           actions={<>
-            <TodayChip label={showMovement ? "Hide" : "Add"} primary onClick={() => setShowMovement((s) => !s)} />
+            {dtMoveSrc !== "quick_log" && <TodayChip label={showMovement ? "Hide" : "Add"} primary onClick={() => setShowMovement((s) => !s)} />}
             <TodayChip label="Train" onClick={onGoTrain} />
           </>}
         />}
 
         {/* 6 — DRINKS mini */}
         {tp.alcohol !== false && <TodaySummaryCard
-          icon={<span style={{ fontSize: 15 }}>🍷</span>} accent={alcoholG >= 30 ? C.coral : alcoholG >= 15 ? C.amber : C.inkSoft}
-          title="Drinks today" value={drinks.length} sub={drinks.length === 1 ? "drink" : "drinks"}
-          note={drinks.length ? `${alcoholG}g alcohol · ${drinkKcal} kcal.` : "No drinks logged."}
+          icon={<span style={{ fontSize: 15 }}>🍷</span>}
+          accent={dtAlcSrc === "quick_log" ? (dt?.alcohol?.noAlcohol ? C.greenSoft : C.amber) : alcoholG >= 30 ? C.coral : alcoholG >= 15 ? C.amber : C.inkSoft}
+          title={<span>Drinks <SrcPill source={dtAlcSrc} /></span>}
+          value={dtAlcSrc === "quick_log" ? (dt?.alcohol?.noAlcohol ? "None" : "Some") : drinks.length}
+          sub={dtAlcSrc === "quick_log" ? "" : drinks.length === 1 ? "drink" : "drinks"}
+          note={dtAlcSrc === "quick_log"
+            ? (dt?.alcohol?.noAlcohol ? "No alcohol · Quick Log." : "Alcohol logged · Quick Log. Log drinks for exact kcal tracking.")
+            : drinks.length ? `${alcoholG}g alcohol · ${drinkKcal} kcal.` : "No drinks logged."}
           actions={<>
-            <TodayChip label={showDrinks ? "Hide" : "Add drink"} primary onClick={() => setShowDrinks((s) => !s)} />
+            {dtAlcSrc !== "quick_log" && <TodayChip label={showDrinks ? "Hide" : "Add drink"} primary onClick={() => setShowDrinks((s) => !s)} />}
             <TodayChip label="Nutrition" onClick={onGoNutrition} />
           </>}
         />}
@@ -8928,13 +9101,22 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 2px" }}>Nutrition</div>
       <div style={{ fontSize: 12, color: C.muted, margin: "0 2px 8px" }}>Calories, macros, hydration, vitamins, and your supplement stack.</div>
 
-      {/* Quick Log source banner — show when no exact food logged */}
+      {/* Source banner — Quick Log or unknown */}
       {dt?.nutrition?.source === "quick_log" && (
         <div style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 14, padding: "11px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 15 }}>📋</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>{dt.nutrition.label || "Macros estimated from Quick Log"}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>{dt.nutrition.label || "Nutrition marked via Quick Log"}</div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Log meals for exact macros and calorie tracking.</div>
+          </div>
+        </div>
+      )}
+      {(!dt || dt?.nutrition?.source === "unknown") && (
+        <div style={{ background: C.bg2, border: `1px dashed ${C.line}`, borderRadius: 14, padding: "11px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 15 }}>🍽️</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>No food logged yet</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Log your first meal or use Quick Log to mark your nutrition status.</div>
           </div>
         </div>
       )}
@@ -11621,7 +11803,7 @@ function QuickLogSheet({ profile, quickLog, date, onSave, onClose, tp = {} }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
         {opts.map(([k, lbl, color]) => (
           <button key={k} className="sprig-tap" onClick={() => onPick(value === k ? null : k)}
-            style={{ flex: 1, minWidth: 60, border: "none", cursor: "pointer", padding: "8px 4px", borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
+            style={{ flex: 1, minWidth: 60, cursor: "pointer", padding: "8px 4px", borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
               background: value === k ? (color || C.green) : C.card,
               color: value === k ? "#fff" : C.muted,
               border: value === k ? "none" : `1px solid ${C.line}` }}>{lbl}</button>
@@ -12301,15 +12483,17 @@ function PainLogForm({ initial, onSave, onCancel }) {
 }
 
 /* ---- Health Report engine ---- */
-function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo, tp = {} }) {
+function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo, tp = {}, quickLog = null }) {
   const helping = [], hurting = [], improvements = [], continueDoing = [];
   const now7 = Date.now() - 7 * 864e5;
+  const ql = quickLog || null;
 
-  // data coverage
-  const hasNutrition = (history7 || []).filter((h) => h.calories > 0).length >= 2;
-  const hasSleep = (sleepLogs7 || []).length >= 2;
-  const hasTraining = (workouts7 || []).length >= 1;
-  const hasSteps = (daily?.steps || 0) > 0 || (moveInfo?.movement?.steps || 0) > 0;
+  // data coverage — QL fills gaps where exact logs are absent
+  const hasNutrition = (history7 || []).filter((h) => h.calories > 0).length >= 2
+    || (ql?.hitProtein === true) || (ql?.hitCalories === true);
+  const hasSleep = (sleepLogs7 || []).length >= 2 || (ql?.enoughSleep != null);
+  const hasTraining = (workouts7 || []).length >= 1 || (ql?.trainedToday === true);
+  const hasSteps = (daily?.steps || 0) > 0 || (moveInfo?.movement?.steps || 0) > 0 || (ql?.enoughMovement === true);
   const dataPoints = [hasNutrition, hasSleep, hasTraining, hasSteps].filter(Boolean).length;
   const confidence = dataPoints >= 3 ? "high" : dataPoints >= 2 ? "medium" : "low";
 
@@ -12372,8 +12556,8 @@ function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, target
 
   // --- TRAINING / CARDIO (weight 0.25) ---
   let trainScore = 50;
-  const wkCount = tp.training !== false ? (workouts7 || []).length : 0;
-  const steps = tp.movement !== false ? (daily?.steps || moveInfo?.movement?.steps || 0) : 0;
+  const wkCount = tp.training !== false ? Math.max((workouts7 || []).length, ql?.trainedToday === true ? 1 : 0) : 0;
+  const steps = tp.movement !== false ? (daily?.steps || moveInfo?.movement?.steps || (ql?.enoughMovement === true ? 8000 : 0)) : 0;
   const stepGoalVal = moveInfo?.stepGoal || 8000;
   const cardioMin = tp.cardio !== false ? (daily?.cardioMin || 0) : 0;
   const stepRatio = steps / stepGoalVal;
@@ -13841,12 +14025,11 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
 
           {/* MEASUREMENTS */}
           <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}>
-                <Target size={15} color={C.greenSoft} /> Body measurements
-              </div>
-              <button className="sprig-tap" onClick={() => setShowMeasure((s) => !s)} style={{ ...btn(C.bg2, C.green), padding: "6px 11px", fontSize: 12, borderRadius: 10 }}>
-                {showMeasure ? "Close" : (Object.keys(measureCur).length ? "Update" : "Add")}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12.5, color: C.inkSoft, fontWeight: 600 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 5 }}><Ruler size={15} color={C.greenSoft} /> Measurements</span>
+              <button className="sprig-tap" onClick={() => setShowMeasure((x) => !x)}
+                style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "5px 11px", fontSize: 11.5, fontWeight: 600, color: C.green, cursor: "pointer", fontFamily: "DM Sans" }}>
+                {showMeasure ? "Cancel" : "Log"}
               </button>
             </div>
             {Object.keys(measureCur).length === 0 && !showMeasure && (
