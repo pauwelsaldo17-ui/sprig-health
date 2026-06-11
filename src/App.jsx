@@ -6,10 +6,10 @@ import {
   Moon, Sun, BedDouble, AlarmClock, Dumbbell, EyeOff, Zap, Clock, Coffee,
   Activity, MoonStar, ChevronRight, Mic, MicOff,
   Timer, Trophy, Medal, BarChart3, ChevronLeft, ChevronDown, Award, Crown,
-  Target, BookOpen, Calculator, Repeat, Gauge, Play, PersonStanding, Square,
+  Target, BookOpen, Calculator, Repeat, Gauge, Pause, Play, PersonStanding, Square,
   ArrowUp, HeartPulse, Search, TrendingDown,
   Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal, Volume2,
-  Archive, Bell
+  Archive, Bell, Ruler
 } from "lucide-react";
 import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
 
@@ -164,7 +164,12 @@ const FONTS = `
   will-change: transform;          /* GPU composite layer — eliminates paint on press */
 }
 .sprig-tap:active { transform: scale(.975); filter: brightness(1.08); }
-.sprig-tap:disabled, .sprig-tap[disabled] { transform: none !important; filter: none !important; will-change: auto; }
+.sprig-cta { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; border-radius: 14px; border: none; cursor: pointer; font-family: "DM Sans", sans-serif; }
+.sprig-tap:disabled, .sprig-tap[disabled] { transform: none !important; filter: none !important; will-change: auto; opacity: 0.45; }
+/* Input number spinners hidden */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
 .sprig-scroll::-webkit-scrollbar{width:0;height:0;}
 /* iOS momentum scrolling + native rubber-band (don't block overscroll on the scroll area) */
 .sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-y: auto; scroll-behavior: smooth; }
@@ -239,7 +244,7 @@ body { -webkit-text-size-adjust: 100%; color: #F4F7F2; }
 }
 /* Extra room when a floating CTA (Log Food) or rest timer is also visible */
 .sprig-content-cta {
-  padding-bottom: calc(var(--bottom-nav-height) + var(--floating-cta-height) + env(safe-area-inset-bottom, 0px) + 96px) !important;
+  padding-bottom: calc(var(--bottom-nav-height) + var(--floating-cta-height) + env(safe-area-inset-bottom, 0px) + 120px) !important;
 }
 /* Bottom nav — fixed to the real bottom of the viewport, centered in the 440px frame.
    Portaled to <body> so it never sits inside an overflow:hidden ancestor. */
@@ -268,7 +273,56 @@ input::placeholder, textarea::placeholder { color: rgba(244,247,242,0.4); }
   z-index: var(--z-toast) !important;
 }
 /* Bottom sheets respect the home-indicator gap */
-.sprig-bottom-sheet { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important; }
+.sprig-bottom-sheet {
+  padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important;
+  max-height: 90dvh !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+/* Premium global polish */
+.sprig-rise > * { animation-fill-mode: both; }
+.sprig-tap:active:not(:disabled) {
+  transform: scale(0.972);
+  transition: transform 0.08s cubic-bezier(0.22, 0.7, 0.25, 1);
+}
+/* Smooth scrollbar on desktop */
+.sprig-content::-webkit-scrollbar { width: 3px; }
+.sprig-content::-webkit-scrollbar-track { background: transparent; }
+.sprig-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
+/* Hero gradient text */
+.sprig-hero-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0.65;
+  color: #fff;
+}
+/* Eyebrow / overline label — used as a tight uppercase section label above headers */
+.sprig-eyebrow {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px;
+  text-transform: uppercase; color: rgba(244,247,242,0.52);
+  font-family: "DM Sans", sans-serif; display: block; margin-bottom: 4px;
+}
+/* Input focus ring — subtle green outline instead of browser default */
+body.modal-open { overflow: hidden !important; touch-action: none; }
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(62,157,99,0.40);
+  border-color: rgba(62,157,99,0.70) !important;
+}
+/* Disabled button — visually muted, no pointer */
+button:disabled { opacity: 0.45; cursor: default !important; }
+/* Tab bar item press state */
+.sprig-nav-item:active { opacity: 0.65; transform: scale(0.94); transition: transform 90ms, opacity 90ms; }
+/* PremiumCard / GlassCard consistent surface */
+.sprig-surface {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 10px 30px rgba(0,0,0,.28);
+}
 `;
 
 /* ---------------- storage (artifact → localStorage → memory) -------------- */
@@ -1842,7 +1896,7 @@ const RISK_TAG = {
   moderate: { color: "#D9A23C", label: "Watch",    dot: "•" },
   elevated: { color: "#E0714A", label: "Elevated", dot: "•" },
   high:     { color: "#C0392B", label: "High",     dot: "•" },
-  unknown:  { color: "#A89E89", label: "No data",  dot: "·" },
+  unknown:  { color: "#A89E89", label: "Not logged",  dot: "·" },
 };
 
 /* ---------------- safety: red-flag symptoms + interaction flags (NOT medical advice) -------------- */
@@ -2212,7 +2266,7 @@ function computeAutoHabitToday(habits2, { nutriInfo, moveInfo, sleepInfo, daily,
           reason = met ? `${Math.round(p)}g logged` : `${Math.round(p)}/${pt}g`;
         } else if (ql?.hitProtein === true) {
           met = true; reason = "Marked hit · Quick Log";
-        } else reason = "No data";
+        } else reason = "Not logged";
         break;
       }
       case "calories": {
@@ -2225,7 +2279,7 @@ function computeAutoHabitToday(habits2, { nutriInfo, moveInfo, sleepInfo, daily,
           reason = `${Math.round(kcal)} kcal`;
         } else if (ql?.hitCalories === true) {
           met = true; reason = "Marked on target · Quick Log";
-        } else reason = "No data";
+        } else reason = "Not logged";
         break;
       }
       case "water": {
@@ -2277,7 +2331,7 @@ function computeAutoHabitToday(habits2, { nutriInfo, moveInfo, sleepInfo, daily,
         } else if (ql?.trainedToday === true) {
           met = true; reason = "Trained · Quick Log";
         } else {
-          met = false; reason = "No workout yet";
+          met = false; reason = "No workout logged yet";
         }
         break;
       }
@@ -2854,7 +2908,7 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
     const isQL = !!(recovery[k]?.quickLogged);
     const noData = recovery[k]?.hasData === false; // no exact workout, no Quick Log
     muscleStatus[k] = { name: n, fatigue: f,
-      status: noData ? "No data"
+      status: noData ? "No data yet"
         : f >= 80 ? "Very fatigued" : f >= 55 ? "Fatigued" : f >= 25 ? "Ready" : "Fresh",
       color: noData ? "#A89E89"
         : f >= 80 ? "#E0714A" : f >= 55 ? "#F4A261" : f >= 25 ? "#74C69D" : "#52B788",
@@ -3460,8 +3514,9 @@ function mergeWins(existingForDay, candidates) {
   return { merged: [...(existingForDay || []), ...added], added };
 }
 // Daily nutrition/movement wins from the day's snapshot. Pure — returns candidate wins.
-function detectDayWins({ t, daily, targets, sleepInfo, profile }) {
+function detectDayWins({ t, daily, targets, sleepInfo, profile, quickLog }) {
   const out = [];
+  const ql = quickLog || null;
   if (t && targets) {
     if (targets.protein && t.protein >= targets.protein) out.push(makeWin("protein_goal", "Protein goal reached", `${Math.round(t.protein)}g protein logged today.`, "nutrition"));
     if (targets.calories && t.calories > 0 && t.calories >= targets.calories * 0.85 && t.calories <= targets.calories * 1.10) out.push(makeWin("calories_on_target", "Calories on target", "You landed in your calorie range today.", "nutrition"));
@@ -3474,6 +3529,27 @@ function detectDayWins({ t, daily, targets, sleepInfo, profile }) {
     if ((daily.steps || 0) >= stepGoal) out.push(makeWin("step_goal", "Step goal reached", `${(daily.steps || 0).toLocaleString()} steps today.`, "movement"));
     if ((daily.cardioMin || 0) >= 15) out.push(makeWin("cardio_done", "Cardio completed", `${daily.cardioMin} min of cardio logged.`, "movement"));
     if (daily.checkin && (daily.checkin.mood || daily.checkin.energy || daily.checkin.stress)) out.push(makeWin("checkin_done", "Daily check-in completed", "You checked in with how you feel today.", "mind"));
+  }
+  // Quick Log wins — only fire when no exact data covers the same category
+  if (ql) {
+    const hasExactProtein = t && (t.protein || 0) >= (targets?.protein || 1);
+    const hasExactWater = daily && (daily.water || 0) > 0;
+    const hasExactSteps = daily && (daily.steps || 0) > 0;
+    const hasExactCalories = t && (t.calories || 0) > 0;
+    if (!hasExactProtein && ql.hitProtein === true)
+      out.push(makeWin("ql_protein", "Protein target hit", "Protein goal marked hit via Quick Log.", "nutrition"));
+    if (!hasExactCalories && ql.hitCalories === true)
+      out.push(makeWin("ql_calories", "Calories on track", "Calorie target marked on track via Quick Log.", "nutrition"));
+    if (!hasExactWater && ql.hitWater === true)
+      out.push(makeWin("ql_water", "Hydration covered", "Water goal marked hit via Quick Log.", "nutrition"));
+    if (!hasExactSteps && ql.enoughMovement === true)
+      out.push(makeWin("ql_movement", "Movement done", "Movement marked enough via Quick Log.", "movement"));
+    if (ql.trainedToday === true)
+      out.push(makeWin("ql_trained", "Training done", ql.trainingType ? `${ql.trainingType.replace(/_/g, " ")} session logged.` : "Training logged via Quick Log.", "movement"));
+    if (ql.enoughSleep === true)
+      out.push(makeWin("ql_sleep", "Rested well", "Slept enough logged via Quick Log.", "sleep"));
+    if (ql.noAlcohol === true)
+      out.push(makeWin("ql_no_alcohol", "Alcohol-free day", "No alcohol today — good for recovery.", "nutrition"));
   }
   return out;
 }
@@ -3869,7 +3945,15 @@ function dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, pr
 
   // movement: steps + workout + quickLog — null only when no signal at all
   const stepP = Math.min(1, (daily.steps || 0) / STEPS_TARGET);
-  const movementRaw = effectivelyMoved ? clamp100(stepP * 80 + (effectivelyTrained ? 20 : 0)) : null;
+  const hasExactMovement = (daily.steps || 0) > 0 || (daily.cardioMin || 0) > 0;
+  // When QL covers movement (no exact steps/cardio), use honest estimate rather than
+  // calculating from stepP=0 which produces a misleadingly low score like 20.
+  const qlMovementCovered = !hasExactMovement && (ql?.enoughMovement === true || (ql?.trainedToday === true && !effectivelyTrained));
+  const movementRaw = effectivelyMoved
+    ? qlMovementCovered
+      ? (ql?.enoughMovement === true ? 82 : 72)   // QL estimate — honest, not fake-exact
+      : clamp100(stepP * 80 + (effectivelyTrained ? 20 : 0))  // exact data path
+    : null;
   const movement = tp.movement === false ? null : movementRaw;
 
   // mind/mood from check-in (energy, mood, stress); null until any logged
@@ -4025,9 +4109,9 @@ function getDailyTruth({
       nutrition = mk("completed", "quick_log", "medium", {
         protein: null, calories: null,   // never invent grams from QL
         proteinOk: qlProtein, calOk: qlCalories,
-        label: qlProtein ? "Protein target hit · Quick logged"
-             : qlCalories ? "Calories on track · Quick logged"
-             : "Nutrition marked OK · Quick logged",
+        label: qlProtein ? "Protein hit"
+             : qlCalories ? "Calories OK"
+             : "Nutrition OK",
       });
     } else {
       nutrition = unk({ label: "No food logged yet" });
@@ -4048,7 +4132,7 @@ function getDailyTruth({
       training = mk("completed", "quick_log", "medium", {
         trainedToday: true, trainingType: tt,
         intensity: ql.trainingIntensity || null,
-        label: tt ? `Trained ${tt.replace("_"," ")} · Quick logged` : "Trained today · Quick logged",
+        label: tt ? `${tt.replace("_"," ")[0].toUpperCase() + tt.replace("_"," ").slice(1)} session` : "Trained today",
       });
     } else {
       training = unk({ trainedToday: false, label: "No workout logged today" });
@@ -4071,11 +4155,11 @@ function getDailyTruth({
     } else if (qlSleep === true) {
       sleep = mk("completed", "quick_log", "medium", {
         sleptEnough: true, debtMin: sleepInfo?.debtMin || 0,
-        label: "Slept enough · Quick logged",
+        label: "Sleep OK",
       });
     } else if (qlSleep === false) {
       sleep = mk("partial", "quick_log", "medium", {
-        sleptEnough: false, label: "Sleep was insufficient · Quick logged",
+        sleptEnough: false, label: "Sleep was short",
       });
     } else {
       sleep = unk({ debtMin: sleepInfo?.debtMin || 0, label: "No sleep data yet" });
@@ -4094,7 +4178,7 @@ function getDailyTruth({
         { amount, goal: wGoal,
           label: `${(amount/1000).toFixed(1)}L / ${(wGoal/1000).toFixed(1)}L` });
     } else if (qlWater === true) {
-      water = mk("completed", "quick_log", "medium", { label: "Water goal hit · Quick logged" });
+      water = mk("completed", "quick_log", "medium", { label: "Hydration OK" });
     } else {
       water = unk({ goal: wGoal, label: "No water logged" });
     }
@@ -4113,7 +4197,7 @@ function getDailyTruth({
       movement = mk(steps >= STEPS_TARGET || cMin >= 20 || trained ? "completed" : "partial",
         "exact", "high", { steps, cardioMin: cMin });
     } else if (qlMove === true) {
-      movement = mk("completed", "quick_log", "medium", { label: "Movement goal hit · Quick logged" });
+      movement = mk("completed", "quick_log", "medium", { label: "Movement OK" });
     } else if (trained) {
       movement = mk("completed", "estimated", "medium",
         { trainedToday: true, label: "Trained today — movement covered" });
@@ -4138,12 +4222,12 @@ function getDailyTruth({
           label: amt === 0 ? "No alcohol" : `${amt} drink${amt!==1?"s":""} logged` });
     } else if (qlNoAlc === true) {
       alcohol = mk("completed", "quick_log", "medium",
-        { noAlcohol: true, label: "No alcohol · Quick logged" });
+        { noAlcohol: true, label: "No alcohol" });
     } else if (qlNoAlc === false) {
       alcohol = mk("partial", "quick_log", "medium",
-        { noAlcohol: false, label: "Alcohol consumed · Quick logged" });
+        { noAlcohol: false, label: "Alcohol consumed" });
     } else {
-      alcohol = unk({ label: "No alcohol data" });
+      alcohol = unk({ label: "Alcohol not logged" });
     }
   }
 
@@ -4160,9 +4244,9 @@ function getDailyTruth({
         { taken: takenIds.length, total: supps.length });
     } else if (qlSupps === true) {
       supplements = mk("completed", "quick_log", "medium",
-        { label: "Supplements taken · Quick logged" });
+        { label: "Supplements taken" });
     } else {
-      supplements = unk({ label: "No supplement data" });
+      supplements = unk({ label: "Supplements not logged" });
     }
   }
 
@@ -4235,8 +4319,23 @@ function bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, pr
   if (ci.sick !== "yes" && tp.training !== false) {
     const r = trainInfo.bodyReadiness;
     if (effectivelyTrained) {
+      // Build context-aware recovery suggestions — skip what Quick Log already covered
+      const qlProteinOk = ql?.hitProtein === true;
+      const qlMoveOk = ql?.enoughMovement === true;
+      const qlSleepOk = ql?.enoughSleep === true;
+      const proteinNeeded = !qlProteinOk && (proteinLeft || 0) >= 25;
+      const walkNeeded = !qlMoveOk && (daily.steps || 0) < STEPS_TARGET * 0.6;
+      const sleepNeeded = !qlSleepOk;
+      const remaining = [
+        proteinNeeded && "hit your protein",
+        walkNeeded && "a short walk",
+        sleepNeeded && "an early night",
+      ].filter(Boolean);
       const src = trainedToday ? "" : " (Quick Log)";
-      out.push({ icon: "done", text: `You've trained today${src} — focus on protein, a walk, and an early night to recover.` });
+      const msg = remaining.length
+        ? `Trained today${src} — ${remaining.join(", ")} will complete your recovery basics.`
+        : `Trained today${src}. Wind down early to lock in your gains.`;
+      out.push({ icon: "done", text: msg });
     } else if (r >= 70) {
       const fresh = trainInfo.freshMuscles.slice(0, 2).join(" & ");
       out.push({ icon: "train", text: `Train hard today.${fresh ? ` ${fresh} ${trainInfo.freshMuscles.length > 1 ? "are" : "is"} fresh.` : ""}` });
@@ -4679,14 +4778,17 @@ function Ring({ value, max, size = 132, stroke = 13, color = C.green, track = C.
 
 function MacroBar({ name, val, max, color }) {
   const p = Math.min(100, max > 0 ? (val / max) * 100 : 0);
+  const over = val > max && max > 0;
   return (
     <div style={{ flex: 1 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: C.inkSoft }}>{name}</span>
-        <span style={{ fontSize: 12, color: C.muted }}>{Math.round(val)}/{max}g</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: C.inkSoft, letterSpacing: .2 }}>{name}</span>
+        <span style={{ fontSize: 11.5, color: over ? C.coral : C.muted, fontWeight: over ? 700 : 400 }}>
+          <b style={{ color: over ? C.coral : C.ink }}>{Math.round(val)}</b><span style={{ opacity: .6 }}>/{max}g</span>
+        </span>
       </div>
-      <div style={{ height: 7, background: C.bg2, borderRadius: 99 }}>
-        <div style={{ width: p + "%", height: "100%", background: color, borderRadius: 99, transition: "width .5s ease" }} />
+      <div style={{ height: 8, background: C.bg2, borderRadius: 99, overflow: "hidden" }}>
+        <div style={{ width: p + "%", height: "100%", background: over ? C.coral : color, borderRadius: 99, transition: "width .5s ease" }} />
       </div>
     </div>
   );
@@ -4755,12 +4857,12 @@ function SectionHeader({ title, action, onAction }) {
 // Premium empty state — calm, helpful, with an action.
 function EmptyState({ icon, title, text, actionLabel, onAction }) {
   return (
-    <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, padding: "28px 20px", textAlign: "center" }}>
-      {icon && <div style={{ width: 44, height: 44, borderRadius: 13, background: C.green + "12", display: "grid", placeItems: "center", margin: "0 auto 12px" }}>{icon}</div>}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, color: C.ink }}>{title}</div>
-      {text && <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.5, maxWidth: 280, marginLeft: "auto", marginRight: "auto" }}>{text}</div>}
+    <div style={{ background: C.card, borderRadius: 20, border: `1px solid ${C.line}`, boxShadow: C.shadow, padding: "32px 20px", textAlign: "center" }}>
+      {icon && <div style={{ width: 48, height: 48, borderRadius: 14, background: C.green + "14", display: "grid", placeItems: "center", margin: "0 auto 14px" }}>{icon}</div>}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink }}>{title}</div>
+      {text && <div style={{ fontSize: 13, color: C.muted, marginTop: 7, lineHeight: 1.55, maxWidth: 285, marginLeft: "auto", marginRight: "auto" }}>{text}</div>}
       {actionLabel && onAction && (
-        <div style={{ marginTop: 16 }}><Btn variant="primary" onClick={onAction} size="md">{actionLabel}</Btn></div>
+        <div style={{ marginTop: 18 }}><Btn variant="primary" onClick={onAction} size="md">{actionLabel}</Btn></div>
       )}
     </div>
   );
@@ -4788,6 +4890,45 @@ function PremiumCard({ children, accent, onClick, style = {}, pad = 18 }) {
 // Kiwi-style glass card alias — translucent dark surface, blur, soft border, large radius.
 function GlassCard({ children, onClick, style = {}, pad = 18, radius = 24 }) {
   return <PremiumCard onClick={onClick} pad={pad} style={{ borderRadius: radius, ...style }}>{children}</PremiumCard>;
+}
+
+// ── Shared style token functions — lazy-evaluated so C is always current ──────
+// Use these in place of repeated inline magic numbers.
+// Returns a new plain-object each call (safe to spread into style={{}}).
+function cardStyle(overrides = {}) {
+  return { background: C.card, borderRadius: 22, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}`, ...overrides };
+}
+function solidCardStyle(overrides = {}) {
+  return { background: C.cardSolid, borderRadius: 22, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}`, ...overrides };
+}
+function sectionTitleStyle(overrides = {}) {
+  return { fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 600, color: C.ink, ...overrides };
+}
+function eyebrowStyle(overrides = {}) {
+  return { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: C.muted, ...overrides };
+}
+function iconButtonStyle(active = false, overrides = {}) {
+  return { background: active ? C.green : C.bg2, color: active ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center", ...overrides };
+}
+function pillStyle(active = false, color = C.green, overrides = {}) {
+  return { background: active ? color : C.bg2, color: active ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", borderRadius: 99, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", ...overrides };
+}
+// Source label — tiny, right-aligned, non-intrusive. Never use this as a card title.
+function SourceLabel({ src }) {
+  if (!src || src === "exact") return null;
+  const MAP = {
+    quick_log:  { label: "Quick log",  color: C.greenSoft },
+    estimated:  { label: "Estimated",  color: C.amber },
+    unknown:    { label: "Limited data", color: C.muted },
+    disabled:   { label: "Off",         color: C.muted },
+  };
+  const s = MAP[src];
+  if (!s) return null;
+  return (
+    <span style={{ fontSize: 10, fontWeight: 700, color: s.color, background: s.color + "1a", borderRadius: 6, padding: "2px 6px", letterSpacing: .3, textTransform: "uppercase", whiteSpace: "nowrap" }}>
+      {s.label}
+    </span>
+  );
 }
 
 // Circular progress ring with a center value + label. Used for calories, macros, vitamins, scores, etc.
@@ -4851,13 +4992,15 @@ function PageHeader({ title, subtitle, action }) {
 // Top-of-page segmented control for splitting a tab into subtabs (Food, Train, Sleep).
 function SubTabs({ tabs, active, onChange }) {
   return (
-    <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 4, borderRadius: 13, marginBottom: 14 }}>
+    <div style={{ display: "flex", gap: 4, background: C.bg2, padding: 4, borderRadius: 14, marginBottom: 14 }}>
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
           <button key={key} className="sprig-tap" onClick={() => onChange(key)}
-            style={{ flex: 1, minWidth: 0, border: "none", cursor: "pointer", padding: "9px 6px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans",
-              background: on ? C.card : "transparent", color: on ? C.lime : C.muted, boxShadow: on ? C.shadow : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            style={{ flex: 1, minWidth: 0, border: "none", cursor: "pointer", padding: "10px 6px", borderRadius: 11, fontSize: 12.5, fontWeight: on ? 700 : 600, fontFamily: "DM Sans",
+              background: on ? C.card : "transparent", color: on ? C.lime : C.muted,
+              boxShadow: on ? "0 1px 4px rgba(0,0,0,.22)" : "none",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", transition: "background .15s, color .15s" }}>
             {label}
           </button>
         );
@@ -5535,6 +5678,13 @@ function SprigApp() {
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
   // foodOverlayMode above replaces composer + logSheet
+  // ── Body scroll lock: prevent background content scrolling behind modals ──
+  useEffect(() => {
+    const open = !!(foodOverlayMode || quickOpen || winsOpen || recapView || favChooser || favDup || confirmDeleteEntry || rirPrompt || repRangePrompt);
+    if (open) { document.body.classList.add("modal-open"); }
+    else { document.body.classList.remove("modal-open"); }
+    return () => { document.body.classList.remove("modal-open"); };
+  }, [foodOverlayMode, quickOpen, winsOpen, recapView, favChooser, favDup, confirmDeleteEntry, rirPrompt, repRangePrompt]);
   const [favoriteMode, setFavoriteMode] = useState(false); // when true, an AI/photo/text result is saved as a favorite (not logged to today)
   const [supps, setSupps] = useState([]);       // saved supplement stack
   const [takenIds, setTakenIds] = useState([]); // supplement ids taken today
@@ -6621,6 +6771,8 @@ function SprigApp() {
       restFiredRef.current = true;
       if (profile?.restTimerSound !== false) { try { playAlarmTone(profile?.restTimerSoundChoice || "beep", profile?.alarmVolume ?? 0.7); } catch (_) {} }
       if (profile?.restTimerVibrate !== false) buzz("finish");
+      // auto-dismiss the "Go!" state after 4 seconds
+      setTimeout(() => { try { setRestDone(false); setRest(null); setRestLeft(0); } catch (_) {} }, 4000);
       showToast("Rest complete", "success");
       setRestDone(true);
       setTimeout(() => setRestDone(false), 4000);
@@ -6665,7 +6817,13 @@ function SprigApp() {
     setTab("train");
     if (done.length) { logged("Workout saved", "finish"); setRecapView({ recap: doneRecap, ts: Date.now() }); }
   }
-  function cancelWorkout() { persistActive(null); }
+  function cancelWorkout() {
+    const hasSets = (activeWorkout?.exercises || []).some((e) => e.sets.length > 0);
+    if (hasSets) {
+      if (!window.confirm("Discard workout? All sets will be lost.")) return;
+    }
+    persistActive(null);
+  }
   function woSetExercisePain(exIdx, level) {
     const ex = activeWorkout.exercises.map((e, i) => i === exIdx ? { ...e, pain: level } : e);
     persistActive({ ...activeWorkout, exercises: ex });
@@ -6701,7 +6859,7 @@ function SprigApp() {
     // detect nutrition wins right away from the new totals (doesn't wait on the reactive effect)
     try {
       const nextT = dayTotals([...entries, entry, ...takenSupps]);
-      recordWins(detectDayWins({ t: nextT, daily, targets, sleepInfo: { waterGoal: profile?.weight ? Math.round(profile.weight * 35) : 2500 }, profile }), date);
+      recordWins(detectDayWins({ t: nextT, daily, targets, sleepInfo: { waterGoal: profile?.weight ? Math.round(profile.weight * 35) : 2500 }, profile, quickLog }), date);
     } catch (_) {}
     // remember text-described meals automatically
     if (resultMode === "text") {
@@ -6772,10 +6930,13 @@ function SprigApp() {
   useEffect(() => {
     if (profile?.showWins === false) return;
     if (!ready) return;
-    const cands = detectDayWins({ t, daily, targets, sleepInfo: { waterGoal: profile?.weight ? Math.round(profile.weight * 35) : 2500 }, profile });
+    const cands = detectDayWins({ t, daily, targets, sleepInfo: { waterGoal: profile?.weight ? Math.round(profile.weight * 35) : 2500 }, profile, quickLog });
     if (cands.length) recordWins(cands, date);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t.protein, t.calories, t.fiber, daily?.water, daily?.steps, daily?.cardioMin, daily?.checkin, ready, date]);
+
+  // Today's Quick Log entry — declared here (before training derivations) to avoid TDZ
+  const quickLog = quickDayLogs.find((q) => q.date === date) || null;
 
   // ---- training derivations (synced to sleep + yesterday's alcohol) ----
   const alcHit = alcoholImpact(daily?.alcohol || 0).recoveryHit;
@@ -6786,7 +6947,7 @@ function SprigApp() {
   const volume = weeklyVolume(workouts);
   const muscleReadyAvg = MUSCLES.reduce((a, [k]) => a + (100 - recovery[k].fatigue), 0) / MUSCLES.length;
   const bodyReadiness = Math.round(muscleReadyAvg * 0.6 + sleepReadiness * 0.4);
-  const readyMuscles = MUSCLES.filter(([k]) => recovery[k].recovered && recovery[k].lastTs).map(([, n]) => n);
+  const readyMuscles = MUSCLES.filter(([k]) => recovery[k]?.recovered && recovery[k]?.lastTs).map(([, n]) => n);
   const freshMuscles = MUSCLES.filter(([k]) => recovery[k].fatigue < 30).map(([, n]) => n);
   const deload = deloadAdvice(workouts, debtMin, recovery);
   const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily };
@@ -6838,8 +6999,6 @@ function SprigApp() {
   const advanced = profile.mode === "advanced";
 
   // ---- daily command center derivations ----
-  // Today's Quick Log entry (if any)
-  const quickLog = quickDayLogs.find((q) => q.date === date) || null;
   // trainedToday: exact workout OR quick log says trained
   const trainedToday = workouts.some((w) => (w.date || getSprigDate(w.ts, latestSleepLog, profile?.dayResetMode || "after-wake")) === date) || (quickLog?.trainedToday === true);
   const suggestion = suggestSplit({ workouts, recovery, volume, sleepReadiness, debtMin, daily, trainedToday, routines });
@@ -7011,7 +7170,7 @@ function SprigApp() {
           </div>
           <div>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1 }}>Vitae</div>
-            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>fuel &amp; rest, the lazy way</div>
+            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1, letterSpacing: .1 }}>Training · nutrition · sleep · recovery</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -7103,7 +7262,7 @@ function SprigApp() {
         {tab === "mind" && <MindTab mindInfo={mindInfo} advanced={advanced} profile={profile} today={date}
           onToggleHabit2={(id) => toggleHabit2(id, date)} onAddHabit2={addHabit2} onEditHabit2={editHabit2}
           onArchiveHabit2={archiveHabit2} onRestoreHabit2={restoreHabit2} onDeleteHabit2={deleteHabit2}
-          onUndoCompletion={undoHabitCompletion} />}
+          onUndoCompletion={undoHabitCompletion} tp={trackingPrefs} />}
         {tab === "coach" && <CoachTab coach={coach2} advanced={advanced} moveInfo={moveInfo} timeline={timeline} plateaus={plateaus} patterns={patterns}
           onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={() => setAskOpen(true)} />}
         {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} trackingPrefs={trackingPrefs} onToggleTracking={(k, v) => persistTrackingPrefs({ ...trackingPrefs, [k]: v })} />}
@@ -7172,7 +7331,7 @@ function SprigApp() {
               {(foodOverlayMode !== "menu") && (
                 <>
                   <div className="sprig-scroll" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 18px 0", flex: 1 }}>
-                    {error && <div style={{ background: "#fdeee8", color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
+                    {error && <div style={{ background: C.coral + "18", border: `1px solid ${C.coral}44`, color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
 
                     {busy && (
                       <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: 16, display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow, marginBottom: 14 }}>
@@ -7209,7 +7368,7 @@ function SprigApp() {
                           <Pill size={14} /> New supplement
                         </div>
                         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus onFocus={scrollIntoViewOnFocus}
-                          placeholder="e.g. Vitamin D3 2000 IU + magnesium glycinate 400mg, or omega-3 fish oil 1000mg"
+                          placeholder="e.g. Vitamin D3 2000 IU, magnesium glycinate 400mg, omega-3 fish oil"
                           style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, outline: "none", resize: "none", background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 80, lineHeight: 1.45, boxSizing: "border-box" }} />
                       </div>
                     )}
@@ -7239,7 +7398,7 @@ function SprigApp() {
                         <button className="sprig-tap" onClick={() => suppLabelRef.current?.click()} style={{ ...btn(C.bg2, C.ink), flex: 1, padding: "13px 0" }}><ScanLine size={15} /> Scan</button>
                       )}
                       <button className="sprig-tap" disabled={!draft.trim()} onClick={() => { runAnalysis({ text: draft, mode: foodOverlayMode === "supp" ? "supplement" : "text" }); setDraft(""); }}
-                        style={{ ...btn(draft.trim() ? C.lime : C.bg2, draft.trim() ? "#0A1F12" : C.muted), flex: 1.8, padding: "13px 0", fontWeight: 700 }}>
+                        style={{ ...btn(draft.trim() ? C.lime : C.bg2, draft.trim() ? "#0A1F12" : C.muted), flex: 1.8, padding: "13px 0", fontWeight: 700, opacity: draft.trim() ? 1 : 0.45, transition: "opacity .15s, background .15s" }}>
                         <Sparkles size={15} /> {foodOverlayMode === "supp" ? "Add" : "Analyze"}
                       </button>
                     </div>
@@ -7266,10 +7425,19 @@ function SprigApp() {
           ];
           return ALL_NAV.filter(([,,,key]) => !key || trackingPrefs[key] !== false);
         })()).map(([k, Ic, lbl]) => (
-          <button key={k} onClick={() => { setTab(k); setResult(null); setFoodOverlayMode(null); setError(""); setFavoriteMode(false); }}
-            style={{ flex: 1, minWidth: 0, background: "none", border: "none", cursor: "pointer", padding: "10px 4px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.lime : C.muted }}>
+          <button key={k} onClick={() => {
+            setTab(k);
+            setResult(null);
+            setFoodOverlayMode(null);
+            setError("");
+            setFavoriteMode(false);
+            buzz("tap");
+            try { document.querySelector(".sprig-content")?.scrollTo({ top: 0 }); } catch (_) {}
+          }}
+            style={{ flex: 1, minWidth: 0, background: "none", border: "none", cursor: "pointer", padding: "10px 4px 13px", minHeight: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: tab === k ? C.lime : C.muted, WebkitTapHighlightColor: "transparent" }}>
             <Ic size={20} strokeWidth={tab === k ? 2.4 : 2} />
             <span style={{ fontSize: 10, fontWeight: tab === k ? 700 : 500, whiteSpace: "nowrap" }}>{lbl}</span>
+            {tab === k && <span style={{ width: 4, height: 4, borderRadius: 99, background: C.lime, display: "block" }} />}
           </button>
         ))}
       </div>
@@ -7394,24 +7562,26 @@ function SprigApp() {
           + transformed ancestors that would otherwise clip an absolute/fixed child). */}
       {activeWorkout && rest && (restLeft > 0 || restDone) && (
         <Portal>
-        <div className="sprig-pop-centered" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", background: restDone && restLeft <= 0 ? C.green : "#27384d", borderRadius: 16, padding: "10px 14px", color: "#fff", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 30px rgba(0,0,0,.32)", zIndex: 1600 }}>
-          <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : "#BFD0FF"} />
+        <div className="sprig-pop-centered" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px)", background: restDone && restLeft <= 0 ? C.green : C.cardSolid, borderRadius: 20, padding: "12px 16px", color: "#fff", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 40px rgba(0,0,0,.44)", border: `1px solid ${restDone && restLeft <= 0 ? C.green : C.green + "44"}`, zIndex: 1600 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 11, background: restDone && restLeft <= 0 ? "rgba(255,255,255,.2)" : C.green + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : C.greenSoft} />
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10.5, opacity: .75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {restLeft <= 0 ? "Rest complete" : `Rest · ${rest.exName}`}
+            <div style={{ fontSize: 11, color: restDone && restLeft <= 0 ? "rgba(255,255,255,.8)" : C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }}>
+              {restLeft <= 0 ? "Ready to go!" : rest.exName}
             </div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700 }}>{restLeft <= 0 ? "Go!" : fmtClock(restLeft)}</div>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: restDone && restLeft <= 0 ? "#fff" : C.lime, lineHeight: 1 }}>{restLeft <= 0 ? "Go!" : fmtClock(restLeft)}</div>
           </div>
           {restLeft > 0 && (
             <>
               <button className="sprig-tap" onClick={() => (rest.paused ? resumeRest() : pauseRest())} aria-label={rest.paused ? "Resume" : "Pause"}
-                style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>
-                {rest.paused ? <Play size={13} /> : <span style={{ fontWeight: 700, letterSpacing: 1 }}>II</span>}
+                style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", width: 36, height: 36, borderRadius: 10, display: "grid", placeItems: "center", color: C.inkSoft }}>
+                {rest.paused ? <Play size={14} /> : <Pause size={14} />}
               </button>
-              <button className="sprig-tap" onClick={() => addRest(30000)} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>+30s</button>
+              <button className="sprig-tap" onClick={() => addRest(30000)} style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", padding: "0 10px", height: 36, borderRadius: 10, fontSize: 12, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>+30s</button>
             </>
           )}
-          <button className="sprig-tap" onClick={skipRest} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "7px 9px", fontSize: 12 }}>{restLeft <= 0 ? "Done" : "Skip"}</button>
+          <button className="sprig-tap" onClick={skipRest} style={{ background: C.green, border: "none", cursor: "pointer", padding: "0 14px", height: 36, borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "DM Sans" }}>{restLeft <= 0 ? "Go" : "Skip"}</button>
         </div>
         </Portal>
       )}
@@ -7462,7 +7632,7 @@ function SprigApp() {
           }
           await persistDayStatus({ ...dayStatus, [date]: "logged" });
           setQuickOpen(false);
-          showToast("Day quick logged ⚡");
+          logged("Day quick logged ⚡", "success");
         }}
         onClose={() => setQuickOpen(false)} />}
 
@@ -8491,26 +8661,32 @@ function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }) {
   const [expanded, setExpanded] = useState(false);
 
   if (compact) {
+    const readinessLabel = ri.score >= 80 ? "Fully recovered" : ri.score >= 65 ? "Mostly recovered" : ri.score >= 45 ? "Partly recovered" : "Under-recovered";
     return (
       <div className="sprig-tap" onClick={() => { if (onGoTrain) onGoTrain(); }}
-        style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: "13px 15px", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 13, cursor: onGoTrain ? "pointer" : "default" }}>
-        {/* Score ring */}
-        <svg width="52" height="52" viewBox="0 0 52 52" style={{ flexShrink: 0 }}>
-          <circle cx="26" cy="26" r="20" fill="none" stroke={C.bg2} strokeWidth="5" />
-          <circle cx="26" cy="26" r="20" fill="none" stroke={scoreColor} strokeWidth="5"
-            strokeDasharray={`${ri.score / 100 * 125.6} 125.6`} strokeLinecap="round"
-            transform="rotate(-90 26 26)" style={{ transition: "stroke-dasharray .5s" }} />
-          <text x="26" y="30" textAnchor="middle" fontFamily="Fraunces, serif" fontSize="12" fontWeight="700" fill={scoreColor}>{ri.score}</text>
-        </svg>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: C.ink }}>Recovery</span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: scoreColor }}>{ri.label}</span>
-            <span style={{ fontSize: 10, color: C.muted, marginLeft: "auto" }}>{ri.confidence} confidence</span>
+        style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "15px 16px", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 14, cursor: onGoTrain ? "pointer" : "default" }}>
+        {/* Oura-style score ring — 60px, clean SVG ring + overlay text */}
+        <div style={{ position: "relative", width: 60, height: 60, flexShrink: 0 }}>
+          <svg width="60" height="60" viewBox="0 0 60 60" style={{ transform: "rotate(-90deg)" }}>
+            <circle cx="30" cy="30" r="24" fill="none" stroke={C.bg2} strokeWidth="5.5" />
+            <circle cx="30" cy="30" r="24" fill="none" stroke={scoreColor} strokeWidth="5.5"
+              strokeDasharray={`${ri.score / 100 * 150.8} 150.8`} strokeLinecap="round"
+              style={{ transition: "stroke-dasharray .5s" }} />
+          </svg>
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: scoreColor, lineHeight: 1 }}>{ri.score}</span>
+            <span style={{ fontSize: 8, color: C.muted, fontWeight: 600, marginTop: 1 }}>/ 100</span>
           </div>
-          <div style={{ fontSize: 12.5, color: C.inkSoft, marginTop: 2, fontWeight: 600 }}>{ri.bestAction}</div>
-          {ri.limiters[0] && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>⚠ {ri.limiters[0]}</div>}
-          {!ri.limiters[0] && ri.helpers[0] && <div style={{ fontSize: 11.5, color: "#52B788", marginTop: 2 }}>✓ {ri.helpers[0]}</div>}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, marginBottom: 3 }}>Recovery</div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: scoreColor, lineHeight: 1.2 }}>{readinessLabel}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600, background: C.bg2, borderRadius: 6, padding: "2px 7px" }}>{ri.confidence} conf.</span>
+            {ri.limiters[0] && <span style={{ fontSize: 11, color: C.amber }}>· {ri.limiters[0]}</span>}
+            {!ri.limiters[0] && ri.helpers[0] && <span style={{ fontSize: 11, color: scoreColor }}>· {ri.helpers[0]}</span>}
+          </div>
+          {ri.bestAction && <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 5, fontWeight: 600 }}>{ri.bestAction}</div>}
         </div>
         {onGoTrain && <ChevronRight size={16} color={C.muted} style={{ flexShrink: 0 }} />}
       </div>
@@ -8649,32 +8825,37 @@ function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }) {
 
 // Inline badge showing data source — Quick logged / Estimated / null (no badge)
 function SrcPill({ source }) {
-  if (!source || source === "exact" || source === "disabled" || source === "unknown") return null;
-  const label = source === "quick_log" ? "Quick logged" : source === "estimated" ? "Estimated" : null;
-  if (!label) return null;
+  if (!source || source === "exact" || source === "disabled") return null;
+  const MAP = {
+    quick_log: { color: C.greenSoft, label: "Quick log" },
+    estimated: { color: C.amber,     label: "Estimated" },
+    unknown:   { color: C.muted,     label: "No data" },
+  };
+  const m = MAP[source];
+  if (!m) return null;
   return (
-    <span style={{ fontSize: 9.5, fontWeight: 700, color: C.amber, background: C.amber + "22", border: `1px solid ${C.amber}44`, borderRadius: 99, padding: "1px 6px", letterSpacing: .2, verticalAlign: "middle" }}>
-      {label}
+    <span style={{ fontSize: 9, fontWeight: 700, color: m.color, background: m.color + "18", border: `1px solid ${m.color}30`, borderRadius: 5, padding: "1px 5px", letterSpacing: .4, verticalAlign: "middle", textTransform: "uppercase", display: "inline-block" }}>
+      {m.label}
     </span>
   );
 }
 
 function TodaySummaryCard({ icon, accent = C.greenSoft, title, value, sub, note, children, actions }) {
   return (
-    <div style={{ background: C.card, borderRadius: 18, padding: 15, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+    <div style={{ background: C.card, borderRadius: 20, padding: 15, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
         {icon}
-        <span style={{ fontSize: 12, fontWeight: 600, color: C.inkSoft, letterSpacing: .2 }}>{title}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted, letterSpacing: .1, lineHeight: 1 }}>{title}</span>
       </div>
       {value != null && (
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: accent, lineHeight: 1 }}>{value}</span>
-          {sub && <span style={{ fontSize: 12.5, color: C.muted }}>{sub}</span>}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+          <span style={{ fontFamily: "Fraunces, serif", fontSize: typeof value === "string" && value.length > 6 ? 19 : 24, fontWeight: 700, color: accent, lineHeight: 1 }}>{value}</span>
+          {sub && <span style={{ fontSize: 12, color: C.muted }}>{sub}</span>}
         </div>
       )}
-      {note && <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 6, lineHeight: 1.45 }}>{note}</div>}
+      {note && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6, lineHeight: 1.45 }}>{note}</div>}
       {children}
-      {actions && <div style={{ display: "flex", gap: 7, marginTop: 11 }}>{actions}</div>}
+      {actions && <div style={{ display: "flex", gap: 7, marginTop: 10 }}>{actions}</div>}
     </div>
   );
 }
@@ -8682,7 +8863,8 @@ function TodaySummaryCard({ icon, accent = C.greenSoft, title, value, sub, note,
 function TodayChip({ label, onClick, primary }) {
   return (
     <button className="sprig-tap" onClick={onClick}
-      style={{ background: primary ? C.green : C.bg2, color: primary ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", borderRadius: 10, padding: "8px 12px", fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", display: "inline-flex", alignItems: "center", gap: 5 }}>
+      style={{ background: primary ? C.green : C.bg2, color: primary ? "#fff" : C.inkSoft, border: "none", cursor: "pointer", borderRadius: 10, padding: "8px 13px", fontSize: 12, fontWeight: 700, fontFamily: "DM Sans", display: "inline-flex", alignItems: "center", gap: 5,
+        boxShadow: primary ? `0 3px 10px ${C.green}44` : "none" }}>
       {label}
     </button>
   );
@@ -8720,7 +8902,7 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
   const waterLeft = Math.max(0, waterGoal - waterMl);
 
   const readiness = trainInfo?.recoveryRec || { level: "normal", text: "Log sleep to tune today's readiness." };
-  const readyLabel = { hard: "Ready", normal: "Good", light: "Take it easy", rest: "Rest" }[readiness.level] || "Good";
+  const readyLabel = { hard: "Ready", normal: "Good", light: "Take it easy", rest: "Rest day" }[readiness.level] || "Good";
   const readyColor = { hard: C.greenSoft, normal: C.greenSoft, light: C.amber, rest: C.coral }[readiness.level] || C.greenSoft;
 
   // functional health: lowest of the functional scores, plus how many are strong
@@ -8742,21 +8924,26 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         }[profile.focus];
         if (!FB) return null;
         return (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.bg2, padding: "5px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, color: C.inkSoft, marginBottom: 10 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.bg2, padding: "4px 9px", borderRadius: 99, fontSize: 10.5, fontWeight: 600, color: C.muted, marginBottom: 8 }}>
             <span>{FB.emoji}</span><span>{FB.text}</span>
           </div>
         );
       })()}
 
-      {/* 1 — DAILY HEALTH SCORE */}
-      <div style={{ background: C.heroGrad1, borderRadius: 22, padding: 18, color: "#fff", boxShadow: C.shadow }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <ScoreDonut score={healthScore} />
+      {/* 1 — DAILY HEALTH SCORE — Bevel-style hero */}
+      <div style={{ background: C.heroGrad1, borderRadius: 24, padding: "20px 18px 18px", color: "#fff", boxShadow: C.shadow }}>
+        {/* top row: eyebrow + date */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, opacity: .7 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, textTransform: "uppercase" }}>Health score</div>
+          <div style={{ fontSize: 10.5, fontWeight: 600 }}>{new Date().toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}</div>
+        </div>
+        {/* score row: donut + verdict */}
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+          <ScoreDonut score={healthScore} size={100} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, opacity: .7, letterSpacing: .3 }}>TODAY'S HEALTH SCORE</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, marginTop: 1 }}>{scoreVerdict(healthScore)}</div>
-            <div style={{ fontSize: 11.5, opacity: .85, marginTop: 4, lineHeight: 1.45 }}>
-              {actions[0] ? actions[0].text : "Log a little through the day and your score sharpens up."}
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 26, fontWeight: 700, lineHeight: 1.1 }}>{scoreVerdict(healthScore)}</div>
+            <div style={{ fontSize: 12.5, opacity: .85, marginTop: 6, lineHeight: 1.5, fontWeight: 500 }}>
+              {actions[0] ? actions[0].text : "Log food, sleep, or a workout to sharpen your score."}
             </div>
           </div>
         </div>
@@ -8765,24 +8952,31 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
       {/* horizontal score rings — Kiwi-style dashboard summary of each system */}
       {(() => {
         const rings = [
-          { label: "Nutrition", v: subScores.nutrition, ic: <Flame size={15} />, accent: C.lime },
-          { label: "Sleep", v: subScores.sleep, ic: <Moon size={15} />, accent: C.greenSoft },
-          { label: "Movement", v: subScores.movement, ic: <Activity size={15} />, accent: C.leaf },
-          { label: "Recovery", v: subScores.training, ic: <Gauge size={15} />, accent: C.limeSoft },
-          { label: "Mind", v: subScores.mind, ic: <BookOpen size={15} />, accent: C.greenSoft },
-        ];
+          tp.nutrition !== false && { label: "Nutrition", v: subScores.nutrition, ic: <Flame size={15} />, accent: C.lime },
+          tp.sleep !== false && { label: "Sleep", v: subScores.sleep, ic: <Moon size={15} />, accent: C.greenSoft },
+          (tp.movement !== false || tp.training !== false) && { label: "Movement", v: subScores.movement, ic: <Activity size={15} />, accent: C.leaf },
+          tp.recovery !== false && { label: "Recovery", v: subScores.training, ic: <Gauge size={15} />, accent: C.limeSoft },
+          tp.habits !== false && { label: "Mind", v: subScores.mind, ic: <BookOpen size={15} />, accent: C.greenSoft },
+        ].filter(Boolean);
         return (
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", padding: "14px 2px 4px", marginTop: 2 }} className="sprig-scroll">
+          <div style={{ display: "flex", gap: 9, overflowX: "auto", padding: "14px 2px 6px", marginTop: 2 }} className="sprig-scroll">
             {rings.map((rg) => (
-              <div key={rg.label} style={{ flex: "0 0 auto" }}>
-                <RingMetric value={rg.v == null ? 0 : rg.v} max={100} size={64} stroke={6}
+              <div key={rg.label} style={{ flex: "0 0 auto", background: C.bg2, borderRadius: 18, padding: "12px 10px 10px", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 76 }}>
+                <RingMetric value={rg.v == null ? 0 : rg.v} max={100} size={58} stroke={5}
                   accent={rg.v == null ? "rgba(255,255,255,0.18)" : rg.accent}
-                  icon={rg.ic} center={rg.v == null ? "–" : Math.round(rg.v)} label={rg.label} />
+                  icon={rg.ic} center={rg.v == null || rg.v === 0 ? "–" : Math.round(rg.v)} label={rg.label} />
               </div>
             ))}
           </div>
         );
       })()}
+
+      {/* RECOVERY CARD — status before actions */}
+      {tp.recovery !== false && recoveryInfo && (
+        <div style={{ marginTop: 12 }}>
+          <PerfectRecoveryCard recoveryInfo={recoveryInfo} compact onGoTrain={onGoTrain} />
+        </div>
+      )}
 
       {/* 2 — BEST ACTIONS (max 3, one sentence each) */}
       {actions.length > 0 && (
@@ -8790,13 +8984,13 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, marginBottom: 11, display: "flex", alignItems: "center", gap: 7 }}>
             <Sparkles size={16} color={C.greenSoft} /> Best actions today
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {actions.slice(0, 3).map((a, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: i === 0 ? C.green : C.bg2, color: i === 0 ? "#fff" : C.greenSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                  {ACTION_ICON[a.icon] || <Check size={16} />}
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: i === 0 ? "11px 12px" : "0", background: i === 0 ? C.green + "14" : "transparent", borderRadius: i === 0 ? 14 : 0, border: i === 0 ? `1px solid ${C.green}30` : "none" }}>
+                <div style={{ width: i === 0 ? 34 : 28, height: i === 0 ? 34 : 28, borderRadius: i === 0 ? 11 : 8, background: i === 0 ? C.green : C.bg2, color: i === 0 ? "#fff" : C.greenSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  {ACTION_ICON[a.icon] || <Check size={i === 0 ? 17 : 14} />}
                 </div>
-                <span style={{ fontSize: 13, color: C.ink, lineHeight: 1.4, fontWeight: i === 0 ? 600 : 400 }}>{a.text}</span>
+                <span style={{ fontSize: i === 0 ? 13.5 : 12.5, color: i === 0 ? C.ink : C.inkSoft, lineHeight: 1.4, fontWeight: i === 0 ? 700 : 400 }}>{a.text}</span>
               </div>
             ))}
           </div>
@@ -8808,21 +9002,15 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         </div>
       )}
 
-      {/* RECOVERY CARD */}
-      {tp.recovery !== false && recoveryInfo && (
-        <div style={{ marginTop: 12 }}>
-          <PerfectRecoveryCard recoveryInfo={recoveryInfo} compact onGoTrain={onGoTrain} />
-        </div>
-      )}
-
       {/* 3 — PRIMARY CTA: Quick log the day — hide when enough data already captured */}
       {onQuickLog && !quickLog && !(dt?.nutrition?.source === "exact" && dt?.sleep?.source === "exact" && dt?.training?.source === "exact") && (
         <div style={{ marginTop: 12 }}>
           <button className="sprig-tap" onClick={onQuickLog}
             style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "15px 16px", fontSize: 15, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
             <Zap size={17} /> Quick log the day
-            <ChevronRight size={17} style={{ marginLeft: "auto" }} />
+            <ChevronRight size={17} style={{ marginLeft: "auto", opacity: .7 }} />
           </button>
+          <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center", marginTop: 6, fontWeight: 500 }}>30 seconds · fills gaps · improves every score</div>
         </div>
       )}
 
@@ -8830,31 +9018,38 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
       {quickLog && (() => {
         const ql = quickLog;
         const chips = [];
-        if (ql.trainedToday) chips.push({ icon: "🏋️", text: ql.trainingType ? ql.trainingType.replace("_", " ") : "Training", tone: "green" });
-        if (ql.hitProtein === true) chips.push({ icon: "🥩", text: "Protein hit", tone: "green" });
-        if (ql.hitCalories === true) chips.push({ icon: "🔥", text: "Calories on track", tone: "green" });
-        if (ql.enoughSleep === true) chips.push({ icon: "😴", text: "Slept enough", tone: "green" });
-        if (ql.enoughMovement === true) chips.push({ icon: "🚶", text: "Movement done", tone: "green" });
-        if (ql.hitWater === true) chips.push({ icon: "💧", text: "Hydrated", tone: "green" });
+        if (ql.trainedToday) chips.push({ icon: "🏋️", text: ql.trainingType ? ql.trainingType.replace(/_/g, " ") : "Training", tone: "green" });
+        if (ql.hitProtein === true) chips.push({ icon: "🥩", text: "Protein", tone: "green" });
+        if (ql.hitCalories === true) chips.push({ icon: "🔥", text: "Calories", tone: "green" });
+        if (ql.enoughSleep === true) chips.push({ icon: "😴", text: "Sleep", tone: "green" });
+        if (ql.enoughMovement === true) chips.push({ icon: "🚶", text: "Movement", tone: "green" });
+        if (ql.hitWater === true) chips.push({ icon: "💧", text: "Hydration", tone: "green" });
         if (ql.noAlcohol === true) chips.push({ icon: "✓", text: "No alcohol", tone: "green" });
-        if (ql.supplementsTaken === true) chips.push({ icon: "💊", text: "Supplements", tone: "green" });
+        if (ql.supplementsTaken === true) chips.push({ icon: "💊", text: "Supps", tone: "green" });
+        const visibleChips = chips.slice(0, 6);
+        const hiddenCount = chips.length - visibleChips.length;
         if (!chips.length) return null;
         return (
-          <div style={{ background: C.green + "18", border: `1px solid ${C.green}44`, borderRadius: 16, padding: "12px 14px", marginTop: 12 }}>
+          <div style={{ background: C.green + "16", border: `1px solid ${C.green}40`, borderRadius: 16, padding: "14px 14px", marginTop: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
               <Zap size={13} color={C.greenSoft} />
               <span style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft }}>Quick logged today</span>
-              <span style={{ fontSize: 10, color: C.muted, marginLeft: "auto" }}>Estimated · quick log</span>
+              <span style={{ fontSize: 10, color: C.muted, marginLeft: "auto", background: C.green + "18", padding: "2px 7px", borderRadius: 6 }}>Estimated</span>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {chips.map((c, i) => (
-                <span key={i} style={{ fontSize: 11, fontWeight: 600, color: C.green, background: C.green + "22", border: `1px solid ${C.green}33`, borderRadius: 99, padding: "3px 9px" }}>
-                  {c.icon} {c.text}
+              {visibleChips.map((ch, i) => (
+                <span key={i} style={{ fontSize: 11, fontWeight: 600, color: C.greenSoft, background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 99, padding: "3px 9px" }}>
+                  {ch.icon} {ch.text}
                 </span>
               ))}
+              {hiddenCount > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, background: C.card2, borderRadius: 99, padding: "3px 9px" }}>
+                  +{hiddenCount} more
+                </span>
+              )}
             </div>
             {onQuickLog && (
-              <button className="sprig-tap" onClick={onQuickLog} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 11, color: C.muted, fontFamily: "DM Sans", marginTop: 8, padding: 0 }}>
+              <button className="sprig-tap" onClick={onQuickLog} style={{ background: C.green + "18", border: `1px solid ${C.green}33`, cursor: "pointer", fontSize: 11, color: C.greenSoft, fontFamily: "DM Sans", marginTop: 8, padding: "5px 10px", borderRadius: 8, fontWeight: 600 }}>
                 Edit quick log →
               </button>
             )}
@@ -8863,7 +9058,7 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
       })()}
 
       {/* Today's wins — compact recognition card */}
-      {wins && <TodayWinsCard wins={wins} onKudos={onKudos} onViewAll={onViewAllWins} />}
+      {wins && <div style={{ marginTop: 12 }}><TodayWinsCard wins={wins} onKudos={onKudos} onViewAll={onViewAllWins} /></div>}
 
       {/* mini cards grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
@@ -8871,12 +9066,11 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         {tp.nutrition !== false && <TodaySummaryCard
           icon={<Flame size={15} color={C.amber} />} accent={t.calories > adjTarget ? C.coral : C.green}
           title={<span>Nutrition <SrcPill source={dtNutrSrc} /></span>}
-          value={dtNutrSrc === "quick_log" ? (dt?.nutrition?.label || "Quick logged") : kcalLeft}
-          sub={dtNutrSrc === "quick_log" ? "" : "kcal left"}
-          note={dtNutrSrc === "quick_log" ? "Nutrition marked via Quick Log — log meals for exact numbers." : t.calories > adjTarget ? `${t.calories - adjTarget} over target.` : `${proteinLeft}g protein to go.`}
+          value={dtNutrSrc === "quick_log" ? (dt?.nutrition?.proteinOk ? "Protein hit" : "Done") : kcalLeft}
+          sub={dtNutrSrc === "quick_log" ? "quick log" : "kcal left"}
+          note={dtNutrSrc === "quick_log" ? `${dt?.nutrition?.proteinOk ? "Protein hit · " : "Protein not marked · "}${dt?.nutrition?.calOk ? "Calories on track." : "Calories uncertain."} Log meals for exact numbers.` : t.calories > adjTarget ? `${t.calories - adjTarget} over target.` : `${proteinLeft}g protein to go.`}
           actions={<>
-            {onAddEntry && <TodayChip label="+ Food" primary onClick={onGoNutrition} />}
-            <TodayChip label="Nutrition" onClick={onGoNutrition} />
+            {dtNutrSrc !== "quick_log" && onAddEntry && <TodayChip label="+ Log food" primary onClick={onGoNutrition} />}
           </>}
         >
           <div style={{ marginTop: 8 }}>
@@ -8890,13 +9084,12 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         {tp.water !== false && <TodaySummaryCard
           icon={<Coffee size={15} color="#5B9BD5" />} accent="#5B9BD5"
           title={<span>Water <SrcPill source={dtWaterSrc} /></span>}
-          value={dtWaterSrc === "quick_log" ? (dt?.water?.label || "Quick logged") : litres(waterMl)}
-          sub={dtWaterSrc === "quick_log" ? "" : "/ " + litres(waterGoal)}
-          note={dtWaterSrc === "quick_log" ? "Water goal marked hit · Quick Log. Log litres for exact tracking."
+          value={dtWaterSrc === "quick_log" ? "Hydrated" : litres(waterMl)}
+          sub={dtWaterSrc === "quick_log" ? "quick log" : "/ " + litres(waterGoal)}
+          note={dtWaterSrc === "quick_log" ? "Water goal marked hit via Quick Log. Log litres for exact tracking."
             : waterLeft > 0 ? `About ${litres(waterLeft)} more today.` : "Hydration goal hit. 💧"}
           actions={<>
-            {dtWaterSrc !== "quick_log" && <TodayChip label="+250ml" primary onClick={() => onDaily({ water: waterMl + 250 })} />}
-            <TodayChip label="Nutrition" onClick={onGoNutrition} />
+            {dtWaterSrc !== "quick_log" && <TodayChip label="+250 ml" primary onClick={() => onDaily({ water: waterMl + 250 })} />}
           </>}
         />}
 
@@ -8904,13 +9097,13 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         {tp.movement !== false && <TodaySummaryCard
           icon={<Activity size={15} color={C.greenSoft} />} accent={C.greenSoft}
           title={<span>Movement <SrcPill source={dtMoveSrc} /></span>}
-          value={dtMoveSrc === "quick_log" ? (dt?.movement?.label || "Quick logged") : steps.toLocaleString()}
-          sub={dtMoveSrc === "quick_log" ? "" : "/ " + stepGoalV.toLocaleString() + " steps"}
+          value={dtMoveSrc === "quick_log" ? "Active" : steps.toLocaleString()}
+          sub={dtMoveSrc === "quick_log" ? "quick log" : "/ " + stepGoalV.toLocaleString() + " steps"}
           note={dtMoveSrc === "quick_log" ? "Movement goal marked hit · Quick Log. Log steps for exact tracking."
             : cardioMin > 0 ? `${cardioMin} min cardio logged.` : (steps >= stepGoalV ? "Step goal hit. 🏃" : `${Math.max(0, stepGoalV - steps).toLocaleString()} steps to goal.`)}
           actions={<>
-            {dtMoveSrc !== "quick_log" && <TodayChip label={showMovement ? "Hide" : "Add"} primary onClick={() => setShowMovement((s) => !s)} />}
-            <TodayChip label="Train" onClick={onGoTrain} />
+            {dtMoveSrc !== "quick_log" && <TodayChip label={showMovement ? "Hide" : "+ Add"} primary onClick={() => setShowMovement((s) => !s)} />}
+            {dtMoveSrc === "quick_log" && <TodayChip label="Train" onClick={onGoTrain} />}
           </>}
         />}
 
@@ -8925,8 +9118,7 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
             ? (dt?.alcohol?.noAlcohol ? "No alcohol · Quick Log." : "Alcohol logged · Quick Log. Log drinks for exact kcal tracking.")
             : drinks.length ? `${alcoholG}g alcohol · ${drinkKcal} kcal.` : "No drinks logged."}
           actions={<>
-            {dtAlcSrc !== "quick_log" && <TodayChip label={showDrinks ? "Hide" : "Add drink"} primary onClick={() => setShowDrinks((s) => !s)} />}
-            <TodayChip label="Nutrition" onClick={onGoNutrition} />
+            {dtAlcSrc !== "quick_log" && <TodayChip label={showDrinks ? "Hide" : "+ Log drink"} primary onClick={() => setShowDrinks((s) => !s)} />}
           </>}
         />}
       </div>
@@ -8948,12 +9140,12 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         <TodaySummaryCard
           icon={<Moon size={15} color="#7A6FB0" />} accent="#7A6FB0"
           title={<span>Sleep <SrcPill source={dtSleepSrc} /></span>}
-          value={dtSleepSrc === "quick_log" ? (dt?.sleep?.label || "Quick logged") : lastSleep ? durLabel(lastSleep.durationMin) : "—"}
-          sub={dtSleepSrc === "quick_log" ? "" : lastSleep ? `score ${lastSleep.score}` : "no log yet"}
-          note={dtSleepSrc === "quick_log" ? "Sleep marked via Quick Log — log a sleep session for exact data." : rec ? `Caffeine cutoff ${minToLabel(rec.caffeineCutoff)} · blue light ${minToLabel(rec.blueCutoff)}.` : "Log last night to see your cutoffs."}
+          value={dtSleepSrc === "quick_log" ? "Rested" : lastSleep ? durLabel(lastSleep.durationMin) : "—"}
+          sub={dtSleepSrc === "quick_log" ? "quick log" : lastSleep ? `score ${lastSleep.score}` : "no log yet"}
+          note={dtSleepSrc === "quick_log" ? "Quick Log recorded. Log a real session for sleep score, debt, and alarm data." : rec ? `Caffeine cutoff ${minToLabel(rec.caffeineCutoff)} · blue light ${minToLabel(rec.blueCutoff)}.` : "Log last night's sleep for cutoffs, debt tracking, and recovery confidence."}
           actions={<>
-            {!lastSleep && <TodayChip label="Log sleep" primary onClick={onGoSleep} />}
-            <TodayChip label="Sleep" onClick={onGoSleep} />
+            {dtSleepSrc !== "quick_log" && !lastSleep && <TodayChip label="Log sleep" primary onClick={onGoSleep} />}
+            {(dtSleepSrc === "quick_log" || lastSleep) && <TodayChip label="Sleep →" onClick={onGoSleep} />}
           </>}
         />
       </div>}
@@ -8962,14 +9154,14 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
       {tp.training !== false && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
         <TodaySummaryCard
           icon={<Gauge size={15} color={readyColor} />} accent={readyColor}
-          title="Training readiness" value={readyLabel}
+          title={dtTrainSrc === "exact" ? "Workout logged" : "Training readiness"} value={dtTrainSrc === "exact" ? "Done" : readyLabel}
           note={readiness.text}
-          actions={<TodayChip label="Train" onClick={onGoTrain} />}
+          actions={<TodayChip label={dtTrainSrc === "exact" ? "Done ✓" : "Train"} onClick={onGoTrain} />}
         />
         <TodaySummaryCard
           icon={<Dumbbell size={15} color={C.greenSoft} />} accent={C.greenSoft}
           title="Best gym window" value={gym ? minToLabel(gym.start) : "—"} sub={gym ? `energy ${gym.avg}/100` : ""}
-          note={gym ? "Your predicted peak-energy window." : "See your full energy curve."}
+          note={gym ? "Your predicted peak-energy training window today." : "Log sleep to predict your peak-energy window."}
           actions={<TodayChip label="Energy" onClick={onGoEnergy} />}
         />
       </div>}
@@ -9088,55 +9280,79 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
     .filter((f) => !favSearch || f.name.toLowerCase().includes(favSearch.toLowerCase()) || (f.tags || []).some((tg) => tg.includes(favSearch.toLowerCase())))
     .sort((a, b) => favSort === "most" ? (b.useCount || 0) - (a.useCount || 0) : (b.lastUsedTs || b.createdTs || 0) - (a.lastUsedTs || a.createdTs || 0));
 
-  const sectionTitle = (txt) => <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, margin: "20px 0 10px", letterSpacing: -.2, color: C.ink }}>{txt}</div>;
+  const sectionTitle = (txt) => (
+    <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, margin: "22px 0 11px", letterSpacing: -.25, color: C.ink, display: "flex", alignItems: "center" }}>
+      {txt}
+    </div>
+  );
 
   return (
     <div className="sprig-rise">
-      <SubTabs tabs={[["meals", "Meals"], ["nutrition", "Nutrition"]]} active={sub} onChange={onSub} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 2 }}>
+        <div style={{ flex: 1 }}>
+          <SubTabs tabs={[["meals", "Meals"], ["nutrition", "Nutrition"]]} active={sub} onChange={onSub} />
+        </div>
+        {sub === "meals" && onOpenLogSheet && (
+          <button className="sprig-tap" onClick={onOpenLogSheet}
+            style={{ ...btn(C.lime, "#0A1F12"), padding: "9px 14px", fontSize: 13, fontWeight: 700, borderRadius: 12, whiteSpace: "nowrap", flexShrink: 0 }}>
+            <Plus size={14} /> Log food
+          </button>
+        )}
+      </div>
 
-      {/* Log food floating CTA is rendered at the app-frame level (GlobalFloatingLayer via Portal).
-          Do NOT render a sticky/inline button here — it would scroll away and conflict. */}
+      {/* Log food floating CTA is also rendered at the app-frame level (GlobalFloatingLayer via Portal). */}
 
       {sub === "nutrition" && (<>
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 2px" }}>Nutrition</div>
-      <div style={{ fontSize: 12, color: C.muted, margin: "0 2px 8px" }}>Calories, macros, hydration, vitamins, and your supplement stack.</div>
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, margin: "6px 2px 3px", letterSpacing: -.3, color: C.ink }}>Nutrition</div>
+      <div style={{ fontSize: 12.5, color: C.muted, margin: "0 2px 10px", lineHeight: 1.5 }}>Calories, macros, hydration, vitamins, and your supplement stack.</div>
 
       {/* Source banner — Quick Log or unknown */}
       {dt?.nutrition?.source === "quick_log" && (
-        <div style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 14, padding: "11px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 15 }}>📋</span>
+        <div style={{ background: C.greenSoft + "12", border: `1px solid ${C.greenSoft}30`, borderRadius: 16, padding: "12px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: C.greenSoft + "20", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Zap size={16} color={C.greenSoft} />
+          </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>{dt.nutrition.label || "Nutrition marked via Quick Log"}</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Log meals for exact macros and calorie tracking.</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.greenSoft }}>Quick Log recorded</div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Log meals below for exact macros and calorie tracking.</div>
           </div>
         </div>
       )}
       {(!dt || dt?.nutrition?.source === "unknown") && (
-        <div style={{ background: C.bg2, border: `1px dashed ${C.line}`, borderRadius: 14, padding: "11px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 15 }}>🍽️</span>
+        <div style={{ background: C.bg2, border: `1px dashed ${C.line}`, borderRadius: 16, padding: "12px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: C.bg2, display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Flame size={16} color={C.muted} />
+          </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>No food logged yet</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Log your first meal or use Quick Log to mark your nutrition status.</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.inkSoft }}>No food logged yet</div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Log your first meal or use Quick Log to mark your nutrition status.</div>
           </div>
         </div>
       )}
 
-      {/* DAILY TARGET */}
+      {/* DAILY TARGET — MacroFactor style */}
       {sectionTitle("Daily target")}
       <div style={{ background: C.card, borderRadius: 22, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+        {/* calorie ring + stat strip */}
+        <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 16 }}>
           <Ring value={t.calories} max={adjTarget} label={leftLabel} sub="kcal left" color={t.calories > adjTarget ? C.coral : C.green} />
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-            <MacroBar name="Protein" val={t.protein} max={targets.protein} color={C.green} />
-            <MacroBar name="Carbs" val={t.carbs} max={targets.carbs} color={C.amber} />
-            <MacroBar name="Fat" val={t.fat} max={targets.fat} color={C.coral} />
-            <MacroBar name="Fiber" val={t.fiber} max={targets.fiber} color={C.leaf} />
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              {[["Eaten", t.calories, C.ink], ["Target", adjTarget, C.inkSoft], ["Left", Math.max(0, adjTarget - t.calories), leftLabel > 0 ? C.greenSoft : C.coral]].map(([l, v, c]) => (
+                <div key={l} style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: c, lineHeight: 1 }}>{v}</div>
+                  <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, marginTop: 3, letterSpacing: .3 }}>{l.toUpperCase()}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.line}`, fontSize: 12, color: C.inkSoft }}>
-          <span>Eaten <b style={{ color: C.ink }}>{t.calories}</b></span>
-          <span>Target <b style={{ color: C.ink }}>{adjTarget}</b></span>
-          <span>Left <b style={{ color: leftLabel > 0 ? C.greenSoft : C.coral }}>{Math.max(0, adjTarget - t.calories)}</b></span>
+        {/* macro bars */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 11, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+          <MacroBar name="Protein" val={t.protein} max={targets.protein} color={C.green} />
+          <MacroBar name="Carbs" val={t.carbs} max={targets.carbs} color={C.amber} />
+          <MacroBar name="Fat" val={t.fat} max={targets.fat} color={C.coral} />
+          <MacroBar name="Fiber" val={t.fiber} max={targets.fiber} color={C.leaf} />
         </div>
         {delta !== 0 && (
           <details style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
@@ -9206,25 +9422,47 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       </>)}
 
       {sub === "meals" && (<>
-      {/* QUICK ADD */}
-      {sectionTitle("Quick add")}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-        <button className="sprig-tap" onClick={onOpenCreateFavorite} style={{ ...btn(C.bg2, C.green), padding: "10px 14px", fontSize: 13 }}><BookMarked size={15} /> New favorite</button>
-      </div>
-      {library?.length > 0 && (
-        <>
-          <div style={{ margin: "8px 2px 8px", fontSize: 12.5, fontWeight: 600, color: C.muted }}>From your saved meals</div>
-          <div className="sprig-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-            {library.slice(0, 10).map((m) => (
-              <button key={m.id} className="sprig-tap" onClick={() => onQuick(m)}
-                style={{ flexShrink: 0, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "9px 13px", cursor: "pointer", textAlign: "left", boxShadow: C.shadow }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, maxWidth: 120, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                <div style={{ fontSize: 11, color: C.coral, marginTop: 2 }}>{m.calories} kcal · +</div>
-              </button>
-            ))}
-          </div>
-        </>
+      {/* FOOD TODAY */}
+      {sectionTitle("Food logged today")}
+      {entries.length === 0 ? (
+        <EmptyState icon={<Flame size={20} color={C.greenSoft} />} title="No meals logged"
+          text="Use Snap, Scan, Describe, or add a favorite meal to start tracking nutrition."
+          actionLabel="Log first meal" onAction={onOpenLogSheet} />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {(() => { const sorted = [...entries].sort((a, b) => (b.time || 0) - (a.time || 0)); return (showAllFood ? sorted : sorted.slice(0, 4)); })().map((e) => {
+            const ms = mealScore(e, targets);
+            const msCol = ms ? (ms.score >= 70 ? C.greenSoft : ms.score >= 45 ? C.amber : C.coral) : C.muted;
+            return (
+              <div key={e.id} ref={flashEntryId === e.id ? (el) => { if (el) setTimeout(() => { try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {} }, 80); } : undefined} className={flashEntryId === e.id ? "entry-flash" : ""} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: C.shadow, border: `1px solid ${flashEntryId === e.id ? C.lime : C.line}`, transition: "border-color .4s ease" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {ms && (
+                    <div style={{ width: 38, height: 38, borderRadius: 11, background: msCol + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: msCol, lineHeight: 1 }}>{ms.score}</span>
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{e.name}{e.mult !== 1 && <span style={{ color: C.muted, fontWeight: 500 }}> ×{e.mult}</span>}</div>
+                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{e.time ? minToLabel(tsToMin(e.time)) + " · " : ""}P {Math.round(e.protein_g * e.mult)} · C {Math.round(e.carbs_g * e.mult)} · F {Math.round(e.fat_g * e.mult)} g</div>
+                  </div>
+                  <div style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: 16 }}>{Math.round(e.calories * e.mult)}</div>
+                  <button className="sprig-tap" title="Save as favorite" onClick={() => onSaveFavorite(e, { onDuplicate: (fav, existing) => onFavoriteDuplicate && onFavoriteDuplicate(e, existing) })}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: C.amber, padding: 4 }}><BookMarked size={15} /></button>
+                  <button className="sprig-tap" onClick={() => onRemove(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><Trash2 size={15} /></button>
+                </div>
+                {advanced && ms && <div style={{ fontSize: 11, color: C.muted, marginTop: 8, paddingLeft: 50 }}>{ms.note}</div>}
+              </div>
+            );
+          })}
+          {entries.length > 4 && (
+            <button className="sprig-tap" onClick={() => setShowAllFood((s) => !s)}
+              style={{ background: C.bg2, border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", borderRadius: 12, padding: "10px 0", marginTop: 2 }}>
+              {showAllFood ? "Show less" : `View all ${entries.length} meals`}
+            </button>
+          )}
+        </div>
       )}
+
 
       {/* FAVORITE MEALS */}
       {sectionTitle("Favorite meals")}
@@ -9279,6 +9517,26 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
         <div style={{ fontSize: 11.5, color: C.amber, margin: "8px 4px 0", lineHeight: 1.5 }}>
           Alcohol today counts toward calories and nudges your recovery and sleep guidance.
         </div>
+      )}
+
+      {/* SAVE FAVORITES — collapsed below the main content */}
+      {sectionTitle("Save favorites")}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <button className="sprig-tap" onClick={onOpenCreateFavorite} style={{ ...btn(C.bg2, C.green), padding: "10px 14px", fontSize: 13 }}><BookMarked size={15} /> Save new favorite</button>
+      </div>
+      {library?.length > 0 && (
+        <>
+          <div style={{ margin: "8px 2px 8px", fontSize: 12.5, fontWeight: 600, color: C.muted }}>Saved meals</div>
+          <div className="sprig-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+            {library.slice(0, 10).map((m) => (
+              <button key={m.id} className="sprig-tap" onClick={() => onQuick(m)}
+                style={{ flexShrink: 0, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "9px 13px", cursor: "pointer", textAlign: "left", boxShadow: C.shadow }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, maxWidth: 120, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
+                <div style={{ fontSize: 11, color: C.coral, marginTop: 2 }}>{m.calories} kcal · +</div>
+              </button>
+            ))}
+          </div>
+        </>
       )}
       </>)}
 
@@ -9363,48 +9621,6 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
           </>
         );
       })()}
-      </>)}
-
-      {sub === "meals" && (<>
-      {/* FOOD TODAY */}
-      {sectionTitle("Food logged today")}
-      {entries.length === 0 ? (
-        <EmptyState icon={<Flame size={20} color={C.greenSoft} />} title="No meals yet"
-          text="Log with Snap, Scan, Describe, or add a favorite." />
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {(() => { const sorted = [...entries].sort((a, b) => (b.time || 0) - (a.time || 0)); return (showAllFood ? sorted : sorted.slice(0, 4)); })().map((e) => {
-            const ms = mealScore(e, targets);
-            const msCol = ms ? (ms.score >= 70 ? C.greenSoft : ms.score >= 45 ? C.amber : C.coral) : C.muted;
-            return (
-              <div key={e.id} ref={flashEntryId === e.id ? (el) => { if (el) setTimeout(() => { try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {} }, 80); } : undefined} className={flashEntryId === e.id ? "entry-flash" : ""} style={{ background: C.card, borderRadius: 14, padding: "12px 14px", boxShadow: C.shadow, border: `1px solid ${flashEntryId === e.id ? C.lime : C.line}`, transition: "border-color .4s ease" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {ms && (
-                    <div style={{ width: 38, height: 38, borderRadius: 11, background: msCol + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                      <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: msCol, lineHeight: 1 }}>{ms.score}</span>
-                    </div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{e.name}{e.mult !== 1 && <span style={{ color: C.muted, fontWeight: 500 }}> ×{e.mult}</span>}</div>
-                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{e.time ? minToLabel(tsToMin(e.time)) + " · " : ""}P {Math.round(e.protein_g * e.mult)} · C {Math.round(e.carbs_g * e.mult)} · F {Math.round(e.fat_g * e.mult)} g</div>
-                  </div>
-                  <div style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: 16 }}>{Math.round(e.calories * e.mult)}</div>
-                  <button className="sprig-tap" title="Save as favorite" onClick={() => onSaveFavorite(e, { onDuplicate: (fav, existing) => onFavoriteDuplicate && onFavoriteDuplicate(e, existing) })}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: C.amber, padding: 4 }}><BookMarked size={15} /></button>
-                  <button className="sprig-tap" onClick={() => onRemove(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><Trash2 size={15} /></button>
-                </div>
-                {advanced && ms && <div style={{ fontSize: 11, color: C.muted, marginTop: 8, paddingLeft: 50 }}>{ms.note}</div>}
-              </div>
-            );
-          })}
-          {entries.length > 4 && (
-            <button className="sprig-tap" onClick={() => setShowAllFood((s) => !s)}
-              style={{ background: C.bg2, border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", borderRadius: 12, padding: "10px 0", marginTop: 2 }}>
-              {showAllFood ? "Show less" : `View all ${entries.length} meals`}
-            </button>
-          )}
-        </div>
-      )}
       </>)}
 
       <div style={{ height: 6 }} />
@@ -9561,40 +9777,36 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
       )}
 
       {sub === "sleep" && (<>
-      {/* sleep debt hero */}
-      <div style={{ background: C.heroGrad1, borderRadius: 22, padding: 20, color: "#fff", boxShadow: C.shadow, marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      {/* sleep debt hero — Oura-style calm clarity */}
+      <div style={{ background: C.heroGrad1, borderRadius: 24, padding: "20px 18px", color: "#fff", boxShadow: C.shadow, marginTop: 12 }}>
+        {/* eyebrow */}
+        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, opacity: .65, textTransform: "uppercase", marginBottom: 12 }}>Sleep · 14-night average</div>
+        {/* main stat row */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 8 }}>
           <div>
-            <div style={{ fontSize: 11.5, opacity: .75, letterSpacing: .3 }}>Sleep debt · weighted, last 14 nights</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 4 }}>
-              <span style={{ fontFamily: "Fraunces, serif", fontSize: 34, fontWeight: 700 }}>{debtMin < 30 ? "~0" : durLabel(debtMin)}</span>
-              <span style={{ fontSize: 12.5, fontWeight: 700, opacity: .9 }}>{sleepDebtLabel(debtMin).label}</span>
-            </div>
-            <div style={{ fontSize: 12, opacity: .8, marginTop: 2 }}>
-              {debtMin < 30 ? "You're well rested 🌿" : debtMin < 90 ? "Slightly behind — one early night clears it." : debtMin < 180 ? "A bit behind — bank a couple of early nights." : "High debt — prioritize sleep this week."}
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 36, fontWeight: 700, lineHeight: 1 }}>{debtMin < 30 ? "~0" : durLabel(debtMin)}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 700, marginTop: 5, opacity: .9 }}>debt · {sleepDebtLabel(debtMin).label}</div>
+            <div style={{ fontSize: 11.5, opacity: .75, marginTop: 4, lineHeight: 1.5 }}>
+              {debtMin < 30 ? "Well rested — keep it up 🌿" : debtMin < 90 ? "One early night clears it." : debtMin < 180 ? "A few early nights will help." : "Prioritize sleep this week."}
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 11.5, opacity: .75 }}>Need</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700 }}>{durLabel(need)}</div>
+          <div style={{ textAlign: "center", background: "rgba(255,255,255,.10)", borderRadius: 14, padding: "10px 14px", flexShrink: 0, marginLeft: 12 }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700 }}>{durLabel(need)}</div>
+            <div style={{ fontSize: 10, opacity: .7, fontWeight: 600, letterSpacing: .3, marginTop: 2 }}>NEED / NIGHT</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 90px", background: "rgba(255,255,255,.1)", borderRadius: 12, padding: "10px 12px" }}>
-            <div style={{ fontSize: 10.5, opacity: .75, display: "flex", alignItems: "center", gap: 4 }}><BedDouble size={12} /> BEDTIME</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginTop: 2 }}>{minToLabel(rec.recBed)}</div>
-          </div>
-          <div style={{ flex: "1 1 90px", background: "rgba(255,255,255,.1)", borderRadius: 12, padding: "10px 12px" }}>
-            <div style={{ fontSize: 10.5, opacity: .75, display: "flex", alignItems: "center", gap: 4 }}><Sun size={12} /> WAKE</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginTop: 2 }}>{minToLabel(rec.recWake)}</div>
-          </div>
-          <div style={{ flex: "1 1 90px", background: "rgba(255,255,255,.1)", borderRadius: 12, padding: "10px 12px" }}>
-            <div style={{ fontSize: 10.5, opacity: .75, display: "flex", alignItems: "center", gap: 4 }}><Coffee size={12} /> NO CAFFEINE AFTER</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginTop: 2 }}>{minToLabel(rec.caffeineCutoff)}</div>
-          </div>
-        </div>
-        <div style={{ fontSize: 10.5, opacity: .65, marginTop: 14, lineHeight: 1.5 }}>
-          Sleep debt is weighted toward recent nights. Good nights reduce old debt — it isn't a permanent balance.
+        {/* timing chips */}
+        <div style={{ display: "flex", gap: 7, marginTop: 14, borderTop: "1px solid rgba(255,255,255,.12)", paddingTop: 14 }}>
+          {[
+            { icon: <BedDouble size={12} />, label: "Bed", value: minToLabel(rec.recBed) },
+            { icon: <Sun size={12} />, label: "Wake", value: minToLabel(rec.recWake) },
+            { icon: <Coffee size={12} />, label: "Caffeine off", value: minToLabel(rec.caffeineCutoff) },
+          ].map((chip) => (
+            <div key={chip.label} style={{ flex: 1, background: "rgba(255,255,255,.08)", borderRadius: 12, padding: "9px 10px", textAlign: "center" }}>
+              <div style={{ fontSize: 9, opacity: .65, display: "flex", alignItems: "center", justifyContent: "center", gap: 3, fontWeight: 600, letterSpacing: .3, marginBottom: 4, textTransform: "uppercase" }}>{chip.icon} {chip.label}</div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700 }}>{chip.value}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -9765,6 +9977,10 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
 
       {sub === "sleep" && (<>
       {/* history — Recent sleep logs with edit / delete / ignore (Fix 3) */}
+      {sleepLogs.length === 0 && (
+        <EmptyState icon={<Moon size={20} color={C.greenSoft} />} title="No sleep logged yet"
+          text="Add sleep manually or use the sleep session timer to track duration, quality, and debt." />
+      )}
       {sleepLogs.length >= 1 && (
         <>
           <div style={{ margin: "18px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Recent sleep logs</div>
@@ -10583,21 +10799,27 @@ function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, trackingPref
   };
   const inactive = Object.entries(CATEGORY_LABELS).filter(([k]) => trackingPrefs[k] === false);
   const items = [
-    ["Your targets", <Target size={18} color={C.lime} />, onGoTargets],
-    ["Health markers", <HeartPulse size={18} color={C.greenSoft} />, onGoHealth],
-    ["Mind & Habits", <Sparkles size={18} color={C.greenSoft} />, onGoMind],
-    ["Progress", <TrendingUp size={18} color={C.greenSoft} />, onGoProgress],
+    ["Your targets", <Target size={18} color={C.lime} />, onGoTargets, "Calories, protein, macro goals"],
+    ["Health markers", <HeartPulse size={18} color={C.greenSoft} />, onGoHealth, "Bloodwork, vitals & health score"],
+    ["Mind & Habits", <Sparkles size={18} color={C.greenSoft} />, onGoMind, "Daily habits & consistency streak"],
+    ["Progress", <TrendingUp size={18} color={C.greenSoft} />, onGoProgress, "Photos, weight & measurements"],
   ];
   return (
     <div className="sprig-rise">
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, margin: "4px 2px 14px", letterSpacing: -0.3 }}>More</div>
+      <div style={{ margin: "4px 2px 18px" }}>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, color: C.ink, letterSpacing: -.3 }}>More</div>
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>Targets, health markers, habits, and body progress.</div>
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-        {items.map(([title, icon, onClick]) => (
+        {items.map(([title, icon, onClick, desc]) => (
           <button key={title} className="sprig-tap" onClick={onClick}
-            style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "15px 16px", boxShadow: C.shadow, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: C.bg2, display: "grid", placeItems: "center", flexShrink: 0 }}>{icon}</div>
-            <span style={{ flex: 1, textAlign: "left", fontSize: 14.5, fontWeight: 600, color: C.ink }}>{title}</span>
-            <ChevronRight size={18} color={C.muted} />
+            style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: "16px 16px", boxShadow: C.shadow, cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.bg2, display: "grid", placeItems: "center", flexShrink: 0 }}>{icon}</div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.ink }}>{title}</div>
+              {desc && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{desc}</div>}
+            </div>
+            <ChevronRight size={17} color={C.muted} />
           </button>
         ))}
       </div>
@@ -10606,20 +10828,55 @@ function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, trackingPref
         <div style={{ marginTop: 28 }}>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "0 2px 10px", color: C.inkSoft }}>Not tracking right now</div>
           <div style={{ background: C.card, borderRadius: 18, padding: "4px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-            {inactive.map(([k, label], i) => (
-              <div key={k} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < inactive.length - 1 ? `1px solid ${C.line}` : "none" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>{label}</div>
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Hidden from your dashboard</div>
+            {inactive.map(([k, label], i) => {
+              const CAT_DESC = {
+                nutrition: "Calories, protein, macros & meals",
+                training: "Workouts, sets & strength progress",
+                sleep: "Duration, debt & smart alarm",
+                habits: "Daily habit streaks & consistency",
+                recovery: "Readiness score & limiters",
+                health: "Bloodwork & vital markers",
+                coach: "Personalized AI advice",
+                progress: "Progress photos & measurements",
+                water: "Daily hydration tracking",
+                supplements: "Daily supplement checklist",
+                alcohol: "Drink logging & calorie impact",
+                movement: "Steps & daily activity",
+                cardio: "Runs, rides & cardio sessions",
+              };
+              const CAT_ICON = {
+                nutrition: <Flame size={16} color={C.muted} />,
+                training: <Dumbbell size={16} color={C.muted} />,
+                sleep: <Moon size={16} color={C.muted} />,
+                habits: <BookOpen size={16} color={C.muted} />,
+                recovery: <Gauge size={16} color={C.muted} />,
+                health: <HeartPulse size={16} color={C.muted} />,
+                coach: <Sparkles size={16} color={C.muted} />,
+                progress: <Camera size={16} color={C.muted} />,
+                water: <Coffee size={16} color={C.muted} />,
+                supplements: <Pill size={16} color={C.muted} />,
+                alcohol: <span style={{ fontSize: 16, lineHeight: 1 }}>🍷</span>,
+                movement: <Activity size={16} color={C.muted} />,
+                cardio: <Activity size={16} color={C.muted} />,
+              };
+              return (
+                <div key={k} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < inactive.length - 1 ? `1px solid ${C.line}` : "none" }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 9, background: C.bg2, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    {CAT_ICON[k] || <Target size={16} color={C.muted} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.inkSoft }}>{label}</div>
+                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{CAT_DESC[k] || "Not currently tracked"}</div>
+                  </div>
+                  {onToggleTracking && (
+                    <button className="sprig-tap" onClick={() => { onToggleTracking(k, true); buzz("success"); }}
+                      style={{ background: C.green + "18", border: `1px solid ${C.green}44`, borderRadius: 10, padding: "6px 13px", fontSize: 12, fontWeight: 700, color: C.greenSoft, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
+                      Start tracking
+                    </button>
+                  )}
                 </div>
-                {onToggleTracking && (
-                  <button className="sprig-tap" onClick={() => onToggleTracking(k, true)}
-                    style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 10, padding: "6px 13px", fontSize: 12, fontWeight: 600, color: C.green, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
-                    Start tracking
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 8, lineHeight: 1.5, padding: "0 2px" }}>
             Your data is never deleted — enabling a category shows it again instantly.
@@ -10667,7 +10924,10 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
           <ChevronLeft size={17} /> {view === "settings" ? "Back" : "More"}
         </button>
       )}
-      {view === "settings" && <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, margin: "0 2px 14px", letterSpacing: -0.3 }}>Settings</div>}
+      {view === "settings" && (<>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, margin: "0 2px 4px", letterSpacing: -0.4, color: C.ink }}>Settings</div>
+        <div style={{ fontSize: 12.5, color: C.muted, margin: "0 2px 16px" }}>Targets, tracking preferences, account, and data.</div>
+      </>)}
       {view === "targets" && (<>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 12px" }}>Your targets</div>
 
@@ -11089,13 +11349,13 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         </div>
       </div>
 
-      {/* DEVELOPER */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Developer</div>
+      {/* ADVANCED */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Advanced</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "4px 2px" }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, color: C.ink }}>Developer mode</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Shows technical error details (e.g. AI/API codes). Off for everyday use.</div>
+            <div style={{ fontSize: 13, color: C.ink }}>Advanced mode</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Shows extra detail in scores, charts, and coach responses.</div>
           </div>
           <button className="sprig-tap" onClick={() => onSave({ ...profile, devMode: !profile?.devMode })}
             style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: profile?.devMode ? C.green : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
@@ -11141,7 +11401,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         ];
         return (
           <>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>What are you tracking?</div>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Tracking preferences</div>
             <div style={{ background: C.card, borderRadius: 18, padding: "4px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 4 }}>
               <div style={{ fontSize: 11.5, color: C.muted, padding: "10px 0 8px", lineHeight: 1.5 }}>
                 Disabling a category hides it everywhere. Your data is never deleted.
@@ -11229,39 +11489,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
               If you clear browser data, switch browsers, or uninstall the app, that data may be lost.
               <b> Export a backup regularly</b> — even once a month is enough to feel safe.
               <div style={{ marginTop: 6, fontSize: 10.5, color: C.muted }}>
-                Storage in use: <b style={{ color: C.inkSoft }}>browser localStorage</b>
-              </div>
-              <div style={{ marginTop: 4, fontSize: 10.5, color: C.muted }}>
-                Profile saved: <b style={{ color: (() => {
-                  try {
-                    if (typeof window !== "undefined" && window.localStorage) {
-                      return window.localStorage.getItem("sprig_profile_v1") != null ? C.greenSoft : C.coral;
-                    }
-                  } catch (_) {}
-                  return C.coral;
-                })() }}>{(() => {
-                  try {
-                    if (typeof window !== "undefined" && window.localStorage) {
-                      return window.localStorage.getItem("sprig_profile_v1") != null ? "yes" : "no";
-                    }
-                  } catch (_) {}
-                  return "no (localStorage not available)";
-                })()}</b>
-              </div>
-              <div style={{ marginTop: 4, fontSize: 10.5, color: C.muted }}>
-                Vitae keys in storage: <b style={{ color: C.inkSoft }}>{(() => {
-                  try {
-                    if (typeof window !== "undefined" && window.localStorage) {
-                      let n = 0;
-                      for (let i = 0; i < window.localStorage.length; i++) {
-                        const k = window.localStorage.key(i);
-                        if (k && k.startsWith("sprig_")) n++;
-                      }
-                      return n;
-                    }
-                  } catch (_) {}
-                  return 0;
-                })()}</b>
+                Export a backup regularly to keep your data safe.
               </div>
             </div>
             {/* export */}
@@ -11316,30 +11544,32 @@ function CoachCard({ icon, color, title, summary, bullets, accent, onOpen, openL
   const [open, setOpen] = useState(false);
   const shown = open ? bullets : bullets.slice(0, 3);
   return (
-    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
-        <div style={{ width: 38, height: 38, borderRadius: 11, background: color + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>{icon}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>{title}</div>
-          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1, lineHeight: 1.4 }}>{summary}</div>
+    <div style={{ background: C.card, borderRadius: 20, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10, overflow: "hidden" }}>
+      {/* header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "15px 16px" }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: color + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>{icon}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16.5, fontWeight: 700, color: C.ink }}>{title}</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>{summary}</div>
         </div>
+        {onOpen && <button className="sprig-tap" onClick={onOpen} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 11.5, fontWeight: 700, padding: "4px 0", display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>{openLabel} <ChevronRight size={13} /></button>}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {shown.map((b, i) => (
-          <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
-            <span style={{ width: 20, height: 20, borderRadius: 6, background: i === 0 ? color : C.bg2, color: i === 0 ? "#fff" : color, fontSize: 11, fontWeight: 700, display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
-            <span style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>{b}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
-        {bullets.length > 3 && (
-          <button className="sprig-tap" onClick={() => setOpen((o) => !o)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 11.5, fontWeight: 600, padding: 0 }}>
-            {open ? "Show less" : `+${bullets.length - 3} more`}
-          </button>
-        )}
-        {onOpen && <button className="sprig-tap" onClick={onOpen} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color, fontSize: 12, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 3 }}>{openLabel} <ChevronRight size={14} /></button>}
-      </div>
+      {/* bullets */}
+      {bullets?.length > 0 && (
+        <div style={{ borderTop: `1px solid ${C.line}`, padding: "12px 16px 14px", display: "flex", flexDirection: "column", gap: 9 }}>
+          {shown.map((b, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span style={{ width: 20, height: 20, borderRadius: 6, background: i === 0 ? color : C.bg2, color: i === 0 ? "#fff" : color, fontSize: 10.5, fontWeight: 700, display: "grid", placeItems: "center", flexShrink: 0, marginTop: 2 }}>{i + 1}</span>
+              <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.5 }}>{b}</span>
+            </div>
+          ))}
+          {bullets.length > 3 && (
+            <button className="sprig-tap" onClick={() => setOpen((o) => !o)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 11.5, fontWeight: 600, padding: "2px 0", textAlign: "left" }}>
+              {open ? "Show less" : `+${bullets.length - 3} more`}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -11350,24 +11580,27 @@ function CoachTab({ coach, advanced, moveInfo, timeline, plateaus, patterns, onG
   const diag = moveInfo?.diagnosis;
   return (
     <div className="sprig-rise">
-      <div style={{ margin: "4px 2px 14px" }}>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 21, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-          <Sparkles size={19} color={C.greenSoft} /> Your coach
-        </div>
-        <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>Clear actions from your data — no fluff, updates as you log.</div>
+      <div style={{ margin: "4px 2px 18px" }}>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, color: C.ink, letterSpacing: -.3 }}>Your coach</div>
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>Clear actions from your data — no fluff. More you log, sharper the advice.</div>
       </div>
 
       {onAsk && (
         <button className="sprig-tap" onClick={onAsk}
-          style={{ width: "100%", background: C.lime, border: "none", cursor: "pointer", borderRadius: 14, padding: "15px 16px", color: "#0A1F12", display: "flex", alignItems: "center", gap: 11, marginBottom: 12, boxShadow: `0 6px 18px ${C.lime}33` }}>
-          <Sparkles size={18} color="#0A1F12" />
+          style={{ width: "100%", background: C.lime, border: "none", cursor: "pointer", borderRadius: 16, padding: "16px 16px", color: "#0A1F12", display: "flex", alignItems: "center", gap: 12, marginBottom: 10, boxShadow: `0 8px 24px ${C.lime}40` }}>
+          <div style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(0,0,0,.12)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Sparkles size={20} color="#0A1F12" />
+          </div>
           <div style={{ flex: 1, textAlign: "left" }}>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Ask coach</div>
-            <div style={{ fontSize: 11, opacity: .7, marginTop: 1 }}>Anything about training, food, sleep, or recovery</div>
+            <div style={{ fontSize: 15.5, fontWeight: 800, letterSpacing: -.2 }}>Ask coach</div>
+            <div style={{ fontSize: 11.5, opacity: .65, marginTop: 2 }}>Training, food, sleep, recovery — anything</div>
           </div>
           <ChevronRight size={17} />
         </button>
       )}
+      <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center", marginBottom: 14, lineHeight: 1.45, fontWeight: 500 }}>
+        Answers use your logged data. More you log = sharper the advice.
+      </div>
 
       {/* WHY AM I NOT PROGRESSING — headline diagnostic */}
       {diag && (diag.enough ? (
@@ -11619,10 +11852,10 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNot
     finally { setBusy(false); }
   };
   const presets = [
-    "Why is my bench stalling?",
-    "Why am I not gaining muscle?",
-    "What should I improve this week?",
-    "Should I cut, bulk, or maintain?",
+    "What should I focus on this week?",
+    "Am I recovering well enough to train hard?",
+    "How can I improve my sleep quality?",
+    "Should I cut, bulk, or maintain right now?",
   ];
   return (
     <Portal>
@@ -11839,6 +12072,7 @@ function QuickLogSheet({ profile, quickLog, date, onSave, onClose, tp = {} }) {
       confidence: "estimated",
       updatedAt: Date.now(),
     };
+    buzz("success");
     onSave(ql);
   };
 
@@ -12098,7 +12332,7 @@ function AddHabitForm({ onSave, onCancel, initial }) {
   );
 }
 
-function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabit2, onEditHabit2, onArchiveHabit2, onRestoreHabit2, onDeleteHabit2, onUndoCompletion }) {
+function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabit2, onEditHabit2, onArchiveHabit2, onRestoreHabit2, onDeleteHabit2, onUndoCompletion, tp = {} }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingHabit, setEditingHabit] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -12126,7 +12360,16 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
 
   // Suggestions — filter out ones user already tracks
   const existingNames = new Set(habits2.map((h) => h.name.toLowerCase()));
-  const suggestions = HABIT_SUGGESTIONS.filter((s) => !existingNames.has(s.name.toLowerCase()));
+  const suggestions = HABIT_SUGGESTIONS.filter((s) => {
+    if (existingNames.has(s.name.toLowerCase())) return false;
+    // Don't suggest habits for disabled tracking categories
+    const cat = s.category || "";
+    if (cat === "nutrition" && tp.nutrition === false) return false;
+    if (cat === "sleep" && tp.sleep === false) return false;
+    if ((cat === "training" || cat === "fitness") && tp.training === false) return false;
+    if (cat === "health" && tp.health === false) return false;
+    return true;
+  });
 
   const handleSaveForm = (def) => {
     if (editingHabit) { onEditHabit2(editingHabit.id, def); setEditingHabit(null); }
@@ -12642,6 +12885,7 @@ function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, target
 function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, onAddPain, onUpdatePain, onRemovePain }) {
   const hr = healthReport || {};
   const radar = healthInfo?.radar || [];
+  const disabledCats = hr.disabledCategories || [];
 
 
 
@@ -12793,7 +13037,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
         <div style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 14, padding: "11px 14px", marginBottom: 12, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
           <b style={{ color: C.inkSoft }}>Not included: </b>
           {disabledCats.map(k => k.charAt(0).toUpperCase() + k.slice(1)).join(", ")} tracking is off.
-          {" "}Enable in Settings → What are you tracking?
+          {" "}Enable in Settings → Tracking preferences.
         </div>
       )}
 
@@ -12954,12 +13198,13 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
     onStartRest(ex.name);
   }
   return (
-    <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10, position: "relative" }}>
+    <div style={{ background: C.cardSolid, borderRadius: 24, padding: "18px 16px", boxShadow: "0 2px 16px rgba(0,0,0,.28)", border: `1px solid ${C.line}`, marginBottom: 16, position: "relative" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{ex.name}</div>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 1, textTransform: "capitalize" }}>
-            {ex.group}{meta?.sec?.length ? ` · ${meta.sec.join(", ")}` : ""}{ex.sets.length ? ` · ${ex.sets.length} set${ex.sets.length > 1 ? "s" : ""} done` : ""}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.15 }}>{ex.name}</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 3, textTransform: "capitalize", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+            <span>{ex.group}{meta?.sec?.length ? ` · ${meta.sec.slice(0,2).join(", ")}` : ""}</span>
+            {ex.sets.length > 0 && <span style={{ color: C.greenSoft, fontWeight: 600 }}>· {ex.sets.length} set{ex.sets.length !== 1 ? "s" : ""}</span>}
           </div>
         </div>
         <button className="sprig-tap" onClick={() => setShowCue((s) => !s)} title="Form cue" style={{ background: C.bg2, border: "none", cursor: "pointer", width: 30, height: 30, borderRadius: 9, display: "grid", placeItems: "center", color: C.greenSoft }}><BookOpen size={15} /></button>
@@ -12978,8 +13223,8 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         if (!risk) return null;
         const c = risk.tone === "bad" ? C.coral : risk.tone === "warn" ? "#E0714A" : C.amber;
         return (
-          <div style={{ background: c + "12", border: `1px solid ${c}44`, borderRadius: 10, padding: "8px 11px", marginTop: 10, fontSize: 12, color: C.inkSoft, display: "flex", gap: 7, alignItems: "center" }}>
-            <HeartPulse size={14} color={c} style={{ flexShrink: 0 }} /> <span>{risk.text}</span>
+          <div style={{ background: c + "15", border: `1px solid ${c}55`, borderRadius: 10, padding: "9px 12px", marginTop: 10, fontSize: 12, color: C.inkSoft, display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <HeartPulse size={14} color={c} style={{ flexShrink: 0, marginTop: 1 }} /> <span style={{ lineHeight: 1.5 }}>{risk.text}</span>
           </div>
         );
       })()}
@@ -12993,71 +13238,92 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
 
       {/* logged sets */}
       {ex.sets.length > 0 && (
-        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 5 }}>
-          {ex.sets.map((s, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, background: C.bg, borderRadius: 9, padding: "7px 11px" }}>
-              <span style={{ width: 36, color: C.muted, fontSize: 11 }}>Set {i + 1}</span>
-              <span style={{ fontWeight: 600 }}>{s.w}{unit} × {s.reps}</span>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+          {ex.sets.length > 5 && (
+            <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "4px 0" }}>
+              +{ex.sets.length - 5} earlier sets hidden
+            </div>
+          )}
+          {ex.sets.slice(-5).map((s, i) => {
+            const realIdx = ex.sets.length > 5 ? ex.sets.length - 5 + i : i;
+            return (
+            <div key={realIdx} style={{ display: "flex", alignItems: "center", gap: 10, background: realIdx === ex.sets.length - 1 ? C.green + "20" : C.bg2, border: `1px solid ${realIdx === ex.sets.length - 1 ? C.green + "44" : C.line}`, borderRadius: 13, padding: "9px 11px" }}>
+              {/* set number badge */}
+              <div style={{ width: 24, height: 24, borderRadius: 7, background: realIdx === ex.sets.length - 1 ? C.green : C.card, display: "grid", placeItems: "center", flexShrink: 0, border: realIdx === ex.sets.length - 1 ? "none" : `1px solid ${C.line}` }}>
+                <span style={{ fontSize: 10.5, fontWeight: 800, color: realIdx === ex.sets.length - 1 ? "#fff" : C.muted, lineHeight: 1 }}>{realIdx + 1}</span>
+              </div>
+              <span style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: 15, color: C.ink, flex: 1 }}>
+                {s.w}<span style={{ color: C.muted, fontWeight: 400, fontFamily: "DM Sans", fontSize: 12 }}>{unit}</span>
+                {" "}<span style={{ color: C.muted, fontFamily: "DM Sans", fontSize: 13 }}>×</span>{" "}
+                {s.reps}<span style={{ color: C.muted, fontWeight: 400, fontFamily: "DM Sans", fontSize: 12 }}>r</span>
+              </span>
               {advanced && (
-                <button className="sprig-tap" onClick={() => onOpenRirPrompt && onOpenRirPrompt(exIdx, i)} title="Set reps in reserve"
-                  style={{ background: s.rir == null ? C.amber + "22" : "transparent", border: "none", cursor: "pointer", color: s.rir == null ? C.amber : C.muted, fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "2px 6px" }}>
-                  {s.rir == null ? "+ RIR" : `RIR ${s.rir}`}
+                <button className="sprig-tap" onClick={() => onOpenRirPrompt && onOpenRirPrompt(exIdx, realIdx)} title="Set reps in reserve"
+                  style={{ background: s.rir == null ? C.amber + "22" : "transparent", border: "none", cursor: "pointer", color: s.rir == null ? C.amber : C.muted, fontSize: 10.5, fontWeight: 700, borderRadius: 7, padding: "3px 7px" }}>
+                  {s.rir == null ? "RIR?" : `@${s.rir}`}
                 </button>
               )}
-              {advanced && <span style={{ marginLeft: "auto", fontSize: 11, color: C.greenSoft }}><Term k="e1RM" /> {Math.round(est1RM(s.w, s.reps))}</span>}
-              <button className="sprig-tap" onClick={() => onRemoveSet(exIdx, i)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 2, marginLeft: advanced ? 0 : "auto" }}><X size={13} /></button>
+              {advanced && <span style={{ fontSize: 10.5, color: C.greenSoft, fontWeight: 600, whiteSpace: "nowrap" }}>{Math.round(est1RM(s.w, s.reps))}kg</span>}
+              <button className="sprig-tap" onClick={() => onRemoveSet(exIdx, realIdx)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: "3px 4px", flexShrink: 0 }}><X size={12} /></button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {sug && ex.sets.length === 0 && (() => {
         const action = sug.action || "add_w";
         const styleMap = {
-          add_w:   { c: C.greenSoft, ic: <ArrowUp size={13} /> },
-          add_rep: { c: C.greenSoft, ic: <Plus size={13} /> },
-          repeat:  { c: C.amber,     ic: <Repeat size={13} /> },
-          back_off:{ c: C.amber,     ic: <Minus size={13} /> },
-          hold:    { c: C.amber,     ic: <Square size={13} /> },
-          deload:  { c: C.coral,     ic: <TrendingDown size={13} /> },
+          add_w:   { c: C.greenSoft, ic: <ArrowUp size={12} /> },
+          add_rep: { c: C.greenSoft, ic: <Plus size={12} /> },
+          repeat:  { c: C.amber,     ic: <Repeat size={12} /> },
+          back_off:{ c: C.amber,     ic: <Minus size={12} /> },
+          hold:    { c: C.amber,     ic: <Square size={12} /> },
+          deload:  { c: C.coral,     ic: <TrendingDown size={12} /> },
         };
         const sty = styleMap[action] || styleMap.add_w;
         const text = sug.text || sug.note;
         const isPush = action === "add_w" || action === "add_rep";
+        const summaryLabel = sug.prevW != null
+          ? `${sug.prevW}${unit} × ${sug.prevReps} → ${sug.w}${unit} × ${sug.reps}`
+          : (text || "Progression hint");
         return (
-          <div style={{ background: isPush ? C.green + "0d" : C.bg, borderRadius: 12, padding: "10px 12px", marginTop: 9, border: `1px solid ${isPush ? C.green + "33" : C.line}` }}>
-            {sug.prevW != null && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginBottom: 5 }}>
-                <span style={{ color: C.muted }}>Last: <b style={{ color: C.inkSoft }}>{sug.prevW}{unit} × {sug.prevReps}</b></span>
-                <ChevronRight size={13} color={C.muted} />
-                <span style={{ color: sty.c, fontWeight: 700 }}>Target: {sug.w}{unit} × {sug.reps}</span>
-              </div>
-            )}
-            <div style={{ fontSize: 11.5, color: sty.c, display: "flex", alignItems: "flex-start", gap: 6, lineHeight: 1.45 }}>
-              <span style={{ marginTop: 1 }}>{sty.ic}</span><span>{text}</span>
+          <details style={{ marginTop: 10 }} open={false}>
+            <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 7, padding: "8px 10px", background: isPush ? C.green + "0d" : C.bg2, borderRadius: 10, border: `1px solid ${isPush ? C.green + "22" : C.line}` }}>
+              <span style={{ marginTop: 0 }}>{sty.ic}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: sty.c, flex: 1 }}>{summaryLabel}</span>
+              <ChevronDown size={13} color={C.muted} />
+            </summary>
+            <div style={{ background: isPush ? C.green + "0a" : C.bg, borderRadius: "0 0 10px 10px", padding: "10px 12px", border: `1px solid ${isPush ? C.green + "22" : C.line}`, borderTop: "none", fontSize: 11.5, color: sty.c, lineHeight: 1.5 }}>
+              {text}
             </div>
-          </div>
+          </details>
         );
       })()}
 
       {!sug && ex.sets.length === 0 && (
-        <div style={{ background: C.bg, borderRadius: 12, padding: "10px 12px", marginTop: 9, border: `1px solid ${C.line}`, fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>
-          Start conservative — pick a weight you can do for 8–12 reps with about 2 in reserve. Next time, Vitae pushes you to beat it.
+        <div style={{ background: C.bg2, borderRadius: 10, padding: "9px 11px", marginTop: 10, border: `1px solid ${C.line}`, fontSize: 11.5, color: C.muted, lineHeight: 1.45 }}>
+          Pick a weight you can do 8–12 reps with ~2 in reserve. Vitae will push you next session.
         </div>
       )}
 
       {/* input row */}
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10 }}>
-        <span style={{ fontSize: 11, color: C.muted, width: 34, fontWeight: 600 }}>Set {setNo}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
+        {/* Set number circle */}
+        <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.bg2, border: `1px solid ${C.line}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.muted, lineHeight: 1 }}>{setNo}</span>
+        </div>
         <input value={w} onChange={(e) => setW(e.target.value)} inputMode="decimal" placeholder={unit}
-          style={{ width: 52, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 4px", fontFamily: "DM Sans", fontSize: 15, fontWeight: 600, background: C.bg }} />
-        <span style={{ color: C.muted, fontSize: 13 }}>×</span>
+          style={{ width: 66, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", transition: "border-color .15s" }}
+          onFocus={(e) => e.target.style.borderColor = C.green} onBlur={(e) => e.target.style.borderColor = ""} />
+        <span style={{ color: C.muted, fontSize: 14, fontWeight: 600, flexShrink: 0 }}>×</span>
         <input value={reps} onChange={(e) => setReps(e.target.value)} inputMode="numeric" placeholder="reps"
-          style={{ width: 52, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 4px", fontFamily: "DM Sans", fontSize: 15, fontWeight: 600, background: C.bg }} />
+          style={{ width: 62, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", transition: "border-color .15s" }}
+          onFocus={(e) => e.target.style.borderColor = C.green} onBlur={(e) => e.target.style.borderColor = ""} />
         {meta?.bar && (
-          <button className="sprig-tap" onClick={() => setShowPlate((s) => !s)} title="Plate calculator" style={{ background: showPlate ? C.green : C.bg2, border: "none", cursor: "pointer", width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", color: showPlate ? "#fff" : C.inkSoft }}><Calculator size={16} /></button>
+          <button className="sprig-tap" onClick={() => setShowPlate((s) => !s)} title="Plate calculator" style={{ background: showPlate ? C.green : C.bg2, border: "none", cursor: "pointer", width: 40, height: 40, borderRadius: 11, display: "grid", placeItems: "center", color: showPlate ? "#fff" : C.inkSoft, flexShrink: 0 }}><Calculator size={17} /></button>
         )}
-        <button className="sprig-tap" onClick={log} style={{ ...btn(C.green, "#fff"), flex: 1, padding: "10px 0" }}><Plus size={16} /> Complete set</button>
+        <button className="sprig-tap sprig-cta" onClick={log} style={{ flex: 1, background: C.green, color: "#fff", borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 800, boxShadow: `0 6px 18px ${C.green}50`, letterSpacing: -0.3, transition: "box-shadow .15s" }}><Check size={16} /> Log set</button>
       </div>
 
       {showPlate && meta?.bar && <PlateView target={parseFloat(w) || 0} unit={unit} />}
@@ -13100,9 +13366,9 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
       })()}
 
       {/* rest pref */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9, fontSize: 11.5, color: C.muted, flexWrap: "wrap" }}>
-        <Timer size={13} /> Rest {fmtClock(restSecs)}
-        <button className="sprig-tap" onClick={() => setEditRest((s) => !s)} style={{ background: "none", border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 11.5, fontWeight: 600, padding: 0, marginLeft: 2 }}>edit</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 11, fontSize: 12, color: C.muted, flexWrap: "wrap" }}>
+        <Timer size={13} color={C.muted} /> <span>Rest <b style={{ color: C.inkSoft }}>{fmtClock(restSecs)}</b></span>
+        <button className="sprig-tap" onClick={() => setEditRest((s) => !s)} style={{ background: "none", border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 11.5, fontWeight: 700, padding: 0, marginLeft: 2 }}>edit</button>
         {editRest && (
           <span style={{ display: "flex", gap: 4, marginLeft: 4, flexWrap: "wrap" }}>
             {[45, 60, 90, 120, 180, 240].map((s) => (
@@ -13380,17 +13646,22 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
 
   // ACTIVE WORKOUT
   if (active) {
-    const elapsed = Math.round((Date.now() - active.startTs) / 60000);
+    const elapsedSec = Math.floor((Date.now() - active.startTs) / 1000);
     const totalSets = active.exercises.reduce((a, e) => a + e.sets.length, 0);
     return (
       <div className="sprig-rise">
-        <div style={{ position: "sticky", top: 0, zIndex: 5, background: C.green, borderRadius: 16, padding: "12px 16px", color: "#fff", display: "flex", alignItems: "center", gap: 12, boxShadow: C.shadow, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, opacity: .8 }}>{active.routineName ? active.routineName.toUpperCase() : "WORKOUT IN PROGRESS"}</div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700 }}>{elapsed} min · {totalSets} sets</div>
+        <div style={{ position: "sticky", top: 0, zIndex: 110, background: C.cardSolid, border: `1px solid ${C.green}44`, borderRadius: 22, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 28px rgba(0,0,0,.36)", marginBottom: 18 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>
+              {active.routineName || "New Workout"}
+            </div>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 32, fontWeight: 700, color: C.lime, lineHeight: 1, letterSpacing: -1 }}>
+              {fmtClock(elapsedSec)}
+            </div>
+            {totalSets > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{totalSets} set{totalSets !== 1 ? "s" : ""} logged</div>}
           </div>
-          <button className="sprig-tap" onClick={onCancel} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), padding: "9px 12px", fontSize: 12.5 }}>Cancel</button>
-          <button className="sprig-tap" onClick={onFinish} style={{ ...btn("#fff", C.green), padding: "9px 14px", fontSize: 12.5 }}><Check size={15} /> Finish</button>
+          <button className="sprig-tap" onClick={onCancel} style={{ background: "transparent", border: `1px solid ${C.line}`, cursor: "pointer", padding: "9px 13px", borderRadius: 11, fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: "DM Sans" }}>Cancel</button>
+          <button className="sprig-tap" onClick={onFinish} style={{ ...btn(C.green, "#fff"), padding: "11px 20px", fontSize: 14, fontWeight: 800, boxShadow: `0 4px 16px ${C.green}66`, letterSpacing: -0.2 }}><Check size={16} /> Finish</button>
         </div>
 
         {/* (Rest timer now renders at the app-frame level so it tracks scroll — see SprigApp.) */}
@@ -13405,7 +13676,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
 
         {picker
           ? <ExercisePicker equipment={profile?.equipment} onPick={(n) => { onAddExercise(n); setPicker(false); }} onClose={() => setPicker(false)} onCustom={(n, g) => { EXERCISES.push({ name: n, group: g, sec: [], type: "accessory", bar: false, cue: "Move through a full range of motion with control." }); onAddExercise(n); setPicker(false); }} />
-          : <button className="sprig-tap" onClick={() => setPicker(true)} style={{ ...btn(C.card, C.green), width: "100%", padding: "14px 0", border: `1px dashed ${C.greenSoft}`, boxShadow: C.shadow }}><Plus size={18} /> Add exercise</button>}
+          : <button className="sprig-tap" onClick={() => setPicker(true)} style={{ width: "100%", padding: "16px 0", background: C.cardSolid, border: `1.5px dashed ${C.green}66`, borderRadius: 18, cursor: "pointer", color: C.greenSoft, fontSize: 15, fontWeight: 700, fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: C.shadow }}><Plus size={18} color={C.greenSoft} /> Add exercise</button>}
         <div style={{ height: 8 }} />
       </div>
     );
@@ -13487,11 +13758,11 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
       )}
 
       <div style={{ display: "flex", gap: 9 }}>
-        <button className="sprig-tap" onClick={() => onStart()} style={{ ...btn(C.lime, "#0A1F12"), flex: 2, padding: "17px 0", fontSize: 16, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
+        <button className="sprig-tap" onClick={() => onStart()} style={{ ...btn(C.lime, "#0A1F12"), flex: 1, padding: "17px 0", fontSize: 16, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
           <Play size={18} /> Start workout
         </button>
-        <button className="sprig-tap" onClick={() => setBuilder({})} style={{ ...btn(C.card, C.ink), flex: 1, padding: "17px 0", fontSize: 13.5, border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
-          <Plus size={17} /> Routine
+        <button className="sprig-tap" onClick={() => setBuilder({})} style={{ ...btn(C.card, C.ink), padding: "17px 16px", fontSize: 13, border: `1px solid ${C.line}`, boxShadow: C.shadow, whiteSpace: "nowrap" }}>
+          <Plus size={16} /> Routine
         </button>
       </div>
 
@@ -13713,9 +13984,9 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
           </div>
         </>
       ) : (
-        <div style={{ textAlign: "center", color: C.muted, fontSize: 13, padding: "26px 10px", lineHeight: 1.5 }}>
-          No workouts yet. Tap <b>Start workout</b>, add an exercise, and log your first set — progressive-overload suggestions kick in from session two.
-        </div>
+        <EmptyState icon={<Dumbbell size={20} color={C.greenSoft} />} title="Start your first workout"
+          text="Start a workout to track strength, volume, and progressive overload. Suggestions kick in after your first session."
+          actionLabel="Start workout" onAction={onStart} />
       )}
       </>)}
       <div style={{ height: 6 }} />
@@ -13907,7 +14178,7 @@ function RecoveryStrengthSection({ workouts, profile, trainInfo, sleepInfo, adva
             <span style={{ flex: 1, fontSize: 13, color: C.inkSoft }}>{n}</span>
             {mode === "recovery" ? (
               <span style={{ fontSize: 12.5, fontWeight: 600, color: rec[k].lastTs ? (rec[k].recovered ? C.greenSoft : recoveryColor(rec[k].fatigue)) : C.muted }}>
-                {!rec[k].lastTs ? "fresh" : rec[k].recovered ? "ready" : `${rec[k].remaining}h left`}
+                {!rec[k].lastTs ? "Not trained" : rec[k].recovered ? "Ready" : `${rec[k].remaining}h left`}
               </span>
             ) : (
               rank[k].hasData
