@@ -5678,13 +5678,6 @@ function SprigApp() {
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
   // foodOverlayMode above replaces composer + logSheet
-  // ── Body scroll lock: prevent background content scrolling behind modals ──
-  useEffect(() => {
-    const open = !!(foodOverlayMode || quickOpen || winsOpen || recapView || favChooser || favDup || confirmDeleteEntry || rirPrompt || repRangePrompt);
-    if (open) { document.body.classList.add("modal-open"); }
-    else { document.body.classList.remove("modal-open"); }
-    return () => { document.body.classList.remove("modal-open"); };
-  }, [foodOverlayMode, quickOpen, winsOpen, recapView, favChooser, favDup, confirmDeleteEntry, rirPrompt, repRangePrompt]);
   const [favoriteMode, setFavoriteMode] = useState(false); // when true, an AI/photo/text result is saved as a favorite (not logged to today)
   const [supps, setSupps] = useState([]);       // saved supplement stack
   const [takenIds, setTakenIds] = useState([]); // supplement ids taken today
@@ -6757,6 +6750,13 @@ function SprigApp() {
   }
   const [rirPrompt, setRirPrompt] = useState(null); // { exIdx, setIdx } — frame-level RIR sheet
   function chooseRir(exIdx, setIdx, val) { woSetRir(exIdx, setIdx, val); setRirPrompt(null); buzz("select"); }
+  // ── Body scroll lock ── must appear AFTER all state vars it references to avoid TDZ errors in production
+  useEffect(() => {
+    const open = !!(foodOverlayMode || quickOpen || winsOpen || recapView || favChooser || favDup || rirPrompt || repRangePrompt);
+    if (open) { document.body.classList.add("modal-open"); }
+    else { document.body.classList.remove("modal-open"); }
+    return () => { document.body.classList.remove("modal-open"); };
+  }, [foodOverlayMode, quickOpen, winsOpen, recapView, favChooser, favDup, rirPrompt, repRangePrompt]);
 
   // ---- Rest timer (lifted to app level so the floating UI tracks scroll reliably) ----
   const [rest, setRest] = useState(null);          // { exName, end, paused, remainingMs }
