@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Camera, ScanLine, PencilLine, Home, BookMarked, TrendingUp, User,
@@ -9,7 +9,7 @@ import {
   Target, BookOpen, Calculator, Repeat, Gauge, Pause, Play, PersonStanding, Square,
   ArrowUp, HeartPulse, Search, TrendingDown,
   Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal, Volume2,
-  Archive, Bell, Ruler
+  Archive, Bell, Ruler, Settings, Droplets
 } from "lucide-react";
 import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
 
@@ -104,13 +104,13 @@ const FONTS = `
 @keyframes pulse { 0%,100%{opacity:.45;} 50%{opacity:1;} }
 /* ── New Record achievement toast ── */
 @keyframes recordToastIn {
-  0%   { opacity:0; transform:translateX(-50%) translateY(-18px) scale(.88); }
-  62%  { opacity:1; transform:translateX(-50%) translateY(2px)   scale(1.04); }
-  100% { opacity:1; transform:translateX(-50%) translateY(0)     scale(1); }
+  0%   { opacity:0; transform:translateY(-16px) scale(.88); }
+  62%  { opacity:1; transform:translateY(2px)   scale(1.04); }
+  100% { opacity:1; transform:translateY(0)     scale(1); }
 }
 @keyframes recordToastOut {
-  0%   { opacity:1; transform:translateX(-50%) translateY(0)     scale(1); }
-  100% { opacity:0; transform:translateX(-50%) translateY(-10px) scale(.96); }
+  0%   { opacity:1; transform:translateY(0)     scale(1); }
+  100% { opacity:0; transform:translateY(-10px) scale(.96); }
 }
 @keyframes recordIconPop {
   0%   { transform:scale(.5) rotate(-12deg); opacity:.4; }
@@ -508,6 +508,31 @@ function buzz(kind = "tap") {
   if (!HAPTICS_ON) return;
   try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
 }
+// Two-note achievement chime for new records — 660 Hz → 880 Hz, <500ms total.
+function playRecordSound() {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const vol = 0.2;
+    // Note 1 — E5 (660 Hz)
+    const o1 = ctx.createOscillator(), g1 = ctx.createGain();
+    o1.connect(g1); g1.connect(ctx.destination);
+    o1.type = "sine"; o1.frequency.value = 660;
+    g1.gain.setValueAtTime(0, t);
+    g1.gain.linearRampToValueAtTime(vol, t + 0.012);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.19);
+    o1.start(t); o1.stop(t + 0.20);
+    // Note 2 — A5 (880 Hz), offset by 130ms
+    const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+    o2.connect(g2); g2.connect(ctx.destination);
+    o2.type = "sine"; o2.frequency.value = 880;
+    g2.gain.setValueAtTime(0, t + 0.13);
+    g2.gain.linearRampToValueAtTime(vol * 1.15, t + 0.17);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.47);
+    o2.start(t + 0.13); o2.stop(t + 0.48);
+  } catch (_) {}
+}
 // Play one "ring" of the chosen sound at the given volume (0–1). Returns approx duration in ms.
 function playAlarmTone(kind = "bells", volume = 0.7) {
   if (kind === "vibrate") {
@@ -646,6 +671,159 @@ const CARDIO_TYPES = [
   ["boxing",   "Boxing",   "🥊"],
   ["other",    "Other",    "💨"],
 ];
+
+// ── Sports library — MET values (easy/moderate/hard) + per-muscle impact (0=none 1=light 2=moderate 3=high) ──
+const SPORTS_LIBRARY = [
+  // ---- TEAM SPORTS ----
+  { id:"football",    name:"Football / Soccer", emoji:"⚽", cat:"team",
+    met:{easy:5,moderate:7,hard:10},
+    muscles:{quads:3,hamstrings:3,glutes:2,calves:3,abs:2,lower_back:1} },
+  { id:"basketball",  name:"Basketball",        emoji:"🏀", cat:"team",
+    met:{easy:4.5,moderate:6,hard:8},
+    muscles:{quads:3,calves:3,glutes:2,hamstrings:2,shoulders:1,abs:2} },
+  { id:"tennis",      name:"Tennis",            emoji:"🎾", cat:"team",
+    met:{easy:4,moderate:6,hard:8},
+    muscles:{shoulders:2,forearms:2,calves:2,quads:2,abs:2,back:1} },
+  { id:"padel",       name:"Padel",             emoji:"🏓", cat:"team",
+    met:{easy:4,moderate:5.5,hard:7.5},
+    muscles:{shoulders:2,forearms:2,calves:2,quads:2,abs:2} },
+  { id:"volleyball",  name:"Volleyball",        emoji:"🏐", cat:"team",
+    met:{easy:3,moderate:4.5,hard:6},
+    muscles:{shoulders:2,calves:2,quads:2,abs:1,back:1} },
+  { id:"rugby",       name:"Rugby",             emoji:"🏉", cat:"team",
+    met:{easy:6,moderate:8,hard:11},
+    muscles:{quads:3,hamstrings:2,glutes:2,shoulders:2,chest:1,abs:2,back:2} },
+  { id:"handball",    name:"Handball",          emoji:"🤾", cat:"team",
+    met:{easy:5,moderate:7,hard:9},
+    muscles:{shoulders:2,quads:2,calves:2,abs:2,forearms:1} },
+  { id:"hockey",      name:"Hockey",            emoji:"🏒", cat:"team",
+    met:{easy:5,moderate:7,hard:9},
+    muscles:{quads:3,glutes:2,hamstrings:2,calves:2,abs:2,back:1} },
+  { id:"badminton",   name:"Badminton",         emoji:"🏸", cat:"team",
+    met:{easy:3.5,moderate:5.5,hard:7.5},
+    muscles:{shoulders:2,forearms:2,quads:2,calves:2,abs:1} },
+  // ---- COMBAT SPORTS ----
+  { id:"boxing",      name:"Boxing",            emoji:"🥊", cat:"combat",
+    met:{easy:6,moderate:9,hard:12},
+    muscles:{shoulders:3,chest:2,triceps:2,back:2,biceps:1,abs:3,calves:2} },
+  { id:"kickboxing",  name:"Kickboxing",        emoji:"🥊", cat:"combat",
+    met:{easy:6,moderate:9,hard:12},
+    muscles:{shoulders:3,quads:2,calves:2,abs:3,chest:2,triceps:1} },
+  { id:"muay_thai",   name:"Muay Thai",         emoji:"🥋", cat:"combat",
+    met:{easy:6,moderate:9,hard:12},
+    muscles:{shoulders:3,quads:2,calves:2,abs:3,chest:2,triceps:1,hamstrings:1} },
+  { id:"mma",         name:"MMA",               emoji:"🥋", cat:"combat",
+    met:{easy:6,moderate:9,hard:13},
+    muscles:{back:3,shoulders:3,chest:2,biceps:2,abs:3,quads:2,hamstrings:2,glutes:1} },
+  { id:"wrestling",   name:"Wrestling",         emoji:"🤼", cat:"combat",
+    met:{easy:5,moderate:8,hard:11},
+    muscles:{back:3,biceps:3,shoulders:3,chest:2,abs:3,glutes:2,hamstrings:2,quads:2} },
+  { id:"bjj",         name:"BJJ",               emoji:"🥋", cat:"combat",
+    met:{easy:5,moderate:8,hard:11},
+    muscles:{back:3,biceps:3,shoulders:3,chest:2,abs:3,glutes:2,hamstrings:2,quads:2,forearms:2} },
+  { id:"judo",        name:"Judo",              emoji:"🥋", cat:"combat",
+    met:{easy:4.5,moderate:7,hard:10},
+    muscles:{back:3,shoulders:3,biceps:2,forearms:2,abs:2,glutes:1,quads:1} },
+  // ---- CARDIO / ENDURANCE ----
+  { id:"running",     name:"Running",           emoji:"🏃", cat:"cardio",
+    met:{easy:7,moderate:9.8,hard:12},
+    muscles:{quads:3,hamstrings:2,glutes:2,calves:3,abs:1} },
+  { id:"jogging",     name:"Jogging",           emoji:"🏃", cat:"cardio",
+    met:{easy:5,moderate:7,hard:9},
+    muscles:{quads:2,hamstrings:2,glutes:2,calves:2,abs:1} },
+  { id:"sprints",     name:"Sprint intervals",  emoji:"⚡", cat:"cardio",
+    met:{easy:9,moderate:12,hard:15},
+    muscles:{quads:3,hamstrings:3,glutes:3,calves:3,abs:2} },
+  { id:"walking",     name:"Walking",           emoji:"🚶", cat:"cardio",
+    met:{easy:2.8,moderate:3.5,hard:4.3},
+    muscles:{quads:1,hamstrings:1,glutes:1,calves:1} },
+  { id:"hiking",      name:"Hiking",            emoji:"🥾", cat:"cardio",
+    met:{easy:4,moderate:5.5,hard:7},
+    muscles:{quads:2,glutes:2,hamstrings:2,calves:2,lower_back:1} },
+  { id:"cycling",     name:"Cycling",           emoji:"🚴", cat:"cardio",
+    met:{easy:4,moderate:7,hard:10},
+    muscles:{quads:3,glutes:2,calves:2,hamstrings:2,abs:1} },
+  { id:"stationary_bike", name:"Stationary bike", emoji:"🚴", cat:"cardio",
+    met:{easy:4,moderate:7,hard:10},
+    muscles:{quads:3,glutes:2,calves:2,hamstrings:2,abs:1} },
+  { id:"swimming",    name:"Swimming",          emoji:"🏊", cat:"cardio",
+    met:{easy:5,moderate:7,hard:10},
+    muscles:{back:3,shoulders:3,chest:2,triceps:2,abs:2,quads:1,hamstrings:1} },
+  { id:"rowing",      name:"Rowing",            emoji:"🚣", cat:"cardio",
+    met:{easy:4.5,moderate:7,hard:9},
+    muscles:{back:3,biceps:2,shoulders:2,abs:2,quads:2,glutes:2,hamstrings:2} },
+  { id:"elliptical",  name:"Elliptical",        emoji:"🏃", cat:"cardio",
+    met:{easy:4,moderate:5.5,hard:7.5},
+    muscles:{quads:2,glutes:2,hamstrings:1,calves:1,abs:1} },
+  { id:"stairmaster", name:"Stairmaster",       emoji:"🪜", cat:"cardio",
+    met:{easy:5,moderate:7,hard:9},
+    muscles:{quads:3,glutes:3,calves:3,hamstrings:2,abs:1} },
+  { id:"jumprope",    name:"Jump rope",         emoji:"⚡", cat:"cardio",
+    met:{easy:8,moderate:11,hard:14},
+    muscles:{calves:3,quads:2,shoulders:1,abs:2} },
+  // ---- GYM / CONDITIONING ----
+  { id:"hiit",        name:"HIIT",              emoji:"🔥", cat:"gym",
+    met:{easy:7,moderate:9,hard:12},
+    muscles:{quads:2,glutes:2,abs:3,shoulders:2,chest:1,calves:2} },
+  { id:"circuit",     name:"Circuit training",  emoji:"🔄", cat:"gym",
+    met:{easy:6,moderate:8,hard:10},
+    muscles:{quads:2,chest:2,back:2,shoulders:2,abs:2,calves:1} },
+  { id:"crosstraining", name:"Cross-training",  emoji:"💪", cat:"gym",
+    met:{easy:6,moderate:8,hard:10},
+    muscles:{quads:2,back:2,shoulders:2,abs:2,chest:1} },
+  { id:"bodyweight",  name:"Bodyweight training",emoji:"💪", cat:"gym",
+    met:{easy:4,moderate:6,hard:8},
+    muscles:{chest:2,triceps:2,quads:2,shoulders:2,abs:2,back:1} },
+  { id:"mobility",    name:"Mobility",          emoji:"🧘", cat:"gym",
+    met:{easy:2,moderate:2.5,hard:3},
+    muscles:{abs:1,lower_back:1,glutes:1,shoulders:1} },
+  { id:"stretching",  name:"Stretching",        emoji:"🧘", cat:"gym",
+    met:{easy:1.5,moderate:2,hard:2.5},
+    muscles:{} },
+  { id:"yoga",        name:"Yoga",              emoji:"🧘", cat:"gym",
+    met:{easy:2.5,moderate:3,hard:4},
+    muscles:{abs:1,lower_back:1,glutes:1,shoulders:1,back:1} },
+  { id:"pilates",     name:"Pilates",           emoji:"🧘", cat:"gym",
+    met:{easy:3,moderate:4,hard:5},
+    muscles:{abs:2,lower_back:2,glutes:1,back:1} },
+  // ---- OTHER ----
+  { id:"climbing",    name:"Climbing",          emoji:"🧗", cat:"other",
+    met:{easy:6,moderate:8,hard:11},
+    muscles:{back:3,biceps:3,forearms:3,shoulders:2,abs:2,quads:1} },
+  { id:"skiing",      name:"Skiing",            emoji:"⛷", cat:"other",
+    met:{easy:5,moderate:7,hard:9},
+    muscles:{quads:3,glutes:2,hamstrings:2,abs:2,calves:2} },
+  { id:"skating",     name:"Skating",           emoji:"⛸", cat:"other",
+    met:{easy:5,moderate:7,hard:9},
+    muscles:{quads:2,glutes:2,calves:2,abs:1,hamstrings:1} },
+  { id:"dancing",     name:"Dancing",           emoji:"💃", cat:"other",
+    met:{easy:3,moderate:5,hard:7},
+    muscles:{quads:1,calves:2,abs:1,glutes:1} },
+];
+
+/** Calorie estimate: MET × bodyWeightKg × durationHours */
+function sportKcal(sport, durationMin, intensity, weightKg) {
+  if (!sport || !durationMin) return 0;
+  const met = sport.met?.[intensity] ?? sport.met?.moderate ?? 5;
+  const wt = weightKg || 70;
+  return Math.round(met * wt * (durationMin / 60));
+}
+
+/** Per-muscle fatigue contribution (0–85%) from a sport session.
+ *  Impact levels: 1=light→20%, 2=moderate→45%, 3=high→70%.
+ *  Scaled by intensity and duration (60min base). */
+function sportMuscleImpact(sport, durationMin, intensity) {
+  if (!sport?.muscles) return {};
+  const iF = {easy:0.65, moderate:1.0, hard:1.35}[intensity] || 1.0;
+  const dF = Math.min(2.0, (durationMin || 60) / 60);
+  const BASE = {1:20, 2:45, 3:70};
+  const result = {};
+  Object.entries(sport.muscles).forEach(([k, level]) => {
+    if (!level) return;
+    result[k] = Math.min(85, Math.round((BASE[level] || 0) * iF * dF));
+  });
+  return result;
+}
 // alcohol drink presets — alcohol_g is what feeds recovery logic
 const DRINK_PRESETS = [
   { id: "beer250",    name: "Beer 250ml",            kcal: 105, carbs: 8,  alcohol_g: 10 },
@@ -735,10 +913,13 @@ function calorieAdjustment({ daily, profile, targets, trainedToday, workoutAdj }
   }
   // strength-workout adjustment (separate from cardio; lifting doesn't appear in cardioSessions)
   const workoutK = workoutAdj?.kcal || 0;
-  let delta = stepDelta + cardioK + workoutK;
+  // sport sessions
+  const sportK = (Array.isArray(daily?.sportSessions) ? daily.sportSessions : [])
+    .reduce((a, s) => a + (s.estimatedCalories || 0), 0);
+  let delta = stepDelta + cardioK + workoutK + sportK;
   delta = Math.round(delta / 10) * 10;
   // Show nothing only when there's literally no signal — steps, cardio, AND no workout adjustment.
-  if (steps === 0 && !cardioK && !workoutK) return null;
+  if (steps === 0 && !cardioK && !workoutK && !sportK) return null;
   const adjustedTargetCalories = (targets?.calories || 0) + delta;
   let text;
   if (delta >= 150) {
@@ -2190,6 +2371,22 @@ function computeHabitStreak(habit, completions, today) {
     }
     return streak;
   }
+  if (ft === "specific_days") {
+    // Count consecutive completions on scheduled days — skip non-scheduled days
+    const days = habit.specificDays || [];
+    if (!days.length) return 0;
+    let streak = 0;
+    for (let i = 0; i <= 365; i++) {
+      const d = new Date(today + "T12:00:00"); d.setDate(d.getDate() - i);
+      const dow = d.getDay();
+      if (!days.includes(dow)) continue; // not a scheduled day — skip
+      const ds = d.toLocaleDateString("en-CA");
+      const done = (completions || []).some((c) => c.habitId === habit.id && c.sprigDate === ds);
+      if (done) streak++;
+      else if (i > 0) break; // missed a scheduled day → streak ends (today not yet done is OK)
+    }
+    return streak;
+  }
   let streak = 0;
   const currentPk = habitPeriodKey(ft, today);
   for (let i = 1; i <= 52; i++) {
@@ -2735,9 +2932,24 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
   const highFat = MUSCLES.filter(([k]) => (recovery[k]?.fatigue||0) >= 70).map(([,n]) => n);
   const veryHighFat = MUSCLES.filter(([k]) => (recovery[k]?.fatigue||0) >= 90).map(([,n]) => n);
 
+  // Identify sport-sourced fatigue for targeted messaging
+  const sportFatigued = MUSCLES.filter(([k]) => recovery[k]?.sportSource && (recovery[k]?.fatigue||0) >= 35);
+  const sportFatiguedHard = MUSCLES.filter(([k]) => recovery[k]?.sportSource && (recovery[k]?.fatigue||0) >= 65);
+  const sportNames = [...new Set(sportFatigued.flatMap(([k]) => recovery[k]?.sportNames || [recovery[k]?.sportName].filter(Boolean)))];
+
   if (veryHighFat.length >= 3)    { score -= 12; limiters.push(`${veryHighFat.slice(0,2).join(", ")} severely fatigued`); }
   else if (highFat.length >= 3)   { score -= 7;  limiters.push(`Multiple muscles still recovering (${highFat.slice(0,2).join(", ")})`); }
   else if (highFat.length >= 1)   { score -= 3; }
+
+  // Sport-specific limiters/helpers
+  if (sportFatiguedHard.length >= 3 && sportNames.length) {
+    limiters.push(`${sportNames[0]} added significant muscle load — lower-body or upper-body may be fatigued`);
+  } else if (sportFatiguedHard.length >= 1 && sportNames.length) {
+    const mNames = sportFatiguedHard.slice(0,2).map(([,n]) => n).join(" & ");
+    limiters.push(`${sportNames[0]} load on ${mNames}`);
+  } else if (sportFatigued.length >= 1 && sportNames.length) {
+    helpers.push(`${sportNames[0]} movement — light muscle activation`);
+  }
 
   if (veryHighFat.length === 0 && highFat.length === 0 && MUSCLES.some(([k]) => recovery[k]?.lastTs)) {
     score += 5; helpers.push("Muscles are mostly recovered"); dataPoints++;
@@ -2903,17 +3115,27 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
 
   // === MUSCLE STATUS ===
   const muscleStatus = {};
+  const _trainingOff = tp.training === false;
   MUSCLES.forEach(([k,n]) => {
+    if (_trainingOff) {
+      muscleStatus[k] = { name: n, fatigue: 0, status: "Training tracking off", color: "#A89E89", quickLogged: false, hasData: false, trackingOff: true };
+      return;
+    }
     const f = recovery[k]?.fatigue || 0;
     const isQL = !!(recovery[k]?.quickLogged);
-    const noData = recovery[k]?.hasData === false; // no exact workout, no Quick Log
-    muscleStatus[k] = { name: n, fatigue: f,
-      status: noData ? "No data yet"
-        : f >= 80 ? "Very fatigued" : f >= 55 ? "Fatigued" : f >= 25 ? "Ready" : "Fresh",
-      color: noData ? "#A89E89"
-        : f >= 80 ? "#E0714A" : f >= 55 ? "#F4A261" : f >= 25 ? "#74C69D" : "#52B788",
-      quickLogged: isQL, hasData: !noData,
-    };
+    const isSport = !!(recovery[k]?.sportSource);
+    const sportName = recovery[k]?.sportName || null;
+    const sportNames = recovery[k]?.sportNames || (sportName ? [sportName] : []);
+    const noData = recovery[k]?.hasData === false;
+    const status = noData ? "No workout logged"
+      : isQL ? "Estimated from Quick Log"
+      : isSport ? (f >= 70 ? "Fatigued" : f >= 35 ? "Active" : "Worked lightly")
+      : f >= 80 ? "Very fatigued" : f >= 55 ? "Fatigued" : f >= 25 ? "Ready" : "Fresh";
+    const color = noData ? "#A89E89"
+      : isQL ? (f >= 55 ? "#F4A261" : "#74C69D")
+      : isSport ? (f >= 70 ? "#F4A261" : f >= 35 ? "#74C69D" : "#52B788")
+      : f >= 80 ? "#E0714A" : f >= 55 ? "#F4A261" : f >= 25 ? "#74C69D" : "#52B788";
+    muscleStatus[k] = { name: n, fatigue: f, status, color, quickLogged: isQL, sportSource: isSport, sportName, sportNames, hasData: !noData, trackingOff: false };
   });
 
   const suggestActiveRecovery = score < 55 && painLevel !== "serious" && totalWeekSets > 20;
@@ -3251,10 +3473,216 @@ function applyQuickLogMuscles(ql) {
   return result;
 }
 
-function muscleRecovery(workouts, readiness, quickLog) {
+// ── Sport-name normalizer aliases (legacy CARDIO_TYPES ids → SPORTS_LIBRARY ids) ──
+const SPORT_ID_ALIASES = {
+  "football": "football",
+  "running":  "running",
+  "cycling":  "cycling",
+  "boxing":   "boxing",
+  "walking":  "walking",
+  "jogging":  "jogging",
+  "soccer":   "football",
+  "bjj":      "bjj",
+  "jiu jitsu":           "bjj",
+  "brazilian jiu-jitsu": "bjj",
+  "muay thai":   "muay_thai",
+  "kickboxing":  "kickboxing",
+  "mma":         "mma",
+  "wrestling":   "wrestling",
+  "swimming":    "swimming",
+  "basketball":  "basketball",
+  "yoga":        "yoga",
+  "pilates":     "pilates",
+  "rowing":      "rowing",
+  "elliptical":  "elliptical",
+  "stationary bike": "stationary_bike",
+  "stationary_bike": "stationary_bike",
+  "hiking":    "hiking",
+  "climbing":  "climbing",
+  "hiit":      "hiit",
+};
+
+// Fallback muscle impacts (numeric %, 0-85) for sessions with no SPORTS_LIBRARY match.
+// Used when sportId + sportName resolution both fail.
+const SPORT_FALLBACK_IMPACTS = {
+  football: { quads:70, hamstrings:70, glutes:45, calves:70, abs:45 },
+  soccer:   { quads:70, hamstrings:70, glutes:45, calves:70, abs:45 },
+  running:  { quads:45, hamstrings:45, glutes:45, calves:70, abs:20 },
+  jogging:  { quads:30, hamstrings:30, glutes:30, calves:45, abs:20 },
+  cycling:  { quads:70, glutes:45, calves:45, hamstrings:45, abs:20 },
+  boxing:   { shoulders:70, abs:70, chest:45, triceps:45, back:45, calves:45 },
+  kickboxing: { shoulders:70, abs:70, quads:45, hamstrings:45, glutes:45, calves:70, triceps:45 },
+  muay_thai:  { shoulders:70, abs:70, quads:45, hamstrings:45, glutes:45, calves:70, triceps:45 },
+  bjj:      { back:70, biceps:70, shoulders:70, abs:70, glutes:45, hamstrings:45, quads:45 },
+  wrestling:{ back:70, biceps:70, shoulders:70, abs:70, glutes:45, hamstrings:45, quads:45 },
+  judo:     { back:70, shoulders:70, biceps:45, abs:45, glutes:20, quads:20 },
+  mma:      { back:70, shoulders:70, chest:45, biceps:45, abs:70, quads:45, hamstrings:45 },
+  swimming: { back:70, shoulders:70, chest:45, triceps:45, abs:45, quads:20, hamstrings:20 },
+  basketball:{ quads:70, calves:70, glutes:45, hamstrings:45, abs:45 },
+  yoga:     { abs:20, shoulders:20, glutes:20, hamstrings:20, quads:20 },
+  mobility: { abs:20, shoulders:20, glutes:20 },
+  stretching:{ abs:20, shoulders:20, glutes:20 },
+  walking:  { quads:20, hamstrings:20, glutes:20, calves:20 },
+  hiking:   { quads:45, glutes:45, hamstrings:45, calves:45 },
+  rowing:   { back:70, biceps:45, shoulders:45, abs:45, quads:45, glutes:45, hamstrings:45 },
+  hiit:     { quads:45, glutes:45, abs:70, shoulders:45, chest:20, calves:45 },
+  climbing: { back:70, biceps:70, forearms:70, shoulders:45, abs:45, quads:20 },
+  sprints:  { quads:70, hamstrings:70, glutes:70, calves:70, abs:45 },
+  elliptical:{ quads:45, glutes:45, hamstrings:20, calves:20, abs:20 },
+};
+
+/**
+ * Find a SPORTS_LIBRARY entry for a session.
+ * Tries: sportId → exact name → normalised name → alias map → null.
+ */
+function findSportDefinition(session) {
+  // 1. Direct sportId match
+  if (session.sportId) {
+    const byId = SPORTS_LIBRARY.find(s => s.id === session.sportId);
+    if (byId) return byId;
+  }
+  // 2. Legacy CARDIO_TYPES type field (walking, running, football, …)
+  if (session.type) {
+    const byType = SPORTS_LIBRARY.find(s => s.id === session.type);
+    if (byType) return byType;
+  }
+  // 3. sportName exact (case-insensitive)
+  const rawName = (session.sportName || session.type || "").toLowerCase().trim();
+  if (rawName) {
+    const byName = SPORTS_LIBRARY.find(s => s.name.toLowerCase() === rawName);
+    if (byName) return byName;
+    // 4. Alias map
+    const aliasId = SPORT_ID_ALIASES[rawName];
+    if (aliasId) {
+      const byAlias = SPORTS_LIBRARY.find(s => s.id === aliasId);
+      if (byAlias) return byAlias;
+    }
+    // 5. Partial match (begins with)
+    const byPartial = SPORTS_LIBRARY.find(s => rawName.includes(s.id) || s.id.includes(rawName));
+    if (byPartial) return byPartial;
+  }
+  return null;
+}
+
+/**
+ * Resolve muscle impact (numeric % values, 0-85) for any sport/cardio session.
+ * Priority: saved muscleImpact → SPORTS_LIBRARY lookup → SPORT_FALLBACK_IMPACTS → null
+ */
+function resolveSessionMuscleImpact(session) {
+  // Already have numeric impact saved → use it directly
+  if (session.muscleImpact && typeof session.muscleImpact === "object" &&
+      Object.keys(session.muscleImpact).length > 0) {
+    return session.muscleImpact;
+  }
+  // Try SPORTS_LIBRARY
+  const sportDef = findSportDefinition(session);
+  if (sportDef) {
+    return sportMuscleImpact(sportDef, session.durationMin || session.minutes || 30, session.intensity || "moderate");
+  }
+  // Fallback impact table
+  const key = (session.sportId || session.type || "").toLowerCase();
+  const rawName = (session.sportName || session.type || "").toLowerCase().trim();
+  const fallback = SPORT_FALLBACK_IMPACTS[key] || SPORT_FALLBACK_IMPACTS[rawName] ||
+    SPORT_FALLBACK_IMPACTS[SPORT_ID_ALIASES[rawName]] || null;
+  if (fallback) {
+    // Scale fallback by intensity
+    const iF = { easy: 0.65, moderate: 1.0, hard: 1.35 }[session.intensity] || 1.0;
+    const dMin = session.durationMin || session.minutes || 30;
+    const dF = Math.min(2.0, dMin / 60);
+    const scaled = {};
+    Object.entries(fallback).forEach(([k, v]) => {
+      scaled[k] = Math.min(85, Math.round(v * iF * dF));
+    });
+    return scaled;
+  }
+  return null;
+}
+
+/**
+ * Combine today's sportSessions, legacy cardioSessions, and past-day sportSessionsLog
+ * into one normalised list for muscleRecovery.
+ *
+ * Normalised session shape guaranteed:
+ *   { id, ts, date, sportId, sportName, durationMin, intensity, muscleImpact }
+ */
+function normalizeMovementSessionsForMuscleRecovery({ daily, sportSessionsLog, date }) {
+  const seen = new Set();
+  const out = [];
+
+  function add(sess) {
+    const key = sess.id || `${sess.date||""}|${sess.sportName||sess.type||""}|${sess.durationMin||sess.minutes||""}|${sess.intensity||""}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const impact = resolveSessionMuscleImpact(sess);
+    if (!impact || Object.keys(impact).length === 0) return; // no muscle data, skip
+    out.push({
+      ...sess,
+      sportId:    sess.sportId   || sess.type  || null,
+      sportName:  sess.sportName || sess.type  || "Activity",
+      durationMin: sess.durationMin || sess.minutes || 30,
+      ts:         sess.ts        || Date.now(),
+      muscleImpact: impact,
+    });
+  }
+
+  // 1. Today's new-format sport sessions
+  (Array.isArray(daily?.sportSessions) ? daily.sportSessions : []).forEach(add);
+
+  // 2. Legacy cardio sessions (CardioCard — { id, ts, type, minutes, intensity })
+  (Array.isArray(daily?.cardioSessions) ? daily.cardioSessions : []).forEach(cs => {
+    add({ ...cs, sportName: cs.type, durationMin: cs.minutes });
+  });
+
+  // 3. Cross-day sport session log (sessions from yesterday/day before, within 48 h)
+  const cutoff = Date.now() - 48 * 36e5;
+  (Array.isArray(sportSessionsLog) ? sportSessionsLog : [])
+    .filter(s => (s.ts || 0) > cutoff && s.date !== date)
+    .forEach(add);
+
+  return out;
+}
+
+function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSessions = []) {
+  if (tp.training === false) {
+    const out = {};
+    MUSCLES.forEach(([k]) => { out[k] = { recovered: false, remaining: 0, fatigue: 0, lastTs: null, setCount: 0, full: RECOVER_BASE[k], trackingOff: true, hasData: false }; });
+    return out;
+  }
   const out = {};
   const factor = readiness >= 75 ? 0.85 : readiness >= 55 ? 1 : readiness >= 35 ? 1.15 : 1.3;
   const qlMuscles = applyQuickLogMuscles(quickLog);
+
+  // Pre-compute sport fatigue from ALL recent sport sessions (today + past days, within 48h)
+  // muscle → {fatigue, ts, sportName, sportNames[]}
+  const sportFatigue = {};
+  sportSessions.forEach((ss) => {
+    const ts = ss.ts || Date.now();
+    const since = (Date.now() - ts) / 36e5;
+    if (since > 48) return; // only sessions within 48h matter
+    // Use the normalised muscle impact (resolveSessionMuscleImpact covers saved impact + library + fallback)
+    const rawImpact = resolveSessionMuscleImpact(ss);
+    if (!rawImpact || Object.keys(rawImpact).length === 0) return;
+    const full = 48;
+    Object.entries(rawImpact).forEach(([k, basePct]) => {
+      // Linear decay: at time 0 → full impact; at 48h → 0
+      const remaining = Math.max(0, full * (basePct / 100) - since);
+      const decayed = Math.round((remaining / full) * 100);
+      if (decayed <= 0) return;
+      if (!sportFatigue[k] || decayed > sportFatigue[k].fatigue) {
+        sportFatigue[k] = {
+          fatigue: decayed,
+          ts,
+          sportName: ss.sportName || ss.sportId || "Sport",
+          sportNames: [ss.sportName || ss.sportId || "Sport"],
+        };
+      } else if (sportFatigue[k] && !sportFatigue[k].sportNames.includes(ss.sportName)) {
+        // Multiple sports hitting the same muscle — accumulate (capped)
+        sportFatigue[k].fatigue = Math.min(98, sportFatigue[k].fatigue + Math.round(decayed * 0.3));
+        sportFatigue[k].sportNames.push(ss.sportName || ss.sportId || "Sport");
+      }
+    });
+  });
+
   MUSCLES.forEach(([k]) => {
     let lastTs = 0, setCount = 0;
     workouts.forEach((w) => {
@@ -3267,12 +3695,26 @@ function muscleRecovery(workouts, readiness, quickLog) {
       if (c > 0 && w.ts > lastTs) { lastTs = w.ts; setCount = c; }
     });
     if (!lastTs) {
-      // Exact workout has no data for this muscle — fall back to Quick Log estimate
-      if (qlMuscles[k]) {
+      // No gym workout for this muscle — fall back to sport estimate, then QL
+      if (sportFatigue[k] && sportFatigue[k].fatigue > 0) {
+        const sf = sportFatigue[k];
+        const recHours = Math.round(sf.fatigue * 0.48); // hours until fully recovered
+        out[k] = {
+          recovered: false,
+          remaining: recHours,
+          fatigue: sf.fatigue,
+          lastTs: sf.ts,
+          setCount: 0,
+          full: 48,
+          sportSource: true,
+          sportName: sf.sportName,
+          sportNames: sf.sportNames,
+          hasData: true,
+        };
+      } else if (qlMuscles[k]) {
         const qf = qlMuscles[k].fatigue;
-        out[k] = { recovered: false, remaining: 24, fatigue: qf, lastTs: Date.now(), setCount: 0, full: 48, quickLogged: true };
+        out[k] = { recovered: false, remaining: 24, fatigue: qf, lastTs: Date.now(), setCount: 0, full: 48, quickLogged: true, hasData: true };
       } else {
-        // No exact workout and no Quick Log for this muscle — mark as no-data
         out[k] = { recovered: true, remaining: 0, fatigue: 0, lastTs: null, setCount: 0, full: RECOVER_BASE[k], hasData: false };
       }
       return;
@@ -3280,7 +3722,21 @@ function muscleRecovery(workouts, readiness, quickLog) {
     const full = (RECOVER_BASE[k] + Math.min(40, setCount * 4)) * factor;
     const since = (Date.now() - lastTs) / 36e5;
     const remaining = Math.max(0, full - since);
-    out[k] = { recovered: remaining <= 0, remaining: Math.round(remaining), fatigue: Math.round(Math.min(100, (remaining / full) * 100)), lastTs, setCount: Math.round(setCount), full: Math.round(full) };
+    let baseFatigue = Math.round(Math.min(100, (remaining / full) * 100));
+    // Stack sport fatigue on top of gym workout for same muscle (capped)
+    if (sportFatigue[k] && sportFatigue[k].fatigue > 0) {
+      baseFatigue = Math.min(98, baseFatigue + Math.round(sportFatigue[k].fatigue * 0.3));
+    }
+    out[k] = {
+      recovered: remaining <= 0,
+      remaining: Math.round(remaining),
+      fatigue: baseFatigue,
+      lastTs,
+      setCount: Math.round(setCount),
+      full: Math.round(full),
+      sportStacked: !!(sportFatigue[k]),
+      sportName: sportFatigue[k]?.sportName,
+    };
   });
   return out;
 }
@@ -3917,7 +4373,7 @@ function migrateTrackingPrefs(focusAreas, existing) {
 }
 
 // six 0-100 sub-scores from whatever data exists today
-function dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp = {} }) {
+function dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp = {}, recoveryInfo = null }) {
   const ql = quickLog || null;
   const effectivelyTrained = trainedToday || (ql?.trainedToday === true);
   const effectivelyMoved = (daily.steps || 0) > 0 || effectivelyTrained || (daily.cardioMin || 0) > 0 || (ql?.enoughMovement === true);
@@ -3941,14 +4397,14 @@ function dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, pr
   const sleep = tp.sleep === false ? null : sleepRaw;
 
   // training/recovery readiness — null when training is disabled
-  const training = tp.training === false ? null : clamp100(trainInfo.bodyReadiness);
+  const training = tp.training === false ? null : clamp100(recoveryInfo?.score ?? trainInfo.bodyReadiness);  // canonical recovery score
 
   // movement: steps + workout + quickLog — null only when no signal at all
   const stepP = Math.min(1, (daily.steps || 0) / STEPS_TARGET);
   const hasExactMovement = (daily.steps || 0) > 0 || (daily.cardioMin || 0) > 0;
   // When QL covers movement (no exact steps/cardio), use honest estimate rather than
   // calculating from stepP=0 which produces a misleadingly low score like 20.
-  const qlMovementCovered = !hasExactMovement && (ql?.enoughMovement === true || (ql?.trainedToday === true && !effectivelyTrained));
+  const qlMovementCovered = !hasExactMovement && (ql?.enoughMovement === true || ql?.trainedToday === true);
   const movementRaw = effectivelyMoved
     ? qlMovementCovered
       ? (ql?.enoughMovement === true ? 82 : 72)   // QL estimate — honest, not fake-exact
@@ -4125,8 +4581,26 @@ function getDailyTruth({
   } else {
     const exactTrained = !!(workouts?.some(w => w.date === date));
     const qlTrained    = ql?.trainedToday === true;
+    const sportSess    = Array.isArray(daily?.sportSessions) ? daily.sportSessions : [];
+    const sportTrained = sportSess.length > 0;
+    const hardSport    = sportSess.some(s => s.intensity === "hard");
+    const sportLabel   = sportSess.length === 1
+      ? sportSess[0].sportName
+      : `${sportSess.length} activities`;
     if (exactTrained) {
-      training = mk("completed", "exact", "high", { trainedToday: true });
+      training = mk("completed", "exact", "high", {
+        trainedToday: true,
+        sportSessions: sportSess,
+        sportLoad: hardSport ? "high" : sportTrained ? "moderate" : null,
+      });
+    } else if (sportTrained) {
+      // Sport session counts as activity — not a gym workout but real physical load
+      training = mk("completed", "sport", "medium", {
+        trainedToday: false, activityToday: true,
+        sportSessions: sportSess,
+        sportLoad: hardSport ? "high" : "moderate",
+        label: `${sportLabel} logged`,
+      });
     } else if (qlTrained) {
       const tt = ql.trainingType || null;
       training = mk("completed", "quick_log", "medium", {
@@ -4191,11 +4665,15 @@ function getDailyTruth({
   } else {
     const steps    = daily?.steps     || 0;
     const cMin     = daily?.cardioMin || 0;
+    const sportSess = Array.isArray(daily?.sportSessions) ? daily.sportSessions : [];
+    const sportMin  = sportSess.reduce((a, s) => a + (s.durationMin || 0), 0);
+    const sportKcalTotal = sportSess.reduce((a, s) => a + (s.estimatedCalories || 0), 0);
     const qlMove   = ql?.enoughMovement;
     const trained  = training.status === "completed";
-    if (steps > 0 || cMin > 0) {
-      movement = mk(steps >= STEPS_TARGET || cMin >= 20 || trained ? "completed" : "partial",
-        "exact", "high", { steps, cardioMin: cMin });
+    const hasMovement = steps > 0 || cMin > 0 || sportMin > 0;
+    if (hasMovement) {
+      movement = mk(steps >= STEPS_TARGET || cMin >= 20 || sportMin >= 20 || trained ? "completed" : "partial",
+        "exact", "high", { steps, cardioMin: cMin, sportMin, sportKcal: sportKcalTotal, sportSessions: sportSess });
     } else if (qlMove === true) {
       movement = mk("completed", "quick_log", "medium", { label: "Movement OK" });
     } else if (trained) {
@@ -4297,7 +4775,7 @@ function getDailyTruth({
 }
 
 // rule-based "best action today" — returns ordered list, most important first
-function bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp = {} }) {
+function bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp = {}, recoveryInfo = null }) {
   const out = [];
   const ci = daily.checkin || {};
   const ql = quickLog || null;
@@ -4317,7 +4795,7 @@ function bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, pr
 
   // training recommendation (only if not already covered by sick + tracking enabled)
   if (ci.sick !== "yes" && tp.training !== false) {
-    const r = trainInfo.bodyReadiness;
+    const r = recoveryInfo?.score ?? trainInfo.bodyReadiness;  // canonical recovery score
     if (effectivelyTrained) {
       // Build context-aware recovery suggestions — skip what Quick Log already covered
       const qlProteinOk = ql?.hitProtein === true;
@@ -4418,8 +4896,22 @@ function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, d
   if (tp.training === false) {
     trainBullets.push("Training tracking is off. Enable it from More → Tracking preferences to see training advice.");
   } else {
-    if (dtT?.source === "quick_log") trainBullets.push(`Trained today via Quick Log (${dtT.label || "type unknown"}) — exact data not logged.`);
-    else if (dtT?.source === "exact") trainBullets.push("Exact workout logged today.");
+    if (dtT?.source === "sport") {
+      const ss = dtT.sportSessions || [];
+      const names = [...new Set(ss.map(s => s.sportName))].slice(0, 2).join(" + ");
+      const load = dtT.sportLoad === "hard" ? "high" : dtT.sportLoad || "moderate";
+      trainBullets.push(`${names || "Sport"} logged today — ${load} physical load. Muscles affected by this activity are shown in recovery.`);
+    } else if (dtT?.source === "quick_log") {
+      trainBullets.push(`Trained today via Quick Log (${dtT.label || "type unknown"}) — exact data not logged.`);
+    } else if (dtT?.source === "exact") {
+      const ss = dtT.sportSessions;
+      if (ss?.length) {
+        const names = [...new Set(ss.map(s => s.sportName))].slice(0, 2).join(" + ");
+        trainBullets.push(`Gym workout + ${names} today — combined muscle load, check recovery before training the same muscles.`);
+      } else {
+        trainBullets.push("Exact workout logged today.");
+      }
+    }
     if (sug) trainBullets.push(`${sug.label}: ${sug.reason}`);
     if (lowMuscles.length) trainBullets.push(`Add volume to ${lowMuscles.slice(0, 3).join(", ")}.`);
     if (overMuscles.length) trainBullets.push(`Ease off ${overMuscles.join(", ")} — likely junk volume.`);
@@ -5560,8 +6052,9 @@ function detectLoggingGap({ date, entries, workouts, sleepLogs, quickLog, tracki
   // Snoozed?
   const snooze = (logGapSnoozes || []).find((s) => s.date === date);
   if (snooze && snooze.snoozedUntil > Date.now()) return { show: false };
-  // Only prompt after noon
-  if (new Date().getHours() < 12) return { show: false };
+  if (snooze && (snooze.count || 0) >= 2) return { show: false };
+  // Only prompt after 16:00
+  if (new Date().getHours() < 16) return { show: false };
   // If quick log exists, no prompt needed
   if (quickLog) return { show: false };
   const tp = trackingPrefs || {};
@@ -5642,18 +6135,20 @@ function SprigApp() {
     // persist through the same store used for sprig_* keys so it syncs to Supabase
     try { store.set && store.set("sprig_theme_v1", m); } catch (_) {}
   }, []);
-  const [foodSub, setFoodSub] = useState("meals");   // meals | nutrition
-  const [trainSub, setTrainSub] = useState("training"); // training | analytics
+  const [foodSub, setFoodSub] = useState("nutrition");   // nutrition | meals
+  const [trainSub, setTrainSub] = useState("training"); // training | movement | analytics
   const [sleepSub, setSleepSub] = useState("sleep");  // sleep | alarm
   const [quickOpen, setQuickOpen] = useState(false);
   const [winsOpen, setWinsOpen] = useState(false);
   const [foodOverlayMode, setFoodOverlayMode] = useState(null); // null | "menu" | "text" | "manual" | "supp"
   const [recapView, setRecapView] = useState(null); // { recap, ts } shown after finishing a workout
   // recordToast: { kind, label, subLabel, exName, phase: "entering"|"visible"|"exiting" }
+  // keypadFocus: { exIdx, field: "w"|"reps" } — which exercise field the custom keypad is editing
   // Phase flow: entering (entrance anim) → visible (idle) → exiting (exit anim) → null
   const [recordToast, setRecordToast] = useState(null);
   const recordToastTimers = useRef([]); // pending setTimeout ids — cleared on new PR
   const recordToastPriorityRef = useRef(0); // PR_PRIORITY value of the currently shown toast
+  const [keypadFocus, setKeypadFocus] = useState(null); // { exIdx, field:"w"|"reps" } | null
   const [flashEntryId, setFlashEntryId] = useState(null); // briefly highlight a newly-logged meal
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -5687,6 +6182,7 @@ function SprigApp() {
   const [ringing, setRinging] = useState(false);
   const [micState, setMicState] = useState("idle"); // idle | on | denied
   const [workouts, setWorkouts] = useState([]);
+  const [sportSessionsLog, setSportSessionsLog] = useState([]); // flat log: all sport sessions across days
   const [activeWorkout, setActiveWorkout] = useState(null);
   const [customRests, setCustomRests] = useState({});
   const [routines, setRoutines] = useState([]);
@@ -5790,6 +6286,8 @@ function SprigApp() {
         setSleepLogs(safeParse(sl, [], asArray));
         setAlarm(migrateAlarm(safeParse(al, null)));
         setWorkouts(safeParse(wk, [], asArray));
+        const ssl = await store.get("sprig_sport_sessions_v1");
+        setSportSessionsLog(safeParse(ssl, [], asArray));
         setActiveWorkout(safeParse(aw, null, (v) => (v === null ? null : asObject(v))));
         setCustomRests(safeParse(cr, {}, asObject));
         setRoutines(safeParse(rt, [], asArray));
@@ -6087,6 +6585,55 @@ function SprigApp() {
     await seedDemoData(store);
     if (window.location && window.location.reload) window.location.reload();
   }
+
+  // ── DEV TOOLS — hidden behind 5-tap on disclaimer in Settings ─────────────
+  async function devSeedFullDay() {
+    const today = new Date().toLocaleDateString("en-CA");
+    // Add 3 food entries covering protein/calories/fiber targets
+    const foods = [
+      { id: uid(), name: "Chicken breast (200g)", serving: "200g", calories: 330, protein_g: 62, carbs_g: 0, fat_g: 7, fiber_g: 0, micros: {}, omega3: 0, mult: 1, time: Date.now() - 36e5 * 5 },
+      { id: uid(), name: "Brown rice (150g)", serving: "150g", calories: 170, protein_g: 4, carbs_g: 36, fat_g: 1, fiber_g: 3, micros: {}, omega3: 0, mult: 1, time: Date.now() - 36e5 * 3 },
+      { id: uid(), name: "Greek yogurt (200g)", serving: "200g", calories: 130, protein_g: 20, carbs_g: 8, fat_g: 2, fiber_g: 0, micros: {}, omega3: 0, mult: 1, time: Date.now() - 36e5 * 1 },
+      { id: uid(), name: "Oats with banana", serving: "bowl", calories: 380, protein_g: 12, carbs_g: 70, fat_g: 6, fiber_g: 8, micros: {}, omega3: 0, mult: 1, time: Date.now() - 36e5 * 7 },
+      { id: uid(), name: "Broccoli & egg stir-fry", serving: "plate", calories: 290, protein_g: 22, carbs_g: 14, fat_g: 14, fiber_g: 7, micros: {}, omega3: 0, mult: 1, time: Date.now() - 36e5 * 2 },
+    ];
+    await persistEntries((prev) => {
+      const todayEntries = prev.filter((e) => { try { return new Date(e.time).toLocaleDateString("en-CA") !== today; } catch { return true; } });
+      return [...todayEntries, ...foods];
+    });
+    // Add a sleep log for last night
+    const wakeTs = Date.now() - 36e5 * 7;
+    const sleepTs = wakeTs - 60 * 27000; // ~7.5h sleep
+    const newSleep = { id: uid(), startTime: sleepTs, waketime: wakeTs, durationMin: 450, score: 82, bedtime: sleepTs, stages: {}, manual: true };
+    await persistSleep([...sleepLogs.filter((l) => Math.abs(l.waketime - wakeTs) > 36e5 * 12), newSleep]);
+    // Add a workout
+    const newWorkout = { id: uid(), ts: Date.now() - 36e5 * 6, label: "Upper Body", exercises: [
+      { name: "Bench Press", group: "chest", sets: [{ w: 80, reps: 8, rir: 2 }, { w: 80, reps: 8, rir: 2 }, { w: 75, reps: 10, rir: 1 }] },
+      { name: "Barbell Row", group: "back", sets: [{ w: 70, reps: 8, rir: 2 }, { w: 70, reps: 8, rir: 2 }] },
+      { name: "Overhead Press", group: "shoulders", sets: [{ w: 50, reps: 8, rir: 2 }, { w: 50, reps: 8, rir: 2 }] },
+    ]};
+    await persistWorkouts([...workouts.filter((w) => Math.abs(w.ts - newWorkout.ts) > 36e5 * 18), newWorkout]);
+    // Daily: water + steps
+    await persistDaily({ ...daily, water: 2400, steps: 8500, date: today });
+    showToast("Full exact day seeded ✓", "success");
+  }
+
+  async function devSeedQuickLogDay() {
+    const today = new Date().toLocaleDateString("en-CA");
+    const ql = { date: today, hitProtein: true, hitCalories: true, enoughSleep: true, enoughMovement: true, trainedToday: true, trainType: "upper_body", noAlcohol: true, savedAt: Date.now() };
+    await persistQuickDayLog(ql);
+    showToast("Quick Log day seeded ✓", "success");
+  }
+
+  async function devClearToday() {
+    const today = new Date().toLocaleDateString("en-CA");
+    await persistEntries((prev) => prev.filter((e) => { try { return new Date(e.time).toLocaleDateString("en-CA") !== today; } catch { return true; } }));
+    await persistQuickDayLog({ date: today, _cleared: true }); // minimal placeholder so QL is "empty"
+    await persistDaily({ date: today });
+    showToast("Today cleared ✓", "success");
+  }
+  // ── END DEV TOOLS ──────────────────────────────────────────────────────────
+
   // undo queue — recent deletes show a one-tap undo for ~6s
   const [undoItem, setUndoItem] = useState(null);
   function queueUndo(kind, data, restore) {
@@ -6132,6 +6679,26 @@ function SprigApp() {
     const next = { ...daily, ...patch, lastTouchTs: Date.now() };
     setDaily(next);
     await store.set("sprig_daily_" + date, JSON.stringify(next));
+    // Sync any new sport sessions into the cross-day flat log (avoid duplicates by id)
+    if (patch.sportSessions && Array.isArray(patch.sportSessions)) {
+      const existingIds = new Set(sportSessionsLog.map(s => s.id));
+      const newOnes = patch.sportSessions.filter(s => s.id && !existingIds.has(s.id));
+      if (newOnes.length) {
+        // Keep log trimmed to last 90 days (~48h decay means 3 days of data is enough)
+        const cutoff = Date.now() - 90 * 864e5;
+        const nextLog = [...sportSessionsLog.filter(s => (s.ts || 0) > cutoff), ...newOnes];
+        setSportSessionsLog(nextLog);
+        await store.set("sprig_sport_sessions_v1", JSON.stringify(nextLog));
+      }
+      // Also handle deletions: remove from log any ids no longer in patch.sportSessions
+      const currentIds = new Set(patch.sportSessions.map(s => s.id));
+      const removed = sportSessionsLog.filter(s => s.id && !currentIds.has(s.id) && s.date === date);
+      if (removed.length) {
+        const trimmedLog = sportSessionsLog.filter(s => !(removed.some(r => r.id === s.id)));
+        setSportSessionsLog(trimmedLog);
+        await store.set("sprig_sport_sessions_v1", JSON.stringify(trimmedLog));
+      }
+    }
     // keep a 60-day weight series for the trend
     if (patch.weight != null) {
       const raw = await store.get("sprig_weightseries_v1");
@@ -6141,7 +6708,7 @@ function SprigApp() {
       await store.set("sprig_weightseries_v1", JSON.stringify(ns));
       setWeightSeries(ns);
     }
-  }, [daily, date]);
+  }, [daily, date, sportSessionsLog, setSportSessionsLog]);
   // persistDaily wraps writeDaily with obvious-mistake checks (Fix 9). Unusual values prompt
   // "This looks unusual. Save anyway?" instead of being blocked.
   const persistDaily = useCallback(async (patch) => {
@@ -6374,6 +6941,7 @@ function SprigApp() {
         stalledLifts: ctx?.stalls || [],
         muscleRecovery: ctx?.muscleRecovery || null,
         trainedToday: ctx?.trainedToday ?? null,
+        sportSessionsToday: ctx?.today?.sportSessions || null,
       },
       flags: {
         painActive: !!ctx?.painActive,
@@ -6680,9 +7248,25 @@ function SprigApp() {
     setRirPref(full);
   }
   const [bedNudgeDismissed, setBedNudgeDismissed] = useState(false);
+  // Update pending input values without async storage write (keypad updates)
+  function updateActivePending(exIdx, patch) {
+    setActiveWorkout(wo => wo ? ({
+      ...wo,
+      exercises: wo.exercises.map((e, i) => i === exIdx ? { ...e, ...patch } : e)
+    }) : wo);
+  }
   function addWoExercise(name) {
     const meta = findEx(name);
-    persistActive({ ...activeWorkout, exercises: [...activeWorkout.exercises, { name, group: meta?.group, sets: [] }] });
+    // Pre-fill inputs from progression suggestion or last session
+    const prog = progressionFor(workouts, name, daily, sleepReadiness, rirPref?.repRange, rirPref?.intensityStyle);
+    const sug  = prog || suggestNext(workouts, name);
+    let lastW = "", lastR = "";
+    workouts.forEach(wk => wk.exercises.forEach(e => {
+      if (e.name === name && e.sets?.length) { const s = e.sets[e.sets.length - 1]; lastW = String(s.w); lastR = String(s.reps); }
+    }));
+    const initW = lastW || (sug?.w != null ? String(sug.w) : "");
+    const initR = lastR || (sug?.reps != null ? String(sug.reps) : "");
+    persistActive({ ...activeWorkout, exercises: [...activeWorkout.exercises, { name, group: meta?.group, sets: [], pendingW: initW, pendingR: initR }] });
   }
   function woLogSet(exIdx, set) {
     const exName = activeWorkout.exercises[exIdx]?.name;
@@ -6703,8 +7287,9 @@ function SprigApp() {
           recordToastTimers.current.forEach(id => clearTimeout(id));
           recordToastTimers.current = [];
           recordToastPriorityRef.current = newPri;
-          // Custom haptic: two-pulse pattern that reads as "achievement" not just "complete"
-          try { navigator.vibrate?.([18, 30, 18]); } catch (_) {}
+          // Custom haptic + chime for new record
+          try { navigator.vibrate?.([20, 35, 20]); } catch (_) {}
+          if (profile?.restTimerSound !== false) { try { playRecordSound(); } catch (_) {} }
           // Phase 1 — entering (entrance animation plays)
           setRecordToast({ ...pr, exName, phase: "entering" });
           // Phase 2 — visible (entrance done, idle)
@@ -6943,14 +7528,28 @@ function SprigApp() {
   const sleepReadiness = lastSleep
     ? Math.max(20, Math.min(100, Math.round(lastSleep.score - debtMin / 30 - alcHit)))
     : Math.max(30, Math.round(82 - debtMin / 30 - alcHit));
-  const recovery = muscleRecovery(workouts, sleepReadiness, quickLog);
+  // Combine today's sport sessions with the cross-day log (filtered to 48h window)
+  // Normalise ALL movement/sport sources (new sportSessions + legacy cardioSessions + cross-day log)
+  // into one unified list before muscle recovery is calculated.
+  const allSportSessions = normalizeMovementSessionsForMuscleRecovery({
+    daily,
+    sportSessionsLog,
+    date,
+  });
+  const recovery = muscleRecovery(workouts, sleepReadiness, quickLog, trackingPrefs, allSportSessions);
   const volume = weeklyVolume(workouts);
-  const muscleReadyAvg = MUSCLES.reduce((a, [k]) => a + (100 - recovery[k].fatigue), 0) / MUSCLES.length;
-  const bodyReadiness = Math.round(muscleReadyAvg * 0.6 + sleepReadiness * 0.4);
+  // When training tracking is off, every muscle has fatigue=0 (trackingOff state) which would
+  // inflate muscleReadyAvg to 100. Guard: if training is off, bodyReadiness = sleepReadiness only.
+  const muscleReadyAvg = trackingPrefs.training === false
+    ? sleepReadiness
+    : MUSCLES.reduce((a, [k]) => a + (100 - (recovery[k]?.fatigue || 0)), 0) / MUSCLES.length;
+  const bodyReadiness = trackingPrefs.training === false
+    ? sleepReadiness
+    : Math.round(muscleReadyAvg * 0.6 + sleepReadiness * 0.4);
   const readyMuscles = MUSCLES.filter(([k]) => recovery[k]?.recovered && recovery[k]?.lastTs).map(([, n]) => n);
-  const freshMuscles = MUSCLES.filter(([k]) => recovery[k].fatigue < 30).map(([, n]) => n);
+  const freshMuscles = MUSCLES.filter(([k]) => (recovery[k]?.fatigue ?? 0) < 30 && recovery[k]?.hasData !== false && !recovery[k]?.trackingOff).map(([, n]) => n);
   const deload = deloadAdvice(workouts, debtMin, recovery);
-  const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily };
+  const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily, keypadFocus, onFocusField: setKeypadFocus, onChangePending: updateActivePending };
 
   // pain state — derived from structured logs (fallback to daily check-in)
   const painSum = painSummary(painLogs);
@@ -7003,10 +7602,30 @@ function SprigApp() {
   const trainedToday = workouts.some((w) => (w.date || getSprigDate(w.ts, latestSleepLog, profile?.dayResetMode || "after-wake")) === date) || (quickLog?.trainedToday === true);
   const suggestion = suggestSplit({ workouts, recovery, volume, sleepReadiness, debtMin, daily, trainedToday, routines });
   trainInfo.suggestion = suggestion;
-  const subScores = dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp: trackingPrefs });
+  // nutrition coaching (hoisted here so recoveryInfo can use nutriInfo.waterGoal)
+  const dietQ = dietQuality(t, targets, daily, profile);
+  const missing = missingNutrients(t, targets);
+  const coach = nutritionCoach(t, targets, profile, weightSeries);
+  const nutriInfo = { dietQ, missing, coach, waterGoal: waterGoal(profile) };
+
+  // ── Canonical recovery — single source of truth for ALL displays ──────────
+  // useMemo so the heavy muscle+scoring calculation doesn't re-run on every
+  // rest-timer tick (setInterval every second) or UI state change (toast, tab).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const recoveryInfo = useMemo(() => calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targets, t, workouts, quickLog, tp: trackingPrefs }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workouts, entries, sleepLogs, daily, date, quickLog, trackingPrefs, profile]); // raw state deps — stable across UI ticks
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const subScores = useMemo(() => dailyScores({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp: trackingPrefs, recoveryInfo }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recoveryInfo, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile]);
   const healthScore = dailyHealthScore(subScores);
   const funcHealth = functionalHealth({ subScores, sleepInfo, trainInfo, daily, healthInfo, profile, targets, t, trainedToday });
-  const actions = bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp: trackingPrefs });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const actions = useMemo(() => bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp: trackingPrefs, recoveryInfo }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recoveryInfo, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile]);
   const dailyInfo = { daily, weightSeries, subScores, healthScore, funcHealth, actions, trainedToday };
 
   // End-of-day quick-log nudge (gentle; never affects the score).
@@ -7021,12 +7640,6 @@ function SprigApp() {
     t, targets, daily, waterGoalMl: waterGoal(profile), trainedToday, tp: trackingPrefs,
   });
   const logGap = detectLoggingGap({ date, entries, workouts, sleepLogs, quickLog, trackingPrefs, dayStatus, logGapSnoozes });
-
-  // nutrition coaching
-  const dietQ = dietQuality(t, targets, daily, profile);
-  const missing = missingNutrients(t, targets);
-  const coach = nutritionCoach(t, targets, profile, weightSeries);
-  const nutriInfo = { dietQ, missing, coach, waterGoal: waterGoal(profile) };
 
   // ---- mind & habits ----
   const waterGoalMl = waterGoal(profile);
@@ -7062,11 +7675,27 @@ function SprigApp() {
   // recoveryInfo assembled below too
 
   // Central daily truth — single source of truth for all tabs (must be before coach2)
-  const dt = getDailyTruth({ date, tp: trackingPrefs, t, daily, quickLog, workouts, sleepInfo, targets, profile, supps, takenIds });
-  const dailyTruth = dt;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const dailyTruth = useMemo(() => {
+    const dt = getDailyTruth({ date, tp: trackingPrefs, t, daily, quickLog, workouts, sleepInfo, targets, profile, supps, takenIds });
+    // Inject canonical recovery score so coach context and any dt consumer gets the real number
+    if (dt.recovery && trackingPrefs.recovery !== false) {
+      dt.recovery.score      = recoveryInfo.score;
+      dt.recovery.label      = recoveryInfo.label;
+      dt.recovery.bestAction = recoveryInfo.bestAction;
+      dt.recovery.confidence = recoveryInfo.confidence;
+      dt.recovery.loadLevel  = recoveryInfo.loadLevel;
+    }
+    return dt;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recoveryInfo, entries, daily, date, quickLog, workouts, sleepLogs, trackingPrefs, profile, supps, takenIds]);
+  const dt = dailyTruth;
 
   // rule-based coach (no AI) — synthesizes everything above into 4 cards
-  const coach2 = coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, daily, profile, workouts, quickLog, tp: trackingPrefs, dt: dailyTruth });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const coach2 = useMemo(() => coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, daily, profile, workouts, quickLog, tp: trackingPrefs, dt: dailyTruth }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dailyTruth, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile]);
 
   // weekly report (rule-based)
   const report = weeklyReport({ history, workouts, sleepLogs, weightSeries, daily, dailyHistory, painLogs, focusSessions, consistency, targets, profile, sleepInfo });
@@ -7088,8 +7717,7 @@ function SprigApp() {
   moveInfo.trainedToday = trainedToday; // needed by computeAutoHabitToday workout autoType
   // Auto-habit completion (needs moveInfo)
   const autoToday = computeAutoHabitToday(habits2, { nutriInfo, moveInfo, sleepInfo, daily, targets, supps, takenIds, quickLog, tp: trackingPrefs });
-  // Perfect Recovery (needs sleepInfo, trainInfo, moveInfo, nutriInfo)
-  const recoveryInfo = calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targets, t, workouts, quickLog, tp: trackingPrefs });
+  // (recoveryInfo computed above, before bestActions — canonical single source of truth)
   const mindInfo = {
     checkin: daily.checkin || {}, habits: habitsTodayState, consistency,
     focusToday, focusWeek, focusMinutesToday: focusToday.reduce((a, f) => a + f.minutes, 0),
@@ -7100,13 +7728,15 @@ function SprigApp() {
   // overwrite nutriInfo.waterGoal to use the smart-hydration goal so it's consistent everywhere
   nutriInfo.waterGoal = hydration.goal;
   nutriInfo.needsElectrolytes = hydration.needsElectrolytes;
-  // health report — computed here so moveInfo + nutriInfo are both in scope
-  const healthReport = computeHealthReport({
+  // health report — memoized so it doesn't recalculate on every rest-timer tick
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const healthReport = useMemo(() => computeHealthReport({
     history7: (history || []).filter((h) => Date.now() - new Date(h.date).getTime() < 7 * 864e5),
     sleepLogs7: (sleepLogs || []).filter((l) => !l.ignoredFromScore && l.waketime > Date.now() - 7 * 864e5),
     workouts7: (workouts || []).filter((w) => w.ts > Date.now() - 7 * 864e5),
     daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo, tp: trackingPrefs, quickLog,
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [history, sleepLogs, workouts, entries, daily, date, quickLog, trackingPrefs, profile]);
   // achievements
   const achievements = detectAchievements({ workouts, weightSeries, sleepLogs, history, focusSessions, dailyHistory, painLogs });
   const timeline = goalTimeline({ profile, weightSeries, workouts, targets });
@@ -7203,7 +7833,7 @@ function SprigApp() {
             onStartWorkout={() => { startWorkout(); setTab("train"); }}
             onGoSleep={() => setTab("sleep")} onGoEnergy={() => setTab("energy")} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")}
             onGoNutrition={() => setTab("nutrition")} onGoTrain={() => setTab("train")}
-            recoveryInfo={recoveryInfo} dt={dailyTruth}
+            recoveryInfo={recoveryInfo} dt={dailyTruth} onToast={showToast}
             wins={(profile?.showWins === false) ? null : (wins[date] || [])} onKudos={(id) => kudoWin(id, date)} onViewAllWins={() => setWinsOpen(true)}
           />
         )}
@@ -7265,18 +7895,19 @@ function SprigApp() {
           onUndoCompletion={undoHabitCompletion} tp={trackingPrefs} />}
         {tab === "coach" && <CoachTab coach={coach2} advanced={advanced} moveInfo={moveInfo} timeline={timeline} plateaus={plateaus} patterns={patterns}
           onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={() => setAskOpen(true)} />}
-        {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} trackingPrefs={trackingPrefs} onToggleTracking={(k, v) => persistTrackingPrefs({ ...trackingPrefs, [k]: v })} />}
+        {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} onGoSettings={() => setTab("settings")} trackingPrefs={trackingPrefs} onToggleTracking={(k, v) => persistTrackingPrefs({ ...trackingPrefs, [k]: v })} />}
         {tab === "targets" && <MeTab view="targets" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}
           rirPref={rirPref} onSaveRirPref={saveRirPref} />}
-        {tab === "settings" && <MeTab view="settings" onBack={() => setTab("today")} profile={profile} targets={targets} onSave={saveProfile}
+        {tab === "settings" && <MeTab view="settings" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
           themeMode={themeMode} onSetTheme={setTheme}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}
           onResetOnboarding={() => { setTab("today"); setOnboarded(false); }}
           rirPref={rirPref} onSaveRirPref={saveRirPref}
-          trackingPrefs={trackingPrefs} onSaveTrackingPrefs={persistTrackingPrefs} />}
+          trackingPrefs={trackingPrefs} onSaveTrackingPrefs={persistTrackingPrefs}
+          onDevSeedFull={devSeedFullDay} onDevSeedQL={devSeedQuickLogDay} onDevClearToday={devClearToday} />}
         </div>{/* /tab-enter */}
       </div>
 
@@ -7443,16 +8074,7 @@ function SprigApp() {
       </div>
       </Portal>
 
-      {/* Floating "+ Log food" — page-level, centered above the bottom nav, only on the Food tab.
-          Stays visible while the Food list scrolls; never sits inside the scrolled content. */}
-      {tab === "nutrition" && !foodOverlayMode && !busy && !result && !activeWorkout && (
-        <Portal>
-          <button className="sprig-tap" onClick={() => setFoodOverlayMode("menu")}
-            style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 14px)", zIndex: 1500, ...btn(C.lime, "#0A1F12"), padding: "13px 22px", fontSize: 15, fontWeight: 700, borderRadius: 99, boxShadow: `0 8px 24px ${C.lime}55, 0 2px 8px rgba(0,0,0,.25)`, display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-            <Plus size={18} /> Log food
-          </button>
-        </Portal>
-      )}
+      {/* Log food CTA moved inline — see NutritionTab. One CTA per view, no floating duplicate. */}
 
       {/* ── New Record achievement toast ──
           Phase-based: entering → visible → exiting → unmounted.
@@ -7460,50 +8082,63 @@ function SprigApp() {
           z-index 4000 puts it above every overlay including the rest timer (1600). */}
       {recordToast && (
         <Portal>
-          {/* Subtle lime bloom behind the toast — fades in with the card, fades out on exit */}
+          {/* Centering wrapper — static translateX(-50%), no animation here.
+              The inner elements animate with translateY/scale only so there is no
+              conflict between the centering transform and the animation transform. */}
           <div style={{
             position: "fixed",
             top: "calc(env(safe-area-inset-top, 0px) + 64px)",
             left: "50%",
-            zIndex: 3999,
-            width: 260,
-            height: 56,
-            borderRadius: 99,
-            background: `radial-gradient(ellipse at 50% 50%, ${C.lime}2A 0%, transparent 72%)`,
-            pointerEvents: "none",
-            animation: recordToast.phase === "exiting"
-              ? "recordToastOut .28s cubic-bezier(.5,0,1,1) both"
-              : "recordBgBloom .7s ease-out both",
             transform: "translateX(-50%)",
-          }} />
-          {/* Toast card */}
-          <div
-            className={`record-toast${recordToast.phase === "exiting" ? " record-toast-exit" : ""}`}
-            style={{
-              position: "fixed",
-              top: "calc(env(safe-area-inset-top, 0px) + 64px)",
+            zIndex: 3999,
+            pointerEvents: "none",
+          }}>
+            {/* Subtle lime bloom behind the toast */}
+            <div style={{
+              position: "absolute",
               left: "50%",
-              zIndex: 4000,
-              // Dark glass card — matches Vitae dark forest aesthetic
-              background: C.isDark
-                ? "rgba(14, 36, 20, 0.95)"
-                : "rgba(255, 255, 255, 0.97)",
-              border: `1.5px solid ${C.lime}`,
-              borderRadius: 20,
-              padding: "11px 18px 11px 11px",
-              display: "flex",
-              alignItems: "center",
-              gap: 11,
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              maxWidth: "min(92vw, 420px)",
-              minWidth: 210,
-              cursor: "default",
+              top: 0,
+              transform: "translateX(-50%)",
+              width: 260,
+              height: 56,
+              borderRadius: 99,
+              background: `radial-gradient(ellipse at 50% 50%, ${C.lime}2A 0%, transparent 72%)`,
+              animation: recordToast.phase === "exiting"
+                ? "recordToastOut .28s cubic-bezier(.5,0,1,1) both"
+                : "recordBgBloom .7s ease-out both",
               pointerEvents: "none",
-              // transform is managed entirely by the CSS animation — do NOT set it here
-              // or it will fight with translateX(-50%) in the keyframes
-            }}
-          >
+            }} />
+          </div>
+          {/* Outer centering wrapper — translateX(-50%) is here and NEVER animated */}
+          <div style={{
+            position: "fixed",
+            top: "calc(env(safe-area-inset-top, 0px) + 64px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 4000,
+            pointerEvents: "none",
+          }}>
+            {/* Inner toast — animated with translateY+scale only, no translateX conflict */}
+            <div
+              className={`record-toast${recordToast.phase === "exiting" ? " record-toast-exit" : ""}`}
+              style={{
+                background: C.isDark
+                  ? "rgba(14, 36, 20, 0.95)"
+                  : "rgba(255, 255, 255, 0.97)",
+                border: `1.5px solid ${C.lime}`,
+                borderRadius: 20,
+                padding: "11px 18px 11px 11px",
+                display: "flex",
+                alignItems: "center",
+                gap: 11,
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                maxWidth: "min(92vw, 420px)",
+                minWidth: 210,
+                cursor: "default",
+                boxShadow: "0 10px 32px rgba(0,0,0,.35)",
+              }}
+            >
             {/* Medal icon — has its own pop animation */}
             <div className="record-icon" style={{
               width: 38,
@@ -7553,6 +8188,7 @@ function SprigApp() {
                 </span>
               )}
             </div>
+            </div>
           </div>
         </Portal>
       )}
@@ -7562,29 +8198,70 @@ function SprigApp() {
           + transformed ancestors that would otherwise clip an absolute/fixed child). */}
       {activeWorkout && rest && (restLeft > 0 || restDone) && (
         <Portal>
-        <div className="sprig-pop-centered" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px)", background: restDone && restLeft <= 0 ? C.green : C.cardSolid, borderRadius: 20, padding: "12px 16px", color: "#fff", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 40px rgba(0,0,0,.44)", border: `1px solid ${restDone && restLeft <= 0 ? C.green : C.green + "44"}`, zIndex: 1600 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 11, background: restDone && restLeft <= 0 ? "rgba(255,255,255,.2)" : C.green + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : C.greenSoft} />
+        {/* When keypad is open: compact bar above keypad (bottom ~320px).
+            Otherwise: standard pill above bottom nav. */}
+        {keypadFocus ? (
+          // Compact rest bar above keypad
+          <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: 320, background: C.cardSolid, borderRadius: "12px 12px 0 0", padding: "8px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 -2px 16px rgba(0,0,0,.3)", border: `1px solid ${C.green}44`, borderBottom: "none", zIndex: 1601 }}>
+            <Timer size={14} color={C.greenSoft} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: C.muted, fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{restLeft <= 0 ? "Ready!" : rest.exName}</span>
+            <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: restDone && restLeft <= 0 ? C.green : C.lime }}>{restLeft <= 0 ? "Go!" : fmtClock(restLeft)}</span>
+            <button className="sprig-tap" onClick={skipRest} style={{ background: C.green, border: "none", cursor: "pointer", padding: "4px 10px", borderRadius: 7, fontSize: 11.5, fontWeight: 700, color: "#fff", fontFamily: "DM Sans", flexShrink: 0 }}>{restLeft <= 0 ? "Go" : "Skip"}</button>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: restDone && restLeft <= 0 ? "rgba(255,255,255,.8)" : C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }}>
-              {restLeft <= 0 ? "Ready to go!" : rest.exName}
+        ) : (
+          <div className="sprig-pop-centered" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px)", background: restDone && restLeft <= 0 ? C.green : C.cardSolid, borderRadius: 20, padding: "12px 16px", color: "#fff", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 40px rgba(0,0,0,.44)", border: `1px solid ${restDone && restLeft <= 0 ? C.green : C.green + "44"}`, zIndex: 1600 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, background: restDone && restLeft <= 0 ? "rgba(255,255,255,.2)" : C.green + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : C.greenSoft} />
             </div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: restDone && restLeft <= 0 ? "#fff" : C.lime, lineHeight: 1 }}>{restLeft <= 0 ? "Go!" : fmtClock(restLeft)}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: restDone && restLeft <= 0 ? "rgba(255,255,255,.8)" : C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }}>
+                {restLeft <= 0 ? "Ready to go!" : rest.exName}
+              </div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: restDone && restLeft <= 0 ? "#fff" : C.lime, lineHeight: 1 }}>{restLeft <= 0 ? "Go!" : fmtClock(restLeft)}</div>
+            </div>
+            {restLeft > 0 && (
+              <>
+                <button className="sprig-tap" onClick={() => (rest.paused ? resumeRest() : pauseRest())} aria-label={rest.paused ? "Resume" : "Pause"}
+                  style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", width: 36, height: 36, borderRadius: 10, display: "grid", placeItems: "center", color: C.inkSoft }}>
+                  {rest.paused ? <Play size={14} /> : <Pause size={14} />}
+                </button>
+                <button className="sprig-tap" onClick={() => addRest(30000)} style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", padding: "0 10px", height: 36, borderRadius: 10, fontSize: 12, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>+30s</button>
+              </>
+            )}
+            <button className="sprig-tap" onClick={skipRest} style={{ background: C.green, border: "none", cursor: "pointer", padding: "0 14px", height: 36, borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "DM Sans" }}>{restLeft <= 0 ? "Go" : "Skip"}</button>
           </div>
-          {restLeft > 0 && (
-            <>
-              <button className="sprig-tap" onClick={() => (rest.paused ? resumeRest() : pauseRest())} aria-label={rest.paused ? "Resume" : "Pause"}
-                style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", width: 36, height: 36, borderRadius: 10, display: "grid", placeItems: "center", color: C.inkSoft }}>
-                {rest.paused ? <Play size={14} /> : <Pause size={14} />}
-              </button>
-              <button className="sprig-tap" onClick={() => addRest(30000)} style={{ background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", padding: "0 10px", height: 36, borderRadius: 10, fontSize: 12, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>+30s</button>
-            </>
-          )}
-          <button className="sprig-tap" onClick={skipRest} style={{ background: C.green, border: "none", cursor: "pointer", padding: "0 14px", height: 36, borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "DM Sans" }}>{restLeft <= 0 ? "Go" : "Skip"}</button>
-        </div>
+        )}
         </Portal>
       )}
+
+      {/* ── Custom workout keypad ── rendered at app level so it stays above everything */}
+      {activeWorkout && keypadFocus && (() => {
+        const kEx = activeWorkout.exercises[keypadFocus.exIdx];
+        const kField = keypadFocus.field; // "w" | "reps"
+        const kVal = kField === "w" ? (kEx?.pendingW ?? "") : (kEx?.pendingR ?? "");
+        function kChange(v) {
+          updateActivePending(keypadFocus.exIdx, kField === "w" ? { pendingW: v } : { pendingR: v });
+        }
+        function kNext() {
+          if (kField === "w") {
+            // Move to reps
+            setKeypadFocus({ exIdx: keypadFocus.exIdx, field: "reps" });
+          } else {
+            // reps → close (user will tap Log set)
+            setKeypadFocus(null);
+          }
+        }
+        return (
+          <WorkoutKeypad
+            field={kField}
+            value={kVal}
+            onChange={kChange}
+            onNext={kNext}
+            onDone={() => setKeypadFocus(null)}
+            onDismiss={() => setKeypadFocus(null)}
+          />
+        );
+      })()}
 
       {/* End-of-day quick-log nudge — gentle, dismissible, never affects the score. Hidden during
           an active workout (rest timer owns that space) and on the Today tab (quick log is right there). */}
@@ -7607,7 +8284,7 @@ function SprigApp() {
           missing={logGap.missing}
           onQuickLog={() => { setQuickOpen(true); }}
           onNothingDay={() => persistDayStatus({ ...dayStatus, [date]: "nothing" })}
-          onSnooze={() => persistLogGapSnoozes([...(logGapSnoozes || []).filter((s) => s.date !== date), { date, snoozedUntil: Date.now() + 2 * 60 * 60 * 1000 }])}
+          onSnooze={() => { const existing = (logGapSnoozes || []).find((s) => s.date === date); persistLogGapSnoozes([...(logGapSnoozes || []).filter((s) => s.date !== date), { date, snoozedUntil: Date.now() + 2 * 60 * 60 * 1000, count: (existing?.count || 0) + 1 }]); }}
           onDismiss={() => persistDayStatus({ ...dayStatus, [date]: "dismissed" })}
         />
       )}
@@ -7631,6 +8308,11 @@ function SprigApp() {
             persistHabitDone({ ...hdNow, [date]: Array.from(todayList) });
           }
           await persistDayStatus({ ...dayStatus, [date]: "logged" });
+          // Fire wins immediately after QL save (QL not in useEffect deps due to declaration order)
+          try {
+            const wCands = detectDayWins({ t, daily, targets, sleepInfo: { waterGoal: profile?.weight ? Math.round(profile.weight * 35) : 2500 }, profile, quickLog: ql });
+            if (wCands.length) recordWins(wCands, date);
+          } catch (_) {}
           setQuickOpen(false);
           logged("Day quick logged ⚡", "success");
         }}
@@ -7798,6 +8480,9 @@ function SprigApp() {
           cardioMin: daily?.cardioMin ?? 0, cardioKcal: daily?.cardioKcal ?? 0,
           alcohol_g: daily?.alcohol_g ?? 0, caffeineMg: daily?.caffeine ?? 0,
           weightKg: daily?.weight ?? null,
+          sportSessions: (Array.isArray(daily?.sportSessions) && daily.sportSessions.length)
+            ? daily.sportSessions.map((s) => ({ name: s.sportName, durationMin: s.durationMin, intensity: s.intensity, estimatedKcal: s.estimatedCalories }))
+            : undefined,
         };
         // Muscle recovery map (top 5 most-fatigued, abbreviated for the model)
         const muscleRecoveryList = MUSCLES.map(([k, n]) => ({ muscle: n, fatigue: Math.round(trainInfo.recovery[k]?.fatigue || 0) }))
@@ -8763,7 +9448,17 @@ function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }) {
 
       {/* Muscle Status */}
       {(() => {
-        const muscles = MUSCLES.map(([k,n]) => ({ k, n, ...ri.muscleStatus[k] })).filter(m => m.fatigue > 0);
+        const allMuscles = MUSCLES.map(([k,n]) => ({ k, n, ...ri.muscleStatus[k] }));
+        const isTrackingOff = allMuscles.every(m => m.trackingOff);
+        if (isTrackingOff) return (
+          <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
+            <div className="sprig-eyebrow" style={{ marginBottom: 5 }}>Muscle recovery</div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+              Training tracking is off — enable in Settings → Tracking preferences to see muscle recovery.
+            </div>
+          </div>
+        );
+        const muscles = allMuscles.filter(m => m.fatigue > 0);
         if (!muscles.length) return (
           <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
             <div className="sprig-eyebrow" style={{ marginBottom: 5 }}>Muscle recovery</div>
@@ -8780,7 +9475,10 @@ function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }) {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {shown.map(m => (
                 <span key={m.k} style={{ fontSize: 11, fontWeight: 600, color: m.color, background: m.color + "18", padding: "3px 9px", borderRadius: 99, border: `1px solid ${m.color}44` }}>
-                  {m.name}: {m.status}{m.quickLogged ? <span style={{ fontSize: 9, opacity: .7, marginLeft: 4 }}>QL</span> : null}
+                  {m.name}: {m.status}
+                  {m.quickLogged ? <span style={{ fontSize: 9, opacity: .7, marginLeft: 4 }}>QL</span>
+                    : m.sportSource ? <span style={{ fontSize: 9, opacity: .75, marginLeft: 4 }}>· {m.sportName || "sport"}</span>
+                    : null}
                 </span>
               ))}
               {muscles.length > shown.length && (
@@ -8870,76 +9568,58 @@ function TodayChip({ label, onClick, primary }) {
   );
 }
 
-function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain, wins, onKudos, onViewAllWins, recoveryInfo, quickLog, tp = {}, dt = null }) {
-  const { lastSleep, debtMin, rec, gym } = sleepInfo;
-  const { daily, subScores, healthScore, actions, funcHealth } = dailyInfo;
-  const [showDrinks, setShowDrinks] = useState(false);
-  const [showMovement, setShowMovement] = useState(false);
+function TodayStatusRow({ icon, label, value, accent, onTap, actionLabel, onAction, last }) {
+  return (
+    <div className="sprig-tap" onClick={onTap}
+      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: last ? "none" : `1px solid ${C.line}` }}>
+      <div style={{ width: 32, height: 32, borderRadius: 9, background: accent + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4, lineHeight: 1 }}>{label}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+      </div>
+      {actionLabel && onAction ? (
+        <button className="sprig-tap" onClick={(e) => { e.stopPropagation(); onAction(); }}
+          style={{ background: accent + "1A", border: `1px solid ${accent}33`, borderRadius: 8, padding: "6px 11px", fontSize: 11.5, fontWeight: 600, color: accent, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap", flexShrink: 0 }}>
+          {actionLabel}
+        </button>
+      ) : (
+        <ChevronRight size={14} color={C.muted} style={{ flexShrink: 0, opacity: .4 }} />
+      )}
+    </div>
+  );
+}
 
-  // ---- derived mini-card values ----
+function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain, wins, onKudos, onViewAllWins, recoveryInfo, quickLog, tp = {}, dt = null, onToast }) {
+  const { lastSleep } = sleepInfo;
+  const { daily, subScores, healthScore, actions } = dailyInfo;
+  const [stepsEditing, setStepsEditing] = useState(false);
+  const [stepsInput, setStepsInput] = useState("");
+
   const adjTarget = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
-  const kcalLeft = Math.max(0, adjTarget - t.calories);
-  const proteinLeft = Math.max(0, targets.protein - t.protein);
-
-  // dt-derived source labels — drive mini-card display
   const dtNutrSrc  = dt?.nutrition?.source  || null;
   const dtSleepSrc = dt?.sleep?.source      || null;
   const dtTrainSrc = dt?.training?.source   || null;
   const dtWaterSrc = dt?.water?.source      || null;
   const dtMoveSrc  = dt?.movement?.source   || null;
-  const dtAlcSrc   = dt?.alcohol?.source    || null;
 
-  const stepGoalV = moveInfo?.stepGoal || 8000;
   const steps = daily.steps || 0;
-  const cardioMin = daily.cardioMin || 0;
-
-  const drinks = Array.isArray(daily?.alcoholDrinks) ? daily.alcoholDrinks : [];
-  const drinkKcal = drinks.reduce((a, d) => a + (d.kcal || 0), 0);
-  const alcoholG = daily.alcohol_g || 0;
-
   const waterMl = daily.water || 0;
   const waterGoal = nutriInfo.waterGoal || 2600;
-  const waterLeft = Math.max(0, waterGoal - waterMl);
-
-  const readiness = trainInfo?.recoveryRec || { level: "normal", text: "Log sleep to tune today's readiness." };
-  const readyLabel = { hard: "Ready", normal: "Good", light: "Take it easy", rest: "Rest day" }[readiness.level] || "Good";
-  const readyColor = { hard: C.greenSoft, normal: C.greenSoft, light: C.amber, rest: C.coral }[readiness.level] || C.greenSoft;
-
-  // functional health: lowest of the functional scores, plus how many are strong
-  const fhAvg = scores.length ? Math.round(scores.reduce((a, s) => a + s.score, 0) / scores.length) : null;
-  const fhLow = scores.length ? scores.slice().sort((a, b) => a.score - b.score)[0] : null;
-
   const litres = (ml) => (ml / 1000).toFixed(1) + "L";
 
   return (
     <div className="sprig-rise">
-      {/* personalized focus badge */}
-      {profile?.focus && (() => {
-        const FB = {
-          gym: { text: "Focus: build muscle", emoji: "🏋️" },
-          cardio: { text: "Focus: cardio & endurance", emoji: "🏃" },
-          sports: { text: "Focus: sport performance", emoji: "⚽" },
-          health: { text: "Focus: general health", emoji: "🌿" },
-          transform: { text: "Focus: body transformation", emoji: "✨" },
-        }[profile.focus];
-        if (!FB) return null;
-        return (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.bg2, padding: "4px 9px", borderRadius: 99, fontSize: 10.5, fontWeight: 600, color: C.muted, marginBottom: 8 }}>
-            <span>{FB.emoji}</span><span>{FB.text}</span>
-          </div>
-        );
-      })()}
 
-      {/* 1 — DAILY HEALTH SCORE — Bevel-style hero */}
+      {/* 1 — DAILY STATUS CARD */}
       <div style={{ background: C.heroGrad1, borderRadius: 24, padding: "20px 18px 18px", color: "#fff", boxShadow: C.shadow }}>
-        {/* top row: eyebrow + date */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, opacity: .7 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, textTransform: "uppercase" }}>Health score</div>
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, textTransform: "uppercase" }}>Today</div>
           <div style={{ fontSize: 10.5, fontWeight: 600 }}>{new Date().toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric" })}</div>
         </div>
-        {/* score row: donut + verdict */}
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <ScoreDonut score={healthScore} size={100} />
+          <ScoreDonut score={healthScore} size={90} />
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 26, fontWeight: 700, lineHeight: 1.1 }}>{scoreVerdict(healthScore)}</div>
             <div style={{ fontSize: 12.5, opacity: .85, marginTop: 6, lineHeight: 1.5, fontWeight: 500 }}>
@@ -8949,253 +9629,200 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         </div>
       </div>
 
-      {/* horizontal score rings — Kiwi-style dashboard summary of each system */}
-      {(() => {
-        const rings = [
-          tp.nutrition !== false && { label: "Nutrition", v: subScores.nutrition, ic: <Flame size={15} />, accent: C.lime },
-          tp.sleep !== false && { label: "Sleep", v: subScores.sleep, ic: <Moon size={15} />, accent: C.greenSoft },
-          (tp.movement !== false || tp.training !== false) && { label: "Movement", v: subScores.movement, ic: <Activity size={15} />, accent: C.leaf },
-          tp.recovery !== false && { label: "Recovery", v: subScores.training, ic: <Gauge size={15} />, accent: C.limeSoft },
-          tp.habits !== false && { label: "Mind", v: subScores.mind, ic: <BookOpen size={15} />, accent: C.greenSoft },
-        ].filter(Boolean);
-        return (
-          <div style={{ display: "flex", gap: 9, overflowX: "auto", padding: "14px 2px 6px", marginTop: 2 }} className="sprig-scroll">
-            {rings.map((rg) => (
-              <div key={rg.label} style={{ flex: "0 0 auto", background: C.bg2, borderRadius: 18, padding: "12px 10px 10px", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 76 }}>
-                <RingMetric value={rg.v == null ? 0 : rg.v} max={100} size={58} stroke={5}
-                  accent={rg.v == null ? "rgba(255,255,255,0.18)" : rg.accent}
-                  icon={rg.ic} center={rg.v == null || rg.v === 0 ? "–" : Math.round(rg.v)} label={rg.label} />
+      {/* 2 — BEST ACTIONS (max 2) */}
+      {actions.length > 0 && (
+        <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
+          {actions.slice(0, 2).map((a, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12,
+              paddingTop: i > 0 ? 11 : 0, marginTop: i > 0 ? 11 : 0,
+              borderTop: i > 0 ? `1px solid ${C.line}` : "none" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 11,
+                background: i === 0 ? C.green : C.bg2,
+                color: i === 0 ? "#fff" : C.greenSoft,
+                display: "grid", placeItems: "center", flexShrink: 0 }}>
+                {ACTION_ICON[a.icon] || <Check size={16} />}
               </div>
-            ))}
+              <span style={{ fontSize: i === 0 ? 13.5 : 12.5, color: i === 0 ? C.ink : C.inkSoft, lineHeight: 1.4, fontWeight: i === 0 ? 600 : 400 }}>{a.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 3 — SCORE GRID (2-col, no horizontal scroll) */}
+      {(() => {
+        const chips = [
+          tp.recovery  !== false && { label: "Recovery",  v: subScores.training,  accent: C.limeSoft },
+          tp.nutrition !== false && { label: "Nutrition", v: subScores.nutrition, accent: C.lime },
+          tp.sleep     !== false && { label: "Sleep",     v: subScores.sleep,     accent: "#9B87D0" },
+          (tp.movement !== false || tp.training !== false) && { label: "Movement", v: subScores.movement, accent: C.leaf },
+        ].filter(Boolean);
+        if (!chips.length) return null;
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+            {chips.map((ch) => {
+              const score = ch.v == null ? null : Math.round(ch.v);
+              const color = score == null ? C.muted : score >= 70 ? ch.accent : score >= 45 ? C.amber : C.coral;
+              return (
+                <div key={ch.label} style={{ background: C.bg2, borderRadius: 12, padding: "8px 10px", textAlign: "center" }}>
+                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color, lineHeight: 1 }}>{score == null ? "–" : score}</div>
+                  <div style={{ fontSize: 9.5, color: C.muted, fontWeight: 600, marginTop: 3, letterSpacing: .3, textTransform: "uppercase" }}>{ch.label}</div>
+                </div>
+              );
+            })}
           </div>
         );
       })()}
 
-      {/* RECOVERY CARD — status before actions */}
-      {tp.recovery !== false && recoveryInfo && (
-        <div style={{ marginTop: 12 }}>
-          <PerfectRecoveryCard recoveryInfo={recoveryInfo} compact onGoTrain={onGoTrain} />
-        </div>
-      )}
-
-      {/* 2 — BEST ACTIONS (max 3, one sentence each) */}
-      {actions.length > 0 && (
-        <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, marginBottom: 11, display: "flex", alignItems: "center", gap: 7 }}>
-            <Sparkles size={16} color={C.greenSoft} /> Best actions today
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {actions.slice(0, 3).map((a, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: i === 0 ? "11px 12px" : "0", background: i === 0 ? C.green + "14" : "transparent", borderRadius: i === 0 ? 14 : 0, border: i === 0 ? `1px solid ${C.green}30` : "none" }}>
-                <div style={{ width: i === 0 ? 34 : 28, height: i === 0 ? 34 : 28, borderRadius: i === 0 ? 11 : 8, background: i === 0 ? C.green : C.bg2, color: i === 0 ? "#fff" : C.greenSoft, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                  {ACTION_ICON[a.icon] || <Check size={i === 0 ? 17 : 14} />}
-                </div>
-                <span style={{ fontSize: i === 0 ? 13.5 : 12.5, color: i === 0 ? C.ink : C.inkSoft, lineHeight: 1.4, fontWeight: i === 0 ? 700 : 400 }}>{a.text}</span>
-              </div>
-            ))}
-          </div>
-          {!trainInfo.deload.suggest && actions[0] && actions[0].icon === "train" && (
-            <button className="sprig-tap" onClick={onStartWorkout} style={{ ...btn(C.green, "#fff"), width: "100%", padding: "11px 0", marginTop: 13, fontSize: 14 }}>
-              <Play size={15} /> Start workout
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* 3 — PRIMARY CTA: Quick log the day — hide when enough data already captured */}
-      {onQuickLog && !quickLog && !(dt?.nutrition?.source === "exact" && dt?.sleep?.source === "exact" && dt?.training?.source === "exact") && (
-        <div style={{ marginTop: 12 }}>
-          <button className="sprig-tap" onClick={onQuickLog}
-            style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "15px 16px", fontSize: 15, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
-            <Zap size={17} /> Quick log the day
-            <ChevronRight size={17} style={{ marginLeft: "auto", opacity: .7 }} />
-          </button>
-          <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center", marginTop: 6, fontWeight: 500 }}>30 seconds · fills gaps · improves every score</div>
-        </div>
-      )}
-
-      {/* Quick Log summary — shown if user already quick-logged today */}
-      {quickLog && (() => {
-        const ql = quickLog;
-        const chips = [];
-        if (ql.trainedToday) chips.push({ icon: "🏋️", text: ql.trainingType ? ql.trainingType.replace(/_/g, " ") : "Training", tone: "green" });
-        if (ql.hitProtein === true) chips.push({ icon: "🥩", text: "Protein", tone: "green" });
-        if (ql.hitCalories === true) chips.push({ icon: "🔥", text: "Calories", tone: "green" });
-        if (ql.enoughSleep === true) chips.push({ icon: "😴", text: "Sleep", tone: "green" });
-        if (ql.enoughMovement === true) chips.push({ icon: "🚶", text: "Movement", tone: "green" });
-        if (ql.hitWater === true) chips.push({ icon: "💧", text: "Hydration", tone: "green" });
-        if (ql.noAlcohol === true) chips.push({ icon: "✓", text: "No alcohol", tone: "green" });
-        if (ql.supplementsTaken === true) chips.push({ icon: "💊", text: "Supps", tone: "green" });
-        const visibleChips = chips.slice(0, 6);
-        const hiddenCount = chips.length - visibleChips.length;
-        if (!chips.length) return null;
+      {/* 4 — QUICK CONTROLS: water +1 glass + steps +500/+1000/Set */}
+      {(tp.water !== false || tp.movement !== false) && (() => {
+        const waterMl2  = daily.water || 0;
+        const waterGoal2 = nutriInfo.waterGoal || 2600;
+        const steps2    = daily.steps || 0;
+        const stepGoal2 = stepGoal(profile);
+        const dtWaterSrc2 = dt?.water?.source || null;
+        const dtMoveSrc2  = dt?.movement?.source || null;
         return (
-          <div style={{ background: C.green + "16", border: `1px solid ${C.green}40`, borderRadius: 16, padding: "14px 14px", marginTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-              <Zap size={13} color={C.greenSoft} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.greenSoft }}>Quick logged today</span>
-              <span style={{ fontSize: 10, color: C.muted, marginLeft: "auto", background: C.green + "18", padding: "2px 7px", borderRadius: 6 }}>Estimated</span>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {visibleChips.map((ch, i) => (
-                <span key={i} style={{ fontSize: 11, fontWeight: 600, color: C.greenSoft, background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 99, padding: "3px 9px" }}>
-                  {ch.icon} {ch.text}
-                </span>
-              ))}
-              {hiddenCount > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, background: C.card2, borderRadius: 99, padding: "3px 9px" }}>
-                  +{hiddenCount} more
-                </span>
-              )}
-            </div>
-            {onQuickLog && (
-              <button className="sprig-tap" onClick={onQuickLog} style={{ background: C.green + "18", border: `1px solid ${C.green}33`, cursor: "pointer", fontSize: 11, color: C.greenSoft, fontFamily: "DM Sans", marginTop: 8, padding: "5px 10px", borderRadius: 8, fontWeight: 600 }}>
-                Edit quick log →
-              </button>
+          <div style={{ background: C.card, borderRadius: 18, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 10, overflow: "hidden" }}>
+            {tp.water !== false && (
+              <div style={{ padding: "12px 14px", borderBottom: tp.movement !== false ? `1px solid ${C.line}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: "#5B9BD51A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <Droplets size={14} color="#5B9BD5" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4 }}>Water</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>
+                      {dtWaterSrc2 === "quick_log" && waterMl2 === 0 ? "Goal hit · Quick logged"
+                        : waterMl2 > 0 ? `${(waterMl2/1000).toFixed(1)}L / ${(waterGoal2/1000).toFixed(1)}L`
+                        : `0 / ${(waterGoal2/1000).toFixed(1)}L`}
+                    </div>
+                  </div>
+                  <button className="sprig-tap"
+                    onClick={() => { onDaily({ water: waterMl2 + 250 }); buzz("light"); if (onToast) onToast("Added 250ml water ✓"); }}
+                    style={{ background: "#5B9BD51A", border: `1px solid #5B9BD533`, borderRadius: 9, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "#5B9BD5", cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap", flexShrink: 0 }}>
+                    +1 glass <span style={{ fontSize: 10, opacity: .7 }}>250ml</span>
+                  </button>
+                </div>
+                {waterMl2 > 0 && (
+                  <div style={{ height: 4, background: C.bg2, borderRadius: 9 }}>
+                    <div style={{ height: "100%", borderRadius: 9, background: waterMl2 >= waterGoal2 ? "#5B9BD5" : "#5B9BD5AA", width: `${Math.min(100, Math.round(waterMl2/waterGoal2*100))}%`, transition: "width .3s" }} />
+                  </div>
+                )}
+              </div>
+            )}
+            {tp.movement !== false && (
+              <div style={{ padding: "12px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: stepsEditing ? 8 : 6 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: C.green + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <Activity size={14} color={C.greenSoft} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4 }}>Steps</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>
+                      {dtMoveSrc2 === "quick_log" && steps2 === 0 ? "Movement covered · Quick logged"
+                        : steps2 > 0 ? `${steps2.toLocaleString()} / ${stepGoal2.toLocaleString()}`
+                        : `0 / ${stepGoal2.toLocaleString()}`}
+                    </div>
+                  </div>
+                </div>
+                {steps2 > 0 && !stepsEditing && (
+                  <div style={{ height: 4, background: C.bg2, borderRadius: 9, marginBottom: 8 }}>
+                    <div style={{ height: "100%", borderRadius: 9, background: steps2 >= stepGoal2 ? C.greenSoft : C.green + "AA", width: `${Math.min(100, Math.round(steps2/stepGoal2*100))}%`, transition: "width .3s" }} />
+                  </div>
+                )}
+                {!stepsEditing ? (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="sprig-tap" onClick={() => { onDaily({ steps: steps2 + 500 }); buzz("light"); }}
+                      style={{ ...btn(C.bg2, C.green), flex: 1, padding: "7px 0", fontSize: 12, fontWeight: 700 }}>+500</button>
+                    <button className="sprig-tap" onClick={() => { onDaily({ steps: steps2 + 1000 }); buzz("light"); }}
+                      style={{ ...btn(C.bg2, C.green), flex: 1, padding: "7px 0", fontSize: 12, fontWeight: 700 }}>+1,000</button>
+                    <button className="sprig-tap" onClick={() => { setStepsInput(String(steps2 || "")); setStepsEditing(true); }}
+                      style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "7px 0", fontSize: 12, fontWeight: 700 }}>Set</button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input type="number" inputMode="numeric" min="0" autoFocus value={stepsInput}
+                      onChange={(e) => setStepsInput(e.target.value)}
+                      placeholder="Steps today"
+                      style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 9, padding: "8px 10px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
+                    <button className="sprig-tap" onClick={() => {
+                      const v = parseInt(stepsInput, 10);
+                      if (Number.isFinite(v) && v >= 0) { onDaily({ steps: v }); buzz("light"); }
+                      setStepsEditing(false); setStepsInput("");
+                    }} style={{ ...btn(C.green, "#fff"), padding: "8px 14px", fontSize: 12 }}>Save</button>
+                    <button className="sprig-tap" onClick={() => { setStepsEditing(false); setStepsInput(""); }}
+                      style={{ ...btn(C.bg2, C.inkSoft), padding: "8px 12px", fontSize: 12 }}>✕</button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         );
       })()}
 
-      {/* Today's wins — compact recognition card */}
+      {/* 4 — QUICK LOG — only shown if needed */}
+      {quickLog ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg2, borderRadius: 12, padding: "10px 14px", marginTop: 10 }}>
+          <Zap size={13} color={C.greenSoft} />
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, flex: 1 }}>Quick logged today</span>
+          {onQuickLog && (
+            <button className="sprig-tap" onClick={onQuickLog}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: C.greenSoft, fontFamily: "DM Sans", fontWeight: 600, padding: "2px 0" }}>
+              Edit →
+            </button>
+          )}
+        </div>
+      ) : onQuickLog && !(dt?.nutrition?.source === "exact" && dt?.sleep?.source === "exact" && dt?.training?.source === "exact") ? (
+        <button className="sprig-tap" onClick={onQuickLog}
+          style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "14px 16px", fontSize: 14, fontWeight: 700, marginTop: 12, boxShadow: `0 4px 16px ${C.lime}33` }}>
+          <Zap size={15} /> Quick log the day
+          <ChevronRight size={15} style={{ marginLeft: "auto", opacity: .7 }} />
+        </button>
+      ) : null}
+
+      {/* 5 — WINS */}
       {wins && <div style={{ marginTop: 12 }}><TodayWinsCard wins={wins} onKudos={onKudos} onViewAll={onViewAllWins} /></div>}
 
-      {/* mini cards grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
-        {/* 4 — NUTRITION mini */}
-        {tp.nutrition !== false && <TodaySummaryCard
-          icon={<Flame size={15} color={C.amber} />} accent={t.calories > adjTarget ? C.coral : C.green}
-          title={<span>Nutrition <SrcPill source={dtNutrSrc} /></span>}
-          value={dtNutrSrc === "quick_log" ? (dt?.nutrition?.proteinOk ? "Protein hit" : "Done") : kcalLeft}
-          sub={dtNutrSrc === "quick_log" ? "quick log" : "kcal left"}
-          note={dtNutrSrc === "quick_log" ? `${dt?.nutrition?.proteinOk ? "Protein hit · " : "Protein not marked · "}${dt?.nutrition?.calOk ? "Calories on track." : "Calories uncertain."} Log meals for exact numbers.` : t.calories > adjTarget ? `${t.calories - adjTarget} over target.` : `${proteinLeft}g protein to go.`}
-          actions={<>
-            {dtNutrSrc !== "quick_log" && onAddEntry && <TodayChip label="+ Log food" primary onClick={onGoNutrition} />}
-          </>}
-        >
-          <div style={{ marginTop: 8 }}>
-            <div style={{ height: 6, background: C.bg2, borderRadius: 99 }}>
-              <div style={{ width: Math.min(100, Math.round((t.calories / adjTarget) * 100)) + "%", height: "100%", background: t.calories > adjTarget ? C.coral : C.green, borderRadius: 99, transition: "width .5s" }} />
-            </div>
-          </div>
-        </TodaySummaryCard>}
-
-        {/* Water mini */}
-        {tp.water !== false && <TodaySummaryCard
-          icon={<Coffee size={15} color="#5B9BD5" />} accent="#5B9BD5"
-          title={<span>Water <SrcPill source={dtWaterSrc} /></span>}
-          value={dtWaterSrc === "quick_log" ? "Hydrated" : litres(waterMl)}
-          sub={dtWaterSrc === "quick_log" ? "quick log" : "/ " + litres(waterGoal)}
-          note={dtWaterSrc === "quick_log" ? "Water goal marked hit via Quick Log. Log litres for exact tracking."
-            : waterLeft > 0 ? `About ${litres(waterLeft)} more today.` : "Hydration goal hit. 💧"}
-          actions={<>
-            {dtWaterSrc !== "quick_log" && <TodayChip label="+250 ml" primary onClick={() => onDaily({ water: waterMl + 250 })} />}
-          </>}
-        />}
-
-        {/* 5 — MOVEMENT mini (steps + cardio) */}
-        {tp.movement !== false && <TodaySummaryCard
-          icon={<Activity size={15} color={C.greenSoft} />} accent={C.greenSoft}
-          title={<span>Movement <SrcPill source={dtMoveSrc} /></span>}
-          value={dtMoveSrc === "quick_log" ? "Active" : steps.toLocaleString()}
-          sub={dtMoveSrc === "quick_log" ? "quick log" : "/ " + stepGoalV.toLocaleString() + " steps"}
-          note={dtMoveSrc === "quick_log" ? "Movement goal marked hit · Quick Log. Log steps for exact tracking."
-            : cardioMin > 0 ? `${cardioMin} min cardio logged.` : (steps >= stepGoalV ? "Step goal hit. 🏃" : `${Math.max(0, stepGoalV - steps).toLocaleString()} steps to goal.`)}
-          actions={<>
-            {dtMoveSrc !== "quick_log" && <TodayChip label={showMovement ? "Hide" : "+ Add"} primary onClick={() => setShowMovement((s) => !s)} />}
-            {dtMoveSrc === "quick_log" && <TodayChip label="Train" onClick={onGoTrain} />}
-          </>}
-        />}
-
-        {/* 6 — DRINKS mini */}
-        {tp.alcohol !== false && <TodaySummaryCard
-          icon={<span style={{ fontSize: 15 }}>🍷</span>}
-          accent={dtAlcSrc === "quick_log" ? (dt?.alcohol?.noAlcohol ? C.greenSoft : C.amber) : alcoholG >= 30 ? C.coral : alcoholG >= 15 ? C.amber : C.inkSoft}
-          title={<span>Drinks <SrcPill source={dtAlcSrc} /></span>}
-          value={dtAlcSrc === "quick_log" ? (dt?.alcohol?.noAlcohol ? "None" : "Some") : drinks.length}
-          sub={dtAlcSrc === "quick_log" ? "" : drinks.length === 1 ? "drink" : "drinks"}
-          note={dtAlcSrc === "quick_log"
-            ? (dt?.alcohol?.noAlcohol ? "No alcohol · Quick Log." : "Alcohol logged · Quick Log. Log drinks for exact kcal tracking.")
-            : drinks.length ? `${alcoholG}g alcohol · ${drinkKcal} kcal.` : "No drinks logged."}
-          actions={<>
-            {dtAlcSrc !== "quick_log" && <TodayChip label={showDrinks ? "Hide" : "+ Log drink"} primary onClick={() => setShowDrinks((s) => !s)} />}
-          </>}
-        />}
-      </div>
-
-      {/* expandable real loggers (reuse the same components as Nutrition/Train) */}
-      {tp.movement !== false && showMovement && (
-        <div style={{ marginTop: 10 }}>
-          <MovementCard daily={daily} profile={profile} onDaily={onDaily} compact />
-        </div>
-      )}
-      {tp.alcohol !== false && showDrinks && (
-        <div style={{ marginTop: 10 }}>
-          <DrinksCard daily={daily} onDaily={onDaily} onAddEntry={onAddEntry} />
-        </div>
-      )}
-
-      {/* 7 — SLEEP mini (full width) */}
-      {tp.sleep !== false && <div style={{ marginTop: 10 }}>
-        <TodaySummaryCard
-          icon={<Moon size={15} color="#7A6FB0" />} accent="#7A6FB0"
-          title={<span>Sleep <SrcPill source={dtSleepSrc} /></span>}
-          value={dtSleepSrc === "quick_log" ? "Rested" : lastSleep ? durLabel(lastSleep.durationMin) : "—"}
-          sub={dtSleepSrc === "quick_log" ? "quick log" : lastSleep ? `score ${lastSleep.score}` : "no log yet"}
-          note={dtSleepSrc === "quick_log" ? "Quick Log recorded. Log a real session for sleep score, debt, and alarm data." : rec ? `Caffeine cutoff ${minToLabel(rec.caffeineCutoff)} · blue light ${minToLabel(rec.blueCutoff)}.` : "Log last night's sleep for cutoffs, debt tracking, and recovery confidence."}
-          actions={<>
-            {dtSleepSrc !== "quick_log" && !lastSleep && <TodayChip label="Log sleep" primary onClick={onGoSleep} />}
-            {(dtSleepSrc === "quick_log" || lastSleep) && <TodayChip label="Sleep →" onClick={onGoSleep} />}
-          </>}
-        />
-      </div>}
-
-      {/* 8 — TRAINING mini: readiness + gym window */}
-      {tp.training !== false && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-        <TodaySummaryCard
-          icon={<Gauge size={15} color={readyColor} />} accent={readyColor}
-          title={dtTrainSrc === "exact" ? "Workout logged" : "Training readiness"} value={dtTrainSrc === "exact" ? "Done" : readyLabel}
-          note={readiness.text}
-          actions={<TodayChip label={dtTrainSrc === "exact" ? "Done ✓" : "Train"} onClick={onGoTrain} />}
-        />
-        <TodaySummaryCard
-          icon={<Dumbbell size={15} color={C.greenSoft} />} accent={C.greenSoft}
-          title="Best gym window" value={gym ? minToLabel(gym.start) : "—"} sub={gym ? `energy ${gym.avg}/100` : ""}
-          note={gym ? "Your predicted peak-energy training window today." : "Log sleep to predict your peak-energy window."}
-          actions={<TodayChip label="Energy" onClick={onGoEnergy} />}
-        />
-      </div>}
-
-      {/* 9 — FUNCTIONAL HEALTH mini (fair, confidence-aware) */}
-      {tp.health !== false && <div style={{ marginTop: 10 }}>
-        {!funcHealth.enough ? (
-          <TodaySummaryCard
-            icon={<HeartPulse size={15} color={C.muted} />} accent={C.muted}
-            title="Functional health" value="—"
-            note="Not enough data yet — log sleep, a check-in, water, steps, and food for a score."
-            actions={<TodayChip label="Health" onClick={onGoHealth} />}
+      {/* 6 — COMPACT STATUS SUMMARY */}
+      <div style={{ background: C.card, borderRadius: 18, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12, overflow: "hidden" }}>
+        {tp.nutrition !== false && (
+          <TodayStatusRow
+            icon={<Flame size={14} color={C.amber} />}
+            label="Food"
+            accent={t.calories > adjTarget ? C.coral : dtNutrSrc ? C.greenSoft : C.muted}
+            value={dtNutrSrc === "quick_log"
+              ? (dt?.nutrition?.proteinOk ? "Protein hit" : "Logged")
+              : t.calories > 0 ? `${t.calories} kcal · ${t.protein}g protein`
+              : "Nothing logged yet"}
+            actionLabel={!dtNutrSrc && t.calories === 0 ? "+ Log food" : null}
+            onTap={onGoNutrition} onAction={onGoNutrition}
           />
-        ) : (
-          <TodaySummaryCard
-            icon={<HeartPulse size={15} color={C.greenSoft} />} accent={funcHealth.score >= 70 ? C.greenSoft : funcHealth.score >= 50 ? C.amber : C.coral}
-            title="Functional health" value={funcHealth.score} sub="/ 100"
-            note={funcHealth.reasons.length ? funcHealth.reasons.slice(0, 2).join(" · ") + "." : "Your tracked areas look healthy today."}
-            actions={<TodayChip label="Health" onClick={onGoHealth} />}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 9, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: funcHealth.confidence === "High" ? C.greenSoft : funcHealth.confidence === "Medium" ? C.amber : C.muted, background: C.bg2, borderRadius: 99, padding: "3px 9px" }}>
-                {funcHealth.confidence} confidence
-              </span>
-              {funcHealth.categories.filter((c) => c.score != null).map((c) => (
-                <div key={c.key} title={c.label} style={{ display: "flex", alignItems: "center", gap: 4, background: C.bg2, borderRadius: 99, padding: "3px 9px" }}>
-                  <span style={{ fontSize: 10, color: C.muted }}>{c.label.split(" ")[0]}</span>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: c.score >= 60 ? C.greenSoft : c.score >= 40 ? C.amber : C.coral }}>{c.score}</span>
-                </div>
-              ))}
-            </div>
-          </TodaySummaryCard>
         )}
-      </div>}
+        {tp.sleep !== false && (
+          <TodayStatusRow
+            icon={<Moon size={14} color="#9B87D0" />}
+            label="Sleep"
+            accent={dtSleepSrc ? "#9B87D0" : C.muted}
+            value={dtSleepSrc === "quick_log" ? "Rested" : lastSleep ? durLabel(lastSleep.durationMin) : "Not logged"}
+            actionLabel={!dtSleepSrc ? "Log sleep" : null}
+            onTap={onGoSleep} onAction={onGoSleep}
+          />
+        )}
+        {(tp.movement !== false || tp.training !== false) && (
+          <TodayStatusRow
+            icon={<Activity size={14} color={C.greenSoft} />}
+            label="Movement"
+            accent={dtMoveSrc || dtTrainSrc ? C.greenSoft : C.muted}
+            value={dtMoveSrc === "quick_log" ? "Active" : dtTrainSrc === "exact" ? "Trained today" : steps > 0 ? `${steps.toLocaleString()} steps` : "Nothing yet"}
+            actionLabel={!dtMoveSrc && !dtTrainSrc ? "Train" : null}
+            onTap={onGoTrain} onAction={onGoTrain}
+            last
+          />
+        )}
+        {tp.nutrition === false && tp.sleep === false && tp.movement === false && tp.water === false && (
+          <div style={{ padding: "16px", textAlign: "center", color: C.muted, fontSize: 12.5 }}>All categories disabled. Enable tracking in Settings.</div>
+        )}
+      </div>
 
       <div style={{ height: 6 }} />
     </div>
@@ -9288,19 +9915,21 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
 
   return (
     <div className="sprig-rise">
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 2 }}>
-        <div style={{ flex: 1 }}>
-          <SubTabs tabs={[["meals", "Meals"], ["nutrition", "Nutrition"]]} active={sub} onChange={onSub} />
-        </div>
-        {sub === "meals" && onOpenLogSheet && (
-          <button className="sprig-tap" onClick={onOpenLogSheet}
-            style={{ ...btn(C.lime, "#0A1F12"), padding: "9px 14px", fontSize: 13, fontWeight: 700, borderRadius: 12, whiteSpace: "nowrap", flexShrink: 0 }}>
-            <Plus size={14} /> Log food
-          </button>
-        )}
-      </div>
+      <SubTabs tabs={[["nutrition", "Nutrition"], ["meals", "Meals"]]} active={sub} onChange={onSub} />
 
-      {/* Log food floating CTA is also rendered at the app-frame level (GlobalFloatingLayer via Portal). */}
+      {/* Single full-width Log Food CTA — replaces cramped top-right button and floating pill */}
+      {onOpenLogSheet && (
+        <button className="sprig-tap" onClick={onOpenLogSheet}
+          style={{ width: "100%", background: C.lime, border: "none", cursor: "pointer", borderRadius: 16, padding: "13px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, fontFamily: "DM Sans", boxSizing: "border-box", boxShadow: `0 4px 16px ${C.lime}40` }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(0,0,0,.12)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Plus size={18} color="#0A1F12" />
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#0A1F12", lineHeight: 1 }}>Log food</div>
+            <div style={{ fontSize: 11.5, color: "#0A1F12", opacity: .7, marginTop: 3 }}>Snap, scan, describe, or add manually</div>
+          </div>
+        </button>
+      )}
 
       {sub === "nutrition" && (<>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, margin: "6px 2px 3px", letterSpacing: -.3, color: C.ink }}>Nutrition</div>
@@ -9333,7 +9962,18 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       {/* DAILY TARGET — MacroFactor style */}
       {sectionTitle("Daily target")}
       <div style={{ background: C.card, borderRadius: 22, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        {/* calorie ring + stat strip */}
+        {/* calorie ring + stat strip — hidden when only Quick Log (no exact calories) */}
+        {dt?.nutrition?.source === "quick_log" && t.calories === 0 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16, background: C.bg2, borderRadius: 14, padding: "13px 14px" }}>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: C.greenSoft + "20", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Zap size={20} color={C.greenSoft} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{dt.nutrition.proteinOk ? "Protein hit · " : ""}{dt.nutrition.calOk ? "Calories on track" : "Nutrition logged"}</div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>Log meals below to see exact calories and macros.</div>
+            </div>
+          </div>
+        ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 16 }}>
           <Ring value={t.calories} max={adjTarget} label={leftLabel} sub="kcal left" color={t.calories > adjTarget ? C.coral : C.green} />
           <div style={{ flex: 1 }}>
@@ -9347,13 +9987,16 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
             </div>
           </div>
         </div>
-        {/* macro bars */}
+        )}
+        {/* macro bars — hidden when only Quick Log (all zeros = fake data) */}
+        {!(dt?.nutrition?.source === "quick_log" && t.calories === 0) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 11, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
           <MacroBar name="Protein" val={t.protein} max={targets.protein} color={C.green} />
           <MacroBar name="Carbs" val={t.carbs} max={targets.carbs} color={C.amber} />
           <MacroBar name="Fat" val={t.fat} max={targets.fat} color={C.coral} />
           <MacroBar name="Fiber" val={t.fiber} max={targets.fiber} color={C.leaf} />
         </div>
+        )}
         {delta !== 0 && (
           <details style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
             <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11.5, color: C.inkSoft, fontWeight: 600 }}>
@@ -9777,8 +10420,17 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
       )}
 
       {sub === "sleep" && (<>
-      {/* sleep debt hero — Oura-style calm clarity */}
-      <div style={{ background: C.heroGrad1, borderRadius: 24, padding: "20px 18px", color: "#fff", boxShadow: C.shadow, marginTop: 12 }}>
+      {/* sleep debt hero — only shown when there's real logged data */}
+      {(sleepLogs?.length ?? 0) === 0 && (
+        <div style={{ background: C.card, borderRadius: 20, padding: "22px 18px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12, textAlign: "center" }}>
+          <MoonStar size={32} color={C.greenSoft} style={{ marginBottom: 10 }} />
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>No sleep logged yet</div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.55, maxWidth: 260, margin: "0 auto" }}>
+            Start a sleep session above and Vitae will track your sleep debt, cycles, and best wake time.
+          </div>
+        </div>
+      )}
+      {(sleepLogs?.length ?? 0) > 0 && <div style={{ background: C.heroGrad1, borderRadius: 24, padding: "20px 18px", color: "#fff", boxShadow: C.shadow, marginTop: 12 }}>
         {/* eyebrow */}
         <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, opacity: .65, textTransform: "uppercase", marginBottom: 12 }}>Sleep · 14-night average</div>
         {/* main stat row */}
@@ -9808,8 +10460,9 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
+      {(sleepLogs?.length ?? 0) > 0 && <>
       {/* Your energy today — modeled from sleep + check-in + meals */}
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "18px 2px 8px", display: "flex", alignItems: "center", gap: 7 }}><Zap size={16} color={C.lime} /> Your energy today</div>
       <EnergyCurveCard sleepInfo={sleepInfo} />
@@ -9825,13 +10478,14 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
           <div style={{ background: C.card, borderRadius: 16, padding: 14, marginTop: 12, border: `1px solid ${stl.bd}55`, display: "flex", gap: 12, alignItems: "center", boxShadow: C.shadow }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: stl.bg, display: "grid", placeItems: "center", flexShrink: 0 }}>{stl.ic}</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: C.muted, letterSpacing: .3, fontWeight: 600 }}>RECOVERY · TODAY</div>
+              <div style={{ fontSize: 11, color: C.muted, letterSpacing: .3, fontWeight: 600 }}>TRAINING ADVICE</div>
               <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, textTransform: "capitalize" }}>{lvl === "hard" ? "Train hard" : lvl === "normal" ? "Train normal" : lvl === "light" ? "Train light" : "Rest"}</div>
               <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.45 }}>{recoveryRec.text}</div>
             </div>
           </div>
         );
       })()}
+      </>}
       </>)}
 
       {sub === "alarm" && (<>
@@ -10789,7 +11443,7 @@ function AccountSection() {
 
 /* ---------------- Me / profile tab -------------- */
 // More tab — extra main app pages only (NOT settings). Compact stacked links.
-function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, trackingPrefs = {}, onToggleTracking }) {
+function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoSettings, trackingPrefs = {}, onToggleTracking }) {
   const CATEGORY_LABELS = {
     nutrition: "Nutrition & Food", training: "Strength Training", sleep: "Sleep",
     habits: "Habits", recovery: "Recovery", health: "Health Markers",
@@ -10803,6 +11457,7 @@ function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, trackingPref
     ["Health markers", <HeartPulse size={18} color={C.greenSoft} />, onGoHealth, "Bloodwork, vitals & health score"],
     ["Mind & Habits", <Sparkles size={18} color={C.greenSoft} />, onGoMind, "Daily habits & consistency streak"],
     ["Progress", <TrendingUp size={18} color={C.greenSoft} />, onGoProgress, "Photos, weight & measurements"],
+    ["Settings", <Settings size={18} color={C.muted} />, onGoSettings, "Account, tracking, preferences & data"],
   ];
   return (
     <div className="sprig-rise">
@@ -10887,11 +11542,13 @@ function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, trackingPref
   );
 }
 
-function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs }) {
+function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday }) {
   const saveRirPref = onSaveRirPref || (() => {});
   const [confirmResetOnb, setConfirmResetOnb] = useState(false);
   const importRef = useRef(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [devTaps, setDevTaps] = useState(0);
+  const [showDev, setShowDev] = useState(false);
   const [p, setP] = useState(profile);
   const [saved, setSaved] = useState(false);
   const set = (k, v) => { setP((x) => ({ ...x, [k]: v })); setSaved(false); };
@@ -11531,9 +12188,47 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         </>
       )}
 
-      <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 14, lineHeight: 1.5, padding: "0 10px" }}>
+      <div
+        style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 14, lineHeight: 1.5, padding: "0 10px", cursor: "default", userSelect: "none" }}
+        onClick={() => {
+          const next = devTaps + 1;
+          setDevTaps(next);
+          if (next >= 5) { setShowDev(true); setDevTaps(0); }
+        }}
+      >
         Targets use the Mifflin–St Jeor formula. Everything is stored on your device only. Estimates are approximate — great for awareness, not medical precision.
+        {devTaps > 0 && devTaps < 5 && <span style={{ color: C.amber, marginLeft: 4 }}>({5 - devTaps} more)</span>}
       </div>
+
+      {showDev && (
+        <div style={{ background: "#1a1a2e", border: `2px solid ${C.amber}`, borderRadius: 16, padding: 16, marginTop: 14, color: "#fff" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <span style={{ fontFamily: "Fraunces, serif", fontSize: 14, fontWeight: 700, color: C.amber }}>🛠 Dev tools</span>
+            <button onClick={() => setShowDev(false)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button className="sprig-tap" onClick={onDevSeedFull}
+              style={{ background: C.green, color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", cursor: "pointer" }}>
+              Seed: Full exact day
+            </button>
+            <button className="sprig-tap" onClick={onDevSeedQL}
+              style={{ background: "#3a86ff", color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", cursor: "pointer" }}>
+              Seed: Quick Log day
+            </button>
+            <button className="sprig-tap" onClick={onDevClearToday}
+              style={{ background: C.coral, color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", cursor: "pointer" }}>
+              Clear today
+            </button>
+            {onLoadDemo && (
+              <button className="sprig-tap" onClick={onLoadDemo}
+                style={{ background: "#7c5cbf", color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", cursor: "pointer" }}>
+                Load demo data (14 days)
+              </button>
+            )}
+          </div>
+          <div style={{ fontSize: 10, color: C.muted, textAlign: "center", marginTop: 10 }}>Hidden dev panel — not visible to normal users</div>
+        </div>
+      )}
       </>)}
     </div>
   );
@@ -11587,7 +12282,7 @@ function CoachTab({ coach, advanced, moveInfo, timeline, plateaus, patterns, onG
 
       {onAsk && (
         <button className="sprig-tap" onClick={onAsk}
-          style={{ width: "100%", background: C.lime, border: "none", cursor: "pointer", borderRadius: 16, padding: "16px 16px", color: "#0A1F12", display: "flex", alignItems: "center", gap: 12, marginBottom: 10, boxShadow: `0 8px 24px ${C.lime}40` }}>
+          style={{ width: "100%", background: C.lime, border: "none", cursor: "pointer", borderRadius: 16, padding: "16px 16px", color: "#0A1F12", display: "flex", alignItems: "center", gap: 12, marginBottom: 16, boxShadow: `0 8px 24px ${C.lime}40` }}>
           <div style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(0,0,0,.12)", display: "grid", placeItems: "center", flexShrink: 0 }}>
             <Sparkles size={20} color="#0A1F12" />
           </div>
@@ -11598,9 +12293,6 @@ function CoachTab({ coach, advanced, moveInfo, timeline, plateaus, patterns, onG
           <ChevronRight size={17} />
         </button>
       )}
-      <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center", marginBottom: 14, lineHeight: 1.45, fontWeight: 500 }}>
-        Answers use your logged data. More you log = sharper the advice.
-      </div>
 
       {/* WHY AM I NOT PROGRESSING — headline diagnostic */}
       {diag && (diag.enough ? (
@@ -12744,85 +13436,116 @@ function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, target
   let nutScore = 50;
   if (tp.nutrition !== false && hasNutrition) {
     const loggedDays = (history7 || []).filter((h) => h.calories > 0);
-    const avgCal = loggedDays.reduce((a, h) => a + h.calories, 0) / loggedDays.length;
-    const avgProt = loggedDays.reduce((a, h) => a + (h.protein || 0), 0) / loggedDays.length;
-    const avgFiber = loggedDays.reduce((a, h) => a + (h.fiber || 0), 0) / loggedDays.length;
-    const calTarget = targets?.calories || 2000;
-    const protTarget = targets?.protein || 150;
-    const fiberTarget = targets?.fiber || 25;
-    const calDiff = Math.abs(avgCal - calTarget) / calTarget;
-    const calScore = calDiff < 0.1 ? 90 : calDiff < 0.2 ? 75 : calDiff < 0.35 ? 60 : 40;
-    const protRatio = avgProt / protTarget;
-    const protScore = protRatio >= 0.95 ? 90 : protRatio >= 0.8 ? 75 : protRatio >= 0.6 ? 55 : 35;
-    const fiberScore = avgFiber >= fiberTarget * 0.9 ? 90 : avgFiber >= fiberTarget * 0.6 ? 70 : 50;
-    nutScore = Math.round((calScore + protScore + fiberScore) / 3);
-    if (protRatio >= 0.9) helping.push(`Protein has been consistent (avg ${Math.round(avgProt)}g).`);
-    else if (protRatio < 0.65) {
-      hurting.push(`Protein averaged ${Math.round(avgProt)}g — below your ${protTarget}g target.`);
-      if (improvements.length < 3) improvements.push(`Aim for ${protTarget}g protein today. Add eggs, Greek yogurt, or a lean protein source.`);
+    if (loggedDays.length > 0) {
+      // exact food logs available — use real averages
+      const avgCal  = loggedDays.reduce((a, h) => a + h.calories,        0) / loggedDays.length;
+      const avgProt = loggedDays.reduce((a, h) => a + (h.protein  || 0), 0) / loggedDays.length;
+      const avgFiber= loggedDays.reduce((a, h) => a + (h.fiber    || 0), 0) / loggedDays.length;
+      const calTarget   = targets?.calories || 2000;
+      const protTarget  = targets?.protein  || 150;
+      const fiberTarget = targets?.fiber    || 25;
+      const calDiff   = Math.abs(avgCal - calTarget) / calTarget;
+      const calScore  = calDiff < 0.1 ? 90 : calDiff < 0.2 ? 75 : calDiff < 0.35 ? 60 : 40;
+      const protRatio = avgProt / protTarget;
+      const protScore = protRatio >= 0.95 ? 90 : protRatio >= 0.8 ? 75 : protRatio >= 0.6 ? 55 : 35;
+      const fiberScore= avgFiber >= fiberTarget * 0.9 ? 90 : avgFiber >= fiberTarget * 0.6 ? 70 : 50;
+      nutScore = Math.round((calScore + protScore + fiberScore) / 3);
+      if (protRatio >= 0.9) helping.push(`Protein has been consistent (avg ${Math.round(avgProt)}g).`);
+      else if (protRatio < 0.65) {
+        hurting.push(`Protein averaged ${Math.round(avgProt)}g — below your ${protTarget}g target.`);
+        if (improvements.length < 3) improvements.push(`Aim for ${protTarget}g protein today. Add eggs, Greek yogurt, or a lean protein source.`);
+      }
+      if (avgFiber < fiberTarget * 0.6) {
+        hurting.push("Fiber is below target most days.");
+        if (improvements.length < 3) improvements.push("Add a high-fiber food today — beans, lentils, oats, or extra vegetables.");
+      } else if (avgFiber >= fiberTarget * 0.85) {
+        helping.push("Fiber intake is solid.");
+      }
+      if (calDiff > 0.3) {
+        if (avgCal > calTarget) hurting.push(`Calories averaged ${Math.round(avgCal - calTarget)} above target this week.`);
+        else hurting.push(`Calories averaged ${Math.round(calTarget - avgCal)} below target this week.`);
+      }
+      if (protRatio >= 0.9 && avgFiber >= fiberTarget * 0.8 && calDiff <= 0.15) continueDoing.push("Keep protein and fiber consistent.");
+    } else {
+      // Quick Log only — no exact food logs; use estimated score, no fake averages
+      nutScore = (ql?.hitProtein && ql?.hitCalories) ? 72 : (ql?.hitProtein || ql?.hitCalories) ? 65 : 55;
+      if (ql?.hitProtein  === true)  helping.push("Protein target marked hit · Quick Log.");
+      if (ql?.hitCalories === true)  helping.push("Calories on track · Quick Log.");
+      else if (ql?.hitCalories === false) hurting.push("Calories marked as missed · Quick Log.");
+      if (improvements.length < 3) improvements.push("Log meals in the Food tab for exact macros and a precise nutrition score.");
     }
-    if (avgFiber < fiberTarget * 0.6) {
-      hurting.push("Fiber is below target most days.");
-      if (improvements.length < 3) improvements.push("Add a high-fiber food today — beans, lentils, oats, or extra vegetables.");
-    } else if (avgFiber >= fiberTarget * 0.85) {
-      helping.push("Fiber intake is solid.");
-    }
-    if (calDiff > 0.3) {
-      if (avgCal > calTarget) hurting.push(`Calories averaged ${Math.round(avgCal - calTarget)} above target this week.`);
-      else hurting.push(`Calories averaged ${Math.round(calTarget - avgCal)} below target this week.`);
-    }
-    if (protRatio >= 0.9 && avgFiber >= fiberTarget * 0.8 && calDiff <= 0.15) continueDoing.push("Keep protein and fiber consistent.");
   }
 
   // --- SLEEP (weight 0.25) ---
   let sleepScore = 50;
   if (tp.sleep !== false && hasSleep) {
-    const valid = (sleepLogs7 || []).filter((l) => !l.ignoredFromScore);
-    const need = sleepInfo?.need || 480;
+    const valid   = (sleepLogs7 || []).filter((l) => !l.ignoredFromScore);
+    const need    = sleepInfo?.need    || 480;
     const debtMin = sleepInfo?.debtMin || 0;
-    const avgDur = valid.reduce((a, l) => a + l.durationMin, 0) / Math.max(1, valid.length);
-    const avgQ = valid.reduce((a, l) => a + l.score, 0) / Math.max(1, valid.length);
-    sleepScore = Math.round(
-      (avgDur >= need * 0.95 ? 90 : avgDur >= need * 0.85 ? 75 : avgDur >= need * 0.7 ? 55 : 35) * 0.4 +
-      (avgQ >= 80 ? 90 : avgQ >= 65 ? 75 : avgQ >= 50 ? 55 : 35) * 0.3 +
-      (debtMin < 30 ? 90 : debtMin < 60 ? 75 : debtMin < 120 ? 55 : 35) * 0.3
-    );
-    const durH = (avgDur / 60).toFixed(1);
-    if (avgDur >= need * 0.9) helping.push(`Sleep averaging ${durH}h — close to your ${(need / 60).toFixed(0)}h need.`);
-    else {
-      hurting.push(`Sleep averaging ${durH}h — below your ${(need / 60).toFixed(0)}h need.`);
-      if (improvements.length < 3) improvements.push("Sleep 30–45 min earlier to reduce sleep debt.");
+    if (valid.length > 0) {
+      // exact sleep logs available
+      const avgDur = valid.reduce((a, l) => a + l.durationMin, 0) / valid.length;
+      const avgQ   = valid.reduce((a, l) => a + l.score,       0) / valid.length;
+      sleepScore = Math.round(
+        (avgDur >= need * 0.95 ? 90 : avgDur >= need * 0.85 ? 75 : avgDur >= need * 0.7 ? 55 : 35) * 0.4 +
+        (avgQ   >= 80 ? 90 : avgQ >= 65 ? 75 : avgQ >= 50 ? 55 : 35) * 0.3 +
+        (debtMin < 30 ? 90 : debtMin < 60 ? 75 : debtMin < 120 ? 55 : 35) * 0.3
+      );
+      const durH = (avgDur / 60).toFixed(1);
+      if (avgDur >= need * 0.9) helping.push(`Sleep averaging ${durH}h — close to your ${(need / 60).toFixed(0)}h need.`);
+      else {
+        hurting.push(`Sleep averaging ${durH}h — below your ${(need / 60).toFixed(0)}h need.`);
+        if (improvements.length < 3) improvements.push("Sleep 30–45 min earlier to reduce sleep debt.");
+      }
+      if (debtMin > 90) hurting.push(`Sleep debt is around ${Math.round(debtMin / 60 * 10) / 10}h — earlier bedtimes help.`);
+      else if (debtMin < 30 && avgDur >= need * 0.9) continueDoing.push("Keep your sleep schedule consistent.");
+    } else {
+      // Quick Log only — no exact sleep logs; no fake duration averages
+      if (ql?.enoughSleep === true) {
+        sleepScore = 72;
+        helping.push("Slept enough · Quick Log.");
+        continueDoing.push("Log sleep sessions for exact duration, debt, and recovery scores.");
+      } else if (ql?.enoughSleep === false) {
+        sleepScore = 38;
+        hurting.push("Sleep marked as not enough · Quick Log.");
+        if (improvements.length < 3) improvements.push("Try sleeping 30–45 min earlier tonight to reduce sleep debt.");
+      }
     }
-    if (debtMin > 90) hurting.push(`Sleep debt is around ${Math.round(debtMin / 60 * 10) / 10}h — earlier bedtimes help.`);
-    else if (debtMin < 30 && avgDur >= need * 0.9) continueDoing.push("Keep your sleep schedule consistent.");
   }
 
   // --- TRAINING / CARDIO (weight 0.25) ---
   let trainScore = 50;
-  const wkCount = tp.training !== false ? Math.max((workouts7 || []).length, ql?.trainedToday === true ? 1 : 0) : 0;
-  const steps = tp.movement !== false ? (daily?.steps || moveInfo?.movement?.steps || (ql?.enoughMovement === true ? 8000 : 0)) : 0;
+  const wkCount     = tp.training !== false ? Math.max((workouts7 || []).length, ql?.trainedToday === true ? 1 : 0) : 0;
+  const exactSteps  = tp.movement !== false ? (daily?.steps || moveInfo?.movement?.steps || 0) : 0;
+  const qlMovementOnly = !exactSteps && tp.movement !== false && (ql?.enoughMovement === true);
   const stepGoalVal = moveInfo?.stepGoal || 8000;
-  const cardioMin = tp.cardio !== false ? (daily?.cardioMin || 0) : 0;
-  const stepRatio = steps / stepGoalVal;
-  if ((tp.training !== false || tp.movement !== false) && (wkCount > 0 || steps > 0 || cardioMin > 0)) {
-    const wkScore = wkCount >= 4 ? 90 : wkCount >= 3 ? 80 : wkCount >= 2 ? 65 : wkCount >= 1 ? 50 : 30;
-    const stepScore = stepRatio >= 1 ? 90 : stepRatio >= 0.7 ? 75 : stepRatio >= 0.4 ? 55 : 35;
-    const cardioScore = cardioMin >= 30 ? 90 : cardioMin >= 15 ? 70 : cardioMin >= 5 ? 55 : 40;
+  const cardioMin   = tp.cardio !== false ? (daily?.cardioMin || 0) : 0;
+  // stepRatio uses only real steps — never inject fake 8000 from QL
+  const stepRatio   = exactSteps > 0 ? exactSteps / stepGoalVal : 0;
+  if ((tp.training !== false || tp.movement !== false) && (wkCount > 0 || exactSteps > 0 || cardioMin > 0 || qlMovementOnly)) {
+    const wkScore    = wkCount >= 4 ? 90 : wkCount >= 3 ? 80 : wkCount >= 2 ? 65 : wkCount >= 1 ? 50 : 30;
+    // QL movement gets a medium-good step score (75) — covered but not measured
+    const stepScore  = qlMovementOnly ? 75 : (stepRatio >= 1 ? 90 : stepRatio >= 0.7 ? 75 : stepRatio >= 0.4 ? 55 : 35);
+    const cardioScore= cardioMin >= 30 ? 90 : cardioMin >= 15 ? 70 : cardioMin >= 5 ? 55 : 40;
     trainScore = Math.round(wkScore * 0.5 + stepScore * 0.3 + cardioScore * 0.2);
     if (wkCount >= 3) helping.push(`Trained ${wkCount} time${wkCount !== 1 ? "s" : ""} this week.`);
-    else if (wkCount === 0) {
+    else if (wkCount === 0 && !qlMovementOnly) {
       hurting.push("No strength training logged this week.");
       if (improvements.length < 3) improvements.push("Add one 30–45 min workout this week to maintain muscle and strength.");
     }
-    if (stepRatio >= 0.85) helping.push(`Steps close to your ${(stepGoalVal / 1000).toFixed(0)}k goal.`);
-    else if (stepRatio < 0.4 && cardioMin < 10) {
+    if (qlMovementOnly) {
+      helping.push("Movement goal marked done · Quick Log.");
+    } else if (stepRatio >= 0.85) {
+      helping.push(`Steps close to your ${(stepGoalVal / 1000).toFixed(0)}k goal.`);
+    } else if (stepRatio < 0.4 && cardioMin < 10) {
       hurting.push("Cardio and steps are low this week.");
       if (improvements.length < 3) improvements.push("Add a 20–30 min walk or easy zone-2 cardio today.");
     }
     if (wkCount >= 3) continueDoing.push(`Keep training ${wkCount >= 4 ? "4–5" : "3–4"} times weekly.`);
-    // overdoing check
-    const avgSleepDur = hasSleep
-      ? (sleepLogs7 || []).filter((l) => !l.ignoredFromScore).reduce((a, l) => a + l.durationMin, 0) / Math.max(1, (sleepLogs7 || []).filter((l) => !l.ignoredFromScore).length)
+    // overdoing check — only use exact sleep logs to avoid false alarms
+    const sleepLogsValid = (sleepLogs7 || []).filter((l) => !l.ignoredFromScore);
+    const avgSleepDur = sleepLogsValid.length > 0
+      ? sleepLogsValid.reduce((a, l) => a + l.durationMin, 0) / sleepLogsValid.length
       : 0;
     if (wkCount >= 5 && avgSleepDur > 0 && avgSleepDur < 390) {
       hurting.push(`Trained hard ${wkCount} days while sleep averaged ${Math.round(avgSleepDur / 60)}h ${Math.round(avgSleepDur % 60)}m — consider a lighter session.`);
@@ -12851,9 +13574,13 @@ function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, target
   } // end alcohol guard
 
   // --- CONSISTENCY (weight 0.10) ---
+  // QL contributions count as partial consistency credit (0.5 day) so users
+  // who quick-log regularly don't get penalised for not having exact logs
   const loggedFoodDays = (history7 || []).filter((h) => h.calories > 0).length;
   const loggedSleepNights = (sleepLogs7 || []).filter((l) => !l.ignoredFromScore).length;
-  const consistScore = Math.round((loggedFoodDays / 7) * 50 + (loggedSleepNights / 7) * 50);
+  const qlFoodCredit   = (!loggedFoodDays && (ql?.hitProtein || ql?.hitCalories)) ? 0.5 : 0;
+  const qlSleepCredit  = (!loggedSleepNights && ql?.enoughSleep != null) ? 0.5 : 0;
+  const consistScore = Math.round(((loggedFoodDays + qlFoodCredit) / 7) * 50 + ((loggedSleepNights + qlSleepCredit) / 7) * 50);
 
   // steps continue-doing
   if (stepRatio >= 0.85) continueDoing.push(`Keep steps above ${Math.round(stepGoalVal * 0.8 / 1000)}k.`);
@@ -12862,7 +13589,7 @@ function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, target
   const cats = [];
   if (tp.nutrition !== false && hasNutrition) cats.push({ score: nutScore, w: 0.25 });
   if (tp.sleep !== false && hasSleep) cats.push({ score: sleepScore, w: 0.25 });
-  if ((tp.training !== false || tp.movement !== false) && (wkCount > 0 || steps > 0)) cats.push({ score: trainScore, w: 0.25 });
+  if ((tp.training !== false || tp.movement !== false) && (wkCount > 0 || exactSteps > 0 || qlMovementOnly)) cats.push({ score: trainScore, w: 0.25 });
   if (alcScore !== null) cats.push({ score: alcScore, w: 0.15 });
   if ((tp.nutrition !== false && hasNutrition) || (tp.sleep !== false && hasSleep)) cats.push({ score: consistScore, w: 0.10 });
   const totalW = cats.reduce((a, c) => a + c.w, 0) || 1;
@@ -12872,6 +13599,37 @@ function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, target
 
   const disabledCategories = ["nutrition","sleep","training","movement","cardio","alcohol","water","supplements"]
     .filter(k => tp[k] === false);
+
+  // Per-category breakdown for transparency display
+  const loggedFoodDaysCount = (history7 || []).filter((h) => h.calories > 0).length;
+  const sleepLogsValidCount = (sleepLogs7 || []).filter((l) => !l.ignoredFromScore).length;
+  const breakdown = [
+    tp.nutrition === false
+      ? { cat: "Nutrition", score: null, source: "disabled" }
+      : !hasNutrition
+      ? { cat: "Nutrition", score: null, source: "unknown" }
+      : loggedFoodDaysCount > 0
+      ? { cat: "Nutrition", score: nutScore, source: "exact" }
+      : { cat: "Nutrition", score: nutScore, source: "quick_log" },
+    tp.sleep === false
+      ? { cat: "Sleep", score: null, source: "disabled" }
+      : !hasSleep
+      ? { cat: "Sleep", score: null, source: "unknown" }
+      : sleepLogsValidCount > 0
+      ? { cat: "Sleep", score: sleepScore, source: "exact" }
+      : { cat: "Sleep", score: sleepScore, source: "quick_log" },
+    (tp.training === false && tp.movement === false)
+      ? { cat: "Training / Movement", score: null, source: "disabled" }
+      : !(wkCount > 0 || exactSteps > 0 || cardioMin > 0 || qlMovementOnly)
+      ? { cat: "Training / Movement", score: null, source: "unknown" }
+      : ((workouts7 || []).length > 0 || exactSteps > 0 || cardioMin > 0)
+      ? { cat: "Training / Movement", score: trainScore, source: "exact" }
+      : { cat: "Training / Movement", score: trainScore, source: "quick_log" },
+    tp.alcohol === false
+      ? { cat: "Alcohol", score: null, source: "disabled" }
+      : { cat: "Alcohol", score: alcScore ?? 85, source: "exact" },
+  ];
+
   return {
     score, confidence,
     helping: helping.slice(0, 4),
@@ -12879,6 +13637,7 @@ function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t, target
     improvements: improvements.slice(0, 3),
     continueDoing: continueDoing.slice(0, 3),
     disabledCategories,
+    breakdown,
   };
 }
 
@@ -12978,6 +13737,31 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
           </div>
         )}
       </div>
+
+      {/* ---- SCORE BREAKDOWN ---- */}
+      {(hr.breakdown?.length ?? 0) > 0 && score != null && (
+        <div style={{ background: C.card, borderRadius: 18, padding: "13px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>Score sources</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {hr.breakdown.map((b, i) => {
+              const srcColor = b.source === "exact" ? C.greenSoft : b.source === "quick_log" ? C.amber : b.source === "disabled" ? C.muted : C.muted;
+              const srcLabel = b.source === "exact" ? "Logged" : b.source === "quick_log" ? "Quick log" : b.source === "disabled" ? "Off" : "No data";
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1, fontSize: 12.5, color: b.source === "disabled" || b.source === "unknown" ? C.muted : C.inkSoft }}>{b.cat}</div>
+                  <span style={{ fontSize: 10.5, fontWeight: 600, color: srcColor, background: srcColor + "18", border: `1px solid ${srcColor}33`, borderRadius: 99, padding: "2px 8px" }}>{srcLabel}</span>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: b.score == null ? C.muted : b.score >= 75 ? C.greenSoft : b.score >= 55 ? C.amber : C.coral, minWidth: 28, textAlign: "right" }}>
+                    {b.score != null ? b.score : "—"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
+            {conf === "high" ? "High confidence — most categories have exact logged data." : conf === "medium" ? "Medium confidence — some categories estimated or missing." : "Low confidence — log food, sleep, or training for a fuller picture."}
+          </div>
+        </div>
+      )}
 
       {/* ---- WHAT'S HELPING ---- */}
       {(hr.helping?.length ?? 0) > 0 && (
@@ -13169,13 +13953,86 @@ function PlateView({ target, unit }) {
   );
 }
 
-function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
+// ─── WorkoutKeypad — custom numeric entry panel (no native keyboard) ──────────
+// Renders as a fixed bottom sheet. The parent controls the value; the keypad fires
+// onChange/onDone/onNext. The outer wrapper for bottom-sheet position is here;
+// z-index 1700 sits above the rest timer (1600) and all overlays below 2000.
+function WorkoutKeypad({ field, value, onChange, onDone, onNext, onDismiss }) {
+  const isWeight = field === "w";
+
+  function press(k) {
+    buzz("select");
+    if (k === "⌫") {
+      onChange(value.length > 1 ? value.slice(0, -1) : "");
+      return;
+    }
+    if (k === "." && !isWeight) return; // reps: integers only
+    if (k === "." && value.includes(".")) return; // no double dot
+    // Leading-zero guard: "0" then digit → replace
+    if (value === "0" && k !== ".") { onChange(k); return; }
+    onChange((value || "") + k);
+  }
+
+  function adjust(delta) {
+    buzz("tap");
+    const cur = parseFloat(value) || 0;
+    const next = Math.max(0, isWeight ? cur + delta : Math.round(cur + delta));
+    onChange(isWeight ? String(Math.round(next * 4) / 4) : String(next)); // weight: 0.25 granularity
+  }
+
+  const keys = ["7","8","9","4","5","6","1","2","3", isWeight ? "." : "", "0","⌫"];
+  const adjustLarge = isWeight ? 2.5 : 5;
+  const adjustSmall = isWeight ? 1 : 1;
+
+  return (
+    <Portal>
+      {/* Backdrop — tap outside to dismiss */}
+      <div onClick={onDismiss} style={{ position: "fixed", inset: 0, zIndex: 1699, background: "rgba(0,0,0,.25)" }} />
+      {/* Keypad panel */}
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 1700, background: C.cardSolid, borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,.5)", padding: "0 0 env(safe-area-inset-bottom, 16px)", userSelect: "none" }}>
+        {/* Value display */}
+        <div style={{ padding: "14px 20px 10px", display: "flex", alignItems: "baseline", gap: 8, borderBottom: `1px solid ${C.line}` }}>
+          <span style={{ fontFamily: "Fraunces, serif", fontSize: 34, fontWeight: 800, color: C.lime, lineHeight: 1, minWidth: 60 }}>{value || "0"}</span>
+          <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>{isWeight ? "kg" : "reps"}</span>
+        </div>
+        {/* Calculator grid 3×4 */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: C.line, margin: "1px 0" }}>
+          {keys.map((k, i) => (
+            <button key={i} className="sprig-tap" onClick={() => k && press(k)}
+              style={{ background: k === "⌫" ? C.bg2 : C.cardSolid, border: "none", cursor: k ? "pointer" : "default", color: k === "⌫" ? C.coral : C.ink, fontSize: k === "⌫" ? 18 : 20, fontFamily: "DM Sans", fontWeight: k === "⌫" ? 600 : 500, padding: "18px 0", display: "flex", alignItems: "center", justifyContent: "center", opacity: (!k && !isWeight) ? 0.3 : 1 }}>
+              {k === "⌫" ? "⌫" : k}
+            </button>
+          ))}
+        </div>
+        {/* Control row: adjust + Done/Next */}
+        <div style={{ display: "flex", gap: 8, padding: "10px 12px 4px" }}>
+          <button className="sprig-tap" onClick={() => adjust(-adjustLarge)}
+            style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>−{adjustLarge}</button>
+          <button className="sprig-tap" onClick={() => adjust(-adjustSmall)}
+            style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>−{adjustSmall}</button>
+          <button className="sprig-tap" onClick={() => adjust(adjustSmall)}
+            style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>+{adjustSmall}</button>
+          <button className="sprig-tap" onClick={() => adjust(adjustLarge)}
+            style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>+{adjustLarge}</button>
+          <button className="sprig-tap" onClick={() => { buzz("tap"); onNext(); }}
+            style={{ flex: 1.2, background: C.bg, border: `1px solid ${C.green}55`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.greenSoft, fontFamily: "DM Sans" }}>Next</button>
+          <button className="sprig-tap" onClick={() => { buzz("complete"); onDone(); }}
+            style={{ flex: 1.2, background: C.green, border: "none", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 800, color: "#fff", fontFamily: "DM Sans" }}>Done</button>
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
+function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain, keypadFocus, onFocusField, onChangePending }) {
   const meta = findEx(ex.name);
   const prog = progressionFor(workouts, ex.name, daily, sleepReadiness, repRangePref, intensityStyle);  // richer: action + text + suggested w/reps
   const sug = prog || suggestNext(workouts, ex.name);                     // fall back to lightweight hint
-  const last = ex.sets[ex.sets.length - 1];
-  const [w, setW] = useState(last ? String(last.w) : sug ? String(sug.w) : "");
-  const [reps, setReps] = useState(last ? String(last.reps) : sug ? String(sug.reps) : "");
+  // Use parent-controlled pendingW/pendingR (enables shared custom keypad)
+  const w    = ex.pendingW ?? "";
+  const reps = ex.pendingR ?? "";
+  const isFocusedW = keypadFocus?.exIdx === exIdx && keypadFocus?.field === "w";
+  const isFocusedR = keypadFocus?.exIdx === exIdx && keypadFocus?.field === "reps";
   const [showCue, setShowCue] = useState(false);
   const [showPlate, setShowPlate] = useState(false);
   const [editRest, setEditRest] = useState(false);
@@ -13192,10 +14049,10 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   function log() {
     const W = parseFloat(w) || 0, R = parseInt(reps) || 0;
     if (R <= 0) return;
-    // PR detection + the new-record medal are handled at the app-frame level in woLogSet.
-    // Log the set; the RIR prompt is opened at the app-frame level by the parent's woLogSet.
     onLogSet(exIdx, { w: W, reps: R, rir: null });
     onStartRest(ex.name);
+    // Clear inputs for next set (keep weight, clear reps)
+    onChangePending?.(exIdx, { pendingW: String(W), pendingR: "" });
   }
   return (
     <div style={{ background: C.cardSolid, borderRadius: 24, padding: "18px 16px", boxShadow: "0 2px 16px rgba(0,0,0,.28)", border: `1px solid ${C.line}`, marginBottom: 16, position: "relative" }}>
@@ -13307,19 +14164,23 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         </div>
       )}
 
-      {/* input row */}
+      {/* input row — tappable chips open the custom keypad, no native keyboard */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
         {/* Set number circle */}
         <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.bg2, border: `1px solid ${C.line}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: C.muted, lineHeight: 1 }}>{setNo}</span>
         </div>
-        <input value={w} onChange={(e) => setW(e.target.value)} inputMode="decimal" placeholder={unit}
-          style={{ width: 66, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", transition: "border-color .15s" }}
-          onFocus={(e) => e.target.style.borderColor = C.green} onBlur={(e) => e.target.style.borderColor = ""} />
+        {/* Weight field */}
+        <button className="sprig-tap" onClick={() => { buzz("select"); onFocusField?.(exIdx, "w"); }}
+          style={{ width: 66, textAlign: "center", border: `1.5px solid ${isFocusedW ? C.lime : C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: isFocusedW ? C.lime + "18" : C.bg, color: w ? C.ink : C.muted, cursor: "pointer", outline: "none", boxShadow: isFocusedW ? `0 0 0 2px ${C.lime}44` : "none", transition: "border-color .15s, box-shadow .15s" }}>
+          {w || unit}
+        </button>
         <span style={{ color: C.muted, fontSize: 14, fontWeight: 600, flexShrink: 0 }}>×</span>
-        <input value={reps} onChange={(e) => setReps(e.target.value)} inputMode="numeric" placeholder="reps"
-          style={{ width: 62, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", transition: "border-color .15s" }}
-          onFocus={(e) => e.target.style.borderColor = C.green} onBlur={(e) => e.target.style.borderColor = ""} />
+        {/* Reps field */}
+        <button className="sprig-tap" onClick={() => { buzz("select"); onFocusField?.(exIdx, "reps"); }}
+          style={{ width: 62, textAlign: "center", border: `1.5px solid ${isFocusedR ? C.lime : C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: isFocusedR ? C.lime + "18" : C.bg, color: reps ? C.ink : C.muted, cursor: "pointer", outline: "none", boxShadow: isFocusedR ? `0 0 0 2px ${C.lime}44` : "none", transition: "border-color .15s, box-shadow .15s" }}>
+          {reps || "reps"}
+        </button>
         {meta?.bar && (
           <button className="sprig-tap" onClick={() => setShowPlate((s) => !s)} title="Plate calculator" style={{ background: showPlate ? C.green : C.bg2, border: "none", cursor: "pointer", width: 40, height: 40, borderRadius: 11, display: "grid", placeItems: "center", color: showPlate ? "#fff" : C.inkSoft, flexShrink: 0 }}><Calculator size={17} /></button>
         )}
@@ -13635,6 +14496,351 @@ function LiftTrend({ workouts, exName }) {
   );
 }
 
+/* ── Movement & Sports Panel (Train → third subtab) ─────────────────── */
+const SPORT_CATS = [
+  { id: "popular", label: "Popular",           emoji: "⭐" },
+  { id: "cardio",  label: "Cardio / Endurance",emoji: "🏃" },
+  { id: "team",    label: "Team sports",        emoji: "⚽" },
+  { id: "combat",  label: "Combat",             emoji: "🥊" },
+  { id: "gym",     label: "Gym / Conditioning", emoji: "💪" },
+  { id: "other",   label: "Other",              emoji: "🏄" },
+];
+const POPULAR_SPORT_IDS = ["walking","running","cycling","football","boxing","bjj","swimming","basketball","padel","yoga"];
+
+function MovementSportsPanel({ daily, onDaily, profile }) {
+  const sessions    = Array.isArray(daily?.sportSessions) ? daily.sportSessions : [];
+  const steps       = daily?.steps || 0;
+  const legacyMin   = daily?.cardioMin || 0;   // old cardio data — show but don't duplicate
+  const stepGoal2   = stepGoal(profile);
+  const wt          = profile?.weight || 70;
+  const stepGoalVal = stepGoal2 || 8000;
+
+  // mode: null | "log" | "steps"
+  const [mode, setMode]           = useState(null);
+  const [cat, setCat]             = useState("popular");
+  const [actId, setActId]         = useState(null);
+  const [durationMin, setDuration]= useState(45);
+  const [intensity, setIntensity] = useState("moderate");
+  const [stepsEdit, setStepsEdit] = useState("");
+  const [searching, setSearching] = useState("");
+  const [stepsInline, setStepsInline] = useState(false);
+  const [stepsInlineVal, setStepsInlineVal] = useState("");
+
+  const activity = SPORTS_LIBRARY.find(s => s.id === actId);
+  const estKcal  = activity ? sportKcal(activity, durationMin, intensity, wt) : 0;
+  const impact   = activity ? sportMuscleImpact(activity, durationMin, intensity) : {};
+  const impactEntries = Object.entries(impact).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const impactLabel = (pct) => pct >= 55 ? "High" : pct >= 30 ? "Moderate" : "Light";
+  const impactColor = (pct) => pct >= 55 ? C.coral : pct >= 30 ? C.amber : C.greenSoft;
+  const muscleNameMap = Object.fromEntries(MUSCLES.map(([k, n]) => [k, n]));
+
+  const totalSportKcal  = sessions.reduce((a, s) => a + (s.estimatedCalories || 0), 0);
+  const totalSportMin   = sessions.reduce((a, s) => a + (s.durationMin || 0), 0);
+  const totalActiveMin  = totalSportMin + legacyMin;
+
+  const filteredActivities = SPORTS_LIBRARY.filter(s => {
+    if (searching) return s.name.toLowerCase().includes(searching.toLowerCase());
+    if (cat === "popular") return POPULAR_SPORT_IDS.includes(s.id);
+    return s.cat === cat;
+  });
+
+  const saveActivity = () => {
+    if (!activity || !durationMin) return;
+    const newSess = {
+      id: uid(), ts: Date.now(),
+      date: new Date().toISOString().slice(0, 10), // YYYY-MM-DD for cross-day log filtering
+      sportId: activity.id, sportName: activity.name, emoji: activity.emoji,
+      durationMin: Number(durationMin), intensity,
+      estimatedCalories: estKcal, muscleImpact: impact, bodyWeightKg: wt,
+    };
+    onDaily({ sportSessions: [...sessions, newSess] });
+    buzz("light");
+    setMode(null); setActId(null); setCat("popular"); setDuration(45); setIntensity("moderate");
+  };
+
+  const removeActivity = (id) => { onDaily({ sportSessions: sessions.filter(s => s.id !== id) }); buzz("light"); };
+
+  const saveSteps = () => {
+    const v = parseInt(stepsEdit, 10);
+    if (Number.isFinite(v) && v >= 0) { onDaily({ steps: v }); buzz("light"); }
+    setStepsEdit(""); setMode(null);
+  };
+
+  const saveStepsInline = () => {
+    const v = parseInt(stepsInlineVal, 10);
+    if (Number.isFinite(v) && v >= 0) { onDaily({ steps: v }); buzz("light"); }
+    setStepsInlineVal(""); setStepsInline(false);
+  };
+
+  // ── default view (mode === null) ──────────────────────────────────────
+  if (!mode) return (
+    <div className="sprig-rise">
+      {/* Movement today — hero card */}
+      <div style={{ background: C.heroGrad1, borderRadius: 20, padding: "16px 18px", color: "#fff", boxShadow: C.shadow, marginBottom: 10 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: .6, textTransform: "uppercase", opacity: .65, marginBottom: 10 }}>Movement today</div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 10 }}>
+          {[
+            { label: "Steps",       value: steps > 0 ? steps.toLocaleString() : "–", sub: steps > 0 ? `/ ${stepGoalVal.toLocaleString()}` : "not logged" },
+            { label: "Active min",  value: totalActiveMin > 0 ? `${totalActiveMin}` : "–", sub: totalActiveMin > 0 ? "min" : "" },
+            { label: "Est. kcal",   value: totalSportKcal > 0 ? `~${totalSportKcal}` : "–", sub: totalSportKcal > 0 ? "kcal" : "" },
+          ].map(({ label, value, sub }) => (
+            <div key={label}>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, lineHeight: 1 }}>{value}</div>
+              {sub ? <div style={{ fontSize: 10, opacity: .65, marginTop: 2 }}>{sub}</div> : null}
+              <div style={{ fontSize: 9.5, opacity: .55, marginTop: 3, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+        {/* Steps progress bar */}
+        {steps > 0 && (
+          <div style={{ height: 3, background: "rgba(255,255,255,.18)", borderRadius: 9 }}>
+            <div style={{ height: "100%", borderRadius: 9, background: "#fff", opacity: steps >= stepGoalVal ? 1 : 0.75, width: `${Math.min(100, Math.round(steps / stepGoalVal * 100))}%`, transition: "width .3s" }} />
+          </div>
+        )}
+      </div>
+
+      {/* Steps quick-actions card */}
+      <div style={{ background: C.card, borderRadius: 16, padding: "12px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: stepsInline ? 10 : 0 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 9, background: C.green + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Activity size={15} color={C.greenSoft} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink }}>
+              {steps > 0 ? `${steps.toLocaleString()} steps` : "Steps"}
+            </div>
+            <div style={{ fontSize: 10.5, color: C.muted }}>
+              {steps > 0 ? `${Math.round(steps / stepGoalVal * 100)}% of goal` : `Goal: ${stepGoalVal.toLocaleString()}`}
+            </div>
+          </div>
+          {!stepsInline && (
+            <div style={{ display: "flex", gap: 5 }}>
+              <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 500 }); buzz("light"); }}
+                style={{ ...btn(C.bg2, C.green), padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>+500</button>
+              <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 1000 }); buzz("light"); }}
+                style={{ ...btn(C.bg2, C.green), padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>+1k</button>
+              <button className="sprig-tap" onClick={() => { setStepsInlineVal(String(steps || "")); setStepsInline(true); }}
+                style={{ ...btn(C.bg2, C.inkSoft), padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>Set</button>
+            </div>
+          )}
+        </div>
+        {stepsInline && (
+          <div style={{ display: "flex", gap: 7 }}>
+            <input type="number" inputMode="numeric" min="0" autoFocus value={stepsInlineVal}
+              onChange={(e) => setStepsInlineVal(e.target.value)} placeholder="Steps today"
+              style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 9, padding: "8px 11px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
+            <button className="sprig-tap" onClick={saveStepsInline}
+              style={{ ...btn(C.green, "#fff"), padding: "8px 14px", fontSize: 12 }}>Save</button>
+            <button className="sprig-tap" onClick={() => { setStepsInline(false); setStepsInlineVal(""); }}
+              style={{ ...btn(C.bg2, C.inkSoft), padding: "8px 11px", fontSize: 12 }}>✕</button>
+          </div>
+        )}
+      </div>
+
+      {/* Today's activities */}
+      {(sessions.length > 0 || legacyMin > 0) && (
+        <div style={{ background: C.card, borderRadius: 16, padding: "12px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
+          <div className="sprig-eyebrow" style={{ marginBottom: 10 }}>Today's activities</div>
+          {sessions.map((s, idx) => {
+            const topMuscles = s.muscleImpact
+              ? Object.entries(s.muscleImpact).sort((a, b) => b[1] - a[1]).slice(0, 3)
+              : [];
+            return (
+              <div key={s.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, paddingTop: idx > 0 ? 10 : 0, marginTop: idx > 0 ? 10 : 0, borderTop: idx > 0 ? `1px solid ${C.line}` : "none" }}>
+                <span style={{ fontSize: 20, lineHeight: 1, marginTop: 1 }}>{s.emoji || "🏃"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{s.sportName}</div>
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
+                    {s.durationMin}m · {s.intensity} · <span style={{ color: C.amber, fontWeight: 600 }}>~{s.estimatedCalories} kcal est.</span>
+                  </div>
+                  {topMuscles.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 5 }}>
+                      {topMuscles.map(([k, v]) => (
+                        <span key={k} style={{ background: impactColor(v) + "15", border: `1px solid ${impactColor(v)}40`, borderRadius: 6, padding: "2px 7px", fontSize: 10.5, fontWeight: 600, color: impactColor(v) }}>
+                          {muscleNameMap[k] || k} {impactLabel(v)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button className="sprig-tap" onClick={() => removeActivity(s.id)}
+                  style={{ background: "transparent", border: "none", cursor: "pointer", color: C.muted, padding: "4px 2px", flexShrink: 0 }}>
+                  <X size={13} />
+                </button>
+              </div>
+            );
+          })}
+          {/* Legacy cardio data — read-only, show if no sport sessions cover it */}
+          {legacyMin > 0 && sessions.length === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: sessions.length > 0 ? 10 : 0, marginTop: sessions.length > 0 ? 10 : 0, borderTop: sessions.length > 0 ? `1px solid ${C.line}` : "none" }}>
+              <span style={{ fontSize: 20 }}>🏃</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>Cardio</div>
+                <div style={{ fontSize: 11.5, color: C.muted }}>{legacyMin} min · Legacy log</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Log activity CTA */}
+      <button className="sprig-tap" onClick={() => setMode("log")}
+        style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "14px 0", fontSize: 14, fontWeight: 700, boxShadow: `0 4px 14px ${C.lime}33`, marginBottom: 4 }}>
+        <Plus size={15} /> Log activity
+      </button>
+
+      {sessions.length === 0 && legacyMin === 0 && steps === 0 && (
+        <div style={{ textAlign: "center", color: C.muted, fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
+          Track steps, log a sport, or add a cardio session.<br />Activities affect your movement score and muscle recovery.
+        </div>
+      )}
+
+      <div style={{ height: 4 }} />
+    </div>
+  );
+
+  // ── activity picker / logger (mode === "log") ─────────────────────────
+  if (mode === "log") return (
+    <div className="sprig-rise">
+      <div style={{ background: C.card, borderRadius: 18, padding: "14px 14px 18px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          {actId ? (
+            <button className="sprig-tap" onClick={() => { setActId(null); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 12, padding: "4px 0" }}>← Back</button>
+          ) : null}
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, flex: 1 }}>
+            {actId ? activity.name : "Log activity"}
+          </div>
+          <button className="sprig-tap" onClick={() => { setMode(null); setActId(null); setCat("popular"); }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><X size={15} /></button>
+        </div>
+
+        {!actId ? (<>
+          {/* Search */}
+          <input value={searching} onChange={(e) => { setSearching(e.target.value); }}
+            placeholder="Search activity…"
+            style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 12px", fontSize: 13, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box", marginBottom: 10 }} />
+          {/* Category chips */}
+          {!searching && (
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10, overflowX: "auto", paddingBottom: 2 }}>
+              {SPORT_CATS.map(c => (
+                <button key={c.id} className="sprig-tap" onClick={() => setCat(c.id)}
+                  style={{ ...btn(cat === c.id ? C.green : C.bg2, cat === c.id ? "#fff" : C.muted), padding: "5px 11px", fontSize: 11.5, fontWeight: 600, borderRadius: 9, whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {c.emoji} {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Activity list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 300, overflowY: "auto" }}>
+            {filteredActivities.length === 0 && (
+              <div style={{ textAlign: "center", color: C.muted, fontSize: 13, padding: "16px 0" }}>No activities found</div>
+            )}
+            {filteredActivities.map((s) => {
+              const kcalPer = Math.round(s.met.moderate * wt / 60);
+              return (
+                <button key={s.id} className="sprig-tap" onClick={() => { setActId(s.id); setSearching(""); }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, background: "transparent", border: "none", cursor: "pointer", padding: "9px 6px", borderRadius: 10, textAlign: "left", fontFamily: "DM Sans" }}>
+                  <span style={{ fontSize: 20, lineHeight: 1, width: 28, textAlign: "center", flexShrink: 0 }}>{s.emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{s.name}</div>
+                    <div style={{ fontSize: 10.5, color: C.muted }}>~{kcalPer} kcal/min est.</div>
+                  </div>
+                  <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0 }} />
+                </button>
+              );
+            })}
+          </div>
+        </>) : (<>
+          {/* Duration */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, marginBottom: 7 }}>Duration (minutes)</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 7 }}>
+              {[15, 30, 45, 60, 90].map(n => (
+                <button key={n} className="sprig-tap" onClick={() => setDuration(n)}
+                  style={{ ...btn(durationMin === n ? C.green : C.bg2, durationMin === n ? "#fff" : C.muted), flex: 1, padding: "8px 0", fontSize: 12, fontWeight: 700 }}>{n}</button>
+              ))}
+            </div>
+            <input type="number" inputMode="numeric" min="1" value={durationMin}
+              onChange={(e) => setDuration(parseInt(e.target.value) || 0)}
+              style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 9, padding: "8px 12px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
+          </div>
+          {/* Intensity */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, marginBottom: 7 }}>Intensity</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["easy","Easy 😊"],["moderate","Moderate 💪"],["hard","Hard 🔥"]].map(([k, lbl]) => (
+                <button key={k} className="sprig-tap" onClick={() => setIntensity(k)}
+                  style={{ ...btn(intensity === k ? C.green : C.bg2, intensity === k ? "#fff" : C.muted), flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 600 }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+          {/* Preview */}
+          <div style={{ background: C.bg, borderRadius: 13, padding: "13px 14px", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: impactEntries.length > 0 ? 11 : 0 }}>
+              <span style={{ fontSize: 24, lineHeight: 1 }}>{activity.emoji}</span>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{activity.name} · {durationMin}m · {intensity}</div>
+                <div style={{ fontSize: 12.5, color: C.amber, fontWeight: 700, marginTop: 2 }}>~{estKcal} kcal estimated</div>
+              </div>
+            </div>
+            {impactEntries.length > 0 && (
+              <>
+                <div style={{ fontSize: 9.5, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, marginBottom: 6 }}>Recovery impact</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {impactEntries.map(([k, v]) => (
+                    <span key={k} style={{ background: impactColor(v) + "18", border: `1px solid ${impactColor(v)}40`, borderRadius: 6, padding: "3px 8px", fontSize: 10.5, fontWeight: 600, color: impactColor(v) }}>
+                      {muscleNameMap[k] || k} · {impactLabel(v)}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>Estimates only. Affects muscle recovery display.</div>
+              </>
+            )}
+          </div>
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="sprig-tap" onClick={() => setActId(null)}
+              style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "12px 0", fontSize: 13 }}>← Back</button>
+            <button className="sprig-tap" onClick={saveActivity}
+              style={{ ...btn(C.lime, "#0A1F12"), flex: 2, padding: "12px 0", fontSize: 14, fontWeight: 700 }}>
+              <Check size={15} /> Save activity
+            </button>
+          </div>
+        </>)}
+      </div>
+      <div style={{ height: 4 }} />
+    </div>
+  );
+
+  // ── steps setter (fallback separate view, kept for deep-set use) ──────
+  return (
+    <div className="sprig-rise">
+      <div style={{ background: C.card, borderRadius: 16, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Set steps</div>
+        <input type="number" inputMode="numeric" min="0" autoFocus value={stepsEdit}
+          onChange={(e) => setStepsEdit(e.target.value)} placeholder="Steps today"
+          style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "11px 13px", fontSize: 15, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box", marginBottom: 10 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          {[1000, 2500, 5000, 7500, 10000].map((n) => (
+            <button key={n} className="sprig-tap" onClick={() => setStepsEdit(String(n))}
+              style={{ ...btn(C.bg2, C.muted), flex: 1, padding: "6px 0", fontSize: 11, fontWeight: 700 }}>{(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button className="sprig-tap" onClick={() => { setMode(null); setStepsEdit(""); }}
+            style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "10px 0", fontSize: 13 }}>Cancel</button>
+          <button className="sprig-tap" onClick={saveSteps}
+            style={{ ...btn(C.green, "#fff"), flex: 2, padding: "10px 0", fontSize: 13 }}>Save</button>
+        </div>
+      </div>
+      <div style={{ height: 4 }} />
+    </div>
+  );
+}
+
+
 function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "training", onSub, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio, sleepInfo, rirPref, recoveryInfo }) {
   const unit = profile.unit || "kg";
   const [picker, setPicker] = useState(false);
@@ -13671,7 +14877,8 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
             sleepReadiness={trainInfo.sleepReadiness} daily={trainInfo.daily}
             painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations} repRangePref={profile.repRange} intensityStyle={rirPref?.intensityStyle}
             onLogSet={onLogSet} onSetRir={onSetRir} onOpenRirPrompt={onOpenRirPrompt} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
-            onSetExercisePain={onSetExercisePain} />
+            onSetExercisePain={onSetExercisePain}
+            keypadFocus={trainInfo.keypadFocus} onFocusField={trainInfo.onFocusField} onChangePending={trainInfo.onChangePending} />
         ))}
 
         {picker
@@ -13696,7 +14903,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
   };
   return (
     <div className="sprig-rise">
-      <SubTabs tabs={[["training", "Training & Cardio"], ["analytics", "Volume & Recovery"]]} active={sub} onChange={onSub} />
+      <SubTabs tabs={[["training", "Training"], ["movement", "Movement"], ["analytics", "Recovery"]]} active={sub} onChange={onSub} />
       {sub === "training" && (<>
       {/* PAIN COACH — only when active pain logged */}
       {trainInfo.pain && trainInfo.pain.level !== "none" && (() => {
@@ -13864,17 +15071,29 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         </div>
       )}
 
-      {/* readiness */}
-      <div style={{ width: "100%", textAlign: "left", marginTop: 14, background: C.heroGrad1, borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
-        <Ring value={trainInfo.bodyReadiness} max={100} size={64} stroke={8} label={trainInfo.bodyReadiness} sub="ready" color={trainInfo.bodyReadiness >= 70 ? C.leaf : trainInfo.bodyReadiness >= 45 ? C.amber : C.coralSoft} track="rgba(255,255,255,.15)" />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11.5, opacity: .8 }}>Today's readiness</div>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700 }}>
-            {trainInfo.bodyReadiness >= 70 ? "Push hard" : trainInfo.bodyReadiness >= 45 ? "Train moderate" : "Light / recover"}
+      {/* readiness — canonical score matches Today & Volume Recovery */}
+      {(() => {
+        const rScore  = recoveryInfo?.score  ?? trainInfo.bodyReadiness;
+        const rLabel  = recoveryInfo?.label  ?? (rScore >= 70 ? "Ready" : rScore >= 45 ? "Moderate" : "Low");
+        const rAction = recoveryInfo?.bestAction ?? (rScore >= 70 ? "Push hard" : rScore >= 45 ? "Train moderate" : "Light / recover");
+        const rColor  = rScore >= 70 ? C.leaf : rScore >= 45 ? C.amber : C.coralSoft;
+        const muscleLine = trainInfo.freshMuscles.length
+          ? `Fresh: ${trainInfo.freshMuscles.slice(0, 3).join(", ")}`
+          : trainInfo.readyMuscles.length
+            ? "Most muscles still recovering"
+            : "Log a workout to see muscle freshness";
+        return (
+          <div style={{ width: "100%", textAlign: "left", marginTop: 14, background: C.heroGrad1, borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
+            <Ring value={rScore} max={100} size={64} stroke={8} label={rScore} sub="ready" color={rColor} track="rgba(255,255,255,.15)" />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11.5, opacity: .8 }}>Recovery</div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700 }}>{rLabel}</div>
+              <div style={{ fontSize: 11.5, opacity: .85, marginTop: 2 }}>{rAction}</div>
+              <div style={{ fontSize: 11, opacity: .65, marginTop: 3 }}>{muscleLine}</div>
+            </div>
           </div>
-          <div style={{ fontSize: 11.5, opacity: .85, marginTop: 2 }}>{trainInfo.freshMuscles.length ? `Fresh: ${trainInfo.freshMuscles.slice(0, 3).join(", ")}` : "Most muscles still recovering"}</div>
-        </div>
-      </div>
+        );
+      })()}
 
       {trainInfo.deload.suggest && (
         <div style={{ marginTop: 10, background: "#fdeee8", borderRadius: 14, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -13883,14 +15102,6 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
             <b>Consider a deload week.</b> {trainInfo.deload.reasons.join(" · ")}. Drop volume ~40% for a week and let everything supercompensate.
           </div>
         </div>
-      )}
-
-      {/* Movement & Cardio — directly under readiness (same data/functions as Today, edits via onDaily) */}
-      {moveInfo && daily && onDaily && (
-        <>
-          <div style={{ margin: "18px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Movement &amp; cardio</div>
-          <MovementCard daily={daily} profile={profile} onDaily={onDaily} />
-        </>
       )}
 
       {/* recent workout history preview */}
@@ -13928,6 +15139,11 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         </>
       )}
       </>)}
+
+      {sub === "movement" && (
+        <MovementSportsPanel daily={daily} onDaily={onDaily} profile={profile} />
+      )}
+
 
       {sub === "training" && (<>
       {/* history — recent workouts preview */}
@@ -14143,7 +15359,17 @@ function RecoveryStrengthSection({ workouts, profile, trainInfo, sleepInfo, adva
                 {selData.rec.recovered
                   ? <span style={{ color: C.greenSoft, fontWeight: 600 }}>Fully recovered — ready to train.</span>
                   : <>~<b style={{ color: recoveryColor(selData.rec.fatigue) }}>{selData.rec.remaining}h</b> until fully recovered{advanced ? ` (${selData.rec.fatigue}% fatigued)` : ""}.</>}
-                {advanced && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Last hit with {selData.rec.setCount} sets · {Math.round((Date.now() - selData.rec.lastTs) / 36e5)}h ago.</div>}
+                {selData.rec.sportSource && (
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>
+                    Estimated from sport: <b style={{ color: C.amber }}>{(selData.rec.sportNames || [selData.rec.sportName]).filter(Boolean).join(" + ") || "sport activity"}</b>
+                  </div>
+                )}
+                {selData.rec.quickLogged && !selData.rec.sportSource && (
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>Estimated from Quick Log</div>
+                )}
+                {advanced && !selData.rec.sportSource && !selData.rec.quickLogged && (
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Last hit with {selData.rec.setCount} sets · {Math.round((Date.now() - selData.rec.lastTs) / 36e5)}h ago.</div>
+                )}
               </div>
             ) : <div style={{ fontSize: 13, color: C.muted }}>Not trained recently — fully fresh.</div>
           ) : (
