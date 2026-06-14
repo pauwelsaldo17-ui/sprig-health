@@ -139,9 +139,9 @@ const FONTS = `
 .sprig-pop-centered { animation: popCentered .18s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-sheet { animation: sheetUp .26s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-dim { animation: dimIn .2s ease both; }
-.record-toast      { animation: recordToastIn .38s cubic-bezier(.16,.9,.2,1) both, recordGlowPulse 1.9s ease-in-out .30s 1; }
-.record-toast-exit { animation: recordToastOut .24s cubic-bezier(.6,0,1,.8) both !important; }
-.record-icon       { animation: recordIconPop .44s cubic-bezier(.16,.9,.2,1) .06s both; }
+.record-toast      { animation: recordToastIn .44s cubic-bezier(.2,.9,.2,1) both, recordGlowPulse 2.1s ease-in-out .38s 1; }
+.record-toast-exit { animation: recordToastOut .28s cubic-bezier(.5,0,1,1) both !important; }
+.record-icon       { animation: recordIconPop .54s cubic-bezier(.2,.9,.2,1) .10s both; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
 /* Tab-switch fade+slide — keyed wrapper re-mounts on each tab change */
@@ -514,31 +514,23 @@ function playRecordSound() {
     const ctx = getAudioCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
-    const vol = 0.17;
-    // Note 1 — E5 (659 Hz)
+    const vol = 0.2;
+    // Note 1 — E5 (660 Hz)
     const o1 = ctx.createOscillator(), g1 = ctx.createGain();
     o1.connect(g1); g1.connect(ctx.destination);
-    o1.type = "sine"; o1.frequency.value = 659;
+    o1.type = "sine"; o1.frequency.value = 660;
     g1.gain.setValueAtTime(0, t);
-    g1.gain.linearRampToValueAtTime(vol, t + 0.010);
-    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.17);
-    o1.start(t); o1.stop(t + 0.18);
-    // Note 2 — A5 (880 Hz)
+    g1.gain.linearRampToValueAtTime(vol, t + 0.012);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.19);
+    o1.start(t); o1.stop(t + 0.20);
+    // Note 2 — A5 (880 Hz), offset by 130ms
     const o2 = ctx.createOscillator(), g2 = ctx.createGain();
     o2.connect(g2); g2.connect(ctx.destination);
     o2.type = "sine"; o2.frequency.value = 880;
-    g2.gain.setValueAtTime(0, t + 0.11);
-    g2.gain.linearRampToValueAtTime(vol * 1.1, t + 0.14);
-    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.40);
-    o2.start(t + 0.11); o2.stop(t + 0.41);
-    // Note 3 — E6 (1318 Hz) sparkle
-    const o3 = ctx.createOscillator(), g3 = ctx.createGain();
-    o3.connect(g3); g3.connect(ctx.destination);
-    o3.type = "sine"; o3.frequency.value = 1318;
-    g3.gain.setValueAtTime(0, t + 0.28);
-    g3.gain.linearRampToValueAtTime(vol * 0.30, t + 0.31);
-    g3.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
-    o3.start(t + 0.28); o3.stop(t + 0.51);
+    g2.gain.setValueAtTime(0, t + 0.13);
+    g2.gain.linearRampToValueAtTime(vol * 1.15, t + 0.17);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.47);
+    o2.start(t + 0.13); o2.stop(t + 0.48);
   } catch (_) {}
 }
 // Play one "ring" of the chosen sound at the given volume (0–1). Returns approx duration in ms.
@@ -3135,20 +3127,15 @@ function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, daily, targ
     const sportName = recovery[k]?.sportName || null;
     const sportNames = recovery[k]?.sportNames || (sportName ? [sportName] : []);
     const noData = recovery[k]?.hasData === false;
-    const isSportStacked = !!(recovery[k]?.sportStacked);
     const status = noData ? "No workout logged"
       : isQL ? "Estimated from Quick Log"
-      : isSport
-        ? (f >= 75 ? "Very fatigued" : f >= 50 ? "Fatigued" : f >= 25 ? "Worked" : "Light impact")
-        : f >= 80 ? "Very fatigued" : f >= 55 ? "Fatigued" : f >= 25 ? "Ready" : "Fresh";
+      : isSport ? (f >= 70 ? "Fatigued" : f >= 35 ? "Active" : "Worked lightly")
+      : f >= 80 ? "Very fatigued" : f >= 55 ? "Fatigued" : f >= 25 ? "Ready" : "Fresh";
     const color = noData ? "#A89E89"
       : isQL ? (f >= 55 ? "#F4A261" : "#74C69D")
-      : isSport ? (f >= 75 ? "#E0714A" : f >= 50 ? "#F4A261" : f >= 25 ? "#D4A843" : "#74C69D")
+      : isSport ? (f >= 70 ? "#F4A261" : f >= 35 ? "#74C69D" : "#52B788")
       : f >= 80 ? "#E0714A" : f >= 55 ? "#F4A261" : f >= 25 ? "#74C69D" : "#52B788";
-    const sourceLabel = isSportStacked ? "workout + sport"
-      : isSport ? (sportNames && sportNames.length > 1 ? sportNames.join(" + ") : sportName || "sport")
-      : null;
-    muscleStatus[k] = { name: n, fatigue: f, status, color, quickLogged: isQL, sportSource: isSport, sportStacked: isSportStacked, sportName, sportNames, sourceLabel, hasData: !noData, trackingOff: false };
+    muscleStatus[k] = { name: n, fatigue: f, status, color, quickLogged: isQL, sportSource: isSport, sportName, sportNames, hasData: !noData, trackingOff: false };
   });
 
   const suggestActiveRecovery = score < 55 && painLevel !== "serious" && totalWeekSets > 20;
@@ -3736,27 +3723,9 @@ function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSessions = 
     const since = (Date.now() - lastTs) / 36e5;
     const remaining = Math.max(0, full - since);
     let baseFatigue = Math.round(Math.min(100, (remaining / full) * 100));
-    // Gym is recovered — sport is now the sole fatigue source, use it directly
-    if (remaining <= 0 && sportFatigue[k] && sportFatigue[k].fatigue > 0) {
-      const sf = sportFatigue[k];
-      out[k] = {
-        recovered: false,
-        remaining: Math.round(sf.fatigue * 0.48),
-        fatigue: sf.fatigue,
-        lastTs: sf.ts,
-        setCount: Math.round(setCount),
-        full: 48,
-        sportSource: true,
-        sportStacked: true,
-        sportName: sf.sportName,
-        sportNames: sf.sportNames,
-        hasData: true,
-      };
-      return;
-    }
-    // Gym still active — stack sport additively at 50% (capped at 98)
+    // Stack sport fatigue on top of gym workout for same muscle (capped)
     if (sportFatigue[k] && sportFatigue[k].fatigue > 0) {
-      baseFatigue = Math.min(98, baseFatigue + Math.round(sportFatigue[k].fatigue * 0.5));
+      baseFatigue = Math.min(98, baseFatigue + Math.round(sportFatigue[k].fatigue * 0.3));
     }
     out[k] = {
       recovered: remaining <= 0,
@@ -3767,7 +3736,6 @@ function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSessions = 
       full: Math.round(full),
       sportStacked: !!(sportFatigue[k]),
       sportName: sportFatigue[k]?.sportName,
-      sportNames: sportFatigue[k]?.sportNames,
     };
   });
   return out;
@@ -8112,7 +8080,7 @@ function SprigApp() {
               conflict between the centering transform and the animation transform. */}
           <div style={{
             position: "fixed",
-            top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+            top: "calc(env(safe-area-inset-top, 0px) + 64px)",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 3999,
@@ -8137,7 +8105,7 @@ function SprigApp() {
           {/* Outer centering wrapper — translateX(-50%) is here and NEVER animated */}
           <div style={{
             position: "fixed",
-            top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+            top: "calc(env(safe-area-inset-top, 0px) + 64px)",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 4000,
@@ -8179,9 +8147,26 @@ function SprigApp() {
             </div>
             {/* Text block */}
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-              <span style={{ fontSize: 9.5, fontWeight: 800, color: C.lime, letterSpacing: "0.10em", textTransform: "uppercase", lineHeight: 1 }}>New Best</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1.25, letterSpacing: "-0.015em", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recordToast.exName}</span>
-              <span style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.25, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recordToast.label}</span>
+              <span style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: C.ink,
+                lineHeight: 1.2,
+                letterSpacing: "-0.015em",
+              }}>
+                New Record
+              </span>
+              <span style={{
+                fontSize: 11.5,
+                color: C.muted,
+                marginTop: 2.5,
+                lineHeight: 1.3,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {recordToast.exName} · {recordToast.label}
+              </span>
               {recordToast.subLabel && (
                 <span style={{
                   fontSize: 10.5,
@@ -9445,11 +9430,9 @@ function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }) {
               {shown.map(m => (
                 <span key={m.k} style={{ fontSize: 11, fontWeight: 600, color: m.color, background: m.color + "18", padding: "3px 9px", borderRadius: 99, border: `1px solid ${m.color}44` }}>
                   {m.name}: {m.status}
-                  {m.quickLogged
-                    ? <span style={{ fontSize: 9, opacity: .7, marginLeft: 4 }}>· QL</span>
-                    : m.sourceLabel
-                      ? <span style={{ fontSize: 9, opacity: .75, marginLeft: 4 }}>· {m.sourceLabel}</span>
-                      : null}
+                  {m.quickLogged ? <span style={{ fontSize: 9, opacity: .7, marginLeft: 4 }}>QL</span>
+                    : m.sportSource ? <span style={{ fontSize: 9, opacity: .75, marginLeft: 4 }}>· {m.sportName || "sport"}</span>
+                    : null}
                 </span>
               ))}
               {muscles.length > shown.length && (
@@ -15275,8 +15258,7 @@ function RecoveryStrengthSection({ workouts, profile, trainInfo, sleepInfo, adva
                   : <>~<b style={{ color: recoveryColor(selData.rec.fatigue) }}>{selData.rec.remaining}h</b> until fully recovered{advanced ? ` (${selData.rec.fatigue}% fatigued)` : ""}.</>}
                 {selData.rec.sportSource && (
                   <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>
-                    {selData.rec.sportStacked ? "Workout + sport: " : "Estimated from sport: "}
-                    <b style={{ color: C.amber }}>{(selData.rec.sportNames || [selData.rec.sportName]).filter(Boolean).join(" + ") || "sport activity"}</b>
+                    Estimated from sport: <b style={{ color: C.amber }}>{(selData.rec.sportNames || [selData.rec.sportName]).filter(Boolean).join(" + ") || "sport activity"}</b>
                   </div>
                 )}
                 {selData.rec.quickLogged && !selData.rec.sportSource && (
