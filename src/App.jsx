@@ -6148,7 +6148,6 @@ function SprigApp() {
   const [recordToast, setRecordToast] = useState(null);
   const recordToastTimers = useRef([]); // pending setTimeout ids — cleared on new PR
   const recordToastPriorityRef = useRef(0); // PR_PRIORITY value of the currently shown toast
-  const [keypadFocus, setKeypadFocus] = useState(null); // { exIdx, field:"w"|"reps" } | null
   const [flashEntryId, setFlashEntryId] = useState(null); // briefly highlight a newly-logged meal
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -7248,13 +7247,7 @@ function SprigApp() {
     setRirPref(full);
   }
   const [bedNudgeDismissed, setBedNudgeDismissed] = useState(false);
-  // Update pending input values without async storage write (keypad updates)
-  function updateActivePending(exIdx, patch) {
-    setActiveWorkout(wo => wo ? ({
-      ...wo,
-      exercises: wo.exercises.map((e, i) => i === exIdx ? { ...e, ...patch } : e)
-    }) : wo);
-  }
+
   function addWoExercise(name) {
     const meta = findEx(name);
     // Pre-fill inputs from progression suggestion or last session
@@ -7549,7 +7542,7 @@ function SprigApp() {
   const readyMuscles = MUSCLES.filter(([k]) => recovery[k]?.recovered && recovery[k]?.lastTs).map(([, n]) => n);
   const freshMuscles = MUSCLES.filter(([k]) => (recovery[k]?.fatigue ?? 0) < 30 && recovery[k]?.hasData !== false && !recovery[k]?.trackingOff).map(([, n]) => n);
   const deload = deloadAdvice(workouts, debtMin, recovery);
-  const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily, keypadFocus, onFocusField: setKeypadFocus, onChangePending: updateActivePending };
+  const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily };
 
   // pain state — derived from structured logs (fallback to daily check-in)
   const painSum = painSummary(painLogs);
@@ -8198,17 +8191,6 @@ function SprigApp() {
           + transformed ancestors that would otherwise clip an absolute/fixed child). */}
       {activeWorkout && rest && (restLeft > 0 || restDone) && (
         <Portal>
-        {/* When keypad is open: compact bar above keypad (bottom ~320px).
-            Otherwise: standard pill above bottom nav. */}
-        {keypadFocus ? (
-          // Compact rest bar above keypad
-          <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: 320, background: C.cardSolid, borderRadius: "12px 12px 0 0", padding: "8px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 -2px 16px rgba(0,0,0,.3)", border: `1px solid ${C.green}44`, borderBottom: "none", zIndex: 1601 }}>
-            <Timer size={14} color={C.greenSoft} style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: C.muted, fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{restLeft <= 0 ? "Ready!" : rest.exName}</span>
-            <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: restDone && restLeft <= 0 ? C.green : C.lime }}>{restLeft <= 0 ? "Go!" : fmtClock(restLeft)}</span>
-            <button className="sprig-tap" onClick={skipRest} style={{ background: C.green, border: "none", cursor: "pointer", padding: "4px 10px", borderRadius: 7, fontSize: 11.5, fontWeight: 700, color: "#fff", fontFamily: "DM Sans", flexShrink: 0 }}>{restLeft <= 0 ? "Go" : "Skip"}</button>
-          </div>
-        ) : (
           <div className="sprig-pop-centered" style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", width: "min(92vw, 430px)", bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px)", background: restDone && restLeft <= 0 ? C.green : C.cardSolid, borderRadius: 20, padding: "12px 16px", color: "#fff", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 8px 40px rgba(0,0,0,.44)", border: `1px solid ${restDone && restLeft <= 0 ? C.green : C.green + "44"}`, zIndex: 1600 }}>
             <div style={{ width: 38, height: 38, borderRadius: 11, background: restDone && restLeft <= 0 ? "rgba(255,255,255,.2)" : C.green + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
               <Timer size={18} color={restDone && restLeft <= 0 ? "#fff" : C.greenSoft} />
@@ -8230,38 +8212,10 @@ function SprigApp() {
             )}
             <button className="sprig-tap" onClick={skipRest} style={{ background: C.green, border: "none", cursor: "pointer", padding: "0 14px", height: 36, borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "DM Sans" }}>{restLeft <= 0 ? "Go" : "Skip"}</button>
           </div>
-        )}
         </Portal>
       )}
 
-      {/* ── Custom workout keypad ── rendered at app level so it stays above everything */}
-      {activeWorkout && keypadFocus && (() => {
-        const kEx = activeWorkout.exercises[keypadFocus.exIdx];
-        const kField = keypadFocus.field; // "w" | "reps"
-        const kVal = kField === "w" ? (kEx?.pendingW ?? "") : (kEx?.pendingR ?? "");
-        function kChange(v) {
-          updateActivePending(keypadFocus.exIdx, kField === "w" ? { pendingW: v } : { pendingR: v });
-        }
-        function kNext() {
-          if (kField === "w") {
-            // Move to reps
-            setKeypadFocus({ exIdx: keypadFocus.exIdx, field: "reps" });
-          } else {
-            // reps → close (user will tap Log set)
-            setKeypadFocus(null);
-          }
-        }
-        return (
-          <WorkoutKeypad
-            field={kField}
-            value={kVal}
-            onChange={kChange}
-            onNext={kNext}
-            onDone={() => setKeypadFocus(null)}
-            onDismiss={() => setKeypadFocus(null)}
-          />
-        );
-      })()}
+
 
       {/* End-of-day quick-log nudge — gentle, dismissible, never affects the score. Hidden during
           an active workout (rest timer owns that space) and on the Today tab (quick log is right there). */}
@@ -13953,86 +13907,21 @@ function PlateView({ target, unit }) {
   );
 }
 
-// ─── WorkoutKeypad — custom numeric entry panel (no native keyboard) ──────────
-// Renders as a fixed bottom sheet. The parent controls the value; the keypad fires
-// onChange/onDone/onNext. The outer wrapper for bottom-sheet position is here;
-// z-index 1700 sits above the rest timer (1600) and all overlays below 2000.
-function WorkoutKeypad({ field, value, onChange, onDone, onNext, onDismiss }) {
-  const isWeight = field === "w";
 
-  function press(k) {
-    buzz("select");
-    if (k === "⌫") {
-      onChange(value.length > 1 ? value.slice(0, -1) : "");
-      return;
-    }
-    if (k === "." && !isWeight) return; // reps: integers only
-    if (k === "." && value.includes(".")) return; // no double dot
-    // Leading-zero guard: "0" then digit → replace
-    if (value === "0" && k !== ".") { onChange(k); return; }
-    onChange((value || "") + k);
-  }
-
-  function adjust(delta) {
-    buzz("tap");
-    const cur = parseFloat(value) || 0;
-    const next = Math.max(0, isWeight ? cur + delta : Math.round(cur + delta));
-    onChange(isWeight ? String(Math.round(next * 4) / 4) : String(next)); // weight: 0.25 granularity
-  }
-
-  const keys = ["7","8","9","4","5","6","1","2","3", isWeight ? "." : "", "0","⌫"];
-  const adjustLarge = isWeight ? 2.5 : 5;
-  const adjustSmall = isWeight ? 1 : 1;
-
-  return (
-    <Portal>
-      {/* Backdrop — tap outside to dismiss */}
-      <div onClick={onDismiss} style={{ position: "fixed", inset: 0, zIndex: 1699, background: "rgba(0,0,0,.25)" }} />
-      {/* Keypad panel */}
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 1700, background: C.cardSolid, borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 40px rgba(0,0,0,.5)", padding: "0 0 env(safe-area-inset-bottom, 16px)", userSelect: "none" }}>
-        {/* Value display */}
-        <div style={{ padding: "14px 20px 10px", display: "flex", alignItems: "baseline", gap: 8, borderBottom: `1px solid ${C.line}` }}>
-          <span style={{ fontFamily: "Fraunces, serif", fontSize: 34, fontWeight: 800, color: C.lime, lineHeight: 1, minWidth: 60 }}>{value || "0"}</span>
-          <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>{isWeight ? "kg" : "reps"}</span>
-        </div>
-        {/* Calculator grid 3×4 */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: C.line, margin: "1px 0" }}>
-          {keys.map((k, i) => (
-            <button key={i} className="sprig-tap" onClick={() => k && press(k)}
-              style={{ background: k === "⌫" ? C.bg2 : C.cardSolid, border: "none", cursor: k ? "pointer" : "default", color: k === "⌫" ? C.coral : C.ink, fontSize: k === "⌫" ? 18 : 20, fontFamily: "DM Sans", fontWeight: k === "⌫" ? 600 : 500, padding: "18px 0", display: "flex", alignItems: "center", justifyContent: "center", opacity: (!k && !isWeight) ? 0.3 : 1 }}>
-              {k === "⌫" ? "⌫" : k}
-            </button>
-          ))}
-        </div>
-        {/* Control row: adjust + Done/Next */}
-        <div style={{ display: "flex", gap: 8, padding: "10px 12px 4px" }}>
-          <button className="sprig-tap" onClick={() => adjust(-adjustLarge)}
-            style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>−{adjustLarge}</button>
-          <button className="sprig-tap" onClick={() => adjust(-adjustSmall)}
-            style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>−{adjustSmall}</button>
-          <button className="sprig-tap" onClick={() => adjust(adjustSmall)}
-            style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>+{adjustSmall}</button>
-          <button className="sprig-tap" onClick={() => adjust(adjustLarge)}
-            style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.inkSoft, fontFamily: "DM Sans" }}>+{adjustLarge}</button>
-          <button className="sprig-tap" onClick={() => { buzz("tap"); onNext(); }}
-            style={{ flex: 1.2, background: C.bg, border: `1px solid ${C.green}55`, borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 700, color: C.greenSoft, fontFamily: "DM Sans" }}>Next</button>
-          <button className="sprig-tap" onClick={() => { buzz("complete"); onDone(); }}
-            style={{ flex: 1.2, background: C.green, border: "none", borderRadius: 12, padding: "12px 0", fontSize: 13, fontWeight: 800, color: "#fff", fontFamily: "DM Sans" }}>Done</button>
-        </div>
-      </div>
-    </Portal>
-  );
-}
-
-function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain, keypadFocus, onFocusField, onChangePending }) {
+function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
   const meta = findEx(ex.name);
   const prog = progressionFor(workouts, ex.name, daily, sleepReadiness, repRangePref, intensityStyle);  // richer: action + text + suggested w/reps
   const sug = prog || suggestNext(workouts, ex.name);                     // fall back to lightweight hint
-  // Use parent-controlled pendingW/pendingR (enables shared custom keypad)
-  const w    = ex.pendingW ?? "";
-  const reps = ex.pendingR ?? "";
-  const isFocusedW = keypadFocus?.exIdx === exIdx && keypadFocus?.field === "w";
-  const isFocusedR = keypadFocus?.exIdx === exIdx && keypadFocus?.field === "reps";
+  // Local state for weight/reps inputs — pre-filled from last session or progression hint
+  const initW = (() => {
+    if (ex.pendingW != null) return ex.pendingW;
+    let last = "";
+    workouts.forEach(wk => wk.exercises.forEach(e => { if (e.name === ex.name && e.sets?.length) { const s = e.sets[e.sets.length - 1]; last = String(s.w); } }));
+    return last || (sug?.w != null ? String(sug.w) : "");
+  })();
+  const initR = ex.pendingR != null ? ex.pendingR : (sug?.reps != null ? String(sug.reps) : "");
+  const [w, setW]       = useState(initW);
+  const [reps, setReps] = useState(initR);
   const [showCue, setShowCue] = useState(false);
   const [showPlate, setShowPlate] = useState(false);
   const [editRest, setEditRest] = useState(false);
@@ -14051,8 +13940,8 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
     if (R <= 0) return;
     onLogSet(exIdx, { w: W, reps: R, rir: null });
     onStartRest(ex.name);
-    // Clear inputs for next set (keep weight, clear reps)
-    onChangePending?.(exIdx, { pendingW: String(W), pendingR: "" });
+    // Keep weight, clear reps for next set
+    setReps("");
   }
   return (
     <div style={{ background: C.cardSolid, borderRadius: 24, padding: "18px 16px", boxShadow: "0 2px 16px rgba(0,0,0,.28)", border: `1px solid ${C.line}`, marginBottom: 16, position: "relative" }}>
@@ -14164,23 +14053,31 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         </div>
       )}
 
-      {/* input row — tappable chips open the custom keypad, no native keyboard */}
+      {/* input row */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
         {/* Set number circle */}
         <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.bg2, border: `1px solid ${C.line}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: C.muted, lineHeight: 1 }}>{setNo}</span>
         </div>
-        {/* Weight field */}
-        <button className="sprig-tap" onClick={() => { buzz("select"); onFocusField?.(exIdx, "w"); }}
-          style={{ width: 66, textAlign: "center", border: `1.5px solid ${isFocusedW ? C.lime : C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: isFocusedW ? C.lime + "18" : C.bg, color: w ? C.ink : C.muted, cursor: "pointer", outline: "none", boxShadow: isFocusedW ? `0 0 0 2px ${C.lime}44` : "none", transition: "border-color .15s, box-shadow .15s" }}>
-          {w || unit}
-        </button>
+        {/* Weight input */}
+        <input
+          type="text" inputMode="decimal" placeholder={unit}
+          value={w}
+          onChange={e => setW(e.target.value)}
+          onFocus={e => { buzz("select"); e.target.style.borderColor = C.lime; e.target.style.boxShadow = `0 0 0 2px ${C.lime}44`; }}
+          onBlur={e => { e.target.style.borderColor = C.line; e.target.style.boxShadow = "none"; }}
+          style={{ width: 66, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", WebkitAppearance: "none", transition: "border-color .15s, box-shadow .15s" }}
+        />
         <span style={{ color: C.muted, fontSize: 14, fontWeight: 600, flexShrink: 0 }}>×</span>
-        {/* Reps field */}
-        <button className="sprig-tap" onClick={() => { buzz("select"); onFocusField?.(exIdx, "reps"); }}
-          style={{ width: 62, textAlign: "center", border: `1.5px solid ${isFocusedR ? C.lime : C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: isFocusedR ? C.lime + "18" : C.bg, color: reps ? C.ink : C.muted, cursor: "pointer", outline: "none", boxShadow: isFocusedR ? `0 0 0 2px ${C.lime}44` : "none", transition: "border-color .15s, box-shadow .15s" }}>
-          {reps || "reps"}
-        </button>
+        {/* Reps input */}
+        <input
+          type="text" inputMode="numeric" placeholder="reps"
+          value={reps}
+          onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ""))}
+          onFocus={e => { buzz("select"); e.target.style.borderColor = C.lime; e.target.style.boxShadow = `0 0 0 2px ${C.lime}44`; }}
+          onBlur={e => { e.target.style.borderColor = C.line; e.target.style.boxShadow = "none"; }}
+          style={{ width: 62, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", WebkitAppearance: "none", transition: "border-color .15s, box-shadow .15s" }}
+        />
         {meta?.bar && (
           <button className="sprig-tap" onClick={() => setShowPlate((s) => !s)} title="Plate calculator" style={{ background: showPlate ? C.green : C.bg2, border: "none", cursor: "pointer", width: 40, height: 40, borderRadius: 11, display: "grid", placeItems: "center", color: showPlate ? "#fff" : C.inkSoft, flexShrink: 0 }}><Calculator size={17} /></button>
         )}
@@ -14878,7 +14775,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
             painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations} repRangePref={profile.repRange} intensityStyle={rirPref?.intensityStyle}
             onLogSet={onLogSet} onSetRir={onSetRir} onOpenRirPrompt={onOpenRirPrompt} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
             onSetExercisePain={onSetExercisePain}
-            keypadFocus={trainInfo.keypadFocus} onFocusField={trainInfo.onFocusField} onChangePending={trainInfo.onChangePending} />
+            />
         ))}
 
         {picker
