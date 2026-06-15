@@ -104,27 +104,36 @@ const FONTS = `
 @keyframes pulse { 0%,100%{opacity:.45;} 50%{opacity:1;} }
 /* ── New Record achievement toast ── */
 @keyframes recordToastIn {
-  0%   { opacity:0; transform:translateY(-16px) scale(.88); }
-  62%  { opacity:1; transform:translateY(2px)   scale(1.04); }
+  0%   { opacity:0; transform:translateY(-18px) scale(.92); }
+  52%  { opacity:1; transform:translateY(4px)   scale(1.035); }
+  72%  { opacity:1; transform:translateY(-1px)  scale(.998); }
   100% { opacity:1; transform:translateY(0)     scale(1); }
 }
 @keyframes recordToastOut {
   0%   { opacity:1; transform:translateY(0)     scale(1); }
-  100% { opacity:0; transform:translateY(-10px) scale(.96); }
+  100% { opacity:0; transform:translateY(-10px) scale(.98); }
 }
 @keyframes recordIconPop {
-  0%   { transform:scale(.5) rotate(-12deg); opacity:.4; }
-  58%  { transform:scale(1.24) rotate(5deg); opacity:1; }
-  100% { transform:scale(1)   rotate(0deg); opacity:1; }
+  0%   { transform:scale(.5) rotate(-10deg); opacity:.2; }
+  55%  { transform:scale(1.22) rotate(4deg); opacity:1; }
+  75%  { transform:scale(.97) rotate(-1deg); opacity:1; }
+  100% { transform:scale(1) rotate(0deg); opacity:1; }
 }
-@keyframes recordGlowPulse {
-  0%,100% { box-shadow:0 0 0 0 rgba(199,255,61,0), 0 10px 32px rgba(0,0,0,.35); }
-  45%     { box-shadow:0 0 28px 5px rgba(199,255,61,.42), 0 10px 32px rgba(0,0,0,.35); }
+@keyframes recordGlowBurst {
+  0%   { box-shadow:0 10px 36px rgba(0,0,0,.44); }
+  18%  { box-shadow:0 0 34px 10px rgba(199,255,61,.52), 0 10px 36px rgba(0,0,0,.44); }
+  52%  { box-shadow:0 0 22px 6px rgba(199,255,61,.26), 0 10px 36px rgba(0,0,0,.44); }
+  100% { box-shadow:0 0 12px 3px rgba(199,255,61,.14), 0 10px 36px rgba(0,0,0,.44); }
+}
+@keyframes recordIconGlow {
+  0%   { box-shadow:0 0 6px rgba(199,255,61,.4); }
+  28%  { box-shadow:0 0 26px rgba(199,255,61,.88); }
+  100% { box-shadow:0 0 10px rgba(199,255,61,.38); }
 }
 @keyframes recordBgBloom {
-  0%   { opacity:0; transform:translateX(-50%) scale(.6); }
-  40%  { opacity:1; transform:translateX(-50%) scale(1); }
-  100% { opacity:0; transform:translateX(-50%) scale(1.4); }
+  0%   { opacity:0; transform:translateX(-50%) scale(.5); }
+  35%  { opacity:.9; transform:translateX(-50%) scale(1); }
+  100% { opacity:0; transform:translateX(-50%) scale(1.5); }
 }
 /* Food entry flash — border-glow pulse for the newly-logged meal row */
 @keyframes entryFlash {
@@ -139,9 +148,9 @@ const FONTS = `
 .sprig-pop-centered { animation: popCentered .18s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-sheet { animation: sheetUp .26s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-dim { animation: dimIn .2s ease both; }
-.record-toast      { animation: recordToastIn .38s cubic-bezier(.16,.9,.2,1) both, recordGlowPulse 1.9s ease-in-out .30s 1; }
-.record-toast-exit { animation: recordToastOut .24s cubic-bezier(.6,0,1,.8) both !important; }
-.record-icon       { animation: recordIconPop .44s cubic-bezier(.16,.9,.2,1) .06s both; }
+.record-toast      { animation: recordToastIn .44s cubic-bezier(.16,.9,.2,1) both, recordGlowBurst .70s ease-out .05s 1 both; }
+.record-toast-exit { animation: recordToastOut .25s cubic-bezier(.6,0,1,.8) both !important; }
+.record-icon       { animation: recordIconPop .40s cubic-bezier(.16,.9,.2,1) .04s both, recordIconGlow .65s ease-out .06s 1 both; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
 /* Tab-switch fade+slide — keyed wrapper re-mounts on each tab change */
@@ -508,37 +517,45 @@ function buzz(kind = "tap") {
   if (!HAPTICS_ON) return;
   try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
 }
-// Two-note achievement chime for new records — 660 Hz → 880 Hz, <500ms total.
+// Layered achievement chime for new records — G4 impact → E5 → A5 → E6 sparkle, ~700ms total.
 function playRecordSound() {
   try {
     const ctx = getAudioCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
-    const vol = 0.17;
-    // Note 1 — E5 (659 Hz)
+    const vol = 0.15;
+    // Note 0 — soft low impact: G4 (392 Hz), triangle, very short
+    const o0 = ctx.createOscillator(), g0 = ctx.createGain();
+    o0.connect(g0); g0.connect(ctx.destination);
+    o0.type = "triangle"; o0.frequency.value = 392;
+    g0.gain.setValueAtTime(0, t);
+    g0.gain.linearRampToValueAtTime(vol * 0.55, t + 0.008);
+    g0.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+    o0.start(t); o0.stop(t + 0.11);
+    // Note 1 — E5 (659 Hz) upward chime start
     const o1 = ctx.createOscillator(), g1 = ctx.createGain();
     o1.connect(g1); g1.connect(ctx.destination);
     o1.type = "sine"; o1.frequency.value = 659;
-    g1.gain.setValueAtTime(0, t);
-    g1.gain.linearRampToValueAtTime(vol, t + 0.010);
-    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.17);
-    o1.start(t); o1.stop(t + 0.18);
-    // Note 2 — A5 (880 Hz)
+    g1.gain.setValueAtTime(0, t + 0.06);
+    g1.gain.linearRampToValueAtTime(vol, t + 0.075);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.27);
+    o1.start(t + 0.06); o1.stop(t + 0.28);
+    // Note 2 — A5 (880 Hz) main resonant chime
     const o2 = ctx.createOscillator(), g2 = ctx.createGain();
     o2.connect(g2); g2.connect(ctx.destination);
     o2.type = "sine"; o2.frequency.value = 880;
-    g2.gain.setValueAtTime(0, t + 0.11);
-    g2.gain.linearRampToValueAtTime(vol * 1.1, t + 0.14);
-    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.40);
-    o2.start(t + 0.11); o2.stop(t + 0.41);
-    // Note 3 — E6 (1318 Hz) sparkle
+    g2.gain.setValueAtTime(0, t + 0.19);
+    g2.gain.linearRampToValueAtTime(vol * 1.1, t + 0.22);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.52);
+    o2.start(t + 0.19); o2.stop(t + 0.53);
+    // Note 3 — E6 (1318 Hz) sparkle tail
     const o3 = ctx.createOscillator(), g3 = ctx.createGain();
     o3.connect(g3); g3.connect(ctx.destination);
     o3.type = "sine"; o3.frequency.value = 1318;
-    g3.gain.setValueAtTime(0, t + 0.28);
-    g3.gain.linearRampToValueAtTime(vol * 0.30, t + 0.31);
-    g3.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
-    o3.start(t + 0.28); o3.stop(t + 0.51);
+    g3.gain.setValueAtTime(0, t + 0.37);
+    g3.gain.linearRampToValueAtTime(vol * 0.27, t + 0.40);
+    g3.gain.exponentialRampToValueAtTime(0.001, t + 0.70);
+    o3.start(t + 0.37); o3.stop(t + 0.71);
   } catch (_) {}
 }
 // Play one "ring" of the chosen sound at the given volume (0–1). Returns approx duration in ms.
@@ -676,14 +693,6 @@ function movementSummary({ daily, profile, trainedToday }) {
 // the profile's activity factor already assumes a baseline; big step days add on top.
 // cardio kcal/min by intensity (rough, body-weight scaled at 70kg base)
 const CARDIO_INTENSITY = { easy: 5, moderate: 8, hard: 11 };
-const CARDIO_TYPES = [
-  ["walking",  "Walking",  "🚶"],
-  ["running",  "Running",  "🏃"],
-  ["cycling",  "Cycling",  "🚴"],
-  ["football", "Football", "⚽"],
-  ["boxing",   "Boxing",   "🥊"],
-  ["other",    "Other",    "💨"],
-];
 
 // ── Sports library — MET values (easy/moderate/hard) + per-muscle impact (0=none 1=light 2=moderate 3=high) ──
 const SPORTS_LIBRARY = [
@@ -3932,30 +3941,28 @@ function detectSetPR(workouts, exName, W, R, activeExSets) {
 
   // 1. e1RM PR — overall strength record (highest priority)
   if (thisE1 > maxE1 * 1.001) {
-    const delta = maxE1 > 0 ? ` ↑ ${Math.round(thisE1 - maxE1)} kg` : "";
-    return { kind: "e1rm", label: "New 1RM Record", subLabel: `${Math.round(thisE1)} kg e1RM${delta}` };
+    const delta = maxE1 > 0 ? ` ↑${Math.round(thisE1 - maxE1)}` : "";
+    return { kind: "e1rm", label: `Best 1RM · ${Math.round(thisE1)} kg${delta}` };
   }
   // 2. Weight PR — heaviest ever loaded
   if (W > maxW) {
-    const delta = maxW > 0 ? ` (+${+(W - maxW).toFixed(1)} kg)` : "";
-    return { kind: "weight", label: "Weight PR", subLabel: `${W} kg × ${R}${delta}` };
+    return { kind: "weight", label: `Weight PR · ${W} kg × ${R}` };
   }
   // 3. Rep PR at this exact weight
   const prevRepsAtW = repsAtW[W] || 0;
   if (R > prevRepsAtW) {
-    const delta = prevRepsAtW > 0 ? ` (+${R - prevRepsAtW} rep${R - prevRepsAtW > 1 ? "s" : ""})` : "";
-    return { kind: "reps", label: "Rep PR", subLabel: `${W} kg × ${R}${delta}` };
+    return { kind: "reps", label: `Rep PR · ${R} reps at ${W} kg` };
   }
   // 4. Single-set volume PR
   if (thisVol > maxVol * 1.001) {
-    return { kind: "volume", label: "Set Volume PR", subLabel: `${thisVol} kg · ${W}kg × ${R}` };
+    return { kind: "volume", label: `Set Volume PR · ${Math.round(thisVol)} kg` };
   }
   // 5. Session volume PR
   if (activeExSets && activeExSets.length > 0) {
     const prevSetsVol = activeExSets.reduce((acc, s) => acc + (s.w || 0) * (s.reps || 0), 0);
     const newSessionVol = prevSetsVol + thisVol;
     if (newSessionVol > maxSessionVol * 1.001) {
-      return { kind: "session-volume", label: "Session Volume PR", subLabel: `${Math.round(newSessionVol)} kg total` };
+      return { kind: "session-volume", label: `Volume PR · ${Math.round(newSessionVol)} kg` };
     }
   }
   return null;
@@ -5205,7 +5212,6 @@ async function analyzeText({ prompt, system }) {
     console.error("[sprig] analyzeText: response was not JSON. Body:", bodyText.slice(0, 500));
     throw new Error("AI proxy returned non-JSON response");
   }
-  console.log("[sprig] analyzeText: OK, got " + (data.text?.length || 0) + " chars");
   return (data.text || "").trim();
 }
 
@@ -6181,7 +6187,7 @@ function SprigApp() {
   const [winsOpen, setWinsOpen] = useState(false);
   const [foodOverlayMode, setFoodOverlayMode] = useState(null); // null | "menu" | "text" | "manual" | "supp"
   const [recapView, setRecapView] = useState(null); // { recap, ts } shown after finishing a workout
-  // recordToast: { kind, label, subLabel, exName, phase: "entering"|"visible"|"exiting" }
+  // recordToast: { kind, label, exName, phase: "entering"|"visible"|"exiting" }
   // keypadFocus: { exIdx, field: "w"|"reps" } — which exercise field the custom keypad is editing
   // Phase flow: entering (entrance anim) → visible (idle) → exiting (exit anim) → null
   const [recordToast, setRecordToast] = useState(null);
@@ -6488,7 +6494,7 @@ function SprigApp() {
     };
     persistEntries((prev) => [...prev, entry]);
     persistFavoriteMeals(favoriteMeals.map((x) => (x.id === id ? { ...x, useCount: (x.useCount || 0) + 1, lastUsedTs: Date.now() } : x)));
-    setFoodSub("meals");
+    setFoodSub("nutrition");
     setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((eid) => (eid === entry.id ? null : eid)), 2200);
     logged("Meal added", "light");
   }
@@ -6533,15 +6539,7 @@ function SprigApp() {
   const saveProfile = async (p) => {
     setProfile(p);
     const json = JSON.stringify(p);
-    try { console.log("[sprig] saveProfile → writing sprig_profile_v1"); } catch (_) {}
     await store.set("sprig_profile_v1", json);
-    // Verify the write actually landed (this is the diagnostic the user asked for).
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        const back = window.localStorage.getItem("sprig_profile_v1");
-        console.log("[sprig] saveProfile verify: localStorage.getItem('sprig_profile_v1') =", back ? "OK (" + back.length + " bytes)" : "NULL — write did not persist!");
-      }
-    } catch (e) { console.warn("[sprig] verify read failed:", e); }
   };
 
   // ---- data export / import / reset ----
@@ -6717,24 +6715,25 @@ function SprigApp() {
     const next = { ...daily, ...patch, lastTouchTs: Date.now() };
     setDaily(next);
     await store.set("sprig_daily_" + date, JSON.stringify(next));
-    // Sync any new sport sessions into the cross-day flat log (avoid duplicates by id)
+    // Sync sport session additions/deletions to the cross-day flat log in one atomic pass.
+    // Deletion is matched by ID against daily.sportSessions (before patch), NOT by date, so
+    // timezone differences between the session's UTC date and the app's local date never cause
+    // deleted sessions to linger in the log and ghost-fatigue Recovery by Muscle.
     if (patch.sportSessions && Array.isArray(patch.sportSessions)) {
-      const existingIds = new Set(sportSessionsLog.map(s => s.id));
-      const newOnes = patch.sportSessions.filter(s => s.id && !existingIds.has(s.id));
-      if (newOnes.length) {
-        // Keep log trimmed to last 90 days (~48h decay means 3 days of data is enough)
+      const existingIds = new Set(sportSessionsLog.map(s => s.id).filter(Boolean));
+      const prevIds     = new Set((daily.sportSessions || []).map(s => s.id).filter(Boolean));
+      const patchIds    = new Set(patch.sportSessions.map(s => s.id).filter(Boolean));
+      const newOnes     = patch.sportSessions.filter(s => s.id && !existingIds.has(s.id));
+      // Sessions that were in daily.sportSessions before this patch but are gone now — user deleted them
+      const deletedIds  = new Set([...prevIds].filter(id => !patchIds.has(id)));
+      if (newOnes.length || deletedIds.size) {
         const cutoff = Date.now() - 90 * 864e5;
-        const nextLog = [...sportSessionsLog.filter(s => (s.ts || 0) > cutoff), ...newOnes];
+        const nextLog = [
+          ...sportSessionsLog.filter(s => (s.ts || 0) > cutoff && !(s.id && deletedIds.has(s.id))),
+          ...newOnes,
+        ];
         setSportSessionsLog(nextLog);
         await store.set("sprig_sport_sessions_v1", JSON.stringify(nextLog));
-      }
-      // Also handle deletions: remove from log any ids no longer in patch.sportSessions
-      const currentIds = new Set(patch.sportSessions.map(s => s.id));
-      const removed = sportSessionsLog.filter(s => s.id && !currentIds.has(s.id) && s.date === date);
-      if (removed.length) {
-        const trimmedLog = sportSessionsLog.filter(s => !(removed.some(r => r.id === s.id)));
-        setSportSessionsLog(trimmedLog);
-        await store.set("sprig_sport_sessions_v1", JSON.stringify(trimmedLog));
       }
     }
     // keep a 60-day weight series for the trend
@@ -7320,23 +7319,23 @@ function SprigApp() {
           recordToastTimers.current = [];
           recordToastPriorityRef.current = newPri;
           // Custom haptic + chime for new record
-          try { navigator.vibrate?.([20, 35, 20]); } catch (_) {}
+          try { navigator.vibrate?.([18, 28, 35]); } catch (_) {}
           if (profile?.restTimerSound !== false) { try { playRecordSound(); } catch (_) {} }
-          // Phase 1 — entering (entrance animation plays)
+          // Phase 1 — entering (entrance animation plays, 440ms)
           setRecordToast({ ...pr, exName, phase: "entering" });
-          // Phase 2 — visible (entrance done, idle)
+          // Phase 2 — visible (entrance done, 440ms enter + small buffer)
           const t1 = setTimeout(() =>
             setRecordToast(t => t && t.phase === "entering" ? { ...t, phase: "visible" } : t),
-            440); // matches recordToastIn duration
-          // Phase 3 — exiting (exit animation plays, ~2s after fully visible)
+            470);
+          // Phase 3 — exiting (exit animation plays, ~3.0s hold after fully visible)
           const t2 = setTimeout(() =>
             setRecordToast(t => t ? { ...t, phase: "exiting" } : t),
-            440 + 2000);
-          // Phase 4 — unmount (after exit anim completes)
+            470 + 3000);
+          // Phase 4 — unmount (after 260ms exit anim completes)
           const t3 = setTimeout(() => {
             setRecordToast(null);
             recordToastPriorityRef.current = 0;
-          }, 440 + 2000 + 300);
+          }, 470 + 3000 + 270);
           recordToastTimers.current = [t1, t2, t3];
         }
       }
@@ -7485,7 +7484,7 @@ function SprigApp() {
     }
     setResult(null);
     setTab("nutrition");
-    setFoodSub("meals");   // land on the Meals subtab where the new entry is listed
+    setFoodSub("nutrition");
     setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200);
     logged("Meal added", "light");
   }
@@ -7494,7 +7493,7 @@ function SprigApp() {
     const entry = { ...meal, id: uid(), mult: 1, time: Date.now() };
     persistEntries((prev) => [...prev, entry]);
     setTab("nutrition");
-    setFoodSub("meals");
+    setFoodSub("nutrition");
     setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200);
     logged("Meal added", "light");
   }
@@ -7504,7 +7503,7 @@ function SprigApp() {
       calories: +m.calories || 0, protein_g: +m.protein || 0, carbs_g: +m.carbs || 0,
       fat_g: +m.fat || 0, fiber_g: +m.fiber || 0, micros: {}, omega3: null, mult: 1, time: Date.now(),
     };
-    const commit = () => { persistEntries((prev) => [...prev, entry]); setFoodOverlayMode(null); setTab("nutrition"); setFoodSub("meals"); setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200); logged("Meal added", "light"); };
+    const commit = () => { persistEntries((prev) => [...prev, entry]); setFoodOverlayMode(null); setTab("nutrition"); setFoodSub("nutrition"); setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200); logged("Meal added", "light"); };
     if (entry.calories > 3000) { askConfirm(`${entry.calories} kcal for one item is unusually high. Save anyway?`, commit); return; }
     commit();
   }
@@ -8125,19 +8124,19 @@ function SprigApp() {
             zIndex: 3999,
             pointerEvents: "none",
           }}>
-            {/* Subtle lime bloom behind the toast */}
+            {/* Lime bloom halo behind the toast */}
             <div style={{
               position: "absolute",
               left: "50%",
               top: 0,
               transform: "translateX(-50%)",
-              width: 260,
-              height: 56,
+              width: 280,
+              height: 62,
               borderRadius: 99,
-              background: `radial-gradient(ellipse at 50% 50%, ${C.lime}2A 0%, transparent 72%)`,
+              background: `radial-gradient(ellipse at 50% 50%, ${C.lime}42 0%, transparent 70%)`,
               animation: recordToast.phase === "exiting"
-                ? "recordToastOut .28s cubic-bezier(.5,0,1,1) both"
-                : "recordBgBloom .7s ease-out both",
+                ? "recordToastOut .25s cubic-bezier(.5,0,1,1) both"
+                : "recordBgBloom .80s ease-out both",
               pointerEvents: "none",
             }} />
           </div>
@@ -8155,53 +8154,38 @@ function SprigApp() {
               className={`record-toast${recordToast.phase === "exiting" ? " record-toast-exit" : ""}`}
               style={{
                 background: C.isDark
-                  ? "rgba(14, 36, 20, 0.95)"
+                  ? "rgba(10, 28, 16, 0.97)"
                   : "rgba(255, 255, 255, 0.97)",
-                border: `1.5px solid ${C.lime}`,
+                border: `2px solid ${C.lime}`,
                 borderRadius: 20,
                 padding: "11px 18px 11px 11px",
                 display: "flex",
                 alignItems: "center",
                 gap: 11,
-                backdropFilter: "blur(16px)",
-                WebkitBackdropFilter: "blur(16px)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
                 maxWidth: "min(92vw, 420px)",
                 minWidth: 210,
                 cursor: "default",
-                boxShadow: "0 10px 32px rgba(0,0,0,.35)",
               }}
             >
-            {/* Medal icon — has its own pop animation */}
+            {/* Medal icon — pop + glow animations via .record-icon class */}
             <div className="record-icon" style={{
               width: 38,
               height: 38,
               borderRadius: 99,
-              background: `radial-gradient(circle at 50% 32%, ${C.lime}, ${C.green})`,
+              background: `radial-gradient(circle at 45% 28%, ${C.lime}, ${C.green})`,
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
-              boxShadow: `0 0 14px ${C.lime}55`,
             }}>
-              <Medal size={18} color="#0A1F12" />
+              <Medal size={18} color="#07140F" />
             </div>
-            {/* Text block */}
+            {/* Text block — 3 lines: eyebrow / exercise name / record value */}
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-              <span style={{ fontSize: 9.5, fontWeight: 800, color: C.lime, letterSpacing: "0.10em", textTransform: "uppercase", lineHeight: 1 }}>New Best</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1.25, letterSpacing: "-0.015em", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recordToast.exName}</span>
-              <span style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.25, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recordToast.label}</span>
-              {recordToast.subLabel && (
-                <span style={{
-                  fontSize: 10.5,
-                  color: C.greenSoft,
-                  fontWeight: 600,
-                  marginTop: 1.5,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}>
-                  {recordToast.subLabel}
-                </span>
-              )}
+              <span style={{ fontSize: 10, fontWeight: 900, color: C.lime, letterSpacing: "0.16em", textTransform: "uppercase", lineHeight: 1, textShadow: `0 0 10px ${C.lime}99` }}>NEW BEST</span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, lineHeight: 1.2, letterSpacing: "-0.015em", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recordToast.exName}</span>
+              <span style={{ fontSize: 12, color: C.lime, fontWeight: 700, lineHeight: 1.2, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.88 }}>{recordToast.label}</span>
             </div>
             </div>
           </div>
@@ -8891,140 +8875,6 @@ function Stepper({ icon, label, value, suffix, step, onChange, color, goal }) {
 }
 
 /* ---------------- Today tab -------------- */
-/* ---------------- cardio session quick-log card -------------- */
-function CardioCard({ daily, profile, onDaily }) {
-  const [open, setOpen] = useState(false);
-  const [type, setType] = useState("walking");
-  const [minutes, setMinutes] = useState(20);
-  const [intensity, setIntensity] = useState("moderate");
-  const sessions = Array.isArray(daily?.cardioSessions) ? daily.cardioSessions : [];
-  const totalMin = sessions.reduce((a, s) => a + (s.minutes || 0), 0);
-  const totalKcal = sessions.reduce((a, s) => a + cardioKcal(s.minutes, s.intensity, profile?.weight), 0);
-
-  const add = () => {
-    if (!minutes || minutes < 1) return;
-    const sess = { id: uid(), ts: Date.now(), type, minutes, intensity };
-    const next = [...sessions, sess];
-    const sumMin = next.reduce((a, s) => a + (s.minutes || 0), 0);
-    const sumKcal = next.reduce((a, s) => a + cardioKcal(s.minutes, s.intensity, profile?.weight), 0);
-    onDaily({ cardioSessions: next, cardioMin: sumMin, cardioKcal: sumKcal });
-    setOpen(false);
-    setMinutes(20);
-  };
-  const removeSess = (id) => {
-    const next = sessions.filter((s) => s.id !== id);
-    const sumMin = next.reduce((a, s) => a + (s.minutes || 0), 0);
-    const sumKcal = next.reduce((a, s) => a + cardioKcal(s.minutes, s.intensity, profile?.weight), 0);
-    onDaily({ cardioSessions: next, cardioMin: sumMin, cardioKcal: sumKcal });
-  };
-  return (
-    <div style={{ background: C.card, borderRadius: 14, padding: "12px 13px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
-        <Activity size={14} color="#5B9BD5" />
-        <div style={{ flex: 1, fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>Cardio today</div>
-        {sessions.length > 0 && <span style={{ fontSize: 11.5, color: C.muted }}>{totalMin}m · ~{totalKcal} kcal</span>}
-      </div>
-      {sessions.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
-          {sessions.map((s) => {
-            const meta = CARDIO_TYPES.find(([k]) => k === s.type) || ["other", "Other", "💨"];
-            return (
-              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.ink, padding: "5px 0" }}>
-                <span style={{ fontSize: 14 }}>{meta[2]}</span>
-                <span style={{ flex: 1 }}>{meta[1]} · {s.minutes}m · <span style={{ color: C.muted }}>{s.intensity}</span></span>
-                <span style={{ color: C.muted, fontSize: 11.5 }}>~{cardioKcal(s.minutes, s.intensity, profile?.weight)} kcal</span>
-                <button className="sprig-tap" onClick={() => removeSess(s.id)} aria-label="Remove" style={{ background: "transparent", border: "none", cursor: "pointer", color: C.muted, padding: 2 }}><X size={12} /></button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {!open ? (
-        <button className="sprig-tap" onClick={() => setOpen(true)} style={{ width: "100%", background: C.bg2, border: "none", cursor: "pointer", borderRadius: 9, padding: "8px 0", fontSize: 12, fontWeight: 600, color: "#5B9BD5", fontFamily: "DM Sans" }}>
-          <Plus size={12} /> Add cardio session
-        </button>
-      ) : (
-        <div style={{ background: C.bg, borderRadius: 11, padding: 10 }}>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
-            {CARDIO_TYPES.map(([k, lbl, emoji]) => (
-              <button key={k} className="sprig-tap" onClick={() => setType(k)} style={{ flex: "1 0 28%", border: "none", cursor: "pointer", padding: "6px 4px", borderRadius: 8, fontSize: 11, fontWeight: 600, fontFamily: "DM Sans", background: type === k ? "#5B9BD5" : C.bg2, color: type === k ? "#fff" : C.muted }}>
-                {emoji} {lbl}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600, width: 60 }}>Minutes</span>
-            <input value={minutes} onChange={(e) => setMinutes(parseInt(e.target.value) || 0)} inputMode="numeric"
-              style={{ flex: 1, textAlign: "center", border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 4px", fontFamily: "DM Sans", fontSize: 14, fontWeight: 600, background: C.bg }} />
-          </div>
-          <div style={{ display: "flex", gap: 4, marginBottom: 9 }}>
-            {[["easy", "Easy"], ["moderate", "Moderate"], ["hard", "Hard"]].map(([k, lbl]) => (
-              <button key={k} className="sprig-tap" onClick={() => setIntensity(k)} style={{ flex: 1, border: "none", cursor: "pointer", padding: "6px 0", borderRadius: 8, fontSize: 11, fontWeight: 600, fontFamily: "DM Sans", background: intensity === k ? C.green : C.bg2, color: intensity === k ? "#fff" : C.muted }}>{lbl}</button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button className="sprig-tap" onClick={() => setOpen(false)} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "8px 0", fontSize: 12 }}>Cancel</button>
-            <button className="sprig-tap" onClick={add} style={{ ...btn(C.green, "#fff"), flex: 1, padding: "8px 0", fontSize: 12 }}>Save</button>
-          </div>
-          <div style={{ fontSize: 10, color: C.muted, marginTop: 6, lineHeight: 1.5, textAlign: "center" }}>
-            ~{cardioKcal(minutes, intensity, profile?.weight)} kcal estimated. Calories burned are estimates.
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ---------------- shared Movement & Cardio card (Today + Train) -------------- */
-// Reuses daily.steps + CardioCard so Today and Train edit the exact same data via onDaily (Sprig day).
-function MovementCard({ daily, profile, onDaily, compact }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const steps = daily.steps || 0;
-  const goal = stepGoal(profile);
-  const cardioMin = daily.cardioMin || 0;
-  const cardioK = daily.cardioKcal || 0;
-  const bump = (n) => { onDaily({ steps: Math.max(0, steps + n) }); buzz("light"); };
-  const saveEdit = () => { const v = parseInt(draft, 10); if (Number.isFinite(v) && v >= 0) { onDaily({ steps: v }); buzz("light"); } setEditing(false); setDraft(""); };
-  return (
-    <div style={{ background: C.card, borderRadius: 16, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <Activity size={16} color={C.greenSoft} />
-        <div style={{ flex: 1, fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 600 }}>Movement &amp; cardio</div>
-        <span style={{ fontSize: 11.5, color: C.muted }}>{steps.toLocaleString()} / {goal.toLocaleString()}</span>
-      </div>
-      <ProgressBar pct={Math.round((steps / goal) * 100)} color={steps >= goal ? C.greenSoft : C.green} />
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11.5, color: C.inkSoft }}>
-        <span>{steps >= goal ? "Step goal hit 🏃" : `${Math.max(0, goal - steps).toLocaleString()} to goal`}</span>
-        {cardioMin > 0 && <span>{cardioMin} min cardio · ~{cardioK} kcal</span>}
-      </div>
-      {/* quick step actions */}
-      {!editing ? (
-        <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap" }}>
-          <button className="sprig-tap" onClick={() => bump(1000)} style={{ ...btn(C.bg2, C.green), padding: "9px 13px", fontSize: 12.5 }}><Plus size={13} /> 1k steps</button>
-          <button className="sprig-tap" onClick={() => bump(2500)} style={{ ...btn(C.bg2, C.green), padding: "9px 13px", fontSize: 12.5 }}><Plus size={13} /> 2.5k steps</button>
-          <button className="sprig-tap" onClick={() => { setDraft(String(steps)); setEditing(true); }} style={{ ...btn(C.bg2, C.inkSoft), padding: "9px 13px", fontSize: 12.5 }}><PencilLine size={13} /> Edit steps</button>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 7, marginTop: 11 }}>
-          <input type="number" inputMode="numeric" min="0" value={draft} autoFocus onChange={(e) => setDraft(e.target.value)} placeholder="Steps today"
-            style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 11px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
-          <button className="sprig-tap" onClick={saveEdit} style={{ ...btn(C.green, "#fff"), padding: "9px 15px", fontSize: 12.5 }}>Save</button>
-          <button className="sprig-tap" onClick={() => { setEditing(false); setDraft(""); }} style={{ ...btn(C.bg2, C.inkSoft), padding: "9px 13px", fontSize: 12.5 }}>Cancel</button>
-        </div>
-      )}
-      {/* full cardio logger (reused) */}
-      <div style={{ marginTop: 4 }}>
-        <CardioCard daily={daily} profile={profile} onDaily={onDaily} />
-      </div>
-      {!compact && (
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
-          Steps and cardio feed your daily calorie adjustment and recovery.
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ---------------- alcohol / drinks quick-log card -------------- */
 function DrinksCard({ daily, onDaily, onAddEntry }) {
@@ -9895,8 +9745,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
     <div className="sprig-rise">
       <SubTabs tabs={[["nutrition", "Nutrition"], ["meals", "Meals"]]} active={sub} onChange={onSub} />
 
-      {/* Single full-width Log Food CTA — replaces cramped top-right button and floating pill */}
-      {onOpenLogSheet && (
+      {sub === "nutrition" && onOpenLogSheet && (
         <button className="sprig-tap" onClick={onOpenLogSheet}
           style={{ width: "100%", background: C.lime, border: "none", cursor: "pointer", borderRadius: 16, padding: "13px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, fontFamily: "DM Sans", boxSizing: "border-box", boxShadow: `0 4px 16px ${C.lime}40` }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(0,0,0,.12)", display: "grid", placeItems: "center", flexShrink: 0 }}>
@@ -10040,10 +9889,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
           </div>
         </div>
       )}
-      </>)}
-
-      {sub === "meals" && (<>
-      {/* FOOD TODAY */}
+      {/* FOOD LOGGED TODAY */}
       {sectionTitle("Food logged today")}
       {entries.length === 0 ? (
         <EmptyState icon={<Flame size={20} color={C.greenSoft} />} title="No meals logged"
@@ -10084,7 +9930,24 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
         </div>
       )}
 
+      {/* HYDRATION & DRINKS */}
+      {sectionTitle("Hydration & drinks")}
+      <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        <Stepper icon={<Coffee size={13} />} label="Water" value={daily.water || 0} suffix="ml" step={250} onChange={(v) => onDaily({ water: v })} color="#5B9BD5" goal={nutriInfo.waterGoal} />
+        {nutriInfo.needsElectrolytes && <div style={{ fontSize: 11, color: C.amber, marginTop: 8 }}>Add electrolytes — you've sweated a lot today.</div>}
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>Goal {Math.round(nutriInfo.waterGoal)} ml · {Math.round(((daily.water || 0) / nutriInfo.waterGoal) * 100)}% today</div>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <DrinksCard daily={daily} onDaily={onDaily} onAddEntry={onAddEntry} />
+      </div>
+      {(daily.alcohol_g || 0) > 0 && (
+        <div style={{ fontSize: 11.5, color: C.amber, margin: "8px 4px 0", lineHeight: 1.5 }}>
+          Alcohol today counts toward calories and nudges your recovery and sleep guidance.
+        </div>
+      )}
+      </>)}
 
+      {sub === "meals" && (<>
       {/* FAVORITE MEALS */}
       {sectionTitle("Favorite meals")}
       {(favoriteMeals?.length || 0) > 0 && (
@@ -10124,23 +9987,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
         </div>
       )}
 
-      {/* HYDRATION & DRINKS */}
-      {sectionTitle("Hydration & drinks")}
-      <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        <Stepper icon={<Coffee size={13} />} label="Water" value={daily.water || 0} suffix="ml" step={250} onChange={(v) => onDaily({ water: v })} color="#5B9BD5" goal={nutriInfo.waterGoal} />
-        {nutriInfo.needsElectrolytes && <div style={{ fontSize: 11, color: C.amber, marginTop: 8 }}>Add electrolytes — you've sweated a lot today.</div>}
-        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>Goal {Math.round(nutriInfo.waterGoal)} ml · {Math.round(((daily.water || 0) / nutriInfo.waterGoal) * 100)}% today</div>
-      </div>
-      <div style={{ marginTop: 10 }}>
-        <DrinksCard daily={daily} onDaily={onDaily} onAddEntry={onAddEntry} />
-      </div>
-      {(daily.alcohol_g || 0) > 0 && (
-        <div style={{ fontSize: 11.5, color: C.amber, margin: "8px 4px 0", lineHeight: 1.5 }}>
-          Alcohol today counts toward calories and nudges your recovery and sleep guidance.
-        </div>
-      )}
-
-      {/* SAVE FAVORITES — collapsed below the main content */}
+      {/* SAVE FAVORITES */}
       {sectionTitle("Save favorites")}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
         <button className="sprig-tap" onClick={onOpenCreateFavorite} style={{ ...btn(C.bg2, C.green), padding: "10px 14px", fontSize: 13 }}><BookMarked size={15} /> Save new favorite</button>
