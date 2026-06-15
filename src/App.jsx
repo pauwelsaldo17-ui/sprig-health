@@ -400,7 +400,7 @@ const store = {
   // (We dropped the active toast — if you want it back, see git history.)
   onWriteError(fn) { return () => {}; },
 };
-const todayStr = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+const todayStr = (d) => (d instanceof Date ? d : new Date()).toLocaleDateString("en-CA"); // YYYY-MM-DD
 
 /* ---------------- Sprig "day" boundary --------------
    A calendar day rolls at 00:00, which is wrong for late-night eating/drinking:
@@ -623,18 +623,23 @@ function migrateProfile(p, defaultProfile) {
 
 /* ---------------- nutrition math -------------- */
 function computeTargets(p) {
-  const { sex, age, weight, height, activity, goal } = p;
+  const w   = (typeof p?.weight === "number" && isFinite(p.weight)  && p.weight  > 0) ? p.weight  : 72;
+  const h   = (typeof p?.height === "number" && isFinite(p.height)  && p.height  > 0) ? p.height  : 178;
+  const age = (typeof p?.age    === "number" && isFinite(p.age)     && p.age     > 0) ? p.age     : 18;
+  const sex      = p?.sex      || "male";
+  const activity = p?.activity || "moderate";
+  const goal     = p?.goal     || "maintain";
   const bmr =
     sex === "female"
-      ? 10 * weight + 6.25 * height - 5 * age - 161
-      : 10 * weight + 6.25 * height - 5 * age + 5;
+      ? 10 * w + 6.25 * h - 5 * age - 161
+      : 10 * w + 6.25 * h - 5 * age + 5;
   const af = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725 }[activity] || 1.375;
   let cals = bmr * af;
   if (goal === "lose") cals -= 450;
   if (goal === "gain") cals += 350;
   cals = Math.round(cals / 10) * 10;
   const proteinFactor = goal === "lose" ? 2.0 : goal === "gain" ? 1.9 : 1.7;
-  const protein = Math.round(weight * proteinFactor);
+  const protein = Math.round(w * proteinFactor);
   const fat = Math.round((cals * 0.27) / 9);
   const carbs = Math.max(0, Math.round((cals - protein * 4 - fat * 9) / 4));
   return { calories: cals, protein, carbs, fat, fiber: 30 };
@@ -992,7 +997,7 @@ function sportFields(sport) {
   if (sport === "fight") return [
     { id: "sparred",  label: "Sparred today?",   opts: [["yes", "Yes", "#E0714A"], ["no", "No", "#A89E89"]] },
     { id: "rounds",   label: "Rounds",           opts: [["1-3", "1–3", "#6BAE78"], ["4-6", "4–6", "#D9A23C"], ["7+", "7+", "#E0714A"]] },
-    { id: "headSym",  label: "Head/neck symptoms", opts: [["none", "None", "#6BAE78"], ["mild", "Mild", "#D9A23C"], ["yes", "Yes — rest", "#C0392B"], ["none", ""]] },
+    { id: "headSym",  label: "Head/neck symptoms", opts: [["none", "None", "#6BAE78"], ["mild", "Mild", "#D9A23C"], ["yes", "Yes — rest", "#C0392B"]] },
   ];
   if (sport === "running") return [
     { id: "runKm",  label: "Run distance",  opts: [["<5", "<5km", "#6BAE78"], ["5-10", "5–10km", "#D9A23C"], ["10+", "10km+", "#E0714A"]] },
@@ -3758,6 +3763,7 @@ function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSessions = 
     if (sportFatigue[k] && sportFatigue[k].fatigue > 0) {
       baseFatigue = Math.min(98, baseFatigue + Math.round(sportFatigue[k].fatigue * 0.5));
     }
+    const _hasSport = !!(sportFatigue[k] && sportFatigue[k].fatigue > 0);
     out[k] = {
       recovered: remaining <= 0,
       remaining: Math.round(remaining),
@@ -3765,7 +3771,8 @@ function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSessions = 
       lastTs,
       setCount: Math.round(setCount),
       full: Math.round(full),
-      sportStacked: !!(sportFatigue[k]),
+      sportStacked: _hasSport,
+      sportSource: _hasSport, // gym + sport: mark as sport-influenced so status uses sport labels
       sportName: sportFatigue[k]?.sportName,
       sportNames: sportFatigue[k]?.sportNames,
     };
@@ -6168,7 +6175,7 @@ function SprigApp() {
     try { store.set && store.set("sprig_theme_v1", m); } catch (_) {}
   }, []);
   const [foodSub, setFoodSub] = useState("nutrition");   // nutrition | meals
-  const [trainSub, setTrainSub] = useState("training"); // training | movement | analytics
+  const [trainSub, setTrainSub] = useState("training"); // training | movement | recovery
   const [sleepSub, setSleepSub] = useState("sleep");  // sleep | alarm
   const [quickOpen, setQuickOpen] = useState(false);
   const [winsOpen, setWinsOpen] = useState(false);
@@ -8397,7 +8404,7 @@ function SprigApp() {
               )}
               {/* action buttons */}
               <div style={{ display: "flex", gap: 8, padding: "12px 0 2px" }}>
-                <button className="sprig-tap" onClick={() => { setRecapView(null); setTab("train"); setTrainSub("analytics"); }}
+                <button className="sprig-tap" onClick={() => { setRecapView(null); setTab("train"); setTrainSub("recovery"); }}
                   style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "13px 0", fontWeight: 600 }}>View history</button>
                 <button className="sprig-tap" onClick={() => setRecapView(null)}
                   style={{ ...btn(C.lime, "#0A1F12"), flex: 1.8, padding: "13px 0", fontWeight: 700 }}>Done</button>
@@ -14763,6 +14770,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
   const [showMobility, setShowMobility] = useState(false);
   const [, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
+  const normSub = sub === "analytics" ? "recovery" : (sub === "training" || sub === "movement" || sub === "recovery" ? sub : "training");
 
   // ACTIVE WORKOUT
   if (active) {
@@ -14817,8 +14825,8 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
   };
   return (
     <div className="sprig-rise">
-      <SubTabs tabs={[["training", "Training"], ["movement", "Movement"], ["analytics", "Recovery"]]} active={sub} onChange={onSub} />
-      {sub === "training" && (<>
+      <SubTabs tabs={[["training", "Training"], ["movement", "Movement"], ["recovery", "Recovery"]]} active={normSub} onChange={onSub} />
+      {normSub === "training" && (<>
       {/* PAIN COACH — only when active pain logged */}
       {trainInfo.pain && trainInfo.pain.level !== "none" && (() => {
         const lvl = trainInfo.pain.level;
@@ -15021,7 +15029,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
       {/* recent workout history preview */}
       </>)}
 
-      {sub === "analytics" && (<>
+      {normSub === "recovery" && (<>
       {recoveryInfo && <PerfectRecoveryCard recoveryInfo={recoveryInfo} compact={false} />}
       <VolumeCoach volume={trainInfo.volume} advanced={advanced} />
 
@@ -15054,12 +15062,12 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
       )}
       </>)}
 
-      {sub === "movement" && (
+      {normSub === "movement" && (
         <MovementSportsPanel daily={daily} onDaily={onDaily} profile={profile} />
       )}
 
 
-      {sub === "training" && (<>
+      {normSub === "training" && (<>
       {/* history — recent workouts preview */}
       {workouts.length > 0 ? (
         <>
