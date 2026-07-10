@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Camera, ScanLine, PencilLine, Home, BookMarked, TrendingUp, User,
@@ -102,38 +102,14 @@ const FONTS = `
 @keyframes dimIn { from { opacity:0; } to { opacity:1; } }
 @keyframes toastUp { from { opacity:0; transform: translate(-50%, 10px); } to { opacity:1; transform: translate(-50%, 0); } }
 @keyframes pulse { 0%,100%{opacity:.45;} 50%{opacity:1;} }
-/* ── New Record achievement toast ── */
+/* ── New Record banner — calm, premium, Hevy-style ── */
 @keyframes recordToastIn {
-  0%   { opacity:0; transform:translateY(-18px) scale(.92); }
-  52%  { opacity:1; transform:translateY(4px)   scale(1.035); }
-  72%  { opacity:1; transform:translateY(-1px)  scale(.998); }
-  100% { opacity:1; transform:translateY(0)     scale(1); }
+  from { opacity:0; transform:translateY(-10px) scale(.98); }
+  to   { opacity:1; transform:translateY(0)     scale(1); }
 }
 @keyframes recordToastOut {
-  0%   { opacity:1; transform:translateY(0)     scale(1); }
-  100% { opacity:0; transform:translateY(-10px) scale(.98); }
-}
-@keyframes recordIconPop {
-  0%   { transform:scale(.5) rotate(-10deg); opacity:.2; }
-  55%  { transform:scale(1.22) rotate(4deg); opacity:1; }
-  75%  { transform:scale(.97) rotate(-1deg); opacity:1; }
-  100% { transform:scale(1) rotate(0deg); opacity:1; }
-}
-@keyframes recordGlowBurst {
-  0%   { box-shadow:0 10px 36px rgba(0,0,0,.44); }
-  18%  { box-shadow:0 0 34px 10px rgba(199,255,61,.52), 0 10px 36px rgba(0,0,0,.44); }
-  52%  { box-shadow:0 0 22px 6px rgba(199,255,61,.26), 0 10px 36px rgba(0,0,0,.44); }
-  100% { box-shadow:0 0 12px 3px rgba(199,255,61,.14), 0 10px 36px rgba(0,0,0,.44); }
-}
-@keyframes recordIconGlow {
-  0%   { box-shadow:0 0 6px rgba(199,255,61,.4); }
-  28%  { box-shadow:0 0 26px rgba(199,255,61,.88); }
-  100% { box-shadow:0 0 10px rgba(199,255,61,.38); }
-}
-@keyframes recordBgBloom {
-  0%   { opacity:0; transform:translateX(-50%) scale(.5); }
-  35%  { opacity:.9; transform:translateX(-50%) scale(1); }
-  100% { opacity:0; transform:translateX(-50%) scale(1.5); }
+  from { opacity:1; transform:translateY(0)    scale(1); }
+  to   { opacity:0; transform:translateY(-6px) scale(.99); }
 }
 /* Food entry flash — border-glow pulse for the newly-logged meal row */
 @keyframes entryFlash {
@@ -148,9 +124,8 @@ const FONTS = `
 .sprig-pop-centered { animation: popCentered .18s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-sheet { animation: sheetUp .26s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-dim { animation: dimIn .2s ease both; }
-.record-toast      { animation: recordToastIn .44s cubic-bezier(.16,.9,.2,1) both, recordGlowBurst .70s ease-out .05s 1 both; }
-.record-toast-exit { animation: recordToastOut .25s cubic-bezier(.6,0,1,.8) both !important; }
-.record-icon       { animation: recordIconPop .40s cubic-bezier(.16,.9,.2,1) .04s both, recordIconGlow .65s ease-out .06s 1 both; }
+.record-toast      { animation: recordToastIn .25s cubic-bezier(.2,.8,.2,1) both; }
+.record-toast-exit { animation: recordToastOut .20s cubic-bezier(.6,0,1,.8) both !important; }
 .sprig-toast-anim { animation: toastUp .22s cubic-bezier(.2,.8,.2,1) both; }
 .sprig-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%); background-size: 400% 100%; animation: pulse 1.2s ease-in-out infinite; border-radius: 12px; }
 /* Tab-switch fade+slide — keyed wrapper re-mounts on each tab change */
@@ -183,8 +158,10 @@ input[type=number] { -moz-appearance: textfield; }
 /* iOS momentum scrolling + native rubber-band (don't block overscroll on the scroll area) */
 .sprig-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-y: auto; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
-  .sprig-rise, .sprig-pop, .sprig-pop-centered, .sprig-sheet, .sprig-dim, .sprig-toast-anim, .tab-enter { animation-duration: .01ms !important; }
-  .record-toast, .record-toast-exit, .record-icon { animation-duration: .01ms !important; }
+  .sprig-rise, .sprig-pop, .sprig-pop-centered, .sprig-sheet, .sprig-dim, .sprig-toast-anim, .tab-enter,
+  .vitae-fade-up, .vitae-scale-in, .vitae-sheet-enter, .vitae-success-pulse { animation-duration: .01ms !important; }
+  .record-toast, .record-toast-exit { animation-duration: .01ms !important; }
+  .vitae-stagger-1,.vitae-stagger-2,.vitae-stagger-3,.vitae-stagger-4,.vitae-stagger-5 { animation-delay: 0ms !important; }
   .sprig-tap { will-change: auto; }
   .sprig-tap:active { transform: none; filter: none; }
   .sprig-scroll { scroll-behavior: auto; }
@@ -332,6 +309,38 @@ button:disabled { opacity: 0.45; cursor: default !important; }
   border-radius: 22px;
   box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 10px 30px rgba(0,0,0,.28);
 }
+/* ── Vitae motion language ──────────────────────────────────────────────────
+   A small shared set of semantic animation classes that complement sprig-*.
+   Use on standalone mounted elements — sheets, result cards, action items.
+   Pair with vitae-stagger-N for grouped cascades.
+   ──────────────────────────────────────────────────────────────────────────── */
+@keyframes vitaeFadeUp {
+  from { opacity:0; transform: translateY(14px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+@keyframes vitaeScaleIn {
+  from { opacity:0; transform: scale(.97) translateY(6px); }
+  to   { opacity:1; transform: scale(1)   translateY(0); }
+}
+@keyframes vitaeSheetEnter {
+  from { opacity:.42; transform: translateY(30px); }
+  to   { opacity:1;   transform: translateY(0); }
+}
+@keyframes vitaeSuccessPulse {
+  0%   { transform: scale(1); }
+  38%  { transform: scale(1.016); }
+  100% { transform: scale(1); }
+}
+.vitae-fade-up       { animation: vitaeFadeUp      260ms cubic-bezier(.22,.7,.25,1) both; }
+.vitae-scale-in      { animation: vitaeScaleIn     200ms cubic-bezier(.22,.7,.25,1) both; }
+.vitae-sheet-enter   { animation: vitaeSheetEnter  310ms cubic-bezier(.22,.7,.25,1) both; }
+.vitae-success-pulse { animation: vitaeSuccessPulse 380ms cubic-bezier(.22,.7,.25,1) both; }
+/* Stagger delay utilities — pair with any vitae-* or sprig-* animation class */
+.vitae-stagger-1 { animation-delay:  60ms; }
+.vitae-stagger-2 { animation-delay: 120ms; }
+.vitae-stagger-3 { animation-delay: 180ms; }
+.vitae-stagger-4 { animation-delay: 240ms; }
+.vitae-stagger-5 { animation-delay: 300ms; }
 `;
 
 /* ---------------- storage (artifact → localStorage → memory) -------------- */
@@ -517,45 +526,29 @@ function buzz(kind = "tap") {
   if (!HAPTICS_ON) return;
   try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
 }
-// Layered achievement chime for new records — G4 impact → E5 → A5 → E6 sparkle, ~700ms total.
+// Premium 2-note confirmation chime — A4 warm impact then B5 resonance, ~450ms total.
 function playRecordSound() {
   try {
     const ctx = getAudioCtx();
     if (!ctx) return;
     const t = ctx.currentTime;
-    const vol = 0.15;
-    // Note 0 — soft low impact: G4 (392 Hz), triangle, very short
-    const o0 = ctx.createOscillator(), g0 = ctx.createGain();
-    o0.connect(g0); g0.connect(ctx.destination);
-    o0.type = "triangle"; o0.frequency.value = 392;
-    g0.gain.setValueAtTime(0, t);
-    g0.gain.linearRampToValueAtTime(vol * 0.55, t + 0.008);
-    g0.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
-    o0.start(t); o0.stop(t + 0.11);
-    // Note 1 — E5 (659 Hz) upward chime start
+    const vol = 0.11;
+    // Note 1 — warm impact: A4 (440 Hz), triangle, short decay
     const o1 = ctx.createOscillator(), g1 = ctx.createGain();
+    o1.type = "triangle"; o1.frequency.value = 440;
+    g1.gain.setValueAtTime(0, t);
+    g1.gain.linearRampToValueAtTime(vol * 0.75, t + 0.010);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.19);
     o1.connect(g1); g1.connect(ctx.destination);
-    o1.type = "sine"; o1.frequency.value = 659;
-    g1.gain.setValueAtTime(0, t + 0.06);
-    g1.gain.linearRampToValueAtTime(vol, t + 0.075);
-    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.27);
-    o1.start(t + 0.06); o1.stop(t + 0.28);
-    // Note 2 — A5 (880 Hz) main resonant chime
+    o1.start(t); o1.stop(t + 0.20);
+    // Note 2 — clean confirmation: B5 (988 Hz), sine, longer sustain
     const o2 = ctx.createOscillator(), g2 = ctx.createGain();
-    o2.connect(g2); g2.connect(ctx.destination);
     o2.type = "sine"; o2.frequency.value = 880;
-    g2.gain.setValueAtTime(0, t + 0.19);
-    g2.gain.linearRampToValueAtTime(vol * 1.1, t + 0.22);
-    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.52);
-    o2.start(t + 0.19); o2.stop(t + 0.53);
-    // Note 3 — E6 (1318 Hz) sparkle tail
-    const o3 = ctx.createOscillator(), g3 = ctx.createGain();
-    o3.connect(g3); g3.connect(ctx.destination);
-    o3.type = "sine"; o3.frequency.value = 1318;
-    g3.gain.setValueAtTime(0, t + 0.37);
-    g3.gain.linearRampToValueAtTime(vol * 0.27, t + 0.40);
-    g3.gain.exponentialRampToValueAtTime(0.001, t + 0.70);
-    o3.start(t + 0.37); o3.stop(t + 0.71);
+    g2.gain.setValueAtTime(0, t + 0.13);
+    g2.gain.linearRampToValueAtTime(vol, t + 0.155);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.46);
+    o2.connect(g2); g2.connect(ctx.destination);
+    o2.start(t + 0.13); o2.stop(t + 0.48);
   } catch (_) {}
 }
 // Play one "ring" of the chosen sound at the given volume (0–1). Returns approx duration in ms.
@@ -1799,22 +1792,82 @@ function mealScore(e, targets) {
   return { score: score100, note };
 }
 
-// daily diet quality (0-100) + simple advice
+// daily diet quality (0-100) — judges what has been eaten, not how much of the day's target is covered.
+// Returns { score: number|null, noData: bool, advice: string[], whyText: string|null }
 function dietQuality(t, targets, daily, profile) {
-  const protP = targets.protein ? Math.min(1, t.protein / targets.protein) : 0;
-  const fibP = targets.fiber ? Math.min(1, t.fiber / targets.fiber) : 0;
-  const microCov = MICRO_KEYS.filter(([k]) => t.micros[k] >= 70).length / MICRO_KEYS.length;
-  const waterP = Math.min(1, (daily?.water || 0) / waterGoal(profile));
-  // whole-food estimate: fiber-per-calorie as a proxy for unprocessed eating
-  const wholeFood = t.calories ? Math.min(1, (t.fiber / (t.calories / 1000)) / 14) : 0;
-  const score = Math.round(protP * 30 + fibP * 20 + microCov * 25 + wholeFood * 15 + waterP * 10);
+  // Not enough food logged yet — neutral, not a bad score
+  if (!t || t.calories < 150) {
+    return { score: null, noData: true, advice: [], whyText: null };
+  }
+
+  const cal = t.calories;
+  const positives = [];
+  const negatives = [];
+
+  // 1. Fiber density (g / 1000 kcal) — best proxy for minimally processed eating
+  //    Whole foods: ~10–15 g/1000 kcal; ultra-processed: often <4 g/1000 kcal
+  const fiberDensity = (t.fiber / cal) * 1000;
+  const fiberScore = Math.min(1, fiberDensity / 12);
+  if (fiberScore >= 0.65) positives.push("high fibre / whole foods");
+  else if (fiberScore < 0.25) negatives.push("low fibre — likely refined/processed food");
+
+  // 2. Protein fraction of calories (protein kcal as % of total kcal)
+  //    Quality whole-food meals naturally score 20-35%; empty-calorie foods score <10%
+  const proteinFrac = (t.protein * 4) / cal;
+  const proteinScore = Math.min(1, proteinFrac / 0.25);
+  if (proteinScore >= 0.65) positives.push("good protein density");
+  else if (proteinScore < 0.25) negatives.push("very low protein");
+
+  // 3. Micronutrient variety — any micro data > 5% indicates whole/nutrient-dense food was eaten
+  const microPresent = MICRO_KEYS.filter(([k]) => (t.micros[k] || 0) > 5).length;
+  const microScore = Math.min(1, microPresent / 4); // 4+ distinct micros = full score
+  if (microPresent >= 4) positives.push("varied micronutrients");
+  else if (microPresent === 0) negatives.push("no vitamins/minerals detected");
+
+  // 4. Alcohol penalty (from daily check-in)
+  const alcohol = daily?.alcohol || 0;
+  let alcoholPenalty = 0;
+  if (alcohol >= 3) { alcoholPenalty = 22; negatives.push("significant alcohol"); }
+  else if (alcohol >= 2) { alcoholPenalty = 14; negatives.push("alcohol"); }
+  else if (alcohol >= 1) { alcoholPenalty = 6; }
+
+  // 5. High net-carb ratio with low fibre → crude proxy for sugary/refined food
+  //    Net carbs = total carbs − fibre. If >60% of calories come from net carbs AND fibre is low,
+  //    it strongly suggests high-sugar or ultra-processed foods.
+  const netCarbs = Math.max(0, t.carbs - t.fiber);
+  const netCarbFrac = (netCarbs * 4) / cal;
+  let carbPenalty = 0;
+  if (netCarbFrac > 0.60 && fiberScore < 0.30) {
+    carbPenalty = 18;
+    negatives.push("most calories from refined carbs / added sugar");
+  } else if (netCarbFrac > 0.52 && fiberScore < 0.20) {
+    carbPenalty = 10;
+    negatives.push("high refined carbs");
+  }
+
+  // ── Compose score (0–100) ──
+  // Weights: fibre 35 + protein 30 + micros 25 = 90; penalties applied on top
+  const raw = fiberScore * 35 + proteinScore * 30 + microScore * 25;
+  const score = Math.max(0, Math.min(100, Math.round(raw - alcoholPenalty - carbPenalty)));
+
+  // "Why" explanation: biggest positive + biggest negative driver
+  let whyText = null;
+  if (positives.length > 0 && negatives.length > 0) {
+    whyText = `Good: ${positives[0]}. Needs work: ${negatives[0]}.`;
+  } else if (positives.length > 0) {
+    whyText = `Good: ${positives.slice(0, 2).join(", ")}.`;
+  } else if (negatives.length > 0) {
+    whyText = `Needs work: ${negatives[0]}.`;
+  }
+
   const advice = [];
-  if (protP < 0.8) advice.push("add protein");
-  if (fibP < 0.7) advice.push("add fiber");
-  if (microCov < 0.5) advice.push("more fruit & veg");
-  if (waterP < 0.6) advice.push("drink more water");
-  if ((daily?.alcohol || 0) >= 2) advice.push("ease off alcohol");
-  return { score: Math.max(0, Math.min(100, score)), advice };
+  if (fiberScore < 0.55) advice.push("add fibre (veg, legumes, whole grains)");
+  if (proteinScore < 0.50) advice.push("add quality protein");
+  if (microPresent < 3) advice.push("more fruit & veg for vitamins");
+  if (alcohol >= 1) advice.push("reduce alcohol");
+  if (carbPenalty > 0) advice.push("swap refined carbs for whole-food sources");
+
+  return { score, noData: false, advice, whyText };
 }
 
 // top low micronutrients today, with food suggestions
@@ -4927,8 +4980,10 @@ function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, d
 
   // ---- DAILY COACH: top 3 actions ----
   const daily3 = (dailyInfo.actions || []).slice(0, 3).map((a) => a.text);
+  const allTrackingOff = tp.training === false && tp.nutrition === false && tp.sleep === false && tp.movement === false;
   const dailySummary = dailyInfo.actions[0]
     ? `Today's score is ${dailyInfo.healthScore}/100 — ${scoreVerdict(dailyInfo.healthScore).toLowerCase()}.`
+    : allTrackingOff ? "Tracking is off — turn it back on anytime in Tracking preferences."
     : "Log a little through the day and I'll sharpen your plan.";
 
   // ---- TRAINING COACH ----
@@ -4994,7 +5049,7 @@ function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, d
     else if ((daily.water || 0) < nutriInfo.waterGoal * 0.5) nutriBullets.push("Hydration is behind — drink a glass now.");
   }
   const nutriSummary = tp.nutrition === false ? "Nutrition tracking is off."
-    : dtN?.source === "exact" ? (nutriInfo.coach?.lines?.[0]?.text || (t.calories ? `Diet quality ${nutriInfo.dietQ.score}/100.` : "Track today's food for tailored advice."))
+    : dtN?.source === "exact" ? (nutriInfo.coach?.lines?.[0]?.text || (t.calories && nutriInfo.dietQ.score != null ? `Diet quality ${nutriInfo.dietQ.score}/100.` : "Track today's food for tailored advice."))
     : dtN?.source === "quick_log" ? "Nutrition status from Quick Log — no exact data."
     : "No nutrition data logged today.";
 
@@ -5013,7 +5068,7 @@ function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, d
   if (trainInfo.pain?.level && trainInfo.pain.level !== "none") recBullets.push(`Pain active (${trainInfo.pain.level}) — ${trainInfo.pain.coach?.lines?.[0] || "train around it"}`);
   const ci = daily.checkin || {};
   if (ci.stress === "high") recBullets.push("Stress high — a walk or breath work tonight helps sleep.");
-  if (!recBullets.length) recBullets.push("Sleep, stress, and recovery markers look clear.");
+  if (!recBullets.length) recBullets.push(tp.sleep === false ? "Sleep tracking is off — recovery insight is limited." : "Sleep, stress, and recovery markers look clear.");
   const recSummary = tp.sleep === false ? "Sleep tracking is off." : rr ? rr.text : "Recovery looks fine.";
 
   return {
@@ -5025,7 +5080,7 @@ function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, d
 }
 
 /* ---------------- weekly report (rule-based) -------------- */
-function weeklyReport({ history, workouts, sleepLogs, weightSeries, daily, dailyHistory, painLogs, focusSessions, consistency, targets, profile, sleepInfo }) {
+function weeklyReport({ history, workouts, sleepLogs, weightSeries, daily, dailyHistory, painLogs, focusSessions, consistency, targets, profile, sleepInfo, tp = {} }) {
   const now = Date.now();
   const weekAgo = now - 7 * 864e5;
   const dates7 = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d.toLocaleDateString("en-CA"); });
@@ -5098,12 +5153,12 @@ function weeklyReport({ history, workouts, sleepLogs, weightSeries, daily, daily
   wins.sort((a, b) => b.score - a.score);
 
   const bottlenecks = [];
-  if (bedConsistency != null && bedConsistency > 60) bottlenecks.push({ score: 9, key: "sleep_consistency", text: `Sleep consistency — bedtime swings ±${bedConsistency} min`, fix: `Lock bedtime near ${sleepInfo?.rec ? minToLabel(sleepInfo.rec.recBed) : "a fixed time"} every night.` });
-  if (avgSleepMin != null && avgSleepMin < (sleepInfo?.need || 480) - 45) bottlenecks.push({ score: 8, key: "sleep_short", text: `Short sleep — averaging ${durLabel(Math.round(avgSleepMin))}`, fix: "Sleep 30 min earlier most nights this week." });
-  if (avgProt != null && targets.protein && avgProt < targets.protein * 0.85) bottlenecks.push({ score: 8, key: "protein", text: `Protein under target (${Math.round(avgProt)}g avg)`, fix: `Add ~${Math.round(targets.protein - avgProt)}g protein/day.` });
-  if (wkWorkouts.length < 3) bottlenecks.push({ score: 7, key: "training", text: `Only ${wkWorkouts.length} workout${wkWorkouts.length !== 1 ? "s" : ""} this week`, fix: "Aim for 3–4 sessions next week." });
+  if (tp.sleep !== false && bedConsistency != null && bedConsistency > 60) bottlenecks.push({ score: 9, key: "sleep_consistency", text: `Sleep consistency — bedtime swings ±${bedConsistency} min`, fix: `Lock bedtime near ${sleepInfo?.rec ? minToLabel(sleepInfo.rec.recBed) : "a fixed time"} every night.` });
+  if (tp.sleep !== false && avgSleepMin != null && avgSleepMin < (sleepInfo?.need || 480) - 45) bottlenecks.push({ score: 8, key: "sleep_short", text: `Short sleep — averaging ${durLabel(Math.round(avgSleepMin))}`, fix: "Sleep 30 min earlier most nights this week." });
+  if (tp.nutrition !== false && avgProt != null && targets.protein && avgProt < targets.protein * 0.85) bottlenecks.push({ score: 8, key: "protein", text: `Protein under target (${Math.round(avgProt)}g avg)`, fix: `Add ~${Math.round(targets.protein - avgProt)}g protein/day.` });
+  if (tp.training !== false && wkWorkouts.length < 3) bottlenecks.push({ score: 7, key: "training", text: `Only ${wkWorkouts.length} workout${wkWorkouts.length !== 1 ? "s" : ""} this week`, fix: "Aim for 3–4 sessions next week." });
   if (wkPain.length >= 3) bottlenecks.push({ score: 7, key: "pain", text: `Pain logged ${wkPain.length}× this week`, fix: "Train around it and rest the area; see a physio if it persists." });
-  if (avgSteps != null && avgSteps < 5000) bottlenecks.push({ score: 5, key: "steps", text: `Low movement (${Math.round(avgSteps)} steps/day)`, fix: "Add a daily 20-min walk." });
+  if (tp.movement !== false && avgSteps != null && avgSteps < 5000) bottlenecks.push({ score: 5, key: "steps", text: `Low movement (${Math.round(avgSteps)} steps/day)`, fix: "Add a daily 20-min walk." });
   bottlenecks.sort((a, b) => b.score - a.score);
 
   // one recommended change (from top bottleneck, else maintain)
@@ -5613,16 +5668,53 @@ function TodayWinsCard({ wins, onKudos, onViewAll }) {
 }
 
 /* ---------------- result / edit card -------------- */
-function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode }) {
+function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode, onRefine }) {
   const [r, setR] = useState({ ...result, mult: 1 });
+  const [showRefine, setShowRefine] = useState(false);
+  const [refineDraft, setRefineDraft] = useState("");
+  const [refineError, setRefineError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState(null);
+  const openEdit = () => {
+    const m0 = r.mult;
+    setEditDraft({
+      name: r.name || '',
+      serving: r.serving || '',
+      calories: String(Math.round(r.calories * m0)),
+      protein_g: String(parseFloat((r.protein_g * m0).toFixed(1))),
+      carbs_g: String(parseFloat((r.carbs_g * m0).toFixed(1))),
+      fat_g: String(parseFloat(((r.fat_g || 0) * m0).toFixed(1))),
+    });
+    setEditing(true);
+  };
+  const applyEdit = () => {
+    const pf = (v, def = 0) => { const n = parseFloat(v); return (isNaN(n) || n < 0) ? def : n; };
+    setR((prev) => ({
+      ...prev,
+      name: editDraft.name.trim() || prev.name,
+      serving: editDraft.serving || prev.serving,
+      calories: pf(editDraft.calories),
+      protein_g: pf(editDraft.protein_g),
+      carbs_g: pf(editDraft.carbs_g),
+      fat_g: pf(editDraft.fat_g),
+      mult: 1,
+    }));
+    setEditing(false);
+    setEditDraft(null);
+  };
   const setMult = (d) => setR((x) => ({ ...x, mult: Math.max(0.25, Math.round((x.mult + d) * 4) / 4) }));
   const m = r.mult;
   const conf = { high: C.greenSoft, medium: C.amber, low: C.coral }[r.confidence] || C.muted;
   const topMicros = MICRO_KEYS
     .map(([k, lbl]) => [lbl, Math.round((r.micros?.[k] || 0) * m)])
     .filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const handleRefineSubmit = () => {
+    if (!refineDraft.trim()) { setRefineError("Describe what to change."); return; }
+    setRefineError("");
+    if (onRefine) onRefine(refineDraft.trim());
+  };
   return (
-    <div className="sprig-pop" style={{ background: C.card, borderRadius: 22, padding: 20, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+    <div className="vitae-scale-in" style={{ background: C.card, borderRadius: 22, padding: 20, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 21, fontWeight: 600, color: C.ink, display: "flex", alignItems: "center", gap: 7 }}>
@@ -5682,12 +5774,96 @@ function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode }) {
       )}
       <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 12, fontStyle: "italic" }}>{r.note}</div>
 
+      {!isSupp && !editing && (
+        <button className="sprig-tap" onClick={openEdit}
+          style={{ width: "100%", background: "transparent", border: `1px dashed ${C.line}`, borderRadius: 11, padding: "9px 14px", fontSize: 12.5, fontWeight: 600, color: C.muted, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 7, marginTop: 10 }}>
+          <PencilLine size={13} color={C.muted} /> Edit values
+        </button>
+      )}
+      {!isSupp && editing && editDraft && (
+        <div style={{ background: C.bg, borderRadius: 14, padding: 14, border: `1px solid ${C.line}`, marginTop: 10 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+            <PencilLine size={13} color={C.greenSoft} /> Edit values
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 4, fontWeight: 600 }}>Meal name</div>
+            <input type="text" value={editDraft.name}
+              onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+              style={{ width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 9, padding: "9px 11px", fontSize: 14, color: C.ink, background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 4, fontWeight: 600 }}>Portion / serving</div>
+            <input type="text" value={editDraft.serving}
+              onChange={(e) => setEditDraft((d) => ({ ...d, serving: e.target.value }))}
+              style={{ width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 9, padding: "9px 11px", fontSize: 14, color: C.ink, background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 4, fontWeight: 600 }}>Calories (kcal)</div>
+            <input type="number" inputMode="numeric" min="0" value={editDraft.calories}
+              onChange={(e) => setEditDraft((d) => ({ ...d, calories: e.target.value }))}
+              style={{ width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 9, padding: "9px 11px", fontSize: 14, color: C.ink, background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            {[["Protein (g)", "protein_g", C.green], ["Carbs (g)", "carbs_g", C.amber], ["Fat (g)", "fat_g", C.coral]].map(([label, key, color]) => (
+              <div key={key} style={{ flex: 1 }}>
+                <div style={{ fontSize: 10.5, color, marginBottom: 4, fontWeight: 700 }}>{label}</div>
+                <input type="number" inputMode="decimal" min="0" step="0.1" value={editDraft[key]}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, [key]: e.target.value }))}
+                  style={{ width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 9, padding: "8px 8px", fontSize: 13, color: C.ink, background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", outline: "none", boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="sprig-tap" onClick={() => { setEditing(false); setEditDraft(null); }}
+              style={{ ...btn(C.bg2, C.muted), flex: 1, padding: "10px 0", fontSize: 12.5 }}>Cancel</button>
+            <button className="sprig-tap" onClick={applyEdit}
+              style={{ ...btn(C.green, "#fff"), flex: 2, padding: "10px 0", fontSize: 12.5, fontWeight: 700 }}>
+              <Check size={13} /> Apply
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
         <button className="sprig-tap" onClick={onCancel} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "13px 0" }}><X size={16} /> Discard</button>
         <button className="sprig-tap" onClick={() => onAdd(r)} style={{ ...btn(C.green, "#fff"), flex: 2, padding: "13px 0" }}>
           <Check size={16} /> {favoriteMode ? "Review & save favorite" : isSupp ? "Add to my stack" : <>Add to today{mode === "text" ? " · save meal" : ""}</>}
         </button>
       </div>
+
+      {onRefine && !isSupp && (
+        <div style={{ marginTop: 10 }}>
+          {!showRefine ? (
+            <button className="sprig-tap" onClick={() => setShowRefine(true)}
+              style={{ width: "100%", background: "transparent", border: `1px dashed ${C.line}`, borderRadius: 11, padding: "9px 14px", fontSize: 12.5, fontWeight: 600, color: C.muted, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 7 }}>
+              <PencilLine size={13} color={C.muted} /> Correct this meal
+            </button>
+          ) : (
+            <div style={{ background: C.bg, borderRadius: 14, padding: 14, border: `1px solid ${C.line}` }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginBottom: 7, display: "flex", alignItems: "center", gap: 6 }}>
+                <PencilLine size={13} color={C.greenSoft} /> Correct the AI result
+              </div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 9, lineHeight: 1.5 }}>
+                Describe what's different — e.g. "3 eggs not 2", "250g pasta", "remove the cheese", "chicken thigh not breast"
+              </div>
+              <textarea value={refineDraft} onChange={(e) => setRefineDraft(e.target.value)}
+                placeholder="Describe the correction…"
+                autoFocus
+                style={{ width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", outline: "none", resize: "none", background: C.isDark ? "rgba(255,255,255,0.06)" : "#F4F6F2", fontFamily: "DM Sans", fontSize: 14, color: C.ink, minHeight: 72, lineHeight: 1.45, boxSizing: "border-box" }} />
+              {refineError && <div style={{ fontSize: 11.5, color: C.coral, marginTop: 5 }}>{refineError}</div>}
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button className="sprig-tap" onClick={() => { setShowRefine(false); setRefineDraft(""); setRefineError(""); }}
+                  style={{ ...btn(C.bg2, C.muted), flex: 1, padding: "10px 0", fontSize: 12.5 }}>Cancel</button>
+                <button className="sprig-tap" onClick={handleRefineSubmit}
+                  disabled={!refineDraft.trim()}
+                  style={{ ...btn(refineDraft.trim() ? C.lime : C.bg2, refineDraft.trim() ? "#0A1F12" : C.muted), flex: 2, padding: "10px 0", fontSize: 12.5, fontWeight: 700, opacity: refineDraft.trim() ? 1 : 0.5 }}>
+                  <Sparkles size={13} /> Re-analyse
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -5825,9 +6001,113 @@ const ONB_FOCUS = [
   ["sports", "Sports", "⚽"], ["health", "General health", "🌿"], ["transform", "Body transformation", "✨"],
 ];
 
+// ---- Onboarding mini card components ----
+function MiniNutritionCard() {
+  return (
+    <div style={{ width: "100%", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+      <div style={{ fontSize: 11, color: "rgba(244,247,242,0.55)", letterSpacing: .6, fontFamily: "DM Sans" }}>TODAY'S CALORIES</div>
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 54, fontWeight: 700, color: "#F4F7F2", lineHeight: 1 }}>1,840</div>
+      <div style={{ display: "flex", gap: 20 }}>
+        {[["Protein","142g"],["Carbs","198g"],["Fat","61g"]].map(([lbl,val]) => (
+          <div key={lbl} style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#F4F7F2" }}>{val}</div>
+            <div style={{ fontSize: 10.5, color: "rgba(244,247,242,0.45)", marginTop: 2 }}>{lbl}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function MiniCoachCard() {
+  return (
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ background: "rgba(244,247,242,0.1)", borderRadius: 12, padding: "9px 12px" }}>
+        <div style={{ fontSize: 10.5, color: "rgba(244,247,242,0.45)", marginBottom: 3 }}>You</div>
+        <div style={{ fontSize: 13, color: "#F4F7F2", lineHeight: 1.45 }}>{"Why aren't I losing weight even though I eat less?"}</div>
+      </div>
+      <div style={{ background: "rgba(244,247,242,0.16)", borderRadius: 12, padding: "9px 12px" }}>
+        <div style={{ fontSize: 10.5, color: "rgba(244,247,242,0.45)", marginBottom: 3 }}>Vitae</div>
+        <div style={{ fontSize: 12.5, color: "#F4F7F2", lineHeight: 1.45 }}>{"Your 7-day average is 2,340 kcal — above your 2,100 target. Sleep deprivation is also raising cortisol."}</div>
+      </div>
+    </div>
+  );
+}
+function MiniProgressCard() {
+  const bars = [45, 60, 52, 78, 65, 90, 72];
+  const days = ["M","T","W","T","F","S","S"];
+  return (
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <div>
+          <div style={{ fontSize: 10.5, color: "rgba(244,247,242,0.45)", letterSpacing: .5 }}>WEEKLY STREAK</div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 32, fontWeight: 700, color: "#F4F7F2", lineHeight: 1.1 }}>7 days</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(199,255,61,0.15)", borderRadius: 20, padding: "5px 10px" }}>
+          <Trophy size={11} color="#C7FF3D" />
+          <span style={{ fontSize: 11.5, color: "#C7FF3D", fontWeight: 700 }}>New record</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 5 }}>
+        {bars.map((h, i) => (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div style={{ width: "100%", height: 40 * h / 100, background: i === 6 ? "#C7FF3D" : "rgba(244,247,242,0.22)", borderRadius: 4, minHeight: 4 }} />
+            <div style={{ fontSize: 9, color: "rgba(244,247,242,0.35)" }}>{days[i]}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function DrumPicker({ values, value, onChange }) {
+  const ITEM_H = 44;
+  const initIdx = Math.max(0, values.indexOf(value));
+  const [localIdx, setLocalIdx] = useState(initIdx);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.scrollTop = initIdx * ITEM_H;
+  }, []);
+  const handleScroll = () => {
+    if (!ref.current) return;
+    const idx = Math.max(0, Math.min(Math.round(ref.current.scrollTop / ITEM_H), values.length - 1));
+    if (idx !== localIdx) { setLocalIdx(idx); onChange(String(values[idx])); }
+  };
+  return (
+    <div style={{ position: "relative", height: ITEM_H * 3, overflow: "hidden", borderRadius: 14, border: `1.5px solid ${C.line}`, background: C.card }}>
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2,
+        background: `linear-gradient(${C.card}f2 0%, transparent 33%, transparent 67%, ${C.card}f2 100%)` }} />
+      <div style={{ position: "absolute", top: ITEM_H, left: 0, right: 0, height: ITEM_H,
+        borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}`, pointerEvents: "none", zIndex: 1 }} />
+      <div ref={ref} onScroll={handleScroll}
+        style={{ height: "100%", overflowY: "scroll", scrollSnapType: "y mandatory",
+          scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }}>
+        <div style={{ height: ITEM_H }} />
+        {values.map((v, i) => (
+          <div key={v} style={{ height: ITEM_H, scrollSnapAlign: "start",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "DM Sans", fontSize: i === localIdx ? 22 : 16,
+            fontWeight: i === localIdx ? 700 : 400,
+            color: i === localIdx ? C.ink : C.muted }}>
+            {v}
+          </div>
+        ))}
+        <div style={{ height: ITEM_H }} />
+      </div>
+    </div>
+  );
+}
+function onbInputStyle(C) {
+  return {
+    width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 12,
+    padding: "14px 16px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 600,
+    background: C.card, color: C.ink, boxSizing: "border-box", outline: "none",
+  };
+}
+
 function Onboarding({ onDone, supabaseReady }) {
+  const [phase, setPhase] = useState("splash"); // "splash" | "carousel" | "questions"
+  const [carouselIdx, setCarouselIdx] = useState(0);
   const [step, setStep] = useState(0);
-  const [p, setP] = useState({ intent: null, sex: null, age: "", height: "", weight: "", activity: null, experience: null, focus: null, focusAreas: [], unit: "kg" });
+  const [p, setP] = useState({ intent: null, sex: null, age: "25", height: "175", weight: "70", activity: null, experience: null, focus: null, focusAreas: [], unit: "kg" });
   const [firstAction, setFirstAction] = useState(null);
   const set = (k, v) => setP((x) => ({ ...x, [k]: v }));
   const toggleArea = (k) => setP((x) => {
@@ -5837,146 +6117,227 @@ function Onboarding({ onDone, supabaseReady }) {
     return { ...x, focusAreas: next };
   });
 
-  // Step 0 is a full-screen welcome; the rest are one-question screens.
-  const steps = [
-    { key: "welcome" },
-    { key: "intent",    title: "What are you working toward?",  sub: "We'll tune everything around this." },
-    { key: "focusAreas",title: "What should Vitae help with?",  sub: "Pick as many as you like." },
-    { key: "sex",       title: "Sex",                          sub: "Used to estimate your calorie needs." },
-    { key: "stats",     title: "A few basics",                 sub: "Age, height, and weight — for accurate targets." },
-    { key: "activity",  title: "How active are you?",          sub: "Day-to-day movement and training." },
-    { key: "experience",title: "Training experience",          sub: "So strength grades and progression fit you." },
-    { key: "account",   title: "Save your progress",           sub: "Back up your data and restore it on a new phone." },
-    { key: "firstAction",title: "Start with one small action",  sub: "The fastest way to see Vitae work." },
+  useEffect(() => {
+    if (phase !== "splash") return;
+    const t = setTimeout(() => setPhase("carousel"), 1200);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  const CAROUSEL_SLIDES = [
+    { headline: "Every bite, every rep,\nevery night.", sub: "One place for food, training, sleep, and recovery.", card: <MiniNutritionCard /> },
+    { headline: "Your AI coach\nknows your body.", sub: "Ask anything. It answers from your actual data.", card: <MiniCoachCard /> },
+    { headline: "Know your numbers.\nOwn your progress.", sub: "Macros, strength, sleep — all in one dashboard.", card: <MiniProgressCard /> },
   ];
-  const cur = steps[step];
-  const last = step === steps.length - 1;
-  const qIndex = step;                       // for the progress bar (welcome included)
+
+  const QUESTION_STEPS = [
+    { key: "intent",      title: "What are you working toward?",  sub: "We'll tune everything around this." },
+    { key: "focusAreas",  title: "What should Vitae help with?",  sub: "Pick as many as you like." },
+    { key: "_inter1",     type: "interstitial", headline: "Great choices.", body: "Small habits, consistently applied, are how real transformation works." },
+    { key: "sex",         title: "A little about you",            sub: "Used only to estimate your calorie targets. You can change it anytime." },
+    { key: "stats",       title: "A few basics",                  sub: "Age, height, and weight — for accurate targets." },
+    { key: "activity",    title: "How active are you?",           sub: "Day-to-day movement, not counting dedicated workouts." },
+    { key: "experience",  title: "Training experience",           sub: "So strength grades and progression fit you." },
+    { key: "_inter2",     type: "interstitial", headline: "Almost there.", body: "One last step — save your progress so you never lose a log." },
+    { key: "account",     title: "Save your progress",            sub: "Back up your data and restore it on a new phone." },
+    { key: "firstAction", title: "Start with one small action",   sub: "The fastest way to see Vitae work." },
+  ];
 
   const FOCUS_AREAS = [
-    ["nutrition", "Nutrition", Flame], ["training", "Training", Dumbbell], ["sleep", "Sleep", Moon],
-    ["recovery", "Recovery", HeartPulse], ["habits", "Habits", Repeat], ["all", "All of it", Sparkles],
+    ["nutrition","Nutrition",Flame], ["training","Training",Dumbbell], ["sleep","Sleep",Moon],
+    ["recovery","Recovery",HeartPulse], ["habits","Habits",Repeat], ["all","All of it",Sparkles],
   ];
   const FIRST_ACTIONS = [
-    ["food", "Log food", Flame], ["workout", "Start a workout", Dumbbell],
-    ["sleep", "Add last night's sleep", Moon], ["coach", "Ask the coach", Sparkles],
+    ["food","Log food",Flame], ["workout","Start a workout",Dumbbell],
+    ["sleep","Add last night's sleep",Moon], ["coach","Ask the coach",Sparkles],
   ];
 
+  const cur = QUESTION_STEPS[step];
+  const isInterstitial = cur?.type === "interstitial";
+  const totalSteps = QUESTION_STEPS.length;
+  const nonInterSteps = QUESTION_STEPS.filter((s) => s.type !== "interstitial");
+  const currentQIdx = nonInterSteps.findIndex((s) => s.key === cur?.key);
+  const isLastStep = step === totalSteps - 1;
+
   const canNext = () => {
-    switch (cur.key) {
-      case "welcome": return true;
+    if (isInterstitial) return true;
+    switch (cur?.key) {
       case "intent": return !!p.intent;
       case "focusAreas": return (p.focusAreas || []).length > 0;
       case "sex": return !!p.sex;
-      case "stats": return p.age && p.height && p.weight;
+      case "stats": return !!(p.age && p.height && p.weight);
       case "activity": return !!p.activity;
       case "experience": return !!p.experience;
-      case "account": return true;       // account is optional
-      case "firstAction": return true;   // can skip
+      case "account": return true;
+      case "firstAction": return true;
       default: return true;
     }
   };
+
   const finish = async (action) => {
     const g = ONB_GOALS.find((x) => x.id === p.intent);
     const areas = (p.focusAreas || []);
-    // keep single `focus` for back-compat (first non-"all" area maps loosely), plus store the full set
     const focusMap = { nutrition: "health", training: "gym", sleep: "health", recovery: "health", habits: "health" };
     const focus = areas.includes("training") ? "gym" : areas.includes("nutrition") ? "health" : (focusMap[areas[0]] || "health");
     await onDone({
       sex: p.sex, age: +p.age, height: +p.height, weight: +p.weight,
-      activity: p.activity, goal: g.goal, intent: p.intent,
+      activity: p.activity, goal: g?.goal || "maintain", intent: p.intent,
       experience: p.experience, focus, focusAreas: areas, unit: p.unit, mode: "simple",
       onboardedAt: new Date().toISOString(),
     }, action || firstAction);
   };
 
+  const goNext = () => { setStep((s) => s + 1); };
+  const advanceTimer = useRef(null);
+  const autoAdvance = (key, val) => {
+    set(key, val);
+    clearTimeout(advanceTimer.current);
+    advanceTimer.current = setTimeout(goNext, 300);
+  };
+  const goBack = () => {
+    if (step === 0) { setPhase("carousel"); return; }
+    setStep((s) => s - 1);
+  };
+
   const Opt = ({ on, onClick, children, sub, multi }) => (
     <button className="sprig-tap" onClick={onClick}
-      style={{ width: "100%", textAlign: "left", border: `1.5px solid ${on ? C.green : C.line}`, background: on ? C.green + "0d" : C.card, cursor: "pointer",
-        borderRadius: 14, padding: "14px 16px", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 12, boxShadow: on ? "none" : C.shadow }}>
+      style={{ width: "100%", textAlign: "left", border: `1.5px solid ${on ? C.green : C.line}`,
+        background: on ? C.green + "0d" : C.card, cursor: "pointer", borderRadius: 14,
+        padding: "14px 16px", fontFamily: "DM Sans", display: "flex", alignItems: "center",
+        gap: 12, boxShadow: on ? "none" : C.shadow, transition: "all .15s ease" }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 14.5, fontWeight: 600, color: C.ink }}>{children}</div>
-        {sub && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{sub}</div>}
+        {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{sub}</div>}
       </div>
-      <div style={{ width: 22, height: 22, borderRadius: multi ? 7 : 99, border: `2px solid ${on ? C.green : C.line}`, background: on ? C.green : "transparent", display: "grid", placeItems: "center", flexShrink: 0 }}>
-        {on && <Check size={13} color="#fff" />}
+      <div style={{ width: 22, height: 22, borderRadius: multi ? 7 : 99,
+        border: `2px solid ${on ? C.green : C.line}`, background: on ? C.green : "transparent",
+        display: "grid", placeItems: "center", flexShrink: 0, transition: "all .15s ease" }}>
+        {on && <Check size={13} color="#fff" strokeWidth={3} />}
       </div>
     </button>
   );
 
-  // ---- WELCOME (full-screen) ----
-  if (cur.key === "welcome") {
-    const previews = [
-      [Flame, "Know what to eat today"],
-      [Dumbbell, "Train with progressive overload"],
-      [Moon, "Improve sleep and recovery"],
-      [Award, "Track wins and real progress"],
-      [Sparkles, "Ask an AI coach that knows your data"],
-    ];
+  // ---- SPLASH ----
+  if (phase === "splash") {
+    return (
+      <div className="sprig-app-frame" onClick={() => setPhase("carousel")}
+        style={{ background: C.pageBg, fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+        <style>{FONTS}</style>
+        <div className="sprig-pop" style={{ textAlign: "center" }}>
+          <div style={{ width: 72, height: 72, borderRadius: 22, background: C.green, display: "grid", placeItems: "center", margin: "0 auto 18px", boxShadow: `0 12px 32px ${C.green}66` }}>
+            <Sparkles size={34} color="#fff" />
+          </div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 44, fontWeight: 700, color: C.ink, letterSpacing: -1 }}>Vitae</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- CAROUSEL ----
+  if (phase === "carousel") {
+    const slide = CAROUSEL_SLIDES[carouselIdx];
+    const isLastSlide = carouselIdx === CAROUSEL_SLIDES.length - 1;
     return (
       <div className="sprig-app-frame" style={{ background: C.pageBg, fontFamily: "DM Sans, sans-serif", color: C.ink, display: "flex", flexDirection: "column" }}>
         <style>{FONTS}</style>
-        <div className="sprig-rise" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "32px 24px", textAlign: "center" }}>
-          <div style={{ width: 60, height: 60, borderRadius: 18, background: C.green, display: "grid", placeItems: "center", margin: "0 auto 20px", boxShadow: `0 8px 24px ${C.green}55` }}>
-            <Sparkles size={30} color="#fff" />
+        <div style={{ textAlign: "center", padding: "32px 24px 0" }}>
+          <div style={{ fontSize: 11.5, color: C.muted, letterSpacing: .5, textTransform: "uppercase", fontWeight: 600 }}>Welcome to</div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, fontWeight: 700, letterSpacing: -0.5, color: C.ink, marginTop: 2 }}>Vitae</div>
+        </div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 24px" }}>
+          <div key={carouselIdx} className="sprig-rise" style={{ width: "100%", maxWidth: 340, background: C.card, border: `1px solid ${C.line}`, borderRadius: 24, overflow: "hidden", boxShadow: C.shadow }}>
+            <div style={{ background: C.heroGrad1, height: 210, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 22px" }}>
+              {slide.card}
+            </div>
           </div>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 38, fontWeight: 700, letterSpacing: -.5 }}>Vitae</div>
-          <div style={{ fontSize: 15, color: C.inkSoft, marginTop: 8, lineHeight: 1.5, maxWidth: 300, marginInline: "auto" }}>
-            Your daily coach for food, training, sleep, and recovery.
+          <div key={`h${carouselIdx}`} className="sprig-rise" style={{ textAlign: "center", marginTop: 24, padding: "0 8px" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 26, fontWeight: 700, lineHeight: 1.2, color: C.ink, whiteSpace: "pre-line" }}>{slide.headline}</div>
+            <div style={{ fontSize: 14, color: C.inkSoft, marginTop: 8, lineHeight: 1.55 }}>{slide.sub}</div>
           </div>
-          <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 18px 14px", margin: "28px auto 0", maxWidth: 340, textAlign: "left", boxShadow: C.shadow }}>
-            {previews.map(([Ic, txt], i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 0" }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: C.lime + "1a", display: "grid", placeItems: "center", flexShrink: 0 }}><Ic size={16} color={C.lime} /></div>
-                <span style={{ fontSize: 13.5, color: C.ink, fontWeight: 500 }}>{txt}</span>
-              </div>
+          <div style={{ display: "flex", gap: 7, marginTop: 22 }}>
+            {CAROUSEL_SLIDES.map((_, i) => (
+              <button key={i} onClick={() => setCarouselIdx(i)} style={{ padding: 0, background: "none", border: "none", cursor: "pointer" }}>
+                <div style={{ width: i === carouselIdx ? 22 : 7, height: 7, borderRadius: 99, background: i === carouselIdx ? C.green : C.line, transition: "all .25s ease" }} />
+              </button>
             ))}
           </div>
         </div>
-        <div style={{ padding: "12px 24px 28px", display: "flex", flexDirection: "column", gap: 10 }}>
-          <button className="sprig-tap" onClick={() => setStep(1)}
-            style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "16px 0", fontSize: 16, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}44` }}>
-            Get started
+        <div style={{ padding: "8px 24px 32px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <button className="sprig-tap" onClick={() => isLastSlide ? setPhase("questions") : setCarouselIdx((i) => i + 1)}
+            style={{ ...btn(C.lime, "#0A1F12"), width: "100%", padding: "17px 0", fontSize: 16, fontWeight: 700, boxShadow: `0 6px 20px ${C.lime}44` }}>
+            {isLastSlide ? "Get started" : "Next"}
           </button>
-          <button className="sprig-tap" onClick={() => setStep(1)}
-            style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", padding: "8px 0" }}>
-            I already have an account
+          <button className="sprig-tap" onClick={() => setPhase("questions")}
+            style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.muted, fontSize: 13.5, fontWeight: 600, fontFamily: "DM Sans", padding: "8px 0" }}>
+            Log in
           </button>
         </div>
       </div>
     );
   }
 
+  // ---- INTERSTITIAL ----
+  if (isInterstitial) {
+    const stepsBefore = QUESTION_STEPS.slice(0, step).filter((s) => s.type !== "interstitial").length;
+    return (
+      <div className="sprig-app-frame" style={{ background: C.heroGrad1, fontFamily: "DM Sans, sans-serif", display: "flex", flexDirection: "column" }}>
+        <style>{FONTS}</style>
+        <div style={{ padding: "22px 20px 0" }}>
+          <div style={{ display: "flex", gap: 3 }}>
+            {nonInterSteps.map((_, i) => (
+              <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: i < stepsBefore ? "rgba(244,247,242,0.9)" : "rgba(244,247,242,0.2)", transition: "background .3s" }} />
+            ))}
+          </div>
+        </div>
+        <div className="sprig-rise" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 24px 24px" }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 38, fontWeight: 700, lineHeight: 1.1, color: "#F4F7F2", marginBottom: 12 }}>{cur.headline}</div>
+          <div style={{ fontSize: 15, color: "rgba(244,247,242,0.7)", lineHeight: 1.6 }}>{cur.body}</div>
+        </div>
+        <div style={{ padding: "0 24px", paddingBottom: "max(32px, env(safe-area-inset-bottom, 32px))", display: "flex", gap: 10 }}>
+          <button className="sprig-tap" onClick={goBack}
+            style={{ width: 52, height: 52, borderRadius: 26, background: "rgba(244,247,242,0.12)", border: "1.5px solid rgba(244,247,242,0.2)", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <ChevronLeft size={20} color="#F4F7F2" />
+          </button>
+          <button className="sprig-tap" onClick={goNext}
+            style={{ flex: 1, background: "rgba(244,247,242,0.15)", color: "#F4F7F2", border: "1.5px solid rgba(244,247,242,0.3)", borderRadius: 14, padding: "15px 0", fontSize: 15.5, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            Continue <ChevronRight size={17} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- QUESTION SCREEN ----
   return (
-    <div className="sprig-app-frame" style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, borderRadius: 24, display: "flex", flexDirection: "column" }}>
+    <div className="sprig-app-frame" style={{ background: C.bg, fontFamily: "DM Sans, sans-serif", color: C.ink, display: "flex", flexDirection: "column" }}>
       <style>{FONTS}</style>
       {/* header */}
-      <div style={{ padding: "22px 20px 8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 11, background: C.green, display: "grid", placeItems: "center" }}>
-            <Sparkles size={18} color="#fff" />
+      <div style={{ padding: "20px 20px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 9, background: C.green, display: "grid", placeItems: "center" }}>
+            <Sparkles size={15} color="#fff" />
           </div>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700 }}>Vitae</div>
-          <div style={{ marginLeft: "auto", fontSize: 11.5, color: C.muted }}>{qIndex} of {steps.length - 1}</div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: C.ink }}>Vitae</div>
+          <div style={{ marginLeft: "auto", fontSize: 11, color: C.muted, fontWeight: 500 }}>
+            {currentQIdx + 1} of {nonInterSteps.length}
+          </div>
         </div>
-        {/* progress */}
-        <div style={{ display: "flex", gap: 4 }}>
-          {steps.slice(1).map((_, i) => (
-            <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: (i + 1) <= step ? C.green : C.bg2, transition: "background .3s" }} />
+        <div style={{ display: "flex", gap: 3 }}>
+          {nonInterSteps.map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: i <= currentQIdx ? C.green : C.bg2, transition: "background .3s" }} />
           ))}
         </div>
       </div>
 
       {/* body */}
-      <div className="sprig-scroll" style={{ flex: 1, overflowY: "auto", padding: "16px 20px 8px" }}>
+      <div className="sprig-scroll" style={{ flex: 1, overflowY: "auto", padding: "20px 20px 8px" }}>
         <div key={step} className="sprig-rise">
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 23, fontWeight: 700, lineHeight: 1.2 }}>{cur.title}</div>
-          <div style={{ fontSize: 12.5, color: C.muted, margin: "4px 0 18px" }}>{cur.sub}</div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, lineHeight: 1.2, color: C.ink, marginBottom: 4 }}>{cur.title}</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>{cur.sub}</div>
 
           {cur.key === "intent" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {ONB_GOALS.map((g) => (
-                <Opt key={g.id} on={p.intent === g.id} onClick={() => set("intent", g.id)}>{g.emoji}  {g.label}</Opt>
+                <Opt key={g.id} on={p.intent === g.id} onClick={() => autoAdvance("intent", g.id)}>{g.emoji}  {g.label}</Opt>
               ))}
             </div>
           )}
@@ -5993,47 +6354,85 @@ function Onboarding({ onDone, supabaseReady }) {
 
           {cur.key === "sex" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {[["male", "Male"], ["female", "Female"]].map(([k, lbl]) => (
-                <Opt key={k} on={p.sex === k} onClick={() => set("sex", k)}>{lbl}</Opt>
+              {[["male","Male"],["female","Female"]].map(([k,lbl]) => (
+                <Opt key={k} on={p.sex === k} onClick={() => autoAdvance("sex", k)}>{lbl}</Opt>
               ))}
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 4, lineHeight: 1.5, padding: "0 4px" }}>
-                Used only to estimate your metabolic rate (the Mifflin-St Jeor formula needs it). You can change it anytime.
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4, lineHeight: 1.5, padding: "0 4px" }}>
+                Used only to estimate your metabolic rate. You can change it anytime from Settings.
               </div>
             </div>
           )}
 
-          {cur.key === "stats" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600, marginBottom: 6 }}>Age</div>
-                <input value={p.age} onChange={(e) => set("age", e.target.value)} inputMode="numeric" placeholder="18" autoFocus
-                  style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: "13px 14px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 600, background: C.card, color: C.ink }} />
+          {cur.key === "stats" && (() => {
+            const AGE_V = Array.from({ length: 88 }, (_, i) => String(i + 13));
+            const HEIGHT_V = p.unit === "kg"
+              ? Array.from({ length: 151 }, (_, i) => String(i + 100))
+              : Array.from({ length: 49 }, (_, i) => String(i + 48));
+            const WEIGHT_V = p.unit === "kg"
+              ? Array.from({ length: 171 }, (_, i) => String(i + 30))
+              : Array.from({ length: 335 }, (_, i) => String(i + 66));
+            const switchUnit = (u) => {
+              if (u === p.unit) return;
+              if (u === "lb") {
+                set("height", String(Math.round(+p.height / 2.54)));
+                set("weight", String(Math.round(+p.weight * 2.205)));
+              } else {
+                set("height", String(Math.round(+p.height * 2.54)));
+                set("weight", String(Math.round(+p.weight / 2.205)));
+              }
+              set("unit", u);
+            };
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ display: "flex", background: C.bg2, borderRadius: 10, padding: 3, gap: 2 }}>
+                    {[["kg","Metric"],["lb","Imperial"]].map(([u, lbl]) => (
+                      <button key={u} className="sprig-tap" onClick={() => switchUnit(u)}
+                        style={{ padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 700, fontFamily: "DM Sans",
+                          background: p.unit === u ? C.green : "transparent", color: p.unit === u ? "#fff" : C.muted, transition: "all .15s ease" }}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                    <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, letterSpacing: .3, textTransform: "uppercase" }}>Age</div>
+                    <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink }}>{p.age} <span style={{ fontSize: 13, fontFamily: "DM Sans", fontWeight: 500, color: C.muted }}>yrs</span></div>
+                  </div>
+                  <DrumPicker key="age" values={AGE_V} value={p.age} onChange={(v) => set("age", v)} />
+                </div>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                    <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, letterSpacing: .3, textTransform: "uppercase" }}>Height</div>
+                    <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink }}>{p.height} <span style={{ fontSize: 13, fontFamily: "DM Sans", fontWeight: 500, color: C.muted }}>{p.unit === "kg" ? "cm" : "in"}</span></div>
+                  </div>
+                  <DrumPicker key={`height-${p.unit}`} values={HEIGHT_V} value={p.height} onChange={(v) => set("height", v)} />
+                </div>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                    <div style={{ fontSize: 11.5, color: C.muted, fontWeight: 600, letterSpacing: .3, textTransform: "uppercase" }}>Weight</div>
+                    <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink }}>{p.weight} <span style={{ fontSize: 13, fontFamily: "DM Sans", fontWeight: 500, color: C.muted }}>{p.unit === "kg" ? "kg" : "lb"}</span></div>
+                  </div>
+                  <DrumPicker key={`weight-${p.unit}`} values={WEIGHT_V} value={p.weight} onChange={(v) => set("weight", v)} />
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>{"It's ok to estimate — you can update this anytime."}</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600, marginBottom: 6 }}>Height (cm)</div>
-                <input value={p.height} onChange={(e) => set("height", e.target.value)} inputMode="numeric" placeholder="178"
-                  style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: "13px 14px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 600, background: C.card, color: C.ink }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600, marginBottom: 6 }}>Weight (kg)</div>
-                <input value={p.weight} onChange={(e) => set("weight", e.target.value)} inputMode="decimal" placeholder="72"
-                  style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 12, padding: "13px 14px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 600, background: C.card, color: C.ink }} />
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {cur.key === "activity" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {ONB_ACTIVITY.map(([k, lbl, sub]) => (
-                <Opt key={k} on={p.activity === k} onClick={() => set("activity", k)} sub={sub}>{lbl}</Opt>
+              {ONB_ACTIVITY.map(([k,lbl,sub]) => (
+                <Opt key={k} on={p.activity === k} onClick={() => autoAdvance("activity", k)} sub={sub}>{lbl}</Opt>
               ))}
             </div>
           )}
 
           {cur.key === "experience" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {ONB_EXP.map(([k, lbl, sub]) => (
-                <Opt key={k} on={p.experience === k} onClick={() => set("experience", k)} sub={sub}>{lbl}</Opt>
+              {ONB_EXP.map(([k,lbl,sub]) => (
+                <Opt key={k} on={p.experience === k} onClick={() => autoAdvance("experience", k)} sub={sub}>{lbl}</Opt>
               ))}
             </div>
           )}
@@ -6043,7 +6442,7 @@ function Onboarding({ onDone, supabaseReady }) {
               <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 16, boxShadow: C.shadow, marginBottom: 4 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "1a", display: "grid", placeItems: "center" }}><Cloud size={18} color={C.greenSoft} /></div>
-                  <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.5 }}>An account backs up your data so you can restore it on a new phone. Your logs stay private to you.</div>
+                  <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.5 }}>An account backs up your data so you can restore it on a new phone. Your logs stay private.</div>
                 </div>
               </div>
               {supabaseReady ? (
@@ -6051,12 +6450,12 @@ function Onboarding({ onDone, supabaseReady }) {
                   <Opt on={false} onClick={() => finish()}><span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><LogIn size={16} color={C.greenSoft} /> Create account</span></Opt>
                   <Opt on={false} onClick={() => finish()}><span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><User size={16} color={C.greenSoft} /> Log in</span></Opt>
                   <div style={{ fontSize: 11, color: C.muted, marginTop: 2, lineHeight: 1.5, padding: "0 4px" }}>
-                    You can set this up now in the next step, or anytime from Settings → Account.
+                    You can set this up now, or anytime from Settings {"→"} Account.
                   </div>
                 </>
               ) : (
                 <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.5, padding: "4px 4px 0" }}>
-                  Cloud backup isn't configured in this build — your data saves on this device. You can export a backup anytime from Settings.
+                  Cloud backup is not configured in this build — your data saves on this device. You can export a backup from Settings at any time.
                 </div>
               )}
             </div>
@@ -6064,7 +6463,7 @@ function Onboarding({ onDone, supabaseReady }) {
 
           {cur.key === "firstAction" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {FIRST_ACTIONS.map(([k, lbl, Ic]) => (
+              {FIRST_ACTIONS.map(([k,lbl,Ic]) => (
                 <Opt key={k} on={firstAction === k} onClick={() => setFirstAction(k)}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><Ic size={16} color={C.greenSoft} /> {lbl}</span>
                 </Opt>
@@ -6074,15 +6473,16 @@ function Onboarding({ onDone, supabaseReady }) {
         </div>
       </div>
 
-      {/* footer nav */}
-      <div style={{ padding: "12px 20px 22px", display: "flex", gap: 10, borderTop: `1px solid ${C.line}` }}>
-        {step > 0 && (
-          <button className="sprig-tap" onClick={() => setStep((s) => s - 1)}
-            style={{ ...btn(C.bg2, C.inkSoft), padding: "14px 18px" }}><ChevronLeft size={17} /></button>
-        )}
-        <button className="sprig-tap" disabled={!canNext()} onClick={() => last ? finish() : setStep((s) => s + 1)}
-          style={{ ...btn(canNext() ? C.lime : C.bg2, canNext() ? "#0A1F12" : C.muted), flex: 1, padding: "14px 0", fontSize: 15, fontWeight: 700 }}>
-          {cur.key === "account" ? "Continue without account" : cur.key === "firstAction" ? (firstAction ? "Start" : "Skip for now") : "Continue"} {!last && <ChevronRight size={17} />}
+      {/* footer */}
+      <div style={{ padding: "12px 20px", borderTop: `1px solid ${C.line}`, display: "flex", gap: 10, paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))" }}>
+        <button className="sprig-tap" onClick={goBack}
+          style={{ width: 52, height: 52, borderRadius: 26, background: C.bg2, border: "none", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <ChevronLeft size={20} color={C.inkSoft} />
+        </button>
+        <button className="sprig-tap" disabled={!canNext()}
+          onClick={() => isLastStep ? finish() : goNext()}
+          style={{ ...btn(canNext() ? C.lime : C.bg2, canNext() ? "#0A1F12" : C.muted), flex: 1, padding: "15px 0", fontSize: 15, fontWeight: 700 }}>
+          {cur.key === "account" ? "Continue without account" : cur.key === "firstAction" ? (firstAction ? "Start Vitae" : "Skip for now") : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>Continue <ChevronRight size={17} /></span>}
         </button>
       </div>
     </div>
@@ -6214,6 +6614,7 @@ function SprigApp() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [resultMode, setResultMode] = useState("photo");
+  const [capturedImage, setCapturedImage] = useState(null); // base64 image kept for "Correct this meal" re-analysis
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
   // foodOverlayMode above replaces composer + logSheet
@@ -6942,7 +7343,7 @@ function SprigApp() {
     // wrongly send every question to the local fallback. Better to actually try the network and
     // fall back on a real error.
 
-    const system = "You are Vitae Coach, an elite evidence-based coach. Answer the user's question directly. Use the user's data only when relevant. Do not give a full audit unless asked. Do not use canned templates. Think like a real coach reviewing a client's data.";
+    const system = "You are Vitae Coach, an elite evidence-based coach. Answer the user's question directly. Use the user's data only when relevant. Do not give a full audit unless asked. Do not use canned templates. Think like a real coach reviewing a client's data. Never invent exact numbers for anything marked quick_log, unknown, or disabled in dataQuality — speak in estimates for those. Do not diagnose injuries or medical conditions; for sharp pain, swelling, suspected injury, or any serious/worsening symptom, recommend rest and seeing a doctor or physiotherapist instead of guessing a cause.";
 
     // Structured coaching context. We hand the model the whole picture and let it choose what to use.
     // Keys are deliberately readable so the model interprets them correctly.
@@ -7021,11 +7422,10 @@ function SprigApp() {
       aiError = e?.message || String(e);
     }
 
-    // AI failed → minimal local engine. Normal users see a calm message; developers (devMode)
-    // also see the underlying error so they can diagnose. Raw HTTP/API errors never reach end users.
-    const localAnswer = localCoachAnswer(question, ctx, profile, targets);
-    if (profile?.devMode) return localAnswer + "\n\n_Debug: " + aiError + "_";
-    return localAnswer;
+    // AI failed → minimal local engine. Raw HTTP/API errors never reach end users — "Advanced mode"
+    // is a consumer-facing setting, not a hidden developer flag, so it must never leak debug text.
+    void aiError;
+    return localCoachAnswer(question, ctx, profile, targets);
   }
 
   function toggleTaken(id) {
@@ -7318,8 +7718,8 @@ function SprigApp() {
           recordToastTimers.current.forEach(id => clearTimeout(id));
           recordToastTimers.current = [];
           recordToastPriorityRef.current = newPri;
-          // Custom haptic + chime for new record
-          try { navigator.vibrate?.([18, 28, 35]); } catch (_) {}
+          // Single restrained haptic + premium 2-note chime for new record
+          try { navigator.vibrate?.(25); } catch (_) {}
           if (profile?.restTimerSound !== false) { try { playRecordSound(); } catch (_) {} }
           // Phase 1 — entering (entrance animation plays, 440ms)
           setRecordToast({ ...pr, exName, phase: "entering" });
@@ -7388,7 +7788,7 @@ function SprigApp() {
       if (profile?.restTimerSound !== false) { try { playAlarmTone(profile?.restTimerSoundChoice || "beep", profile?.alarmVolume ?? 0.7); } catch (_) {} }
       if (profile?.restTimerVibrate !== false) buzz("finish");
       // auto-dismiss the "Go!" state after 4 seconds
-      setTimeout(() => { try { setRestDone(false); setRest(null); setRestLeft(0); } catch (_) {} }, 4000);
+      setTimeout(() => { try { setRestDone(false); setRest(null); } catch (_) {} }, 4000);
       showToast("Rest complete", "success");
       setRestDone(true);
       setTimeout(() => setRestDone(false), 4000);
@@ -7455,12 +7855,24 @@ function SprigApp() {
     } finally { setBusy(false); }
   }
 
+  async function refineWithDescription(correctionText) {
+    if (!capturedImage && !result) return;
+    setError(""); setBusy(true);
+    try {
+      const res = await analyze({ image: capturedImage, text: correctionText, mode: resultMode });
+      setResult(res);
+    } catch (e) {
+      setError("Could not refine analysis. Try editing manually.");
+    } finally { setBusy(false); }
+  }
+
   async function onFile(e, mode) {
     const f = e.target.files?.[0]; e.target.value = "";
     if (!f) return;
     setError(""); setBusy(true);
     try {
       const img = await resizeImage(f);
+      setCapturedImage(img);
       await runAnalysis({ image: img, mode });
     } catch { setBusy(false); setError("Couldn't read that image."); }
   }
@@ -7729,7 +8141,7 @@ function SprigApp() {
     [dailyTruth, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile]);
 
   // weekly report (rule-based)
-  const report = weeklyReport({ history, workouts, sleepLogs, weightSeries, daily, dailyHistory, painLogs, focusSessions, consistency, targets, profile, sleepInfo });
+  const report = weeklyReport({ history, workouts, sleepLogs, weightSeries, daily, dailyHistory, painLogs, focusSessions, consistency, targets, profile, sleepInfo, tp: trackingPrefs });
 
   // movement + dynamic calorie adjustment + progress diagnosis
   const movement = movementSummary({ daily, profile, trainedToday });
@@ -7957,9 +8369,9 @@ function SprigApp() {
           No close/reopen gap: mode switches happen inside the same Portal+sheet DOM node. */}
       {(foodOverlayMode || busy || result) && (
         <Portal>
-          <div className="sprig-dim" onClick={() => { if (!busy) { setFoodOverlayMode(null); setResult(null); setFavoriteMode(false); setError(""); setDraft(""); } }}
+          <div className="sprig-dim" onClick={() => { if (!busy) { setFoodOverlayMode(null); setResult(null); setCapturedImage(null); setFavoriteMode(false); setError(""); setDraft(""); } }}
             style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
-            <div onClick={(e) => e.stopPropagation()} className="sprig-sheet"
+            <div onClick={(e) => e.stopPropagation()} className="vitae-sheet-enter"
               style={{ width: "100%", maxWidth: 440, background: C.isDark ? "#102018" : "#FFFFFF", border: `1px solid ${C.isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`, borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column",
                 maxHeight: `calc(100dvh - env(safe-area-inset-top, 0px) - 20px)`,
                 boxShadow: "0 -12px 40px rgba(0,0,0,.55)" }}>
@@ -7976,8 +8388,8 @@ function SprigApp() {
                       [() => { setResult(null); setFoodOverlayMode(null); setTimeout(() => labelRef.current?.click(), 50); }, ScanLine, "Scan label", "Nutrition label → AI"],
                       [() => { setResult(null); setDraft(""); setFoodOverlayMode("text"); }, PencilLine, "Describe", "Type it, AI estimates"],
                       [() => { setResult(null); setFoodOverlayMode("manual"); }, Calculator, "Manual", "Enter values yourself"],
-                    ].map(([fn, Ic, title, subt]) => (
-                      <button key={title} className="sprig-tap" onClick={fn}
+                    ].map(([fn, Ic, title, subt], mi) => (
+                      <button key={title} className={`sprig-tap vitae-scale-in vitae-stagger-${mi + 1}`} onClick={fn}
                         style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 14, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 5, textAlign: "left", fontFamily: "DM Sans" }}>
                         <Ic size={18} color={C.lime} />
                         <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{title}</span>
@@ -8019,7 +8431,8 @@ function SprigApp() {
                           onAdd={favoriteMode
                             ? openFavoriteFromResult
                             : ((resultMode === "supplement" || resultMode === "supp-label") ? addSupplement : addEntry)}
-                          onCancel={() => { setResult(null); setFavoriteMode(false); }}
+                          onCancel={() => { setResult(null); setCapturedImage(null); setFavoriteMode(false); }}
+                          onRefine={(resultMode === "photo" || resultMode === "label") ? refineWithDescription : null}
                         />
                       </div>
                     )}
@@ -8113,80 +8526,52 @@ function SprigApp() {
           z-index 4000 puts it above every overlay including the rest timer (1600). */}
       {recordToast && (
         <Portal>
-          {/* Centering wrapper — static translateX(-50%), no animation here.
-              The inner elements animate with translateY/scale only so there is no
-              conflict between the centering transform and the animation transform. */}
+          {/* Outer centering wrapper — translateX(-50%) only, never animated */}
           <div style={{
             position: "fixed",
-            top: "calc(env(safe-area-inset-top, 0px) + 12px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 3999,
-            pointerEvents: "none",
-          }}>
-            {/* Lime bloom halo behind the toast */}
-            <div style={{
-              position: "absolute",
-              left: "50%",
-              top: 0,
-              transform: "translateX(-50%)",
-              width: 280,
-              height: 62,
-              borderRadius: 99,
-              background: `radial-gradient(ellipse at 50% 50%, ${C.lime}42 0%, transparent 70%)`,
-              animation: recordToast.phase === "exiting"
-                ? "recordToastOut .25s cubic-bezier(.5,0,1,1) both"
-                : "recordBgBloom .80s ease-out both",
-              pointerEvents: "none",
-            }} />
-          </div>
-          {/* Outer centering wrapper — translateX(-50%) is here and NEVER animated */}
-          <div style={{
-            position: "fixed",
-            top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+            top: "calc(env(safe-area-inset-top, 0px) + 14px)",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 4000,
             pointerEvents: "none",
           }}>
-            {/* Inner toast — animated with translateY+scale only, no translateX conflict */}
+            {/* Inner banner — calm slide+fade only, no bounce, no glow burst */}
             <div
               className={`record-toast${recordToast.phase === "exiting" ? " record-toast-exit" : ""}`}
               style={{
-                background: C.isDark
-                  ? "rgba(10, 28, 16, 0.97)"
-                  : "rgba(255, 255, 255, 0.97)",
-                border: `2px solid ${C.lime}`,
-                borderRadius: 20,
-                padding: "11px 18px 11px 11px",
+                background: C.isDark ? "rgba(9,22,14,0.96)" : "rgba(255,255,255,0.97)",
+                border: `1px solid ${C.lime}55`,
+                borderRadius: 16,
+                padding: "10px 16px 10px 10px",
                 display: "flex",
                 alignItems: "center",
-                gap: 11,
-                backdropFilter: "blur(20px)",
-                WebkitBackdropFilter: "blur(20px)",
-                maxWidth: "min(92vw, 420px)",
-                minWidth: 210,
+                gap: 10,
+                backdropFilter: "blur(18px)",
+                WebkitBackdropFilter: "blur(18px)",
+                boxShadow: "0 4px 20px rgba(0,0,0,.32)",
+                maxWidth: "min(92vw, 360px)",
+                minWidth: 200,
                 cursor: "default",
               }}
             >
-            {/* Medal icon — pop + glow animations via .record-icon class */}
-            <div className="record-icon" style={{
-              width: 38,
-              height: 38,
-              borderRadius: 99,
-              background: `radial-gradient(circle at 45% 28%, ${C.lime}, ${C.green})`,
-              display: "grid",
-              placeItems: "center",
-              flexShrink: 0,
-            }}>
-              <Medal size={18} color="#07140F" />
-            </div>
-            {/* Text block — 3 lines: eyebrow / exercise name / record value */}
-            <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-              <span style={{ fontSize: 10, fontWeight: 900, color: C.lime, letterSpacing: "0.16em", textTransform: "uppercase", lineHeight: 1, textShadow: `0 0 10px ${C.lime}99` }}>NEW BEST</span>
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, lineHeight: 1.2, letterSpacing: "-0.015em", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recordToast.exName}</span>
-              <span style={{ fontSize: 12, color: C.lime, fontWeight: 700, lineHeight: 1.2, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.88 }}>{recordToast.label}</span>
-            </div>
+              {/* Small medal icon — no animation, just a quiet indicator */}
+              <div style={{
+                width: 30,
+                height: 30,
+                borderRadius: 9,
+                background: C.green + "28",
+                border: `1px solid ${C.lime}44`,
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+              }}>
+                <Medal size={14} color={C.lime} />
+              </div>
+              {/* Text block — exercise name + record line */}
+              <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, lineHeight: 1.2, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recordToast.exName}</span>
+                <span style={{ fontSize: 11.5, color: C.lime, fontWeight: 600, lineHeight: 1.3, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.92 }}>{recordToast.label}</span>
+              </div>
             </div>
           </div>
         </Portal>
@@ -9487,11 +9872,11 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         if (!chips.length) return null;
         return (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-            {chips.map((ch) => {
+            {chips.map((ch, ci) => {
               const score = ch.v == null ? null : Math.round(ch.v);
               const color = score == null ? C.muted : score >= 70 ? ch.accent : score >= 45 ? C.amber : C.coral;
               return (
-                <div key={ch.label} style={{ background: C.bg2, borderRadius: 12, padding: "8px 10px", textAlign: "center" }}>
+                <div key={ch.label} className="vitae-scale-in" style={{ animationDelay: `${ci * 45}ms`, background: C.bg2, borderRadius: 12, padding: "8px 10px", textAlign: "center" }}>
                   <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color, lineHeight: 1 }}>{score == null ? "–" : score}</div>
                   <div style={{ fontSize: 9.5, color: C.muted, fontWeight: 600, marginTop: 3, letterSpacing: .3, textTransform: "uppercase" }}>{ch.label}</div>
                 </div>
@@ -9840,7 +10225,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
           </details>
         )}
         {/* diet quality */}
-        {t.calories > 0 && (
+        {t.calories > 0 && !nutriInfo.dietQ.noData && nutriInfo.dietQ.score != null && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
               <span style={{ fontSize: 12.5, fontWeight: 600, color: C.inkSoft }}>Diet quality</span>
@@ -9849,7 +10234,8 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
             <div style={{ height: 6, background: C.bg2, borderRadius: 99 }}>
               <div style={{ width: nutriInfo.dietQ.score + "%", height: "100%", background: nutriInfo.dietQ.score >= 70 ? C.greenSoft : nutriInfo.dietQ.score >= 50 ? C.amber : C.coral, borderRadius: 99, transition: "width .6s" }} />
             </div>
-            {nutriInfo.dietQ.advice?.length > 0 && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>To improve: {nutriInfo.dietQ.advice.join(", ")}.</div>}
+            {nutriInfo.dietQ.whyText && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>{nutriInfo.dietQ.whyText}</div>}
+            {nutriInfo.dietQ.advice?.length > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 5, opacity: 0.8 }}>To improve: {nutriInfo.dietQ.advice.slice(0, 3).join(", ")}.</div>}
           </div>
         )}
       </div>
@@ -9893,8 +10279,7 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       {sectionTitle("Food logged today")}
       {entries.length === 0 ? (
         <EmptyState icon={<Flame size={20} color={C.greenSoft} />} title="No meals logged"
-          text="Use Snap, Scan, Describe, or add a favorite meal to start tracking nutrition."
-          actionLabel="Log first meal" onAction={onOpenLogSheet} />
+          text="Use Snap, Scan, Describe, or add a favorite meal to start tracking nutrition." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(() => { const sorted = [...entries].sort((a, b) => (b.time || 0) - (a.time || 0)); return (showAllFood ? sorted : sorted.slice(0, 4)); })().map((e) => {
@@ -12423,7 +12808,6 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNot
             <div style={{ background: C.bg, borderRadius: 13, padding: 15, fontSize: 13.5, color: C.ink, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{a}</div>
             <div style={{ display: "flex", gap: 8, marginTop: 11 }}>
               <Btn variant="secondary" full onClick={() => { setA(null); setQ(""); setSaved(false); }}>Ask another</Btn>
-              {onSaveNote && <Btn variant="secondary" full onClick={() => { onSaveNote(q || "Coach", a); setSaved(true); }}>{saved ? "Saved ✓" : "Save note"}</Btn>}
               <Btn variant="primary" full onClick={onClose}>Done</Btn>
             </div>
             <div style={{ fontSize: 10.5, color: C.muted, textAlign: "center", marginTop: 9, lineHeight: 1.5 }}>
@@ -12623,7 +13007,7 @@ function QuickLogSheet({ profile, quickLog, date, onSave, onClose, tp = {} }) {
         {tp.training !== false && <>
         <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: .4, marginBottom: 6, marginTop: 2 }}>Training</div>
         <Q label="Did you train today?" value={trainedToday} onPick={(v) => setTrainedToday(v === true ? null : v === "yes" ? true : v === "no" ? false : v)}
-          opts={[["yes", "Yes", C.greenSoft], ["no", "Rest day", C.muted]]} />
+          opts={[["yes", "Yes", C.greenSoft], ["no", "Rest day", C.coral]]} />
 
         {(trainedToday === true || trainedToday === "yes") && (
           <>
@@ -13806,6 +14190,19 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
     return found;
   })();
 
+  // Ghost hint: single most-useful previous value shown near the input row.
+  // Priority: (1) last completed set in this session, (2) same position in prev workout, (3) last set of prev workout.
+  const ghostRef = (() => {
+    if (ex.sets.length > 0) return ex.sets[ex.sets.length - 1]; // last completed set this session
+    const samePosInPrev = prevSets?.[ex.sets.length]; // same 0-indexed position in previous workout
+    if (samePosInPrev) return samePosInPrev;
+    return prevSets?.length ? prevSets[prevSets.length - 1] : null; // any last set of previous workout
+  })();
+  const ghostW = ghostRef?.w ?? null;
+  const ghostR = ghostRef?.reps ?? null;
+  // Only show ghost if it adds info not already identical to both current inputs
+  const showGhost = ghostW != null && !(String(ghostW) === w && String(ghostR) === reps);
+
   function log() {
     const W = parseFloat(w) || 0, R = parseInt(reps) || 0;
     if (R <= 0) return;
@@ -13815,7 +14212,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
     setReps("");
   }
   return (
-    <div style={{ background: C.cardSolid, borderRadius: 24, padding: "18px 16px", boxShadow: "0 2px 16px rgba(0,0,0,.28)", border: `1px solid ${C.line}`, marginBottom: 16, position: "relative" }}>
+    <div className="vitae-fade-up" style={{ background: C.cardSolid, borderRadius: 24, padding: "18px 16px", boxShadow: "0 2px 16px rgba(0,0,0,.28)", border: `1px solid ${C.line}`, marginBottom: 16, position: "relative" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.15 }}>{ex.name}</div>
@@ -13864,7 +14261,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
           {ex.sets.slice(-5).map((s, i) => {
             const realIdx = ex.sets.length > 5 ? ex.sets.length - 5 + i : i;
             return (
-            <div key={realIdx} style={{ display: "flex", alignItems: "center", gap: 10, background: realIdx === ex.sets.length - 1 ? C.green + "20" : C.bg2, border: `1px solid ${realIdx === ex.sets.length - 1 ? C.green + "44" : C.line}`, borderRadius: 13, padding: "9px 11px" }}>
+            <div key={realIdx} className={realIdx === ex.sets.length - 1 ? "vitae-success-pulse" : ""} style={{ display: "flex", alignItems: "center", gap: 10, background: realIdx === ex.sets.length - 1 ? C.green + "20" : C.bg2, border: `1px solid ${realIdx === ex.sets.length - 1 ? C.green + "44" : C.line}`, borderRadius: 13, padding: "9px 11px" }}>
               {/* set number badge */}
               <div style={{ width: 24, height: 24, borderRadius: 7, background: realIdx === ex.sets.length - 1 ? C.green : C.card, display: "grid", placeItems: "center", flexShrink: 0, border: realIdx === ex.sets.length - 1 ? "none" : `1px solid ${C.line}` }}>
                 <span style={{ fontSize: 10.5, fontWeight: 800, color: realIdx === ex.sets.length - 1 ? "#fff" : C.muted, lineHeight: 1 }}>{realIdx + 1}</span>
@@ -13930,25 +14327,35 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.bg2, border: `1px solid ${C.line}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: C.muted, lineHeight: 1 }}>{setNo}</span>
         </div>
-        {/* Weight input */}
-        <input
-          type="text" inputMode="decimal" placeholder={unit}
-          value={w}
-          onChange={e => setW(e.target.value)}
-          onFocus={e => { buzz("select"); e.target.style.borderColor = C.lime; e.target.style.boxShadow = `0 0 0 2px ${C.lime}44`; }}
-          onBlur={e => { e.target.style.borderColor = C.line; e.target.style.boxShadow = "none"; }}
-          style={{ width: 66, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", WebkitAppearance: "none", transition: "border-color .15s, box-shadow .15s" }}
-        />
-        <span style={{ color: C.muted, fontSize: 14, fontWeight: 600, flexShrink: 0 }}>×</span>
-        {/* Reps input */}
-        <input
-          type="text" inputMode="numeric" placeholder="reps"
-          value={reps}
-          onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ""))}
-          onFocus={e => { buzz("select"); e.target.style.borderColor = C.lime; e.target.style.boxShadow = `0 0 0 2px ${C.lime}44`; }}
-          onBlur={e => { e.target.style.borderColor = C.line; e.target.style.boxShadow = "none"; }}
-          style={{ width: 62, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", WebkitAppearance: "none", transition: "border-color .15s, box-shadow .15s" }}
-        />
+        {/* Weight input + ghost hint below */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <input
+            type="text" inputMode="decimal" placeholder={unit}
+            value={w}
+            onChange={e => setW(e.target.value)}
+            onFocus={e => { buzz("select"); e.target.select(); e.target.style.borderColor = C.lime; e.target.style.boxShadow = `0 0 0 2px ${C.lime}44`; }}
+            onBlur={e => { e.target.style.borderColor = C.line; e.target.style.boxShadow = "none"; }}
+            style={{ width: 66, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", WebkitAppearance: "none", transition: "border-color .15s, box-shadow .15s" }}
+          />
+          {showGhost && ghostW != null && (
+            <span style={{ fontSize: 10.5, color: C.muted, opacity: 0.62, fontWeight: 600, lineHeight: 1, letterSpacing: 0.1 }}>{ghostW}{unit}</span>
+          )}
+        </div>
+        <span style={{ color: C.muted, fontSize: 14, fontWeight: 600, flexShrink: 0, paddingBottom: showGhost ? 14 : 0 }}>×</span>
+        {/* Reps input + ghost hint below */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <input
+            type="text" inputMode="numeric" placeholder="reps"
+            value={reps}
+            onChange={e => setReps(e.target.value.replace(/[^0-9]/g, ""))}
+            onFocus={e => { buzz("select"); e.target.select(); e.target.style.borderColor = C.lime; e.target.style.boxShadow = `0 0 0 2px ${C.lime}44`; }}
+            onBlur={e => { e.target.style.borderColor = C.line; e.target.style.boxShadow = "none"; }}
+            style={{ width: 62, textAlign: "center", border: `1.5px solid ${C.line}`, borderRadius: 12, padding: "12px 4px", fontFamily: "DM Sans", fontSize: 16, fontWeight: 700, background: C.bg, color: C.ink, outline: "none", WebkitAppearance: "none", transition: "border-color .15s, box-shadow .15s" }}
+          />
+          {showGhost && ghostR != null && (
+            <span style={{ fontSize: 10.5, color: C.muted, opacity: 0.62, fontWeight: 600, lineHeight: 1, letterSpacing: 0.1 }}>{ghostR}r</span>
+          )}
+        </div>
         {meta?.bar && (
           <button className="sprig-tap" onClick={() => setShowPlate((s) => !s)} title="Plate calculator" style={{ background: showPlate ? C.green : C.bg2, border: "none", cursor: "pointer", width: 40, height: 40, borderRadius: 11, display: "grid", placeItems: "center", color: showPlate ? "#fff" : C.inkSoft, flexShrink: 0 }}><Calculator size={17} /></button>
         )}
@@ -14459,7 +14866,7 @@ function MovementSportsPanel({ daily, onDaily, profile }) {
 
       {sessions.length === 0 && legacyMin === 0 && steps === 0 && (
         <div style={{ textAlign: "center", color: C.muted, fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
-          Track steps, log a sport, or add a cardio session.<br />Activities affect your movement score and muscle recovery.
+          Track steps or log a sport.<br />Activities affect your movement score and muscle recovery.
         </div>
       )}
 
@@ -14545,7 +14952,7 @@ function MovementSportsPanel({ daily, onDaily, profile }) {
             </div>
           </div>
           {/* Preview */}
-          <div style={{ background: C.bg, borderRadius: 13, padding: "13px 14px", marginBottom: 14 }}>
+          <div className="vitae-scale-in" style={{ background: C.bg, borderRadius: 13, padding: "13px 14px", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: impactEntries.length > 0 ? 11 : 0 }}>
               <span style={{ fontSize: 24, lineHeight: 1 }}>{activity.emoji}</span>
               <div>

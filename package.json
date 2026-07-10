@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@rollup/rollup-linux-x64-gnu": "^4.61.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@supabase/supabase-js": "^2.45.0",
     "lucide-react": "^0.383.0",
     "react": "^18.3.1",
