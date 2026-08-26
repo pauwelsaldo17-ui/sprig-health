@@ -1,5 +1,17 @@
 {
   "appId": "com.pauwelsaldo.vitae",
   "appName": "Vitae",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "Camera": {
+      "presentationStyle": "popover"
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "useLegacyBridge": false
+  }
 }
