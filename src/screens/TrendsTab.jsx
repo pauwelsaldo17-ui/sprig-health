@@ -2,7 +2,7 @@ import React from "react";
 import { Activity, BarChart3, Coffee, Dumbbell, Flame, Moon, Sparkles, Trophy, User } from "lucide-react";
 import { C } from "../theme.js";
 import { durLabel } from "../utils/vitaeCalc.js";
-import { Legend } from "../components/ui.jsx";
+import { Legend, EmptyState } from "../components/ui.jsx";
 
 function ReportStat({ label, value, sub, icon, color }) {
   return (
@@ -25,7 +25,7 @@ function ReportLine({ emoji, label, text, color }) {
   );
 }
 
-function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced, report, profile, achievements }) {
+function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced, report, profile, achievements, onGoToday }) {
   const days = history.slice(-7);
   const maxC = Math.max(targets.calories, ...days.map((d) => d.calories), 1);
   const avg = days.length ? Math.round(days.reduce((a, d) => a + d.calories, 0) / days.length) : 0;
@@ -95,9 +95,11 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
           </div>
         </div>
       ) : (
-        <div style={{ background: C.card, borderRadius: 18, padding: "22px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 14, textAlign: "center" }}>
-          <BarChart3 size={26} color={C.line} style={{ margin: "0 auto 8px" }} />
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>Log workouts, food, and sleep through the week — your weekly report builds automatically.</div>
+        <div style={{ marginBottom: 14 }}>
+          <EmptyState icon={<BarChart3 size={20} color={C.greenSoft} />}
+            title="No weekly report yet"
+            text="Log food, sleep, and workouts across a few days and your personalised weekly report builds automatically."
+            actionLabel="Start logging" onAction={onGoToday} />
         </div>
       )}
 

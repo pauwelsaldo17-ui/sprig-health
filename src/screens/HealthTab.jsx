@@ -519,7 +519,10 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
             </div>
           )}
           {!painOpen && !editingPain && !pain?.summary?.active?.length && (
-            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>No active pain logged. Track issues here so Vitae can suggest training modifications.</div>
+            <div style={{ textAlign: "center", padding: "6px 0 4px" }}>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>No active pain logged.</div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3, lineHeight: 1.5 }}>Track issues here so Vitae can suggest training modifications.</div>
+            </div>
           )}
         </div>
       )}

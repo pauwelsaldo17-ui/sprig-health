@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Activity, Award, BarChart3, BookOpen, Calculator, Camera, Check, ChevronLeft, ChevronRight,
-  Cloud, CloudDownload, CloudUpload, Coffee, Dumbbell, EyeOff, Flame, Gauge, HeartPulse,
-  LogIn, LogOut, Mail, Moon, Pill, Play, Plus, RotateCcw, Settings, Sparkles, Target, Trash2, TrendingUp
+  Activity, Award, BarChart3, Bell, BookOpen, Calculator, Camera, Check, ChevronLeft, ChevronRight,
+  Cloud, CloudDownload, CloudUpload, Coffee, Dumbbell, Droplets, EyeOff, Flame, Gauge, HeartPulse,
+  LogIn, LogOut, Mail, Moon, Pill, Play, Plus, RotateCcw, Settings, Sparkles, Sun, Target, Trash2, TrendingUp
 } from "lucide-react";
 import { C } from "../theme.js";
 import { computeTargets } from "../utils/vitaeCalc.js";
@@ -559,6 +559,36 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
             ? "Clean view: the numbers that matter day to day. Detailed breakdowns — micronutrients, muscle-by-muscle recovery, sleep stages, RIR and charts — stay tucked away."
             : "Full view: every metric is shown — micronutrient percentages, per-muscle recovery hours, sleep stages, RIR, estimated 1RMs and trend charts."}
         </div>
+      </div>
+
+      {/* NOTIFICATIONS */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Notifications</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: "4px 0", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        {[
+          ["notifHydration", Droplets, "Morning hydration", "10:00 AM — daily reminder to drink water"],
+          ["notifMeal",      Flame,    "Lunch logging",     "1:00 PM — log your lunch while it's fresh"],
+          ["notifWorkout",   Dumbbell, "Training reminder", "6:30 PM — prompt to log a workout or steps"],
+        ].map(([key, Ic, label, sub], i, arr) => {
+          const on = p[key] !== false;
+          return (
+            <div key={key} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.line}` : "none" }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "18", display: "grid", placeItems: "center", flexShrink: 0, marginRight: 12 }}>
+                <Ic size={16} color={C.greenSoft} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>{label}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{sub}</div>
+              </div>
+              <button className="sprig-tap" onClick={() => { const np = { ...p, [key]: !on }; setP(np); onSave(np); }}
+                style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: on ? C.green : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+                <div style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 11, color: C.muted, margin: "6px 4px 0", lineHeight: 1.5 }}>
+        Requires the native app. Notifications only work on Android and iOS.
       </div>
 
       {/* APPEARANCE — Dark / Light theme */}

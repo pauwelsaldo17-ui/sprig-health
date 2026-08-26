@@ -239,7 +239,8 @@ function NutritionTab({ t, targets, entries, onRemove, profile, advanced, sub = 
       {sectionTitle("Food logged today")}
       {entries.length === 0 ? (
         <EmptyState icon={<Flame size={20} color={C.greenSoft} />} title="No meals logged"
-          text="Use Snap, Scan, Describe, or add a favorite meal to start tracking nutrition." />
+          text="Snap a photo, scan a label, or describe your meal — AI estimates nutrition instantly."
+          actionLabel="Log your first meal" onAction={onNewFood} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(() => { const sorted = [...entries].sort((a, b) => (b.time || 0) - (a.time || 0)); return (showAllFood ? sorted : sorted.slice(0, 4)); })().map((e) => {

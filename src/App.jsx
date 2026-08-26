@@ -9,8 +9,9 @@ import {
   Target, BookOpen, Calculator, Repeat, Gauge, Pause, Play, PersonStanding, Square,
   ArrowUp, HeartPulse, Search, TrendingDown,
   Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal, Volume2,
-  Archive, Bell, Ruler, Settings, Droplets
+  Archive, Bell, Ruler, Settings, Droplets, AlertCircle, WifiOff
 } from "lucide-react";
+import { openDB } from "idb";
 import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
 import { rcConfigured, hasPremium, getOfferings, purchasePackage } from "./revenueCatClient.js";
 import AuthScreen from "./screens/AuthScreen.jsx";
@@ -317,79 +318,68 @@ button:disabled { opacity: 0.45; cursor: default !important; }
 .vitae-stagger-5 { animation-delay: 300ms; }
 `;
 
-/* ---------------- storage (artifact → localStorage → memory) -------------- */
-const mem = {};
+/* ---------------- storage (IndexedDB → localStorage fallback) -------------- */
+// Opens IndexedDB once, migrates existing localStorage sprig_* data on the first run,
+// then all reads/writes go through IndexedDB. Falls back to localStorage if IDB
+// isn't available (private browsing in some browsers, very old WebViews).
+const _db = (async () => {
+  try {
+    const db = await openDB("vitae-db", 1, {
+      upgrade(d) { if (!d.objectStoreNames.contains("kv")) d.createObjectStore("kv"); },
+    });
+    if (typeof window !== "undefined" && window.localStorage &&
+        !window.localStorage.getItem("vitae_idb_v1")) {
+      const tx = db.transaction("kv", "readwrite");
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (k?.startsWith("sprig_")) {
+          const v = window.localStorage.getItem(k);
+          if (v != null) tx.store.put(v, k);
+        }
+      }
+      await tx.done;
+      window.localStorage.setItem("vitae_idb_v1", "1");
+    }
+    return db;
+  } catch (_) { return null; }
+})();
 
 const store = {
   async get(key) {
-    try {
-      if (typeof window !== "undefined" && window.storage?.get) {
-        const r = await window.storage.get(key, false);
-        if (r?.value != null) return r.value;
-      }
-    } catch (e) {}
-
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        const value = window.localStorage.getItem(key);
-        if (value != null) return value;
-      }
-    } catch (e) {}
-
-    return key in mem ? mem[key] : null;
+    const db = await _db;
+    if (db) {
+      const v = await db.get("kv", key);
+      if (v != null) return v;
+    }
+    try { return window.localStorage?.getItem(key) ?? null; } catch { return null; }
   },
-
   async set(key, value) {
-    try {
-      if (typeof window !== "undefined" && window.storage?.set) {
-        await window.storage.set(key, value, false);
-        return;
-      }
-    } catch (e) {}
-
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.setItem(key, value);
-        return;
-      }
-    } catch (e) {}
-
-    mem[key] = value;
+    const db = await _db;
+    if (db) { await db.put("kv", value, key); return; }
+    try { window.localStorage?.setItem(key, value); } catch {}
   },
-
   async remove(key) {
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.removeItem(key);
-      }
-    } catch (e) {}
-
-    try {
-      delete mem[key];
-    } catch (e) {}
+    const db = await _db;
+    if (db) await db.delete("kv", key);
+    try { window.localStorage?.removeItem(key); } catch {}
   },
-
-  // --- compatibility shims so existing callers don't crash ---
-  // Alias: parts of the app call store.delete (older API name)
   async delete(key) { return this.remove(key); },
-
-  // Used for export / reset to walk all sprig_* keys
   async list(prefix) {
     const out = new Set();
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
+    const db = await _db;
+    if (db) {
+      const keys = await db.getAllKeys("kv");
+      keys.forEach((k) => { if (!prefix || k.startsWith(prefix)) out.add(k); });
+    } else {
+      try {
         for (let i = 0; i < window.localStorage.length; i++) {
           const k = window.localStorage.key(i);
           if (k && (!prefix || k.startsWith(prefix))) out.add(k);
         }
-      }
-    } catch (e) {}
-    Object.keys(mem).forEach((k) => { if (!prefix || k.startsWith(prefix)) out.add(k); });
+      } catch {}
+    }
     return Array.from(out);
   },
-
-  // No-op write-error subscription so existing callers don't crash.
-  // (We dropped the active toast — if you want it back, see git history.)
   onWriteError(fn) { return () => {}; },
 };
 import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, workoutAdjustment, calorieAdjustment, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, bestGymWindow, smartWake, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeText, localCoachAnswer } from "./utils/vitaeCalc.js";
@@ -526,6 +516,47 @@ function buzz(kind = "tap") {
     } catch (_) { try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (__) {} }
   }).catch(() => { try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {} });
 }
+/* ================= LOCAL NOTIFICATIONS ================= */
+async function scheduleLocalNotifications(prefs = {}) {
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    if (!Capacitor.isNativePlatform()) return;
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
+    const perm = await LocalNotifications.requestPermissions();
+    if (perm.display !== "granted") return;
+    // Cancel all previously scheduled Vitae reminders (IDs 101–103)
+    const pending = await LocalNotifications.getPending();
+    const vitaeNotifs = pending.notifications.filter((n) => n.id >= 101 && n.id <= 103);
+    if (vitaeNotifs.length) await LocalNotifications.cancel({ notifications: vitaeNotifs });
+    const toSchedule = [];
+    if (prefs.notifHydration !== false) {
+      toSchedule.push({
+        id: 101, title: "Hydration check 💧",
+        body: "Have you had enough water today?",
+        schedule: { every: "day", on: { hour: 10, minute: 0 } },
+        sound: null, attachments: null, actionTypeId: "", extra: null,
+      });
+    }
+    if (prefs.notifMeal !== false) {
+      toSchedule.push({
+        id: 102, title: "Log your lunch 🍽️",
+        body: "What did you eat? Log it while it's fresh.",
+        schedule: { every: "day", on: { hour: 13, minute: 0 } },
+        sound: null, attachments: null, actionTypeId: "", extra: null,
+      });
+    }
+    if (prefs.notifWorkout !== false) {
+      toSchedule.push({
+        id: 103, title: "Training time 💪",
+        body: "Have you moved today? Log a workout or your steps.",
+        schedule: { every: "day", on: { hour: 18, minute: 30 } },
+        sound: null, attachments: null, actionTypeId: "", extra: null,
+      });
+    }
+    if (toSchedule.length) await LocalNotifications.schedule({ notifications: toSchedule });
+  } catch (e) { console.warn("[vitae] scheduleLocalNotifications:", e); }
+}
+
 // Premium 2-note confirmation chime — A4 warm impact then B5 resonance, ~450ms total.
 function playRecordSound() {
   try {
@@ -829,6 +860,39 @@ function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode, onRef
 /* ---------------- main app -------------- */
 const DEFAULT_PROFILE = { sex: "male", age: 18, weight: 72, height: 178, activity: "active", goal: "gain", experience: "beginner", focus: "gym", mode: "simple", workoutCalorieMode: "conservative", dayResetMode: "after-wake", restTimerSound: true, restTimerVibrate: true, restTimerSoundChoice: "beep", alarmSound: "bells", alarmVolume: 0.7, devMode: false };
 
+/* ================= AI LOADING CARD ================= */
+const AI_FOOD_MSGS = ["Analyzing your meal…", "Identifying ingredients…", "Calculating nutrition…"];
+const AI_SUPP_MSGS = ["Reading your supplement…", "Looking up nutrients…", "Building your breakdown…"];
+function AiLoadingCard({ isSupp }) {
+  const msgs = isSupp ? AI_SUPP_MSGS : AI_FOOD_MSGS;
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % msgs.length), 1700);
+    return () => clearInterval(t);
+  }, [msgs.length]);
+  return (
+    <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: "16px 18px", boxShadow: C.shadow, marginBottom: 14 }}>
+      <div style={{ height: 3, background: C.bg2, borderRadius: 99, overflow: "hidden", marginBottom: 14 }}>
+        <div className="sprig-skeleton" style={{ height: "100%", borderRadius: 99 }} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "1a", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Loader2 size={18} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, transition: "opacity .3s" }}>{msgs[idx]}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Usually 2–4 seconds</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 5, marginTop: 14, justifyContent: "center" }}>
+        {msgs.map((_, i) => (
+          <div key={i} style={{ height: 5, borderRadius: 99, background: i === idx ? C.green : C.bg2, width: i === idx ? 20 : 6, transition: "all 0.35s ease" }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ================= SAFE MODE CARD ================= */
 // Shown when storage loading throws — gives the user a way to recover without losing their data.
 function SafeModeCard({ error, onExport, onReset, onDemo, onRetry }) {
@@ -1016,6 +1080,28 @@ function MiniProgressCard() {
     </div>
   );
 }
+function MiniTabTourCard() {
+  const tabs = [
+    { icon: "🍽️", label: "Today", sub: "Meals & macros" },
+    { icon: "💪", label: "Train", sub: "Workouts & strength" },
+    { icon: "🌙", label: "Health", sub: "Sleep & recovery" },
+    { icon: "📊", label: "Trends", sub: "Your weekly report" },
+    { icon: "✨", label: "Coach", sub: "AI insights" },
+  ];
+  return (
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 7 }}>
+      {tabs.map((tab) => (
+        <div key={tab.label} style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(244,247,242,0.1)", borderRadius: 10, padding: "7px 11px" }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>{tab.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#F4F7F2" }}>{tab.label}</div>
+            <div style={{ fontSize: 10.5, color: "rgba(244,247,242,0.45)", marginTop: 1 }}>{tab.sub}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 function DrumPicker({ values, value, onChange }) {
   const ITEM_H = 44;
   const initIdx = Math.max(0, values.indexOf(value));
@@ -1085,6 +1171,7 @@ function Onboarding({ onDone, supabaseReady }) {
     { headline: "Every bite, every rep,\nevery night.", sub: "One place for food, training, sleep, and recovery.", card: <MiniNutritionCard /> },
     { headline: "Your AI coach\nknows your body.", sub: "Ask anything. It answers from your actual data.", card: <MiniCoachCard /> },
     { headline: "Know your numbers.\nOwn your progress.", sub: "Macros, strength, sleep — all in one dashboard.", card: <MiniProgressCard /> },
+    { headline: "Five tabs.\nEverything you need.", sub: "Each tab is a focused tool — nothing hidden, nothing buried.", card: <MiniTabTourCard /> },
   ];
 
   const QUESTION_STEPS = [
@@ -1141,6 +1228,7 @@ function Onboarding({ onDone, supabaseReady }) {
       experience: p.experience, focus, focusAreas: areas, unit: p.unit, mode: "simple",
       onboardedAt: new Date().toISOString(),
     }, action || firstAction);
+    scheduleLocalNotifications({});
   };
 
   const goNext = () => { setStep((s) => s + 1); };
@@ -1701,6 +1789,7 @@ function SprigApp() {
   const [resultMode, setResultMode] = useState("photo");
   const [capturedImage, setCapturedImage] = useState(null); // base64 image kept for "Correct this meal" re-analysis
   const [error, setError] = useState("");
+  const [lastAnalysisOpts, setLastAnalysisOpts] = useState(null);
   const [draft, setDraft] = useState("");
   // foodOverlayMode above replaces composer + logSheet
   const [favoriteMode, setFavoriteMode] = useState(false); // when true, an AI/photo/text result is saved as a favorite (not logged to today)
@@ -2073,6 +2162,10 @@ function SprigApp() {
     setProfile(p);
     const json = JSON.stringify(p);
     await store.set("sprig_profile_v1", json);
+    // Re-schedule notifications whenever profile changes (only if any notif pref exists)
+    if (p.notifMeal != null || p.notifWorkout != null || p.notifHydration != null) {
+      scheduleLocalNotifications(p);
+    }
   };
 
   // ---- data export / import / reset ----
@@ -3018,6 +3111,7 @@ function SprigApp() {
       setPaywallOpen(true);
       return;
     }
+    setLastAnalysisOpts(opts);
     setError(""); setBusy(true); setFoodOverlayMode(null);
     try {
       const res = await analyze(opts);
@@ -3331,6 +3425,12 @@ function SprigApp() {
     [recoveryInfo, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile]);
   const dailyInfo = { daily, weightSeries, subScores, healthScore, funcHealth, actions, trainedToday };
 
+  // Days with any meaningful data logged — used for progressive disclosure gating.
+  const loggedDays = useMemo(
+    () => history.filter((d) => d.calories > 0 || d.steps > 0 || d.water > 0).length,
+    [history]
+  );
+
   // End-of-day quick-log nudge (gentle; never affects the score).
   const lastLogTs = Math.max(
     0,
@@ -3538,6 +3638,7 @@ function SprigApp() {
             onGoNutrition={() => setTab("nutrition")} onGoTrain={() => setTab("train")}
             recoveryInfo={recoveryInfo} dt={dailyTruth} onToast={showToast}
             wins={(profile?.showWins === false) ? null : (wins[date] || [])} onKudos={(id) => kudoWin(id, date)} onViewAllWins={() => setWinsOpen(true)}
+            loggedDays={loggedDays} onGoSettings={() => setTab("settings")}
           />
         )}
         {tab === "nutrition" && (
@@ -3574,7 +3675,7 @@ function SprigApp() {
               weightSeries={weightSeries} measureSeries={measureSeries} photoLog={photoLog}
               onLogWeight={(kg) => persistDaily({ weight: kg })} onSaveMeasurement={saveMeasurement} onLogPhotoSet={logPhotoSet}
               onOpenPhotos={() => setPhotoOpen(true)} progressPhotosCount={progressPhotos.length} />
-            <TrendsTab history={history} targets={targets} t={t} scores={scores} sleepLogs={sleepLogs} sleepInfo={sleepInfo} advanced={advanced} report={report} profile={profile} achievements={achievements} timeline={timeline} />
+            <TrendsTab history={history} targets={targets} t={t} scores={scores} sleepLogs={sleepLogs} sleepInfo={sleepInfo} advanced={advanced} report={report} profile={profile} achievements={achievements} timeline={timeline} onGoToday={() => setTab("today")} />
           </>
         )}
         {tab === "meals" && (
@@ -3667,15 +3768,27 @@ function SprigApp() {
               {(foodOverlayMode !== "menu") && (
                 <>
                   <div className="sprig-scroll" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "8px 18px 0", flex: 1 }}>
-                    {error && <div style={{ background: C.coral + "18", border: `1px solid ${C.coral}44`, color: C.coral, fontSize: 12, padding: "10px 12px", borderRadius: 12, marginBottom: 10 }}>{error}</div>}
+                    {error && (
+                      <div className="sprig-rise" style={{ background: C.coral + "12", border: `1px solid ${C.coral}44`, borderRadius: 14, padding: "12px 14px", marginBottom: 12 }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
+                          <div style={{ width: 28, height: 28, borderRadius: 8, background: C.coral + "20", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
+                            <AlertCircle size={15} color={C.coral} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: C.coral, lineHeight: 1.4 }}>{error}</div>
+                            {lastAnalysisOpts && (
+                              <button className="sprig-tap" onClick={() => runAnalysis(lastAnalysisOpts)}
+                                style={{ background: C.coral + "18", border: `1px solid ${C.coral}44`, borderRadius: 8, padding: "6px 12px", fontSize: 11.5, fontWeight: 700, color: C.coral, cursor: "pointer", fontFamily: "DM Sans", marginTop: 8 }}>
+                                Try again
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {busy && (
-                      <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: 16, display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow, marginBottom: 14 }}>
-                        <Loader2 size={18} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
-                        <span style={{ fontSize: 13.5, color: C.inkSoft }}>
-                          {resultMode === "supplement" || resultMode === "supp-label" ? "Reading your supplement…" : "Reading your food…"}
-                        </span>
-                      </div>
+                      <AiLoadingCard isSupp={resultMode === "supplement" || resultMode === "supp-label"} />
                     )}
 
                     {result && !busy && (
@@ -3849,8 +3962,32 @@ function SprigApp() {
         />
       )}
 
+      {/* Offline indicator — persistent pill at top-right when there is no network */}
+      {!online && (
+        <Portal>
+          <div style={{
+            position: "fixed",
+            top: "calc(env(safe-area-inset-top, 0px) + 10px)",
+            right: 14,
+            zIndex: 3501,
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            background: C.isDark ? "#1a120a" : "#fff8f4",
+            border: `1px solid ${C.amber}66`,
+            borderRadius: 99,
+            padding: "4px 10px 4px 8px",
+            boxShadow: "0 2px 12px rgba(0,0,0,.18)",
+            pointerEvents: "none",
+          }}>
+            <WifiOff size={12} style={{ color: C.amber }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.amber }}>Offline</span>
+          </div>
+        </Portal>
+      )}
+
       {/* Cloud sync status badge — top-right, only visible when active */}
-      {cloudUser && syncStatus !== "idle" && (
+      {cloudUser && syncStatus !== "idle" && online && (
         <Portal>
           <div style={{
             position: "fixed",
@@ -4798,17 +4935,14 @@ const MEAL_TAGS = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post
    sprig_* keyset. Auth/cloud is fully optional — if Supabase env vars aren't
    set, getSupabase() returns null and these helpers degrade gracefully. */
 
-// Walk localStorage and return every key prefixed `sprig_` as an object.
-// Returns {} on any failure (private browsing throws on access, etc.).
-function collectSprigLocalData() {
+// Walk the store and return every key prefixed `sprig_` as an object.
+async function collectSprigLocalData() {
   const out = {};
   try {
-    if (typeof window === "undefined" || !window.localStorage) return out;
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const k = window.localStorage.key(i);
-      if (k && k.startsWith("sprig_")) {
-        try { out[k] = window.localStorage.getItem(k); } catch (_) { /* skip bad key */ }
-      }
+    const keys = await store.list("sprig_");
+    for (const k of keys) {
+      const v = await store.get(k);
+      if (v != null) out[k] = v;
     }
   } catch (e) { console.warn("[sprig] collectSprigLocalData failed:", e); }
   return out;
@@ -4822,7 +4956,7 @@ async function syncToCloud() {
   const { data: sess } = await supabase.auth.getSession();
   const user = sess?.session?.user;
   if (!user) return { ok: false, error: "You're not logged in." };
-  const data = collectSprigLocalData();
+  const data = await collectSprigLocalData();
   const count = Object.keys(data).length;
   if (count === 0) return { ok: false, error: "Nothing local to sync." };
   const { error } = await supabase
@@ -4863,13 +4997,13 @@ async function restoreFromCloud() {
   try {
     for (const k of keys) {
       if (k.startsWith("sprig_") && typeof incoming[k] === "string") {
-        window.localStorage.setItem(k, incoming[k]);
+        await store.set(k, incoming[k]);
       }
     }
-    window.localStorage.setItem("sprig_last_synced_at", new Date().toISOString());
+    try { window.localStorage.setItem("sprig_last_synced_at", new Date().toISOString()); } catch (_) {}
   } catch (e) {
     console.error("[sprig] restoreFromCloud write failed:", e);
-    return { ok: false, error: "Couldn't write to local storage." };
+    return { ok: false, error: "Couldn't write to storage." };
   }
   return { ok: true, count: keys.length, updatedAt: data.updated_at };
 }

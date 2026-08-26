@@ -245,7 +245,7 @@ function TodayStatusRow({ icon, label, value, accent, onTap, actionLabel, onActi
   );
 }
 
-function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain, wins, onKudos, onViewAllWins, recoveryInfo, quickLog, tp = {}, dt = null, onToast }) {
+function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, profile, supps, takenIds, onToggleSupp, onRemoveSupp, onAddSupp, sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo, mindInfo, moveInfo, onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout, onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onGoNutrition, onGoTrain, wins, onKudos, onViewAllWins, recoveryInfo, quickLog, tp = {}, dt = null, onToast, loggedDays = 0, onGoSettings }) {
   const { lastSleep } = sleepInfo;
   const { daily, subScores, healthScore, actions } = dailyInfo;
   const [stepsEditing, setStepsEditing] = useState(false);
@@ -302,8 +302,8 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
         </div>
       )}
 
-      {/* 3 — SCORE GRID (2-col, no horizontal scroll) */}
-      {(() => {
+      {/* 3 — SCORE GRID — hidden until 3 days logged to avoid showing all-dash state */}
+      {loggedDays >= 3 && (() => {
         const chips = [
           tp.recovery  !== false && { label: "Recovery",  v: subScores.training,  accent: C.limeSoft },
           tp.nutrition !== false && { label: "Nutrition", v: subScores.nutrition, accent: C.lime },
@@ -477,6 +477,23 @@ function TodayTab({ t, targets, entries, scores, onRemove, library, onQuick, pro
           <div style={{ padding: "16px", textAlign: "center", color: C.muted, fontSize: 12.5 }}>All categories disabled. Enable tracking in Settings.</div>
         )}
       </div>
+
+      {/* ADVANCED MODE NUDGE — shown 7-30 days in, simple mode only */}
+      {!advanced && loggedDays >= 7 && loggedDays < 30 && (
+        <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "1a", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Zap size={17} color={C.green} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>Advanced mode available</div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.45 }}>You've logged {loggedDays} days — unlock deeper analytics and extra tracking panels.</div>
+          </div>
+          <button className="sprig-tap" onClick={onGoSettings}
+            style={{ background: C.green + "18", border: `1px solid ${C.green}44`, borderRadius: 9, padding: "7px 13px", fontSize: 11.5, fontWeight: 700, color: C.green, cursor: "pointer", fontFamily: "DM Sans", flexShrink: 0 }}>
+            Explore
+          </button>
+        </div>
+      )}
 
       <div style={{ height: 6 }} />
     </div>
