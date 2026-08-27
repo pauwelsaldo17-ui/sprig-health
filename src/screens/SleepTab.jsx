@@ -8,7 +8,7 @@ import {
   minToHM, minToLabel, durLabel, recommend, alcoholLevel, energyCurve,
   minToHm, hmToMin, ALCOHOL_LEVELS, smartWake, sleepDebtLabel, tsToMin
 } from "../utils/vitaeCalc.js";
-import { btn, Btn, Legend, SubTabs, EmptyState } from "../components/ui.jsx";
+import { btn, Btn, Legend, SubTabs, EmptyState, Ring } from "../components/ui.jsx";
 
 function StageBar({ stages, advanced }) {
   if (!stages || (stages.deep == null && stages.rem == null && stages.light == null)) return null;

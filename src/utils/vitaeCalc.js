@@ -4726,3 +4726,11 @@ export function localCoachAnswer(question, ctx, profile, targets) {
 
 /* ---------------- small UI bits -------------- */
 /* ---------------- beginner glossary + tooltip chip -------------- */
+
+export const ALARM_SOUNDS = [
+  { id: "bells",   label: "Soft bells" },
+  { id: "beep",    label: "Digital beep" },
+  { id: "chime",   label: "Morning chime" },
+  { id: "deep",    label: "Deep alarm" },
+  { id: "vibrate", label: "Silent vibration only" },
+];

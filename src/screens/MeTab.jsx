@@ -6,7 +6,7 @@ import {
   HeartHandshake, RefreshCw
 } from "lucide-react";
 import { C } from "../theme.js";
-import { computeTargets } from "../utils/vitaeCalc.js";
+import { computeTargets, ALARM_SOUNDS } from "../utils/vitaeCalc.js";
 import { btn, Btn } from "../components/ui.jsx";
 
 const HAPTIC_PATTERNS = { tap: 14, light: 10, select: 8, success: [30, 50, 30], complete: [30, 50, 50], strong: 40, error: [100, 50, 100] };
@@ -337,7 +337,7 @@ function AccountSection() {
 
 /* ---------------- Me / profile tab -------------- */
 // More tab — extra main app pages only (NOT settings). Compact stacked links.
-function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoSettings, onGoCoach, trackingPrefs = {}, onToggleTracking }) {
+export function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoSettings, onGoCoach, trackingPrefs = {}, onToggleTracking }) {
   const CATEGORY_LABELS = {
     nutrition: "Nutrition & Food", training: "Strength Training", sleep: "Sleep",
     habits: "Habits", recovery: "Recovery", health: "Health Markers",

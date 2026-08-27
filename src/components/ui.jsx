@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Check, Award, Moon, Activity, Sparkles, Dumbbell, Flame, ChevronRight, BedDouble, HeartPulse, Coffee } from "lucide-react";
+import { Check, Award, Moon, Activity, Sparkles, Dumbbell, Flame, ChevronRight, BedDouble, HeartPulse, Coffee, Minus, Plus } from "lucide-react";
 import { C } from "../theme.js";
 import { MUSCLES } from "../utils/vitaeCalc.js";
 
@@ -532,3 +532,18 @@ export const ACTION_ICON = {
   protein: <Flame size={16} />, food: <Flame size={16} />, walk: <Activity size={16} />,
   water: <Coffee size={16} />, sleep: <Moon size={16} />, done: <Check size={16} />,
 };
+
+export function Stepper({ icon, label, value, suffix, step, onChange, color, goal }) {
+  const reached = goal && value >= goal;
+  return (
+    <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "10px 11px", boxShadow: C.shadow }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, color: color || C.greenSoft, fontSize: 11, fontWeight: 600 }}>{icon} {label}{goal ? <span style={{ marginLeft: "auto", color: reached ? C.greenSoft : C.muted, fontWeight: 600 }}>{reached ? "✓" : `/${goal >= 1000 ? (goal / 1000) + "L" : goal}`}</span> : null}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 7 }}>
+        <button className="sprig-tap" onClick={() => onChange(Math.max(0, value - step))} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: C.bg2, color: C.inkSoft, cursor: "pointer", display: "grid", placeItems: "center" }}><Minus size={14} /></button>
+        <span style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700 }}>{value}{suffix}</span>
+        <button className="sprig-tap" onClick={() => onChange(value + step)} style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: C.green, color: "#fff", cursor: "pointer", display: "grid", placeItems: "center" }}><Plus size={14} /></button>
+      </div>
+      {goal ? <div style={{ height: 4, background: C.bg2, borderRadius: 99, marginTop: 8 }}><div style={{ width: Math.min(100, (value / goal) * 100) + "%", height: "100%", background: color || C.greenSoft, borderRadius: 99, transition: "width .4s" }} /></div> : null}
+    </div>
+  );
+}

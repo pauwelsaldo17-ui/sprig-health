@@ -23,7 +23,7 @@ import BodyTab from "./screens/BodyTab.jsx";
 import HealthTab, { computeHealthReport } from "./screens/HealthTab.jsx";
 import MindTab from "./screens/MindTab.jsx";
 import CoachTab from "./screens/CoachTab.jsx";
-import MeTab from "./screens/MeTab.jsx";
+import MeTab, { MoreTab } from "./screens/MeTab.jsx";
 import TrendsTab from "./screens/TrendsTab.jsx";
 import SleepTab, { EnergyTab } from "./screens/SleepTab.jsx";
 import NutritionTab, { MealsTab } from "./screens/NutritionTab.jsx";
@@ -491,13 +491,6 @@ function getAudioCtx() {
     return _audioCtx;
   } catch (_) { return null; }
 }
-const ALARM_SOUNDS = [
-  { id: "bells",   label: "Soft bells" },
-  { id: "beep",    label: "Digital beep" },
-  { id: "chime",   label: "Morning chime" },
-  { id: "deep",    label: "Deep alarm" },
-  { id: "vibrate", label: "Silent vibration only" },
-];
 // ---- Haptics: module-level so any component can buzz, gated by a flag SprigApp keeps in sync
 // with the user's Haptics setting. Patterns are short and consistent across the app. ----
 let HAPTICS_ON = true;
