@@ -3303,19 +3303,6 @@ function SprigApp() {
   async function scanBarcode() {
     setError("");
     try {
-      const { Capacitor } = await import("@capacitor/core");
-      if (Capacitor.isNativePlatform()) {
-        const { BarcodeScanner } = await import("@capacitor-mlkit/barcode-scanning");
-        const supported = await BarcodeScanner.isSupported().catch(() => ({ supported: false }));
-        if (supported.supported) {
-          const { barcodes } = await BarcodeScanner.scan({ formats: ["EAN_13", "EAN_8", "UPC_A", "UPC_E", "CODE_128", "CODE_39"] });
-          const barcode = barcodes?.[0]?.rawValue;
-          if (!barcode) return;
-          buzz("success");
-          await lookupBarcode(barcode);
-          return;
-        }
-      }
       // Web fallback: prompt user to type or scan via camera
       setOffQuery(""); setOffResults([]); setOffSelected(null); setFoodOverlayMode("search");
     } catch (e) {

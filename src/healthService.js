@@ -17,72 +17,11 @@ async function platform() {
 
 // ── Apple HealthKit (iOS) ─────────────────────────────────────────────────────
 
-const HK_READ = [
-  "HKQuantityTypeIdentifierStepCount",
-  "HKQuantityTypeIdentifierBodyMass",
-  "HKQuantityTypeIdentifierHeartRate",
-  "HKQuantityTypeIdentifierActiveEnergyBurned",
-  "HKCategoryTypeIdentifierSleepAnalysis",
-];
-const HK_WRITE = [
-  "HKQuantityTypeIdentifierBodyMass",
-  "HKQuantityTypeIdentifierActiveEnergyBurned",
-];
 
-async function hkPlugin() {
-  const { CapacitorHealthkit } = await import("@perfood/capacitor-healthkit");
-  return CapacitorHealthkit;
-}
-
-async function requestAppleHealth() {
-  const hk = await hkPlugin();
-  await hk.requestAuthorization({ all: [], read: HK_READ, write: HK_WRITE });
-  return true;
-}
-
-async function readAppleHealthSteps(days = 7) {
-  const hk = await hkPlugin();
-  const end = new Date(); const start = new Date(end - days * 864e5);
-  const res = await hk.queryHKitSampleType({
-    sampleName: "stepCount",
-    startDate: start.toISOString(), endDate: end.toISOString(), limit: 0,
-  });
-  // Sum by calendar day
-  const byDay = {};
-  (res.resultData || []).forEach((s) => {
-    const d = s.startDate?.slice(0, 10);
-    if (d) byDay[d] = (byDay[d] || 0) + (s.quantity || 0);
-  });
-  return byDay; // { "YYYY-MM-DD": steps }
-}
-
-async function readAppleHealthWeight(days = 30) {
-  const hk = await hkPlugin();
-  const end = new Date(); const start = new Date(end - days * 864e5);
-  const res = await hk.queryHKitSampleType({
-    sampleName: "bodyMass",
-    startDate: start.toISOString(), endDate: end.toISOString(), limit: 30,
-  });
-  return (res.resultData || []).map((s) => ({
-    date: s.startDate?.slice(0, 10),
-    kg: s.quantity, // HealthKit stores in kg
-  })).filter((s) => s.date && s.kg);
-}
-
-async function readAppleHealthSleep(days = 14) {
-  const hk = await hkPlugin();
-  const end = new Date(); const start = new Date(end - days * 864e5);
-  const res = await hk.queryHKitSampleType({
-    sampleName: "sleepAnalysis",
-    startDate: start.toISOString(), endDate: end.toISOString(), limit: 0,
-  });
-  return (res.resultData || []).map((s) => ({
-    bedTs: new Date(s.startDate).getTime(),
-    wakeTs: new Date(s.endDate).getTime(),
-    durationMin: Math.round((new Date(s.endDate) - new Date(s.startDate)) / 60000),
-    source: "apple_health",
-  })).filter((s) => s.durationMin > 60);
-}
+async function requestAppleHealth() { return false; }
+async function readAppleHealthSteps() { return {}; }
+async function readAppleHealthWeight() { return []; }
+async function readAppleHealthSleep() { return []; }
 
 // ── Android Health Connect ────────────────────────────────────────────────────
 
