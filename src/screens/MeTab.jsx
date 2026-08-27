@@ -2,12 +2,82 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   Activity, Award, BarChart3, Bell, BookOpen, Calculator, Camera, Check, ChevronLeft, ChevronRight,
   Cloud, CloudDownload, CloudUpload, Coffee, Dumbbell, Droplets, EyeOff, Flame, Gauge, HeartPulse,
-  LogIn, LogOut, Mail, Moon, Pill, Play, Plus, RotateCcw, Settings, Sparkles, Sun, Target, Trash2, TrendingUp
+  LogIn, LogOut, Mail, Moon, Pill, Play, Plus, RotateCcw, Settings, Sparkles, Sun, Target, Trash2, TrendingUp,
+  HeartHandshake, RefreshCw
 } from "lucide-react";
 import { C } from "../theme.js";
 import { computeTargets } from "../utils/vitaeCalc.js";
 import { btn, Btn } from "../components/ui.jsx";
+
+const HAPTIC_PATTERNS = { tap: 14, light: 10, select: 8, success: [30, 50, 30], complete: [30, 50, 50], strong: 40, error: [100, 50, 100] };
+function buzz(kind = "tap") {
+  try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
+}
 import { useSupabaseAuth } from "../hooks/useSupabaseAuth.js";
+import { isHealthAvailable, requestHealthPermissions, syncHealthData } from "../healthService.js";
+
+function HealthIntegrationCard({ onSync }) {
+  const [available, setAvailable] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState(() => localStorage.getItem("sprig_health_sync_ts") || null);
+
+  useEffect(() => {
+    isHealthAvailable().then(setAvailable);
+    setConnected(localStorage.getItem("sprig_health_connected") === "1");
+  }, []);
+
+  async function connect() {
+    try {
+      const ok = await requestHealthPermissions();
+      if (ok) { setConnected(true); localStorage.setItem("sprig_health_connected", "1"); }
+    } catch (e) { console.warn("[health] permission error:", e?.message); }
+  }
+
+  async function doSync() {
+    setSyncing(true);
+    try {
+      const data = await syncHealthData();
+      onSync?.(data);
+      const now = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      setLastSync(now); localStorage.setItem("sprig_health_sync_ts", now);
+    } catch (e) { console.warn("[health] sync error:", e?.message); }
+    setSyncing(false);
+  }
+
+  if (available === false || available === null) return null;
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: "#FF3B3022", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <HeartHandshake size={18} color="#FF3B30" />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{isIOS ? "Apple Health" : "Google Health Connect"}</div>
+          <div style={{ fontSize: 11, color: C.muted }}>Sync steps, weight, sleep &amp; workouts</div>
+        </div>
+        {connected && (
+          <button className="sprig-tap" onClick={doSync} disabled={syncing}
+            style={{ marginLeft: "auto", background: C.bg2, border: "none", cursor: "pointer", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", color: C.greenSoft }}>
+            <RefreshCw size={15} style={syncing ? { animation: "spin 1s linear infinite" } : {}} />
+          </button>
+        )}
+      </div>
+      {connected ? (
+        <div style={{ fontSize: 11.5, color: C.muted }}>
+          {syncing ? "Syncing…" : lastSync ? `Last synced ${lastSync}` : "Connected — tap refresh to sync"}
+        </div>
+      ) : (
+        <button className="sprig-tap" onClick={connect}
+          style={{ ...btn(C.green, "#fff"), width: "100%", padding: "11px 0", fontSize: 13.5, fontWeight: 700 }}>
+          Connect {isIOS ? "Apple Health" : "Health Connect"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function AccountSection() {
   const { user, loading, supabase } = useSupabaseAuth();
@@ -267,7 +337,7 @@ function AccountSection() {
 
 /* ---------------- Me / profile tab -------------- */
 // More tab — extra main app pages only (NOT settings). Compact stacked links.
-function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoSettings, trackingPrefs = {}, onToggleTracking }) {
+function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoSettings, onGoCoach, trackingPrefs = {}, onToggleTracking }) {
   const CATEGORY_LABELS = {
     nutrition: "Nutrition & Food", training: "Strength Training", sleep: "Sleep",
     habits: "Habits", recovery: "Recovery", health: "Health Markers",
@@ -276,7 +346,11 @@ function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoSettings
     cardio: "Cardio",
   };
   const inactive = Object.entries(CATEGORY_LABELS).filter(([k]) => trackingPrefs[k] === false);
+  // Count nav tabs: Today, Food, Train, Sleep, (Coach?), More — cap is 5
+  const navTabCount = ["nutrition","training","sleep","coach"].filter((k) => trackingPrefs[k] !== false).length + 2; // +2 for Today + More
+  const coachFoldedIntoMore = navTabCount > 5 && trackingPrefs.coach !== false;
   const items = [
+    ...(coachFoldedIntoMore && onGoCoach ? [["Coach", <Sparkles size={18} color={C.lime} />, onGoCoach, "AI-powered personalized advice"]] : []),
     ["Your targets", <Target size={18} color={C.lime} />, onGoTargets, "Calories, protein, macro goals"],
     ["Health markers", <HeartPulse size={18} color={C.greenSoft} />, onGoHealth, "Bloodwork, vitals & health score"],
     ["Mind & Habits", <Sparkles size={18} color={C.greenSoft} />, onGoMind, "Daily habits & consistency streak"],
@@ -366,7 +440,7 @@ function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoSettings
   );
 }
 
-function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday, user }) {
+function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday, user, onHealthSync }) {
   const saveRirPref = onSaveRirPref || (() => {});
   const [confirmResetOnb, setConfirmResetOnb] = useState(false);
   const importRef = useRef(null);
@@ -535,64 +609,8 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       </>)}
 
       {view === "settings" && (<>
-      {/* display mode */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "4px 2px 10px" }}>Display</div>
-      <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Gauge size={16} color={C.greenSoft} />
-            <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Detail level</span>
-          </div>
-          <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 3, borderRadius: 11 }}>
-            {[["simple", "Simple"], ["advanced", "Advanced"]].map(([v, lbl]) => {
-              const on = (p.mode || "simple") === v;
-              return (
-                <button key={v} className="sprig-tap" onClick={() => { const np = { ...p, mode: v }; setP(np); onSave(np); }}
-                  style={{ border: "none", cursor: "pointer", padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans",
-                    background: on ? C.card : "transparent", color: on ? C.green : C.muted, boxShadow: on ? C.shadow : "none" }}>{lbl}</button>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
-          {(p.mode || "simple") === "simple"
-            ? "Clean view: the numbers that matter day to day. Detailed breakdowns — micronutrients, muscle-by-muscle recovery, sleep stages, RIR and charts — stay tucked away."
-            : "Full view: every metric is shown — micronutrient percentages, per-muscle recovery hours, sleep stages, RIR, estimated 1RMs and trend charts."}
-        </div>
-      </div>
-
-      {/* NOTIFICATIONS */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Notifications</div>
-      <div style={{ background: C.card, borderRadius: 18, padding: "4px 0", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
-        {[
-          ["notifHydration", Droplets, "Morning hydration", "10:00 AM — daily reminder to drink water"],
-          ["notifMeal",      Flame,    "Lunch logging",     "1:00 PM — log your lunch while it's fresh"],
-          ["notifWorkout",   Dumbbell, "Training reminder", "6:30 PM — prompt to log a workout or steps"],
-        ].map(([key, Ic, label, sub], i, arr) => {
-          const on = p[key] !== false;
-          return (
-            <div key={key} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.line}` : "none" }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "18", display: "grid", placeItems: "center", flexShrink: 0, marginRight: 12 }}>
-                <Ic size={16} color={C.greenSoft} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>{label}</div>
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{sub}</div>
-              </div>
-              <button className="sprig-tap" onClick={() => { const np = { ...p, [key]: !on }; setP(np); onSave(np); }}
-                style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: on ? C.green : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
-                <div style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ fontSize: 11, color: C.muted, margin: "6px 4px 0", lineHeight: 1.5 }}>
-        Requires the native app. Notifications only work on Android and iOS.
-      </div>
-
-      {/* APPEARANCE — Dark / Light theme */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Appearance</div>
+      {/* ── APPEARANCE — always first, what users reach for first ── */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "4px 2px 10px" }}>Appearance</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -612,6 +630,28 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         </div>
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
           {themeMode === "dark" ? "Kiwi dark — deep forest green with glass cards." : "Light — clean white background with dark text. The green accent stays."}
+        </div>
+        {/* Detail level */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Gauge size={16} color={C.greenSoft} />
+            <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Detail level</span>
+          </div>
+          <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 3, borderRadius: 11 }}>
+            {[["simple", "Simple"], ["advanced", "Advanced"]].map(([v, lbl]) => {
+              const on = (p.mode || "simple") === v;
+              return (
+                <button key={v} className="sprig-tap" onClick={() => { const np = { ...p, mode: v }; setP(np); onSave(np); }}
+                  style={{ border: "none", cursor: "pointer", padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans",
+                    background: on ? C.card : "transparent", color: on ? C.green : C.muted, boxShadow: on ? C.shadow : "none" }}>{lbl}</button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10, lineHeight: 1.5 }}>
+          {(p.mode || "simple") === "simple"
+            ? "Clean view: the numbers that matter day to day. Detailed breakdowns — micronutrients, muscle-by-muscle recovery, sleep stages, RIR and charts — stay tucked away."
+            : "Full view: every metric is shown — micronutrient percentages, per-muscle recovery hours, sleep stages, RIR, estimated 1RMs and trend charts."}
         </div>
         {/* Haptics on/off */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
@@ -643,8 +683,39 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         </div>
       </div>
 
+      {/* ── NOTIFICATIONS ── */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Notifications</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: "4px 0", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        {[
+          ["notifHydration", Droplets, "Morning hydration", "10:00 AM — daily reminder to drink water"],
+          ["notifMeal",      Flame,    "Lunch logging",     "1:00 PM — log your lunch while it's fresh"],
+          ["notifWorkout",   Dumbbell, "Training reminder", "6:30 PM — prompt to log a workout or steps"],
+        ].map(([key, Ic, label, sub], i, arr) => {
+          const on = p[key] !== false;
+          return (
+            <div key={key} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.line}` : "none" }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "18", display: "grid", placeItems: "center", flexShrink: 0, marginRight: 12 }}>
+                <Ic size={16} color={C.greenSoft} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>{label}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{sub}</div>
+              </div>
+              <button className="sprig-tap" onClick={() => { const np = { ...p, [key]: !on }; setP(np); onSave(np); }}
+                style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: on ? C.green : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+                <div style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 11, color: C.muted, margin: "6px 4px 0", lineHeight: 1.5 }}>
+        Requires the native app. Notifications only work on Android and iOS.
+      </div>
+
+      {/* ── TRAINING PREFERENCES ── */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Training</div>
       {/* WORKOUT CALORIE ADJUSTMENT — Off / Conservative / Normal */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Workout calorie adjustment</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
           How much extra to eat after a strength workout. Conservative is recommended — lifting burns less than fitness apps usually claim. Steps and cardio are tracked separately and don't change with this setting.
@@ -680,7 +751,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       </div>
 
       {/* PREFERRED REP RANGE */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Training rep range</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: "18px 2px 8px", letterSpacing: .3, textTransform: "uppercase" }}>Rep range</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
           Drives progressive-overload suggestions. When you hit the top of your range, Vitae advises adding a little weight.
@@ -707,7 +778,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       </div>
 
       {/* RIR TRACKING */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Reps in reserve (RIR)</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: "18px 2px 8px", letterSpacing: .3, textTransform: "uppercase" }}>Reps in reserve (RIR)</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
           After each set, Vitae can ask how close to failure you were. This sharpens progression suggestions.
@@ -767,7 +838,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       </div>
 
       {/* DAY RESET MODE */}
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Day reset</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, margin: "18px 2px 8px", letterSpacing: .3, textTransform: "uppercase" }}>Day reset</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
           When your tracking day rolls over. Late-night food and drinks before the reset count toward the previous day.
@@ -987,6 +1058,10 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         <ActivitySourcesSection profile={profile} onSetSource={(id) => onSave({ ...profile, activitySourcePreference: id })} />
       </div>
 
+      {/* HEALTH INTEGRATIONS */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Integrations</div>
+      <HealthIntegrationCard onSync={onHealthSync} />
+
       {/* ACCOUNT (optional cloud sync) */}
       <AccountSection />
 
@@ -1043,7 +1118,31 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         </>
       )}
 
-      {/* LEGAL LINKS */}
+      {/* ── ABOUT ── */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>About</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 2px 12px", borderBottom: `1px solid ${C.line}` }}>
+          <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Vitae</span>
+          <span style={{ fontSize: 12, color: C.muted }}>v1.0 · health tracking</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 10 }}>
+          <button onClick={() => setLegalView("privacy")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13.5, color: C.inkSoft, fontFamily: "DM Sans", textAlign: "left", padding: "9px 2px", borderBottom: `1px solid ${C.line}`, fontWeight: 500 }}>
+            Privacy Policy
+          </button>
+          <button onClick={() => setLegalView("terms")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13.5, color: C.inkSoft, fontFamily: "DM Sans", textAlign: "left", padding: "9px 2px", borderBottom: `1px solid ${C.line}`, fontWeight: 500 }}>
+            Terms of Service
+          </button>
+          <button onClick={() => setLegalView("gdpr")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13.5, color: C.inkSoft, fontFamily: "DM Sans", textAlign: "left", padding: "9px 2px", fontWeight: 500 }}>
+            Your data rights (GDPR)
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 12, lineHeight: 1.5, padding: "0 2px" }}>
+          Targets use the Mifflin–St Jeor formula. Estimates are approximate — great for awareness, not medical precision.
+        </div>
+      </div>
+
+      {/* Legacy legal links row (hidden — now in About card above) */}
+      <div style={{ display: "none" }}>
       <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 18, paddingBottom: 4 }}>
         <button onClick={() => setLegalView("privacy")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11.5, color: C.muted, fontFamily: "DM Sans", textDecoration: "underline" }}>
           Privacy Policy
@@ -1052,18 +1151,17 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
           Terms of Service
         </button>
       </div>
+      </div>{/* end hidden legacy legal links */}
 
+      {/* Hidden dev-tap easter egg — tap the version string 5× in About card */}
       <div
-        style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 14, lineHeight: 1.5, padding: "0 10px", cursor: "default", userSelect: "none" }}
+        style={{ height: 1, marginTop: 4, cursor: "default" }}
         onClick={() => {
           const next = devTaps + 1;
           setDevTaps(next);
           if (next >= 5) { setShowDev(true); setDevTaps(0); }
         }}
-      >
-        Targets use the Mifflin–St Jeor formula. Data is synced to your account. Estimates are approximate — great for awareness, not medical precision.
-        {devTaps > 0 && devTaps < 5 && <span style={{ color: C.amber, marginLeft: 4 }}>({5 - devTaps} more)</span>}
-      </div>
+      />
 
       {showDev && (
         <div style={{ background: "#1a1a2e", border: `2px solid ${C.amber}`, borderRadius: 16, padding: 16, marginTop: 14, color: "#fff" }}>

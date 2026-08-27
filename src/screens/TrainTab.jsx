@@ -315,18 +315,48 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   );
 }
 
-function ExercisePicker({ onPick, onClose, onCustom, equipment }) {
+const MUSCLE_ICONS = { all: "💪", chest: "🫁", back: "🦈", traps: "🏔️", shoulders: "🏈", biceps: "💪", triceps: "🔱", forearms: "🤜", abs: "🎯", lower_back: "🦴", glutes: "🍑", quads: "🦵", hamstrings: "🏃", calves: "⚡" };
+
+function ExercisePicker({ onPick, onClose, onCustom, equipment, workouts = [] }) {
   const [q, setQ] = useState("");
   const [custom, setCustom] = useState("");
   const [grp, setGrp] = useState("chest");
   const [filter, setFilter] = useState("all");
+  const groupName = (k) => (MUSCLES.find(([m]) => m === k) || [k, k])[1];
+
+  // recently used exercises (last 30 days, deduplicated, most-recent first)
+  const recentNames = (() => {
+    const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+    const seen = new Set();
+    const out = [];
+    [...workouts].sort((a, b) => b.ts - a.ts).forEach((wk) => {
+      if (wk.ts < cutoff) return;
+      wk.exercises?.forEach((ex) => {
+        if (!seen.has(ex.name)) { seen.add(ex.name); out.push(ex.name); }
+      });
+    });
+    return out.slice(0, 8);
+  })();
+
+  const searching = q.length > 0 || filter !== "all";
   const list = EXERCISES.filter((e) =>
     (filter === "all" || e.group === filter) &&
     canDoWith(e, equipment) &&
     (e.name.toLowerCase().includes(q.toLowerCase()) || e.group.includes(q.toLowerCase())));
   const byGroup = {};
   list.forEach((e) => { (byGroup[e.group] = byGroup[e.group] || []).push(e); });
-  const groupName = (k) => (MUSCLES.find(([m]) => m === k) || [k, k])[1];
+
+  const ExRow = ({ e }) => (
+    <button key={e.name} className="sprig-tap" onClick={() => onPick(e.name)}
+      style={{ width: "100%", textAlign: "left", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{e.name}</div>
+        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.4, marginTop: 1 }}>{e.cue}</div>
+      </div>
+      <Plus size={17} color={C.greenSoft} />
+    </button>
+  );
+
   return (
     <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -335,27 +365,34 @@ function ExercisePicker({ onPick, onClose, onCustom, equipment }) {
           style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontFamily: "DM Sans", fontSize: 14, color: C.ink }} />
         <button className="sprig-tap" onClick={onClose} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.inkSoft }}><X size={15} /></button>
       </div>
-      {/* group filter chips */}
+      {/* muscle group chips with icons */}
       <div className="sprig-scroll" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8, marginBottom: 6 }}>
         {[["all", "All"], ...MUSCLES].map(([k, n]) => (
           <button key={k} onClick={() => setFilter(k)} className="sprig-tap"
-            style={{ flexShrink: 0, border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: filter === k ? C.green : C.bg2, color: filter === k ? "#fff" : C.inkSoft }}>{n}</button>
+            style={{ flexShrink: 0, border: "none", cursor: "pointer", padding: "6px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: filter === k ? C.green : C.bg2, color: filter === k ? "#fff" : C.inkSoft, display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 13 }}>{MUSCLE_ICONS[k] || "💪"}</span>{n}
+          </button>
         ))}
       </div>
-      <div className="sprig-scroll" style={{ maxHeight: 250, overflowY: "auto" }}>
+      <div className="sprig-scroll" style={{ maxHeight: 280, overflowY: "auto" }}>
+        {/* recently used section — only when not actively filtering */}
+        {!searching && recentNames.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.amber, textTransform: "uppercase", letterSpacing: .4, margin: "2px 2px 6px" }}>Recently used</div>
+            {recentNames.map((name) => {
+              const e = findEx(name);
+              return e ? <ExRow key={name} e={e} /> : null;
+            })}
+            <div style={{ borderTop: `1px dashed ${C.line}`, marginTop: 6, marginBottom: 8 }} />
+          </div>
+        )}
+        {/* grouped library */}
         {Object.keys(byGroup).map((g) => (
           <div key={g} style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4, margin: "4px 2px" }}>{groupName(g)}</div>
-            {byGroup[g].map((e) => (
-              <button key={e.name} className="sprig-tap" onClick={() => onPick(e.name)}
-                style={{ width: "100%", textAlign: "left", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{e.name}</div>
-                  <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.4, marginTop: 1 }}>{e.cue}</div>
-                </div>
-                <Plus size={17} color={C.greenSoft} />
-              </button>
-            ))}
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4, margin: "4px 2px", display: "flex", alignItems: "center", gap: 4 }}>
+              <span>{MUSCLE_ICONS[g] || "💪"}</span> {groupName(g)}
+            </div>
+            {byGroup[g].map((e) => <ExRow key={e.name} e={e} />)}
           </div>
         ))}
         {list.length === 0 && <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", padding: "12px 0" }}>No matches. Add it as a custom exercise below.</div>}
@@ -908,8 +945,9 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
 
   // ACTIVE WORKOUT
   if (active) {
+    const exList = active.exercises || [];
     const elapsedSec = Math.floor((Date.now() - active.startTs) / 1000);
-    const totalSets = active.exercises.reduce((a, e) => a + e.sets.length, 0);
+    const totalSets = exList.reduce((a, e) => a + (e.sets?.length || 0), 0);
     return (
       <div className="sprig-rise">
         <div style={{ position: "sticky", top: 0, zIndex: 110, background: C.cardSolid, border: `1px solid ${C.green}44`, borderRadius: 22, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 28px rgba(0,0,0,.36)", marginBottom: 18 }}>
@@ -928,7 +966,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
 
         {/* (Rest timer now renders at the app-frame level so it tracks scroll — see SprigApp.) */}
 
-        {active.exercises.map((ex, i) => (
+        {exList.map((ex, i) => (
           <ExerciseCard key={i} ex={ex} exIdx={i} workouts={workouts} unit={unit} customRests={trainInfo.customRests} advanced={advanced}
             sleepReadiness={trainInfo.sleepReadiness} daily={trainInfo.daily}
             painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations} repRangePref={profile.repRange} intensityStyle={rirPref?.intensityStyle}
@@ -938,7 +976,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         ))}
 
         {picker
-          ? <ExercisePicker equipment={profile?.equipment} onPick={(n) => { onAddExercise(n); setPicker(false); }} onClose={() => setPicker(false)} onCustom={(n, g) => { EXERCISES.push({ name: n, group: g, sec: [], type: "accessory", bar: false, cue: "Move through a full range of motion with control." }); onAddExercise(n); setPicker(false); }} />
+          ? <ExercisePicker equipment={profile?.equipment} workouts={workouts} onPick={(n) => { onAddExercise(n); setPicker(false); }} onClose={() => setPicker(false)} onCustom={(n, g) => { EXERCISES.push({ name: n, group: g, sec: [], type: "accessory", bar: false, cue: "Move through a full range of motion with control." }); onAddExercise(n); setPicker(false); }} />
           : <button className="sprig-tap" onClick={() => setPicker(true)} style={{ width: "100%", padding: "16px 0", background: C.cardSolid, border: `1.5px dashed ${C.green}66`, borderRadius: 18, cursor: "pointer", color: C.greenSoft, fontSize: 15, fontWeight: 700, fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: C.shadow }}><Plus size={18} color={C.greenSoft} /> Add exercise</button>}
         <div style={{ height: 8 }} />
       </div>

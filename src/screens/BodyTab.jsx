@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Check, Camera, Ruler, User, Trophy, Plus, RotateCcw, Crown, TrendingDown } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Area, ComposedChart, Dot } from "recharts";
 import { C } from "../theme.js";
 import {
   MEASURE_KEYS, PHOTO_KINDS, measurementStats, weightStats, weightVerdict,
@@ -255,19 +256,19 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
               <div>
                 <div style={{ fontFamily: "Fraunces, serif", fontSize: 32, fontWeight: 700, lineHeight: 1, color: C.ink }}>
                   {wStats.current != null ? `${wStats.current}` : "—"}
-                  <span style={{ fontSize: 14, fontWeight: 600, color: C.muted }}> kg</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.muted }}> {profile?.unit || "kg"}</span>
                 </div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Latest{wStats.latestDate ? ` · ${wStats.latestDate}` : ""}</div>
               </div>
               {wStats.avg7 != null && (
                 <div>
-                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 600, color: C.inkSoft }}>{wStats.avg7} <span style={{ fontSize: 11, color: C.muted }}>kg</span></div>
+                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 600, color: C.inkSoft }}>{wStats.avg7} <span style={{ fontSize: 11, color: C.muted }}>{profile?.unit || "kg"}</span></div>
                   <div style={{ fontSize: 11, color: C.muted }}>7-day avg</div>
                 </div>
               )}
               {wStats.rate != null && (
                 <div>
-                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 600, color: verdictColor }}>{wStats.rate > 0 ? "+" : ""}{wStats.rate} <span style={{ fontSize: 11, color: C.muted }}>kg/wk</span></div>
+                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 600, color: verdictColor }}>{wStats.rate > 0 ? "+" : ""}{wStats.rate} <span style={{ fontSize: 11, color: C.muted }}>{profile?.unit || "kg"}/wk</span></div>
                   <div style={{ fontSize: 11, color: C.muted }}>Trend {wStats.pctRate != null ? `(${wStats.pctRate > 0 ? "+" : ""}${wStats.pctRate}%/wk)` : ""}</div>
                 </div>
               )}
@@ -278,18 +279,44 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
               </div>
             )}
             {weightSeries.length >= 2 && (() => {
-              const ws = [...weightSeries].sort((a, b) => a.date.localeCompare(b.date)).slice(-21);
-              const W = 320, H = 50, p = 4;
-              const max = Math.max(...ws.map((s) => s.kg)), min = Math.min(...ws.map((s) => s.kg));
-              const range = max - min || 1;
-              const x = (i) => p + (i / (ws.length - 1)) * (W - 2 * p);
-              const y = (kg) => p + (1 - (kg - min) / range) * (H - 2 * p);
-              const path = ws.map((s, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(s.kg).toFixed(1)}`).join(" ");
+              const unit = profile?.unit || "kg";
+              const ws = [...weightSeries].sort((a, b) => a.date.localeCompare(b.date)).slice(-30);
+              // build 7-day moving average
+              const chartData = ws.map((s, i) => {
+                const window = ws.slice(Math.max(0, i - 3), i + 4);
+                const avg = +(window.reduce((sum, w) => sum + w.kg, 0) / window.length).toFixed(2);
+                const label = new Date(s.date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                return { date: label, weight: s.kg, avg };
+              });
+              const allKg = ws.map((s) => s.kg);
+              const minKg = Math.min(...allKg), maxKg = Math.max(...allKg);
+              const pad = Math.max(0.5, (maxKg - minKg) * 0.25);
+              const domain = [+(minKg - pad).toFixed(1), +(maxKg + pad).toFixed(1)];
+              const trendUp = ws.length >= 2 && ws[ws.length - 1].kg > ws[0].kg;
+              const lineColor = profile?.goal === "gain" ? (trendUp ? C.greenSoft : C.coral) : profile?.goal === "lose" ? (trendUp ? C.coral : C.greenSoft) : C.amber;
               return (
-                <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 50, display: "block", marginTop: 12 }} preserveAspectRatio="none">
-                  <path d={path} fill="none" stroke={C.amber} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
-                  {ws.map((s, i) => <circle key={i} cx={x(i)} cy={y(s.kg)} r="2" fill={C.amber} />)}
-                </svg>
+                <div style={{ marginTop: 14, marginLeft: -8 }}>
+                  <ResponsiveContainer width="100%" height={140}>
+                    <ComposedChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: C.muted, fontFamily: "DM Sans" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                      <YAxis domain={domain} tick={{ fontSize: 9, fill: C.muted, fontFamily: "DM Sans" }} tickLine={false} axisLine={false} width={32} tickFormatter={(v) => `${v}`} />
+                      <Tooltip contentStyle={{ background: C.cardSolid, border: `1px solid ${C.line}`, borderRadius: 10, fontSize: 12, fontFamily: "DM Sans", color: C.ink }}
+                        formatter={(v, name) => [`${v} ${unit}`, name === "avg" ? "7-day avg" : "Weight"]}
+                        labelStyle={{ color: C.muted, fontSize: 11 }} />
+                      {/* moving average area fill */}
+                      <Area type="monotone" dataKey="avg" fill={lineColor + "18"} stroke="none" />
+                      {/* daily weight line */}
+                      <Line type="monotone" dataKey="weight" stroke={lineColor} strokeWidth={2} dot={{ r: 2.5, fill: lineColor, strokeWidth: 0 }} activeDot={{ r: 4, fill: lineColor }} connectNulls />
+                      {/* moving average line */}
+                      <Line type="monotone" dataKey="avg" stroke={lineColor} strokeWidth={1.5} strokeDasharray="5 3" dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 4, fontSize: 10, color: C.muted }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 14, height: 2, background: lineColor, display: "inline-block", borderRadius: 1 }} /> Daily</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 14, height: 2, background: lineColor, display: "inline-block", borderRadius: 1, opacity: .6 }} /> 7-day avg</span>
+                  </div>
+                </div>
               );
             })()}
             <div style={{ fontSize: 12, color: verdictColor, marginTop: 10, lineHeight: 1.5, fontWeight: 500 }}>

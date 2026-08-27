@@ -9,7 +9,7 @@ import {
   Target, BookOpen, Calculator, Repeat, Gauge, Pause, Play, PersonStanding, Square,
   ArrowUp, HeartPulse, Search, TrendingDown,
   Cloud, CloudUpload, CloudDownload, LogOut, LogIn, Mail, SlidersHorizontal, Volume2,
-  Archive, Bell, Ruler, Settings, Droplets, AlertCircle, WifiOff
+  Archive, Bell, Ruler, Settings, Droplets, AlertCircle, WifiOff, Barcode
 } from "lucide-react";
 import { openDB } from "idb";
 import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
@@ -144,6 +144,26 @@ input[type=number] { -moz-appearance: textfield; }
 :root {
   --bottom-nav-height: 88px;
   --floating-cta-height: 72px;
+  /* ── Type scale ─────────────────────────────────────────── */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  /* ── Spacing scale ──────────────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
   /* ── Layer system ──────────────────────────────────────────
      Main content:       1
      Sticky headers:     100
@@ -863,27 +883,76 @@ const DEFAULT_PROFILE = { sex: "male", age: 18, weight: 72, height: 178, activit
 /* ================= AI LOADING CARD ================= */
 const AI_FOOD_MSGS = ["Analyzing your meal…", "Identifying ingredients…", "Calculating nutrition…"];
 const AI_SUPP_MSGS = ["Reading your supplement…", "Looking up nutrients…", "Building your breakdown…"];
-function AiLoadingCard({ isSupp }) {
+function AiLoadingCard({ isSupp, image }) {
   const msgs = isSupp ? AI_SUPP_MSGS : AI_FOOD_MSGS;
   const [idx, setIdx] = useState(0);
+  const [step, setStep] = useState(0); // 0=capture, 1=analyze, 2=confirm
   useEffect(() => {
     const t = setInterval(() => setIdx((i) => (i + 1) % msgs.length), 1700);
     return () => clearInterval(t);
   }, [msgs.length]);
+  useEffect(() => {
+    // Simulate progress through the 3-step flow
+    const t1 = setTimeout(() => setStep(1), 400);
+    const t2 = setTimeout(() => setStep(2), 2200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  const STEPS = [
+    { label: "Photo received", done: step >= 1 },
+    { label: "Analysing ingredients", done: step >= 2 },
+    { label: "Building nutrition facts", done: false },
+  ];
+
   return (
     <div className="sprig-rise" style={{ background: C.card, borderRadius: 18, padding: "16px 18px", boxShadow: C.shadow, marginBottom: 14 }}>
+      {/* Scanning progress bar */}
       <div style={{ height: 3, background: C.bg2, borderRadius: 99, overflow: "hidden", marginBottom: 14 }}>
         <div className="sprig-skeleton" style={{ height: "100%", borderRadius: 99 }} />
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "1a", display: "grid", placeItems: "center", flexShrink: 0 }}>
-          <Loader2 size={18} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, transition: "opacity .3s" }}>{msgs[idx]}</div>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Usually 2–4 seconds</div>
+
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+        {/* Thumbnail if we have a captured image */}
+        {image && (
+          <div style={{ width: 72, height: 72, borderRadius: 12, overflow: "hidden", flexShrink: 0, border: `1px solid ${C.line}`, position: "relative" }}>
+            <img src={image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(0,0,0,.35)" }}>
+              <Loader2 size={20} color="#fff" style={{ animation: "spin 1s linear infinite" }} />
+            </div>
+          </div>
+        )}
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Status message */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            {!image && <div style={{ width: 32, height: 32, borderRadius: 9, background: C.green + "1a", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Loader2 size={16} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
+            </div>}
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>{msgs[idx]}</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Usually 2–4 seconds</div>
+            </div>
+          </div>
+
+          {/* 3-step flow */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {STEPS.map((s, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center",
+                  background: s.done ? C.green : (step === i ? C.green + "30" : C.bg2),
+                  border: step === i && !s.done ? `1.5px solid ${C.green}` : "none" }}>
+                  {s.done
+                    ? <Check size={11} color="#fff" strokeWidth={3} />
+                    : step === i && <Loader2 size={10} color={C.green} style={{ animation: "spin 1s linear infinite" }} />}
+                </div>
+                <span style={{ fontSize: 12, color: s.done ? C.greenSoft : step === i ? C.inkSoft : C.muted, fontWeight: s.done || step === i ? 600 : 400 }}>{s.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Dots progress */}
       <div style={{ display: "flex", gap: 5, marginTop: 14, justifyContent: "center" }}>
         {msgs.map((_, i) => (
           <div key={i} style={{ height: 5, borderRadius: 99, background: i === idx ? C.green : C.bg2, width: i === idx ? 20 : 6, transition: "all 0.35s ease" }} />
@@ -1771,6 +1840,7 @@ function SprigApp() {
   const [searchQ, setSearchQ] = useState("");
   const [calOpen, setCalOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  const [achievementCelebration, setAchievementCelebration] = useState(null); // {icon, title, desc} | null
   const [photoOpen, setPhotoOpen] = useState(false);
   const [progressPhotos, setProgressPhotos] = useState([]);
   const [reminders, setReminders] = useState({ ...DEFAULT_REMINDERS });
@@ -2246,6 +2316,49 @@ function SprigApp() {
   async function loadDemoData() {
     await seedDemoData(store);
     if (window.location && window.location.reload) window.location.reload();
+  }
+
+  // Apply data synced from Apple Health / Google Health Connect
+  function applyHealthSync(data) {
+    if (!data) return;
+    if (data.steps) {
+      const today = new Date().toLocaleDateString("en-CA");
+      const todaySteps = data.steps[today];
+      if (todaySteps != null) {
+        persistDaily({ steps: Math.max(daily?.steps || 0, todaySteps) });
+      }
+    }
+    if (data.weights?.length) {
+      const today = new Date().toLocaleDateString("en-CA");
+      const todayWeight = data.weights.find((w) => w.date === today);
+      // Merge historical weight points directly into the series
+      const others = data.weights.filter((w) => w.date !== today);
+      if (others.length) {
+        const raw = [...weightSeries];
+        others.forEach(({ date: d, kg }) => {
+          if (!raw.find((w) => w.date === d)) raw.push({ date: d, kg });
+        });
+        const ns = raw.sort((a, b) => a.date.localeCompare(b.date)).slice(-60);
+        setWeightSeries(ns);
+        store.set("sprig_weightseries_v1", JSON.stringify(ns)).catch(() => {});
+      }
+      if (todayWeight && !daily.weight) {
+        persistDaily({ ...daily, weight: todayWeight.kg });
+      }
+    }
+    if (data.sleep?.length) {
+      const toAdd = data.sleep
+        .map((log) => {
+          const dur = Math.round((log.wakeTs - log.bedTs) / 60000);
+          if (dur < 60 || dur > 660) return null;
+          return { id: `health_${log.bedTs}`, bedTs: log.bedTs, wakeTs: log.wakeTs, durationMin: dur, score: 70, source: "health_sync" };
+        })
+        .filter(Boolean);
+      if (toAdd.length) {
+        const merged = [...sleepLogs.filter((l) => !toAdd.find((n) => n.id === l.id)), ...toAdd];
+        persistSleep(merged);
+      }
+    }
   }
 
   // ── DEV TOOLS — hidden behind 5-tap on disclaimer in Settings ─────────────
@@ -2964,7 +3077,7 @@ function SprigApp() {
           recordToastTimers.current = [];
           recordToastPriorityRef.current = newPri;
           // Single restrained haptic + premium 2-note chime for new record
-          try { navigator.vibrate?.(25); } catch (_) {}
+          buzz("light");
           if (profile?.restTimerSound !== false) { try { playRecordSound(); } catch (_) {} }
           // Phase 1 — entering (entrance animation plays, 440ms)
           setRecordToast({ ...pr, exName, phase: "entering" });
@@ -3185,6 +3298,44 @@ function SprigApp() {
       // User cancelled camera, or Capacitor not available — silently ignore.
       if (e?.message && !e.message.includes("cancel")) console.warn("[sprig] captureNativePhoto:", e.message);
     }
+  }
+
+  async function scanBarcode() {
+    setError("");
+    try {
+      const { Capacitor } = await import("@capacitor/core");
+      if (Capacitor.isNativePlatform()) {
+        const { BarcodeScanner } = await import("@capacitor-mlkit/barcode-scanning");
+        const supported = await BarcodeScanner.isSupported().catch(() => ({ supported: false }));
+        if (supported.supported) {
+          const { barcodes } = await BarcodeScanner.scan({ formats: ["EAN_13", "EAN_8", "UPC_A", "UPC_E", "CODE_128", "CODE_39"] });
+          const barcode = barcodes?.[0]?.rawValue;
+          if (!barcode) return;
+          buzz("success");
+          await lookupBarcode(barcode);
+          return;
+        }
+      }
+      // Web fallback: prompt user to type or scan via camera
+      setOffQuery(""); setOffResults([]); setOffSelected(null); setFoodOverlayMode("search");
+    } catch (e) {
+      if (e?.message && !e.message.includes("cancel")) setError("Barcode scan failed. Try searching instead.");
+    }
+  }
+
+  async function lookupBarcode(barcode) {
+    setBusy(true); setFoodOverlayMode("search");
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,nutriments,serving_size,serving_quantity`);
+      const json = await res.json();
+      if (json.status !== 1 || !json.product) { setBusy(false); setError("Product not found. Try searching manually."); return; }
+      const p = json.product; const n = p.nutriments || {};
+      const per = Number(p.serving_quantity) || 100;
+      await runAnalysis({
+        text: `${p.product_name}, serving ${p.serving_size || `${per}g`}, calories ${Math.round((n["energy-kcal_100g"] || 0) * per / 100)}, protein ${((n.proteins_100g || 0) * per / 100).toFixed(1)}g, carbs ${((n.carbohydrates_100g || 0) * per / 100).toFixed(1)}g, fat ${((n.fat_100g || 0) * per / 100).toFixed(1)}g, fiber ${((n.fiber_100g || 0) * per / 100).toFixed(1)}g`,
+        mode: "text",
+      });
+    } catch { setBusy(false); setError("Couldn't look up that barcode."); }
   }
 
   function addEntry(r) {
@@ -3540,8 +3691,24 @@ function SprigApp() {
     daily, t, targets, profile, sleepInfo, trainInfo, moveInfo, nutriInfo, tp: trackingPrefs, quickLog,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [history, sleepLogs, workouts, entries, daily, date, quickLog, trackingPrefs, profile]);
-  // achievements
+  // achievements — detect newly unlocked ones and celebrate them
   const achievements = detectAchievements({ workouts, weightSeries, sleepLogs, history, focusSessions, dailyHistory, painLogs });
+  useEffect(() => {
+    if (!achievements?.length || !ready) return;
+    try {
+      const seen = new Set(JSON.parse(window.localStorage.getItem("sprig_seen_achievements_v1") || "[]"));
+      const newOnes = achievements.filter((a) => !seen.has(a.id));
+      if (newOnes.length === 0) return;
+      // Mark all as seen immediately so we only celebrate each achievement once
+      newOnes.forEach((a) => seen.add(a.id));
+      window.localStorage.setItem("sprig_seen_achievements_v1", JSON.stringify([...seen]));
+      // Show the first new achievement (queue the rest silently)
+      const first = newOnes[0];
+      setAchievementCelebration({ icon: first.icon, title: first.title, desc: first.desc });
+      buzz("success");
+    } catch (_) {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [achievements?.length, ready]);
   const timeline = goalTimeline({ profile, weightSeries, workouts, targets });
   const plateaus = plateauDetection({ workouts, weightSeries, sleepLogs, history, targets, sleepInfo });
   const patterns = patternDetection({ sleepLogs, dailyHistory, workouts, painLogs, history });
@@ -3699,7 +3866,7 @@ function SprigApp() {
           onUndoCompletion={undoHabitCompletion} tp={trackingPrefs} />}
         {tab === "coach" && <CoachTab coach={coach2} advanced={advanced} moveInfo={moveInfo} timeline={timeline} plateaus={plateaus} patterns={patterns}
           onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={() => setAskOpen(true)} />}
-        {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} onGoSettings={() => setTab("settings")} trackingPrefs={trackingPrefs} onToggleTracking={(k, v) => persistTrackingPrefs({ ...trackingPrefs, [k]: v })} />}
+        {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} onGoSettings={() => setTab("settings")} onGoCoach={() => setTab("coach")} trackingPrefs={trackingPrefs} onToggleTracking={(k, v) => persistTrackingPrefs({ ...trackingPrefs, [k]: v })} />}
         {tab === "targets" && <MeTab view="targets" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}
@@ -3712,7 +3879,7 @@ function SprigApp() {
           rirPref={rirPref} onSaveRirPref={saveRirPref}
           trackingPrefs={trackingPrefs} onSaveTrackingPrefs={persistTrackingPrefs}
           onDevSeedFull={devSeedFullDay} onDevSeedQL={devSeedQuickLogDay} onDevClearToday={devClearToday}
-          user={cloudUser} />}
+          user={cloudUser} onHealthSync={applyHealthSync} />}
         </div>{/* /tab-enter */}
       </div>
 
@@ -3748,6 +3915,7 @@ function SprigApp() {
                     {[
                       [() => { setResult(null); setFoodOverlayMode(null); setTimeout(() => captureNativePhoto("photo", fileRef), 50); }, Camera, "Snap food", "Photo → AI estimate"],
                       [() => { setResult(null); setFoodOverlayMode(null); setTimeout(() => labelRef.current?.click(), 50); }, ScanLine, "Scan label", "Nutrition label → AI"],
+                      [() => { setResult(null); scanBarcode(); }, Barcode, "Scan barcode", "UPC/EAN → product lookup"],
                       [() => { setResult(null); setDraft(""); setFoodOverlayMode("text"); }, PencilLine, "Describe", "Type it, AI estimates"],
                       [() => { setResult(null); setOffQuery(""); setOffResults([]); setOffSelected(null); setFoodOverlayMode("search"); }, Search, "Search database", "Open Food Facts"],
                       [() => { setResult(null); setFoodOverlayMode("manual"); }, Calculator, "Manual", "Enter values yourself"],
@@ -3788,7 +3956,7 @@ function SprigApp() {
                     )}
 
                     {busy && (
-                      <AiLoadingCard isSupp={resultMode === "supplement" || resultMode === "supp-label"} />
+                      <AiLoadingCard isSupp={resultMode === "supplement" || resultMode === "supp-label"} image={(resultMode === "photo" || resultMode === "label") ? capturedImage : null} />
                     )}
 
                     {result && !busy && (
@@ -3962,6 +4130,30 @@ function SprigApp() {
         />
       )}
 
+      {/* Achievement unlock celebration modal */}
+      {achievementCelebration && (
+        <Portal>
+          <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.70)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", zIndex: 4500, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }} onClick={() => setAchievementCelebration(null)}>
+            <div className="sprig-pop" onClick={(e) => e.stopPropagation()}
+              style={{ width: "100%", maxWidth: 360, background: C.cardSolid, borderRadius: 28, padding: "36px 28px 30px", textAlign: "center", boxShadow: "0 24px 64px rgba(0,0,0,.55)", border: `1px solid ${C.amber}44`, position: "relative", overflow: "hidden" }}>
+              {/* Gold glow behind icon */}
+              <div style={{ position: "absolute", top: -30, left: "50%", transform: "translateX(-50%)", width: 180, height: 180, borderRadius: "50%", background: C.amber + "20", filter: "blur(40px)", pointerEvents: "none" }} />
+              {/* Icon */}
+              <div style={{ width: 88, height: 88, borderRadius: 26, background: C.amber + "22", border: `2px solid ${C.amber}55`, display: "grid", placeItems: "center", margin: "0 auto 18px", position: "relative" }}>
+                <span style={{ fontSize: 46, lineHeight: 1 }}>{achievementCelebration.icon}</span>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.amber, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>Achievement unlocked</div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, color: C.ink, lineHeight: 1.2, marginBottom: 10 }}>{achievementCelebration.title}</div>
+              <div style={{ fontSize: 14, color: C.inkSoft, lineHeight: 1.6, marginBottom: 26 }}>{achievementCelebration.desc}</div>
+              <button className="sprig-tap" onClick={() => setAchievementCelebration(null)}
+                style={{ background: C.amber, color: "#fff", border: "none", cursor: "pointer", borderRadius: 14, padding: "14px 32px", fontSize: 15, fontWeight: 700, fontFamily: "DM Sans" }}>
+                Claim it 🎉
+              </button>
+            </div>
+          </div>
+        </Portal>
+      )}
+
       {/* Offline indicator — persistent pill at top-right when there is no network */}
       {!online && (
         <Portal>
@@ -4039,7 +4231,9 @@ function SprigApp() {
             ["coach",     Sparkles, "Coach",  "coach"],
             ["more",      User,     "More",   null],
           ];
-          return ALL_NAV.filter(([,,,key]) => !key || trackingPrefs[key] !== false);
+          // Cap at 5 visible tabs. "More" is always last, "Coach" is the first to get folded in.
+          const visible = ALL_NAV.filter(([,,,key]) => !key || trackingPrefs[key] !== false);
+          return visible.length > 5 ? visible.filter(([k]) => k !== "coach") : visible;
         })()).map(([k, Ic, lbl]) => (
           <button key={k} onClick={() => {
             setTab(k);
@@ -4745,29 +4939,6 @@ function ManualEntry({ onAdd, onCancel, embedded }) {
   );
 }
 
-/* ---------------- Today: command-center helpers -------------- */
-function ScoreDonut({ score, size = 92 }) {
-  const col = score >= 70 ? C.greenSoft : score >= 50 ? C.amber : C.coral;
-  const r = (size - 14) / 2, circ = 2 * Math.PI * r, off = circ * (1 - score / 100);
-  return (
-    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.18)" strokeWidth="9" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={col} strokeWidth="9" strokeLinecap="round"
-          strokeDasharray={circ} strokeDashoffset={off} transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{ transition: "stroke-dashoffset .7s ease" }} />
-      </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-        <span style={{ fontFamily: "Fraunces, serif", fontSize: 26, fontWeight: 700, lineHeight: 1 }}>{score}</span>
-        <span style={{ fontSize: 9.5, opacity: .7 }}>/ 100</span>
-      </div>
-    </div>
-  );
-}
-const ACTION_ICON = {
-  train: <Dumbbell size={16} />, rest: <BedDouble size={16} />, pain: <HeartPulse size={16} />,
-  protein: <Flame size={16} />, food: <Flame size={16} />, walk: <Activity size={16} />,
-  water: <Coffee size={16} />, sleep: <Moon size={16} />, done: <Check size={16} />,
-};
 function CheckinRow({ label, value, opts, onPick }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0" }}>
@@ -5116,82 +5287,162 @@ function CalendarSheet({ onClose, getDayIcons }) {
 function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNote }) {
   const kb = useKeyboardInset();
   const [q, setQ] = useState("");
-  const [a, setA] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [saved, setSaved] = useState(false);
-  // Does the coach have real data to work with? Drives the "Using your data" vs "General answer" badge.
+  const [messages, setMessages] = useState([]); // {role:"user"|"assistant", text:string}[]
+  const scrollRef = useRef(null);
+  const inputRef = useRef(null);
   const hasData = !!(context && (context.today || context.averages14d || context.training || context.sleep || context.profile));
+  const hasConversation = messages.length > 0;
+
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      try { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); } catch (_) {}
+    }, 80);
+  }, []);
+
   const ask = async (text) => {
-    setBusy(true); setErr(""); setA(null); setSaved(false);
+    if (!text.trim() || busy) return;
+    const userMsg = { role: "user", text: text.trim() };
+    setMessages((m) => [...m, userMsg]);
+    setQ("");
+    setErr("");
+    setBusy(true);
+    scrollToBottom();
     try {
-      const reply = await runAnalysis(text, context);
-      setA(reply);
-    } catch (e) { setErr("AI is unavailable right now. Try again later."); }
-    finally { setBusy(false); }
+      const reply = await runAnalysis(text.trim(), context);
+      setMessages((m) => [...m, { role: "assistant", text: reply }]);
+    } catch (e) {
+      setErr("AI is unavailable right now. Try again later.");
+    } finally {
+      setBusy(false);
+      scrollToBottom();
+    }
   };
-  const presets = [
+
+  const PRESETS = [
     "What should I focus on this week?",
     "Am I recovering well enough to train hard?",
     "How can I improve my sleep quality?",
     "Should I cut, bulk, or maintain right now?",
   ];
+
+  const FOLLOW_UPS = [
+    "Can you be more specific?",
+    "What should I do tomorrow?",
+    "How long will this take to see results?",
+    "What's the biggest mistake people make with this?",
+  ];
+
+  const lastAssistantMsg = [...messages].reverse().find((m) => m.role === "assistant");
+
   return (
     <Portal>
     <div className="sprig-dim" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.62)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", zIndex: 3000 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="sprig-sheet sprig-bottom-sheet"
-        style={{ maxWidth: 440, margin: "0 auto", position: "absolute", bottom: 0, left: 0, right: 0, background: C.cardSolid, borderRadius: "20px 20px 0 0", padding: "18px 18px 22px", paddingBottom: `calc(22px + env(safe-area-inset-bottom, 0px) + ${kb}px)`, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <Sparkles size={17} color={C.greenSoft} />
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, flex: 1 }}>Ask the coach</div>
-          <button className="sprig-tap" onClick={onClose} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", color: C.muted }}><X size={14} /></button>
-        </div>
-        <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>
-          Ask anything. I'll answer directly and use your health data only when it helps.
+      <div onClick={(e) => e.stopPropagation()} className="sprig-sheet"
+        style={{ maxWidth: 440, margin: "0 auto", position: "absolute", bottom: 0, left: 0, right: 0, background: C.cardSolid, borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column", maxHeight: "92dvh", paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${kb}px)`, boxShadow: "0 -8px 30px rgba(0,0,0,.35)" }}>
+
+        {/* Header */}
+        <div style={{ padding: "18px 18px 12px", flexShrink: 0, borderBottom: hasConversation ? `1px solid ${C.line}` : "none" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "20", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Sparkles size={17} color={C.greenSoft} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, lineHeight: 1.1 }}>Coach</div>
+              {hasData && <div style={{ fontSize: 10.5, color: C.greenSoft, fontWeight: 600, marginTop: 1 }}>Using your health data</div>}
+            </div>
+            {hasConversation && (
+              <button className="sprig-tap" onClick={() => { setMessages([]); setErr(""); }} style={{ background: C.bg2, border: "none", cursor: "pointer", borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 600, color: C.muted, fontFamily: "DM Sans" }}>New chat</button>
+            )}
+            <button className="sprig-tap" onClick={onClose} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", color: C.muted }}><X size={14} /></button>
+          </div>
         </div>
 
-        {!a && !busy && (
-          <>
-            <div className="sprig-eyebrow" style={{ marginBottom: 7 }}>Quick questions</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 12 }}>
-              {presets.map((p) => (
-                <button key={p} className="sprig-tap" onClick={() => { setQ(p); ask(p); }}
-                  style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 11, padding: "10px 12px", textAlign: "left", fontFamily: "DM Sans", fontSize: 13, color: C.inkSoft }}>
-                  {p}
-                </button>
-              ))}
+        {/* Conversation area */}
+        <div ref={scrollRef} className="sprig-scroll" style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Starter state — quick questions */}
+          {!hasConversation && !busy && (
+            <div className="sprig-rise">
+              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+                Ask anything. I answer directly using your logged health data.
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, letterSpacing: .4, textTransform: "uppercase", marginBottom: 8 }}>Quick questions</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {PRESETS.map((p) => (
+                  <button key={p} className="sprig-tap" onClick={() => ask(p)}
+                    style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 11, padding: "10px 12px", textAlign: "left", fontFamily: "DM Sans", fontSize: 13, color: C.inkSoft }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="sprig-eyebrow" style={{ marginBottom: 7 }}>Or ask your own</div>
-            <textarea value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. why is my recovery worse this week?"
-              style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 11, padding: "12px 13px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink, minHeight: 64, resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }} />
-            <button className="sprig-tap" disabled={!q.trim()} onClick={() => ask(q)}
-              style={{ ...btn(q.trim() ? C.green : C.bg2, q.trim() ? "#fff" : C.muted), width: "100%", padding: "13px 0", marginTop: 9 }}>
-              <Sparkles size={14} /> Ask
+          )}
+
+          {/* Message history */}
+          {messages.map((msg, i) => (
+            <div key={i} className="sprig-rise" style={{ display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start", gap: 2 }}>
+              {msg.role === "user" ? (
+                <div style={{ background: C.green, borderRadius: "16px 16px 4px 16px", padding: "10px 14px", maxWidth: "82%", fontSize: 14, fontWeight: 500, color: "#fff", lineHeight: 1.5 }}>
+                  {msg.text}
+                </div>
+              ) : (
+                <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: "4px 16px 16px 16px", padding: "12px 14px", maxWidth: "92%", fontSize: 13.5, color: C.ink, lineHeight: 1.65, whiteSpace: "pre-wrap", boxShadow: C.shadow }}>
+                  {msg.text}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Typing indicator */}
+          {busy && (
+            <div className="sprig-rise" style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+              <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: "4px 16px 16px 16px", padding: "12px 14px", display: "flex", alignItems: "center", gap: 8, boxShadow: C.shadow }}>
+                <Loader2 size={14} color={C.green} style={{ animation: "spin 1s linear infinite", flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: C.inkSoft, fontWeight: 500 }}>Thinking with your data…</span>
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {err && <div style={{ fontSize: 12.5, color: C.coral, padding: 12, background: C.coral + "12", border: `1px solid ${C.coral}44`, borderRadius: 11, lineHeight: 1.5 }}>{err}</div>}
+
+          {/* Follow-up suggestions after a response */}
+          {lastAssistantMsg && !busy && (
+            <div className="sprig-rise">
+              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, letterSpacing: .4, textTransform: "uppercase", marginBottom: 8 }}>Follow-up</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {FOLLOW_UPS.map((p) => (
+                  <button key={p} className="sprig-tap" onClick={() => ask(p)}
+                    style={{ background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 11, padding: "8px 12px", textAlign: "left", fontFamily: "DM Sans", fontSize: 12.5, color: C.inkSoft }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ height: 8 }} />
+        </div>
+
+        {/* Input bar */}
+        <div style={{ padding: "10px 14px 14px", borderTop: `1px solid ${C.line}`, background: C.cardSolid, flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <textarea ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(q); } }}
+              placeholder="Ask anything about your health…"
+              style={{ flex: 1, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "10px 13px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink, resize: "none", lineHeight: 1.5, minHeight: 42, maxHeight: 120, outline: "none", boxSizing: "border-box" }}
+              rows={1} />
+            <button className="sprig-tap" disabled={!q.trim() || busy} onClick={() => ask(q)}
+              style={{ width: 42, height: 42, borderRadius: 12, background: q.trim() && !busy ? C.green : C.bg2, border: "none", cursor: q.trim() && !busy ? "pointer" : "default", display: "grid", placeItems: "center", flexShrink: 0, transition: "background .2s" }}>
+              <Sparkles size={17} color={q.trim() && !busy ? "#fff" : C.muted} />
             </button>
-          </>
-        )}
-        {busy && (
-          <div style={{ textAlign: "center", padding: "34px 0" }}>
-            <Loader2 size={22} color={C.green} style={{ animation: "spin 1s linear infinite" }} />
-            <div style={{ fontSize: 12.5, color: C.inkSoft, marginTop: 12, fontWeight: 600 }}>Thinking with your latest data…</div>
           </div>
-        )}
-        {err && <div style={{ fontSize: 12.5, color: C.coral, marginTop: 12, padding: 12, background: "#fdeee8", borderRadius: 11, lineHeight: 1.5 }}>{err}</div>}
-        {a && (
-          <div className="sprig-pop">
-            <div style={{ marginBottom: 9 }}>
-              <Badge tone={hasData ? "success" : "neutral"}>{hasData ? "Using your data" : "General answer"}</Badge>
-            </div>
-            <div style={{ background: C.bg, borderRadius: 13, padding: 15, fontSize: 13.5, color: C.ink, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{a}</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 11 }}>
-              <Btn variant="secondary" full onClick={() => { setA(null); setQ(""); setSaved(false); }}>Ask another</Btn>
-              <Btn variant="primary" full onClick={onClose}>Done</Btn>
-            </div>
-            <div style={{ fontSize: 10.5, color: C.muted, textAlign: "center", marginTop: 9, lineHeight: 1.5 }}>
-              The coach uses your logged data. Not medical advice.
-            </div>
+          <div style={{ fontSize: 10.5, color: C.muted, textAlign: "center", marginTop: 7, lineHeight: 1.4 }}>
+            Uses your logged data · Not medical advice
           </div>
-        )}
+        </div>
       </div>
     </div>
     </Portal>

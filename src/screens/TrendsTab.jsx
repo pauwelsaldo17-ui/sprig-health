@@ -106,15 +106,20 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
       {/* ACHIEVEMENTS */}
       {achievements?.length > 0 && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 600, margin: "0 2px 8px" }}>
-            <Trophy size={15} color={C.amber} /> Achievements <span style={{ fontFamily: "DM Sans", fontSize: 11.5, color: C.muted, fontWeight: 400 }}>· {achievements.length}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 600, margin: "0 2px 10px" }}>
+            <Trophy size={15} color={C.amber} /> Achievements
+            <span style={{ fontFamily: "DM Sans", fontSize: 11.5, color: C.muted, fontWeight: 400 }}>· {achievements.length} earned</span>
           </div>
-          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "thin", msOverflowStyle: "none" }} className="sprig-scroll">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {achievements.map((a) => (
-              <div key={a.id} style={{ flexShrink: 0, width: 138, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "11px 12px", boxShadow: C.shadow }}>
-                <div style={{ fontSize: 22, lineHeight: 1 }}>{a.icon}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginTop: 6, lineHeight: 1.3 }}>{a.title}</div>
-                <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3, lineHeight: 1.45 }}>{a.desc}</div>
+              <div key={a.id} style={{ background: C.card, border: `1px solid ${C.amber}33`, borderRadius: 16, padding: "14px 13px", boxShadow: C.shadow, display: "flex", gap: 11, alignItems: "flex-start" }}>
+                <div style={{ width: 42, height: 42, borderRadius: 12, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>{a.icon}</span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>{a.title}</div>
+                  <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3, lineHeight: 1.45 }}>{a.desc}</div>
+                </div>
               </div>
             ))}
           </div>

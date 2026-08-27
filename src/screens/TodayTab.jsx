@@ -1,8 +1,13 @@
 import React, { useState } from "react";
 import { Activity, Check, ChevronRight, Droplets, Dumbbell, Flame, Moon, Plus, Repeat, Zap } from "lucide-react";
 import { C } from "../theme.js";
-import { stepGoal, ACTIVITY_SOURCES, mealShortcuts, tonightPlan } from "../utils/vitaeCalc.js";
-import { btn, Btn, Ring, Badge, TodayWinsCard, PerfectRecoveryCard } from "../components/ui.jsx";
+import { stepGoal, ACTIVITY_SOURCES, mealShortcuts, tonightPlan, durLabel, scoreVerdict } from "../utils/vitaeCalc.js";
+import { btn, Btn, Ring, Badge, TodayWinsCard, PerfectRecoveryCard, ScoreDonut, ACTION_ICON } from "../components/ui.jsx";
+
+const HAPTIC_PATTERNS = { tap: 14, light: 10, select: 8, success: [30, 50, 30], complete: [30, 50, 50], strong: 40, error: [100, 50, 100] };
+function buzz(kind = "tap") {
+  try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
+}
 
 function MealShortcutsCard({ shortcuts, onLog }) {
   if (!shortcuts) return null;

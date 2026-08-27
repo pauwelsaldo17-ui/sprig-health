@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import {
   Activity, AlarmClock, BedDouble, Check, Coffee, Dumbbell, EyeOff, Flame,
-  Mic, Moon, MoonStar, PencilLine, Sun, Trash2, Volume2, Zap
+  Mic, MicOff, Moon, MoonStar, PencilLine, Sun, Trash2, Volume2, Zap
 } from "lucide-react";
 import { C } from "../theme.js";
 import {
   minToHM, minToLabel, durLabel, recommend, alcoholLevel, energyCurve,
-  minToHm, hmToMin, ALCOHOL_LEVELS, smartWake, sleepDebtLabel
+  minToHm, hmToMin, ALCOHOL_LEVELS, smartWake, sleepDebtLabel, tsToMin
 } from "../utils/vitaeCalc.js";
 import { btn, Btn, Legend, SubTabs, EmptyState } from "../components/ui.jsx";
 
@@ -33,12 +33,21 @@ function StageBar({ stages, advanced }) {
   );
 }
 
+function calcDurationMin(bedStr, wakeStr) {
+  const [bh, bm] = bedStr.split(":").map(Number);
+  const [wh, wm] = wakeStr.split(":").map(Number);
+  let dur = (wh * 60 + wm) - (bh * 60 + bm);
+  if (dur <= 0) dur += 24 * 60;
+  return dur;
+}
+
 function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec }) {
   const { debtMin, lastSleep, rec, need } = sleepInfo;
   const [showManual, setShowManual] = useState(false);
   const [bed, setBed] = useState("23:00");
   const [wake, setWake] = useState("07:00");
   const [qual, setQual] = useState(70);
+  const [nightOffset, setNightOffset] = useState(0); // 0 = last night, -1 = 2 nights ago, etc.
   const [editId, setEditId] = useState(null); // sleep log id being edited
   const [editBed, setEditBed] = useState("23:00");
   const [editWake, setEditWake] = useState("07:00");
@@ -47,12 +56,13 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
   const elapsed = session ? Math.round((Date.now() - session.bedTs) / 60000) : 0;
 
   function submitManual() {
-    const today = new Date(); const [bh, bm] = bed.split(":").map(Number); const [wh, wm] = wake.split(":").map(Number);
-    const wakeD = new Date(today); wakeD.setHours(wh, wm, 0, 0);
-    const bedD = new Date(today); bedD.setHours(bh, bm, 0, 0);
-    if (bh >= 12) bedD.setDate(bedD.getDate() - 1); // last night
+    const [bh, bm] = bed.split(":").map(Number); const [wh, wm] = wake.split(":").map(Number);
+    // wakeDate = today adjusted by nightOffset (0 = today, -1 = yesterday, etc.)
+    const wakeD = new Date(); wakeD.setDate(wakeD.getDate() + nightOffset); wakeD.setHours(wh, wm, 0, 0);
+    // If bed hour > wake hour (e.g. 23pm → 7am), bed was the calendar day before wake
+    const bedD = new Date(wakeD); bedD.setDate(bedD.getDate() - (bh > wh || (bh === wh && bm > wm) ? 1 : 0)); bedD.setHours(bh, bm, 0, 0);
     onManual({ bedTs: bedD.getTime(), wakeTs: wakeD.getTime(), restlessness: 100 - qual, source: "manual" });
-    setShowManual(false);
+    setShowManual(false); setNightOffset(0);
   }
 
   // live session view
@@ -101,21 +111,52 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
           Movement sensing needs mic access (often blocked in this preview) — no problem, the smart alarm still uses the sleep-cycle model.
         </div>
       )}
-      {showManual && (
-        <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, margin: "12px 0" }}>
-          <div style={{ display: "flex", gap: 12 }}>
-            <label style={{ flex: 1, fontSize: 12, color: C.inkSoft }}>Fell asleep
-              <input type="time" value={bed} onChange={(e) => setBed(e.target.value)} style={{ width: "100%", marginTop: 5, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg }} /></label>
-            <label style={{ flex: 1, fontSize: 12, color: C.inkSoft }}>Woke up
-              <input type="time" value={wake} onChange={(e) => setWake(e.target.value)} style={{ width: "100%", marginTop: 5, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg }} /></label>
+      {showManual && (() => {
+        const durMin = calcDurationMin(bed, wake);
+        const durH = (durMin / 60).toFixed(1);
+        const nightLabels = ["Last night", "2 nights ago", "3 nights ago", "4 nights ago", "5 nights ago", "6 nights ago", "7 nights ago"];
+        const presets = [["10pm–6am", "22:00", "06:00"], ["11pm–7am", "23:00", "07:00"], ["Midnight–8am", "00:00", "08:00"], ["1am–9am", "01:00", "09:00"]];
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, margin: "12px 0" }}>
+            {/* which night */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4, marginBottom: 6 }}>Which night?</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {nightLabels.slice(0, 4).map((label, i) => (
+                  <button key={i} className="sprig-tap" onClick={() => setNightOffset(-i)}
+                    style={{ border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 99, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: nightOffset === -i ? C.green : C.bg2, color: nightOffset === -i ? "#fff" : C.inkSoft }}>{label}</button>
+                ))}
+              </div>
+            </div>
+            {/* quick presets */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4, marginBottom: 6 }}>Quick preset</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {presets.map(([label, b, w]) => (
+                  <button key={label} className="sprig-tap" onClick={() => { setBed(b); setWake(w); }}
+                    style={{ border: `1px solid ${C.line}`, cursor: "pointer", padding: "6px 11px", borderRadius: 10, fontSize: 11.5, fontWeight: 600, fontFamily: "DM Sans", background: bed === b && wake === w ? C.green + "20" : C.bg, color: bed === b && wake === w ? C.greenSoft : C.inkSoft }}>{label}</button>
+                ))}
+              </div>
+            </div>
+            {/* time pickers + live duration */}
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+              <label style={{ flex: 1, fontSize: 12, color: C.inkSoft }}>Fell asleep
+                <input type="time" value={bed} onChange={(e) => setBed(e.target.value)} style={{ width: "100%", marginTop: 5, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink }} /></label>
+              <label style={{ flex: 1, fontSize: 12, color: C.inkSoft }}>Woke up
+                <input type="time" value={wake} onChange={(e) => setWake(e.target.value)} style={{ width: "100%", marginTop: 5, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontFamily: "DM Sans", fontSize: 14, background: C.bg, color: C.ink }} /></label>
+              <div style={{ textAlign: "center", paddingBottom: 2 }}>
+                <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: durMin >= 420 ? C.greenSoft : durMin >= 300 ? C.amber : C.coral }}>{durH}h</div>
+                <div style={{ fontSize: 10, color: C.muted }}>duration</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.inkSoft }}><span>How rested?</span><span style={{ fontWeight: 700, color: C.green }}>{qual}%</span></div>
+              <input type="range" min="10" max="100" value={qual} onChange={(e) => setQual(+e.target.value)} style={{ width: "100%", marginTop: 6, accentColor: C.green }} />
+            </div>
+            <button className="sprig-tap" onClick={submitManual} style={{ ...btn(C.green, "#fff"), width: "100%", padding: "12px 0", marginTop: 14 }}><Check size={16} /> Save {durH}h sleep</button>
           </div>
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.inkSoft }}><span>How rested?</span><span style={{ fontWeight: 700, color: C.green }}>{qual}%</span></div>
-            <input type="range" min="10" max="100" value={qual} onChange={(e) => setQual(+e.target.value)} style={{ width: "100%", marginTop: 6, accentColor: C.green }} />
-          </div>
-          <button className="sprig-tap" onClick={submitManual} style={{ ...btn(C.green, "#fff"), width: "100%", padding: "12px 0", marginTop: 14 }}><Check size={16} /> Save sleep</button>
-        </div>
-      )}
+        );
+      })()}
 
       {sub === "sleep" && (<>
       {/* sleep debt hero — only shown when there's real logged data */}

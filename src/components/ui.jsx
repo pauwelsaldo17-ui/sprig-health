@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Check, Award, Moon, Activity, Sparkles, Dumbbell, Flame, ChevronRight } from "lucide-react";
+import { Check, Award, Moon, Activity, Sparkles, Dumbbell, Flame, ChevronRight, BedDouble, HeartPulse, Coffee } from "lucide-react";
 import { C } from "../theme.js";
 import { MUSCLES } from "../utils/vitaeCalc.js";
 
@@ -508,3 +508,27 @@ export function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }
     </div>
   );
 }
+
+export function ScoreDonut({ score, size = 92 }) {
+  const col = score >= 70 ? C.greenSoft : score >= 50 ? C.amber : C.coral;
+  const r = (size - 14) / 2, circ = 2 * Math.PI * r, off = circ * (1 - score / 100);
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.18)" strokeWidth="9" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={col} strokeWidth="9" strokeLinecap="round"
+          strokeDasharray={circ} strokeDashoffset={off} transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{ transition: "stroke-dashoffset .7s ease" }} />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+        <span style={{ fontFamily: "Fraunces, serif", fontSize: 26, fontWeight: 700, lineHeight: 1 }}>{score}</span>
+        <span style={{ fontSize: 9.5, opacity: .7 }}>/ 100</span>
+      </div>
+    </div>
+  );
+}
+
+export const ACTION_ICON = {
+  train: <Dumbbell size={16} />, rest: <BedDouble size={16} />, pain: <HeartPulse size={16} />,
+  protein: <Flame size={16} />, food: <Flame size={16} />, walk: <Activity size={16} />,
+  water: <Coffee size={16} />, sleep: <Moon size={16} />, done: <Check size={16} />,
+};
