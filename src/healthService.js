@@ -29,18 +29,26 @@ const HC_READ = ["Steps", "Weight", "SleepSession", "ActiveCaloriesBurned", "Hea
 const HC_WRITE = ["Weight", "ActiveCaloriesBurned"];
 
 async function hcPlugin() {
-  const { HealthConnect } = await import("capacitor-health-connect");
+  let HealthConnect = null;
+  try {
+    const mod = await import("capacitor-health-connect");
+    HealthConnect = mod.HealthConnect ?? mod.default ?? null;
+  } catch (_) {
+    // Not available on web
+  }
   return HealthConnect;
 }
 
 async function requestAndroidHealth() {
   const hc = await hcPlugin();
+  if (!hc) return false;
   await hc.requestHealthPermissions({ read: HC_READ, write: HC_WRITE });
   return true;
 }
 
 async function readAndroidSteps(days = 7) {
   const hc = await hcPlugin();
+  if (!hc) return {};
   const end = new Date(); const start = new Date(end - days * 864e5);
   const byDay = {};
   for (let i = 0; i < days; i++) {

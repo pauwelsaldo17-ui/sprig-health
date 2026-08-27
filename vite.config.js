@@ -6,6 +6,7 @@ export default defineConfig({
   cacheDir: '/tmp/sprig_vite_cache',
   build: {
     rollupOptions: {
+      external: ['capacitor-health-connect'],
       output: {
         manualChunks: {
           'vendor-react':    ['react', 'react-dom'],
