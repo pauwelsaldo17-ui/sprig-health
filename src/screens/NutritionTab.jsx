@@ -1,10 +1,81 @@
 import React, { useState } from "react";
-import { BookMarked, Check, ChevronDown, Coffee, Flame, PencilLine, Pill, Plus, Search, Target, Trash2, Zap } from "lucide-react";
+import { BookMarked, Check, ChevronDown, Coffee, Flame, Moon, PencilLine, Pill, Plus, Search, Target, Trash2, X, Zap } from "lucide-react";
 import { C } from "../theme.js";
-import { pct, waterGoal, mealScore, MICRO_KEYS } from "../utils/vitaeCalc.js";
+import { pct, waterGoal, mealScore, MICRO_KEYS, uid, DRINK_PRESETS } from "../utils/vitaeCalc.js";
 import { btn, Btn, SubTabs, EmptyState, MacroBar, Ring, Stepper, useKeyboardInset, Portal, scrollIntoViewOnFocus } from "../components/ui.jsx";
 
 const MEAL_TAGS = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
+
+const HAPTIC_PATTERNS = { tap: 14, light: 10, select: 8, success: [30, 50, 30], complete: [30, 50, 50], strong: 40, error: [100, 50, 100] };
+function buzz(kind = "tap") {
+  try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
+}
+
+function DrinksCard({ daily, onDaily, onAddEntry }) {
+  const [open, setOpen] = React.useState(false);
+  const drinks = Array.isArray(daily?.alcoholDrinks) ? daily.alcoholDrinks : [];
+  const totalG = drinks.reduce((a, d) => a + (d.alcohol_g || 0), 0);
+  const totalKcal = drinks.reduce((a, d) => a + (d.kcal || 0), 0);
+  const heavy = totalG >= 30;
+  const moderate = totalG >= 15 && totalG < 30;
+  const log = (preset) => {
+    const next = [...drinks, { id: uid(), ts: Date.now(), ...preset }];
+    onDaily({ alcoholDrinks: next, alcohol_g: next.reduce((a, d) => a + (d.alcohol_g || 0), 0), alcohol: next.length });
+    buzz("light");
+    if (onAddEntry) onAddEntry({ name: preset.name, calories: preset.kcal, protein_g: 0, carbs_g: preset.carbs || 0, fat_g: 0, fiber_g: 0, alcohol_g: preset.alcohol_g || 0, mult: 1, ts: Date.now() });
+  };
+  const removeDrink = (id) => {
+    const next = drinks.filter((d) => d.id !== id);
+    onDaily({ alcoholDrinks: next, alcohol_g: next.reduce((a, d) => a + (d.alcohol_g || 0), 0), alcohol: next.length });
+  };
+  return (
+    <div style={{ background: C.card, borderRadius: 14, padding: "12px 13px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
+        <span style={{ fontSize: 14 }}>🍷</span>
+        <div style={{ flex: 1, fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>Drinks today</div>
+        {drinks.length > 0 && <span style={{ fontSize: 11.5, color: heavy ? C.coral : moderate ? C.amber : C.muted, fontWeight: 600 }}>{totalG}g · {totalKcal} kcal</span>}
+      </div>
+      {drinks.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+          {drinks.map((d) => (
+            <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.ink, padding: "5px 0" }}>
+              <span style={{ flex: 1 }}>{d.name}</span>
+              <span style={{ color: C.muted, fontSize: 11.5 }}>{d.kcal} kcal</span>
+              <button className="sprig-tap" onClick={() => removeDrink(d.id)} aria-label="Remove" style={{ background: "transparent", border: "none", cursor: "pointer", color: C.muted, padding: 2 }}><X size={12} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {!open ? (
+        <button className="sprig-tap" onClick={() => setOpen(true)} style={{ width: "100%", background: C.bg2, border: "none", cursor: "pointer", borderRadius: 9, padding: "8px 0", fontSize: 12, fontWeight: 600, color: C.coral, fontFamily: "DM Sans" }}>
+          <Plus size={12} /> Log a drink
+        </button>
+      ) : (
+        <div style={{ background: C.bg, borderRadius: 11, padding: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {DRINK_PRESETS.map((p) => (
+              <button key={p.id} className="sprig-tap" onClick={() => log(p)}
+                style={{ background: C.card, border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 9, padding: "8px 11px", display: "flex", alignItems: "center", gap: 8, fontFamily: "DM Sans" }}>
+                <span style={{ flex: 1, textAlign: "left", fontSize: 12.5, color: C.ink, fontWeight: 600 }}>{p.name}</span>
+                <span style={{ fontSize: 11, color: C.muted }}>{p.kcal} kcal · {p.alcohol_g}g</span>
+              </button>
+            ))}
+          </div>
+          <button className="sprig-tap" onClick={() => setOpen(false)} style={{ ...btn(C.bg2, C.inkSoft), width: "100%", padding: "8px 0", fontSize: 12, marginTop: 8 }}>Done</button>
+          <div style={{ fontSize: 10, color: C.muted, marginTop: 6, lineHeight: 1.5, textAlign: "center" }}>
+            Calories count toward today's total. Adjust your weight trend over time.
+          </div>
+        </div>
+      )}
+      {(moderate || heavy) && (
+        <div style={{ marginTop: 8, padding: "8px 10px", background: heavy ? "#fdeee8" : "#fdf6e9", borderRadius: 9, fontSize: 11.5, color: heavy ? C.coral : C.amber, lineHeight: 1.5, display: "flex", gap: 7, alignItems: "flex-start" }}>
+          <Moon size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Alcohol calories are counted. Recovery and sleep may be worse tonight.</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
   const kb = useKeyboardInset();
