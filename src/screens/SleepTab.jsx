@@ -10,6 +10,49 @@ import {
 } from "../utils/vitaeCalc.js";
 import { btn, Btn, Legend, SubTabs, EmptyState, Ring } from "../components/ui.jsx";
 
+let _audioCtx = null;
+function getAudioCtx() {
+  if (typeof window === "undefined") return null;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!_audioCtx) _audioCtx = new AC();
+    if (_audioCtx.state === "suspended") _audioCtx.resume();
+    return _audioCtx;
+  } catch (_) { return null; }
+}
+function playAlarmTone(kind = "bells", volume = 0.7) {
+  if (kind === "vibrate") {
+    try { navigator.vibrate?.([200, 120, 200]); } catch (_) {}
+    return 600;
+  }
+  const ctx = getAudioCtx();
+  if (!ctx) return 0;
+  const vol = Math.max(0, Math.min(1, volume == null ? 0.7 : volume));
+  const now = ctx.currentTime;
+  const SEQ = {
+    bells: [[880, 0, 0.4], [1108, 0.16, 0.5], [1318, 0.32, 0.6]],
+    beep:  [[1000, 0, 0.12], [1000, 0.2, 0.12], [1000, 0.4, 0.12]],
+    chime: [[523, 0, 0.5], [659, 0.22, 0.5], [784, 0.44, 0.7]],
+    deep:  [[170, 0, 0.7], [130, 0.06, 0.7]],
+  }[kind] || [[880, 0, 0.4]];
+  const wave = kind === "deep" ? "sawtooth" : (kind === "beep" ? "square" : "sine");
+  let end = 0;
+  SEQ.forEach(([f, t, d]) => {
+    try {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = wave; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, now + t);
+      g.gain.linearRampToValueAtTime(vol, now + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + d);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(now + t); o.stop(now + t + d + 0.05);
+      end = Math.max(end, t + d);
+    } catch (_) {}
+  });
+  return Math.round(end * 1000) + 100;
+}
+
 function StageBar({ stages, advanced }) {
   if (!stages || (stages.deep == null && stages.rem == null && stages.light == null)) return null;
   const deep = stages.deep || 0, rem = stages.rem || 0, light = stages.light || 0;

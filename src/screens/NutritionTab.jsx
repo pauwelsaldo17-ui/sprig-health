@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { BookMarked, Check, ChevronDown, Coffee, Flame, Moon, PencilLine, Pill, Plus, Search, Target, Trash2, X, Zap } from "lucide-react";
 import { C } from "../theme.js";
-import { pct, waterGoal, mealScore, MICRO_KEYS, uid, DRINK_PRESETS } from "../utils/vitaeCalc.js";
+import { pct, waterGoal, mealScore, MICRO_KEYS, uid, DRINK_PRESETS, minToLabel, tsToMin } from "../utils/vitaeCalc.js";
 import { btn, Btn, SubTabs, EmptyState, MacroBar, Ring, Stepper, useKeyboardInset, Portal, scrollIntoViewOnFocus } from "../components/ui.jsx";
 
 const MEAL_TAGS = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
