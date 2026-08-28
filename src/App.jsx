@@ -3850,7 +3850,8 @@ function SprigApp() {
         {tab === "targets" && <MeTab view="targets" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}
-          rirPref={rirPref} onSaveRirPref={saveRirPref} user={cloudUser} />}
+          rirPref={rirPref} onSaveRirPref={saveRirPref} user={cloudUser}
+          onSyncToCloud={syncToCloud} onRestoreFromCloud={restoreFromCloud} />}
         {tab === "settings" && <MeTab view="settings" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
           themeMode={themeMode} onSetTheme={setTheme}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
@@ -3859,7 +3860,8 @@ function SprigApp() {
           rirPref={rirPref} onSaveRirPref={saveRirPref}
           trackingPrefs={trackingPrefs} onSaveTrackingPrefs={persistTrackingPrefs}
           onDevSeedFull={devSeedFullDay} onDevSeedQL={devSeedQuickLogDay} onDevClearToday={devClearToday}
-          user={cloudUser} onHealthSync={applyHealthSync} />}
+          user={cloudUser} onHealthSync={applyHealthSync}
+          onSyncToCloud={syncToCloud} onRestoreFromCloud={restoreFromCloud} />}
         </div>{/* /tab-enter */}
       </div>
 

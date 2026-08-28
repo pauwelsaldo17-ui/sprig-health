@@ -149,7 +149,7 @@ function CalorieTrendCard({ rec, onAdjust }) {
 }
 
 /* ---------------- Activity Sources settings section -------------- */
-function ActivitySourcesSection({ profile, onSetSource }) {
+export function ActivitySourcesSection({ profile, onSetSource }) {
   const current = profile?.activitySourcePreference || "manual";
   return (
     <div style={{ marginTop: 14 }}>

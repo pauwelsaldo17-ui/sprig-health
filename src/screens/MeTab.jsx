@@ -6,7 +6,7 @@ import {
   HeartHandshake, RefreshCw
 } from "lucide-react";
 import { C } from "../theme.js";
-import { computeTargets, ALARM_SOUNDS } from "../utils/vitaeCalc.js";
+import { computeTargets, ALARM_SOUNDS, SPORTS, EQUIPMENT, minToLabel } from "../utils/vitaeCalc.js";
 import { btn, Btn } from "../components/ui.jsx";
 
 const HAPTIC_PATTERNS = { tap: 14, light: 10, select: 8, success: [30, 50, 30], complete: [30, 50, 50], strong: 40, error: [100, 50, 100] };
@@ -15,6 +15,53 @@ function buzz(kind = "tap") {
 }
 import { useSupabaseAuth } from "../hooks/useSupabaseAuth.js";
 import { isHealthAvailable, requestHealthPermissions, syncHealthData } from "../healthService.js";
+import GDPRScreen from "./GDPRScreen.jsx";
+import PrivacyScreen from "./PrivacyScreen.jsx";
+import TermsScreen from "./TermsScreen.jsx";
+import { ActivitySourcesSection } from "./TodayTab.jsx";
+
+let _audioCtx = null;
+function getAudioCtx() {
+  if (typeof window === "undefined") return null;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!_audioCtx) _audioCtx = new AC();
+    if (_audioCtx.state === "suspended") _audioCtx.resume();
+    return _audioCtx;
+  } catch (_) { return null; }
+}
+function playAlarmTone(kind = "bells", volume = 0.7) {
+  if (kind === "vibrate") {
+    try { navigator.vibrate?.([200, 120, 200]); } catch (_) {}
+    return 600;
+  }
+  const ctx = getAudioCtx();
+  if (!ctx) return 0;
+  const vol = Math.max(0, Math.min(1, volume == null ? 0.7 : volume));
+  const now = ctx.currentTime;
+  const SEQ = {
+    bells: [[880, 0, 0.4], [1108, 0.16, 0.5], [1318, 0.32, 0.6]],
+    beep:  [[1000, 0, 0.12], [1000, 0.2, 0.12], [1000, 0.4, 0.12]],
+    chime: [[523, 0, 0.5], [659, 0.22, 0.5], [784, 0.44, 0.7]],
+    deep:  [[170, 0, 0.7], [130, 0.06, 0.7]],
+  }[kind] || [[880, 0, 0.4]];
+  const wave = kind === "deep" ? "sawtooth" : (kind === "beep" ? "square" : "sine");
+  let end = 0;
+  SEQ.forEach(([f, t, d]) => {
+    try {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = wave; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, now + t);
+      g.gain.linearRampToValueAtTime(vol, now + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + d);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(now + t); o.stop(now + t + d + 0.05);
+      end = Math.max(end, t + d);
+    } catch (_) {}
+  });
+  return Math.round(end * 1000) + 100;
+}
 
 function HealthIntegrationCard({ onSync }) {
   const [available, setAvailable] = useState(null);
@@ -79,7 +126,7 @@ function HealthIntegrationCard({ onSync }) {
   );
 }
 
-function AccountSection() {
+function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
   const { user, loading, supabase } = useSupabaseAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -162,7 +209,7 @@ function AccountSection() {
   }
   async function handleSync() {
     setBusy(true); setMsg(null);
-    const r = await syncToCloud();
+    const r = await (onSyncToCloud ? onSyncToCloud() : Promise.resolve({ ok: false, error: "Not configured." }));
     setBusy(false);
     if (!r.ok) { buzz("error"); return note(false, r.error); }
     setLastSynced(new Date().toISOString());
@@ -172,7 +219,7 @@ function AccountSection() {
   async function handleRestore() {
     setConfirmRestore(false);
     setBusy(true); setMsg(null);
-    const r = await restoreFromCloud();
+    const r = await (onRestoreFromCloud ? onRestoreFromCloud() : Promise.resolve({ ok: false, error: "Not configured." }));
     setBusy(false);
     if (!r.ok) return note(false, r.error);
     note(true, "Restored " + r.count + " keys. Reloading…");
@@ -440,7 +487,7 @@ export function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoS
   );
 }
 
-function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday, user, onHealthSync }) {
+function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday, user, onHealthSync, onSyncToCloud, onRestoreFromCloud }) {
   const saveRirPref = onSaveRirPref || (() => {});
   const [confirmResetOnb, setConfirmResetOnb] = useState(false);
   const importRef = useRef(null);
@@ -1063,7 +1110,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       <HealthIntegrationCard onSync={onHealthSync} />
 
       {/* ACCOUNT (optional cloud sync) */}
-      <AccountSection />
+      <AccountSection onSyncToCloud={onSyncToCloud} onRestoreFromCloud={onRestoreFromCloud} />
 
       {/* DATA & PRIVACY */}
       {onExportJSON && (
