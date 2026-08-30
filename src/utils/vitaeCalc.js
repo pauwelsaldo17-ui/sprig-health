@@ -4075,13 +4075,16 @@ export function getDailyTruth({
             : `${gapG}g protein remaining`,
         }
       );
-    } else if (qlProtein || qlCalories) {
-      nutrition = mk("completed", "quick_log", "medium", {
+    } else if (ql !== null && (ql.hitProtein !== null && ql.hitProtein !== undefined || ql.hitCalories !== null && ql.hitCalories !== undefined)) {
+      const _anyHit = qlProtein || qlCalories;
+      nutrition = mk(_anyHit ? "completed" : "partial", "quick_log", "medium", {
         protein: null, calories: null,   // never invent grams from QL
-        proteinOk: qlProtein, calOk: qlCalories,
+        proteinOk: ql.hitProtein ?? null, calOk: ql.hitCalories ?? null,
         label: qlProtein ? "Protein hit"
              : qlCalories ? "Calories OK"
-             : "Nutrition OK",
+             : ql.hitProtein === false ? "Protein not hit"
+             : ql.hitCalories === false ? "Calories short"
+             : "Nutrition logged",
       });
     } else {
       nutrition = unk({ label: "No food logged yet" });
@@ -4440,21 +4443,44 @@ export function coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, daily
     : sug ? `Best session today: ${sug.label}.` : "Train based on what's recovered.";
 
   // ---- NUTRITION COACH ----
+  const _now = new Date();
+  const _hourOfDay = _now.getHours();
+  const _earlyInDay = _hourOfDay < 14;
+  const _dayFraction = Math.max((_hourOfDay + _now.getMinutes() / 60) / 24, 0.1);
+  const _projectedProtein = _earlyInDay ? (t.protein || 0) / _dayFraction : (t.protein || 0);
+  const _projectedCalories = _earlyInDay ? (t.calories || 0) / _dayFraction : (t.calories || 0);
   const nutriBullets = [];
   if (tp.nutrition === false) {
     nutriBullets.push("You're not tracking nutrition right now. Start tracking from More → Tracking preferences if you want nutrition advice.");
   } else if (dtN?.source === "exact") {
-    const proteinLeft = Math.max(0, Math.round(targets.protein - t.protein));
-    const calLeft = Math.round(targets.calories - t.calories);
-    if (proteinLeft >= 20) nutriBullets.push(`Protein: ${Math.round(t.protein)}/${targets.protein}g — eat ${proteinLeft}g more.`);
-    else nutriBullets.push(`Protein on track (${Math.round(t.protein)}/${targets.protein}g).`);
-    if (Math.abs(calLeft) > 250) nutriBullets.push(calLeft > 0 ? `${calLeft} kcal left for your ${targets.goal === "lose" ? "cut" : targets.goal === "gain" ? "bulk" : "day"}.` : `${Math.abs(calLeft)} kcal over — lighter dinner or a walk.`);
+    const proteinLeft = Math.max(0, Math.round(targets.protein - _projectedProtein));
+    const calLeft = Math.round(targets.calories - _projectedCalories);
+    if (_earlyInDay && proteinLeft < 20) {
+      nutriBullets.push(`Protein on track so far (${Math.round(t.protein)}g logged, ~${Math.round(_projectedProtein)}g projected for today).`);
+    } else if (proteinLeft >= 20) {
+      nutriBullets.push(`Protein: ${Math.round(t.protein)}/${targets.protein}g${_earlyInDay ? " — projected short, keep eating" : ` — eat ${proteinLeft}g more`}.`);
+    } else {
+      nutriBullets.push(`Protein on track (${Math.round(t.protein)}/${targets.protein}g).`);
+    }
+    if (Math.abs(calLeft) > 250) {
+      if (_earlyInDay && calLeft > 0) {
+        nutriBullets.push(`Calories on track so far — ${Math.round(_projectedCalories)} projected for the day.`);
+      } else {
+        nutriBullets.push(calLeft > 0 ? `${calLeft} kcal left for your ${targets.goal === "lose" ? "cut" : targets.goal === "gain" ? "bulk" : "day"}.` : `${Math.abs(calLeft)} kcal over — lighter dinner or a walk.`);
+      }
+    }
     if (t.fiber < targets.fiber * 0.7) nutriBullets.push(`Fiber low (${Math.round(t.fiber)}/${targets.fiber}g) — add fruit, veg, or oats.`);
     if (nutriInfo.missing?.length) { const top = nutriInfo.missing[0]; nutriBullets.push(`Lowest: ${top.label} (${top.pct}%) — try ${top.food.split(",").slice(0, 2).join(",")}.`); }
   } else if (dtN?.source === "quick_log") {
-    nutriBullets.push(ql?.hitProtein === true ? "Protein target hit · Quick Log. Log meals for exact gram tracking." : "Nutrition marked via Quick Log — no exact data available.");
+    if (ql?.hitProtein === true) {
+      nutriBullets.push("Protein target hit · Quick Log. Log meals for exact gram tracking.");
+    } else if (ql?.hitProtein === false) {
+      nutriBullets.push("Protein below target today · Quick Log. Add a protein source to your next meal.");
+    } else {
+      nutriBullets.push("Nutrition marked via Quick Log — no exact data available.");
+    }
     if (ql?.hitCalories === true) nutriBullets.push("Calories on track · Quick Log.");
-    else if (ql?.hitCalories === false) nutriBullets.push(`Calories marked low today. Log a meal to track precisely.`);
+    else if (ql?.hitCalories === false) nutriBullets.push("Calories marked low today. Log a meal to track precisely.");
   } else {
     nutriBullets.push("No food logged yet today. Add your first meal or use Quick Log to mark nutrition status.");
   }

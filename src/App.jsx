@@ -1581,6 +1581,17 @@ function detectLoggingGap({ date, entries, workouts, sleepLogs, quickLog, tracki
   if (snooze && (snooze.count || 0) >= 2) return { show: false };
   // Only prompt after 16:00
   if (new Date().getHours() < 16) return { show: false };
+  // Don't show if the user already completed the quick log today (via localStorage date stamp)
+  try {
+    const qlDate = localStorage.getItem("vitae_quicklog_date");
+    if (qlDate === date) return { show: false };
+  } catch (_) {}
+  // Rate-limit: don't show again within 4 hours of the last app open
+  try {
+    const lastOpen = localStorage.getItem("vitae_last_open");
+    const hoursSinceOpen = lastOpen ? (Date.now() - parseInt(lastOpen, 10)) / 3600000 : 999;
+    if (hoursSinceOpen < 4) return { show: false };
+  } catch (_) {}
   // If quick log exists, no prompt needed
   if (quickLog) return { show: false };
   const tp = trackingPrefs || {};
@@ -2030,6 +2041,8 @@ function SprigApp() {
         if (ver < DATA_VERSION) {
           try { await store.set("sprig_data_version_v1", JSON.stringify(DATA_VERSION)); } catch (_) { /* non-fatal */ }
         }
+        // Record app open timestamp for rate-limiting the ForgotToLog prompt
+        try { localStorage.setItem("vitae_last_open", Date.now().toString()); } catch (_) {}
         setReady(true);
       } catch (err) {
         // Catastrophic load failure (storage API broken, quota error, etc.) → Safe Mode
@@ -2696,7 +2709,11 @@ function SprigApp() {
     // wrongly send every question to the local fallback. Better to actually try the network and
     // fall back on a real error.
 
-    const system = "You are Vitae Coach, an elite evidence-based coach. Answer the user's question directly. Use the user's data only when relevant. Do not give a full audit unless asked. Do not use canned templates. Think like a real coach reviewing a client's data. Never invent exact numbers for anything marked quick_log, unknown, or disabled in dataQuality — speak in estimates for those. Do not diagnose injuries or medical conditions; for sharp pain, swelling, suspected injury, or any serious/worsening symptom, recommend rest and seeing a doctor or physiotherapist instead of guessing a cause.";
+    const _coachNow = new Date();
+    const _coachHour = _coachNow.getHours();
+    const _coachTimeStr = `${String(_coachHour).padStart(2, "0")}:${String(_coachNow.getMinutes()).padStart(2, "0")}`;
+    const _coachPeriod = _coachHour < 12 ? "morning" : _coachHour < 17 ? "afternoon" : "evening";
+    const system = `You are Vitae Coach, an elite evidence-based coach. Answer the user's question directly. Use the user's data only when relevant. Do not give a full audit unless asked. Do not use canned templates. Think like a real coach reviewing a client's data. Never invent exact numbers for anything marked quick_log, unknown, or disabled in dataQuality — speak in estimates for those. Do not diagnose injuries or medical conditions; for sharp pain, swelling, suspected injury, or any serious/worsening symptom, recommend rest and seeing a doctor or physiotherapist instead of guessing a cause. Current local time: ${_coachTimeStr} (${_coachPeriod}). Do NOT flag today's calories or protein as insufficient if the current time is before 14:00 — the user may not have eaten all meals yet. If before 14:00, base nutrition assessment on projected daily intake (current intake ÷ fraction of day elapsed × 24) rather than raw totals.`;
 
     // Structured coaching context. We hand the model the whole picture and let it choose what to use.
     // Keys are deliberately readable so the model interprets them correctly.
@@ -4377,10 +4394,14 @@ function SprigApp() {
             const wCands = detectDayWins({ t, daily, targets, sleepInfo: { waterGoal: profile?.weight ? Math.round(profile.weight * 35) : 2500 }, profile, quickLog: ql });
             if (wCands.length) recordWins(wCands, date);
           } catch (_) {}
+          try { localStorage.setItem("vitae_quicklog_date", new Date().toISOString().slice(0, 10)); } catch (_) {}
           setQuickOpen(false);
           logged("Day quick logged ⚡", "success");
         }}
-        onClose={() => setQuickOpen(false)} />}
+        onClose={() => {
+          try { localStorage.setItem("vitae_quicklog_date", new Date().toISOString().slice(0, 10)); } catch (_) {}
+          setQuickOpen(false);
+        }} />}
 
       {/* All of today's wins */}
       {winsOpen && (
