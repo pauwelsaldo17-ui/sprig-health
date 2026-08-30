@@ -6,7 +6,7 @@ import {
 import { C } from "../theme.js";
 import {
   minToHM, minToLabel, durLabel, recommend, alcoholLevel, energyCurve,
-  minToHm, hmToMin, ALCOHOL_LEVELS, smartWake, sleepDebtLabel, tsToMin
+  minToHm, hmToMin, ALCOHOL_LEVELS, smartWake, sleepDebtLabel, tsToMin, DAYMIN
 } from "../utils/vitaeCalc.js";
 import { btn, Btn, Legend, SubTabs, EmptyState, Ring } from "../components/ui.jsx";
 

@@ -26,7 +26,7 @@ import CoachTab from "./screens/CoachTab.jsx";
 import MeTab, { MoreTab } from "./screens/MeTab.jsx";
 import TrendsTab from "./screens/TrendsTab.jsx";
 import SleepTab, { EnergyTab } from "./screens/SleepTab.jsx";
-import NutritionTab, { MealsTab } from "./screens/NutritionTab.jsx";
+import NutritionTab, { MealsTab, FavoriteFormSheet } from "./screens/NutritionTab.jsx";
 import TodayTab from "./screens/TodayTab.jsx";
 import { useSupabaseAuth } from "./hooks/useSupabaseAuth.js";
 import { C, THEMES, applyTheme } from "./theme.js";
@@ -37,6 +37,8 @@ try {
   const saved = (typeof window !== "undefined") && window.localStorage ? window.localStorage.getItem("sprig_theme_v1") : null;
   if (saved === "light" || saved === "dark") applyTheme(saved);
 } catch (_) {}
+
+const fmtClock = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 // Register for native push notifications via Capacitor (no-op on web).
 // Called once after the user is logged in. Stores the FCM/APNs token in Supabase

@@ -7350,7 +7350,7 @@ function SprigApp() {
       if (profile?.restTimerSound !== false) { try { playAlarmTone(profile?.restTimerSoundChoice || "beep", profile?.alarmVolume ?? 0.7); } catch (_) {} }
       if (profile?.restTimerVibrate !== false) buzz("finish");
       // auto-dismiss the "Go!" state after 4 seconds
-      setTimeout(() => { try { setRestDone(false); setRest(null); setRestLeft(0); } catch (_) {} }, 4000);
+      setTimeout(() => { try { setRestDone(false); setRest(null); } catch (_) {} }, 4000);
       showToast("Rest complete", "success");
       setRestDone(true);
       setTimeout(() => setRestDone(false), 4000);

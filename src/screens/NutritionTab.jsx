@@ -553,5 +553,5 @@ function MealsTab({ library, onLog, onRemove, onNew }) {
   );
 }
 
-export { MealsTab };
+export { MealsTab, FavoriteFormSheet };
 export default NutritionTab;
