@@ -2828,6 +2828,12 @@ function SprigApp() {
     setResult(null);
     setTab("today");
   }
+  function addSuppDirect({ name, serving }) {
+    const supp = { id: uid(), name, serving: serving || "", calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0, micros: {}, omega3: null, mult: 1 };
+    const next = [supp, ...supps].slice(0, 40);
+    persistSupps(next);
+    persistTaken([...takenIds, supp.id]);
+  }
 
   /* ---- sleep ---- */
   const persistSleep = async (next) => { setSleepLogs(next); await store.set("sprig_sleep_v1", JSON.stringify(next)); };
@@ -3811,7 +3817,7 @@ function SprigApp() {
           <NutritionTab t={t} targets={targets} entries={entries} onRemove={removeEntry} profile={profile} advanced={advanced}
             sub={foodSub} onSub={setFoodSub}
             nutriInfo={nutriInfo} moveInfo={moveInfo} sleepInfo={sleepInfo} daily={daily} onDaily={persistDaily} onAddEntry={addEntry}
-            supps={supps} takenIds={takenIds} onToggleSupp={toggleTaken} onRemoveSupp={removeSupp} onAddSupp={() => { setFoodOverlayMode("supp"); setResult(null); }}
+            supps={supps} takenIds={takenIds} onToggleSupp={toggleTaken} onRemoveSupp={removeSupp} onAddSupp={() => { setFoodOverlayMode("supp"); setResult(null); }} onSuppDirect={addSuppDirect}
             library={library} onQuick={logFromLibrary} entriesHistory={entriesHistory}
             favoriteMeals={favoriteMeals} onSaveFavorite={saveFavoriteMeal} onReplaceFavorite={replaceFavoriteMeal}
             onUpdateFavorite={updateFavoriteMeal} onRemoveFavorite={removeFavoriteMeal} onAddFavorite={addFavoriteToToday}
@@ -3846,7 +3852,8 @@ function SprigApp() {
         )}
         {tab === "meals" && (
           <MealsTab library={library} onLog={logFromLibrary} onRemove={removeLibrary} onNew={() => { setTab("today"); setFoodOverlayMode("text"); }}
-            entries={entries} onAddEntry={addEntry} entriesHistory={entriesHistory} />
+            entries={entries} onAddEntry={addEntry} entriesHistory={entriesHistory}
+            favoriteMeals={favoriteMeals} onSaveFavorite={saveFavoriteMeal} onRemoveFavorite={removeFavoriteMeal} onUpdateFavorite={updateFavoriteMeal} />
         )}
         {tab === "sleep" && (
           <SleepTab sleepLogs={sleepLogs} sleepInfo={sleepInfo} alarm={alarm} onSaveAlarm={saveAlarm}

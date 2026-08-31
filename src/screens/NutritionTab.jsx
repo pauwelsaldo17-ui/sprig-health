@@ -1,4 +1,4 @@
-// src/screens/NutritionTab.jsx  — MacroFactor-inspired rebuild 2026-08-31
+﻿// src/screens/NutritionTab.jsx  — MacroFactor-inspired rebuild 2026-08-31
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   BookMarked, ChevronDown, ChevronLeft, ChevronRight, Check,
@@ -35,6 +35,25 @@ function formatHeaderDate(dateStr) {
 
 // ── Macro colors ─────────────────────────────────────────────────────────────
 const MC = { protein: "#4A9EDB", carbs: "#F5A623", fat: "#9B6BBE", fiber: "#52B788" };
+
+// ── Common supplements list ───────────────────────────────────────────────────
+const COMMON_SUPPLEMENTS = [
+  { name: "Vitamin D3",        dose: "1000 IU",     emoji: "☀️" },
+  { name: "Omega-3 Fish Oil",  dose: "1g",           emoji: "🐟" },
+  { name: "Magnesium",         dose: "400mg",        emoji: "💊" },
+  { name: "Creatine",          dose: "5g",           emoji: "💪" },
+  { name: "Vitamin C",         dose: "500mg",        emoji: "🍊" },
+  { name: "Zinc",              dose: "25mg",         emoji: "🔩" },
+  { name: "Vitamin B12",       dose: "500mcg",       emoji: "⚡" },
+  { name: "Multivitamin",      dose: "1 tablet",     emoji: "🌈" },
+  { name: "Whey Protein",      dose: "1 scoop (30g)",emoji: "🥛" },
+  { name: "Ashwagandha",       dose: "600mg",        emoji: "🌿" },
+  { name: "Collagen",          dose: "10g",          emoji: "✨" },
+  { name: "Probiotics",        dose: "1 capsule",    emoji: "🦠" },
+  { name: "Pre-workout",       dose: "1 scoop",      emoji: "⚡" },
+  { name: "Melatonin",         dose: "3mg",          emoji: "🌙" },
+  { name: "Turmeric/Curcumin", dose: "500mg",        emoji: "🟡" },
+];
 
 // ── SECTION A: Swipeable Nutrition Banner ─────────────────────────────────────
 function NutritionBanner({ t, targets, adjTarget }) {
@@ -255,12 +274,6 @@ function FoodEntryRow({ entry, onRemove, isToday: isT, flashId }) {
           <div style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: 16, color: C.ink, flexShrink: 0 }}>
             {fmtCal(kcal)}
           </div>
-          {isT && !open && (
-            <button className="sprig-tap" onClick={() => { setOpen(true); setTx(-80); }}
-              style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4, flexShrink: 0 }}>
-              <Trash2 size={14} />
-            </button>
-          )}
           {open && (
             <button className="sprig-tap" onClick={() => { onRemove(entry.id); buzz("light"); }}
               style={{ ...btn(C.coral, "#fff"), padding: "6px 10px", fontSize: 12, flexShrink: 0 }}>
@@ -809,21 +822,168 @@ function FavoriteFormSheet({ form, setForm, isNew, onClose, onSubmit }) {
   );
 }
 
+// ── Supplement Picker Sheet ───────────────────────────────────────────────────
+function SuppPickerSheet({ open, onClose, supps = [], onSuppDirect }) {
+  const [added, setAdded] = useState([]);
+  const [customName, setCustomName] = useState("");
+  const [customDose, setCustomDose] = useState("");
+  const [customEmoji, setCustomEmoji] = useState("💊");
+
+  if (!open) return null;
+
+  const existingNames = supps.map((s) => s.name.toLowerCase());
+
+  const handleAddCommon = (s) => {
+    if (existingNames.includes(s.name.toLowerCase())) return;
+    if (added.includes(s.name)) return;
+    onSuppDirect({ name: s.name, serving: s.dose });
+    setAdded((prev) => [...prev, s.name]);
+    buzz("success");
+  };
+
+  const handleAddCustom = () => {
+    if (!customName.trim()) return;
+    onSuppDirect({ name: customName.trim(), serving: customDose.trim() });
+    setCustomName(""); setCustomDose(""); setCustomEmoji("💊");
+    buzz("success");
+  };
+
+  return (
+    <Portal>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(6px)", zIndex: 300 }} />
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.bg, borderRadius: "24px 24px 0 0", maxHeight: "88vh", overflowY: "auto", zIndex: 301, maxWidth: 480, margin: "0 auto" }}>
+        <div style={{ padding: "20px 18px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: C.ink }}>Add supplement</div>
+            <button className="sprig-tap" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.ink, padding: 4 }}><X size={20} /></button>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.8 }}>Popular supplements</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 22 }}>
+            {COMMON_SUPPLEMENTS.map((s) => {
+              const isAdded = added.includes(s.name) || existingNames.includes(s.name.toLowerCase());
+              return (
+                <button key={s.name} className="sprig-tap" onClick={() => handleAddCommon(s)}
+                  style={{ background: isAdded ? C.green + "18" : C.card, border: `1px solid ${isAdded ? C.green + "66" : C.line}`, borderRadius: 14, padding: "11px 10px", cursor: isAdded ? "default" : "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 8, fontFamily: "DM Sans" }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{s.emoji}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                    <div style={{ fontSize: 10.5, color: C.muted }}>{s.dose}</div>
+                  </div>
+                  {isAdded && <Check size={13} color={C.greenSoft} style={{ flexShrink: 0 }} />}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.8 }}>Custom supplement</div>
+          <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "14px" }}>
+            <input value={customName} onChange={(e) => setCustomName(e.target.value)} onFocus={scrollIntoViewOnFocus}
+              placeholder="Name (e.g. Berberine)"
+              style={{ width: "100%", background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 12px", fontSize: 13.5, color: C.ink, fontFamily: "DM Sans", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input value={customDose} onChange={(e) => setCustomDose(e.target.value)} onFocus={scrollIntoViewOnFocus}
+                placeholder="Dose (e.g. 500mg)"
+                style={{ flex: 1, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 12px", fontSize: 13.5, color: C.ink, fontFamily: "DM Sans", outline: "none" }} />
+              <input value={customEmoji} onChange={(e) => setCustomEmoji(e.target.value)}
+                placeholder="💊" maxLength={2}
+                style={{ width: 50, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 0", fontSize: 18, color: C.ink, fontFamily: "DM Sans", outline: "none", textAlign: "center" }} />
+            </div>
+            <button className="sprig-tap" onClick={handleAddCustom} disabled={!customName.trim()}
+              style={{ ...btn(customName.trim() ? C.green : C.bg2, customName.trim() ? "#fff" : C.muted), width: "100%", padding: "11px 0", fontSize: 13.5, borderRadius: 12, justifyContent: "center" }}>
+              <Plus size={15} /> Add to stack
+            </button>
+          </div>
+        </div>
+        <div style={{ height: 40 }} />
+      </div>
+    </Portal>
+  );
+}
+
+// ── Food Quality Score ────────────────────────────────────────────────────────
+function FoodQualityScore({ entries = [], targets = {} }) {
+  const totals = dayTotals(entries);
+
+  if (totals.calories < 500) return (
+    <div style={{ background: C.card, borderRadius: 16, padding: "12px 16px", border: `1px solid ${C.line}`, boxShadow: C.shadow, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 14, fontWeight: 700, color: C.ink }}>Food Quality</div>
+      <div style={{ fontSize: 12, color: C.muted }}>Log ≥500 kcal to see your score</div>
+    </div>
+  );
+
+  const names = entries.map((e) => (e.name || "").toLowerCase()).join(" ");
+
+  const fiber = totals.fiber || 0;
+  const fiberScore = fiber >= 25 ? 20 : fiber >= 15 ? 15 : fiber >= 8 ? 10 : 0;
+
+  const proteinPct = (targets.protein || 0) > 0 ? ((totals.protein || 0) / targets.protein) * 100 : 0;
+  const proteinScore = proteinPct >= 100 ? 20 : proteinPct >= 80 ? 15 : proteinPct >= 60 ? 8 : 0;
+
+  const hasSugarKw = /juice|cola|candy|chocolate|cake|cookie|ice cream|sugar/.test(names);
+  const sugarScore = hasSugarKw ? 10 : 20;
+
+  const totalSodiumMg = entries.reduce((s, e) => s + ((e.micros?.sodium_pct || 0) * 23 * (e.mult || 1)), 0);
+  let sodiumScore;
+  if (totalSodiumMg > 0) {
+    sodiumScore = totalSodiumMg <= 1500 ? 20 : totalSodiumMg <= 2300 ? 12 : 0;
+  } else {
+    const hasSodiumKw = /pizza|fries|chips|fast food|takeaway|processed/.test(names);
+    sodiumScore = hasSodiumKw ? 10 : 20;
+  }
+
+  const foodCount = entries.length;
+  const varietyScore = foodCount >= 6 ? 20 : foodCount >= 4 ? 15 : foodCount >= 2 ? 8 : 0;
+
+  const total = fiberScore + proteinScore + sugarScore + sodiumScore + varietyScore;
+  const grade = total >= 90 ? "A+" : total >= 80 ? "A" : total >= 70 ? "B" : total >= 60 ? "C" : total >= 50 ? "D" : "F";
+  const gradeColor = total >= 80 ? C.greenSoft : total >= 60 ? C.amber : C.coral;
+
+  const components = [
+    { label: "Fiber",   ok: fiberScore >= 15 },
+    { label: "Protein", ok: proteinScore >= 15 },
+    { label: "Sugar",   ok: sugarScore >= 15 },
+    { label: "Sodium",  ok: sodiumScore >= 15 },
+    { label: "Variety", ok: varietyScore >= 15 },
+  ];
+
+  return (
+    <div style={{ background: C.card, borderRadius: 16, padding: "14px 16px", border: `1px solid ${C.line}`, boxShadow: C.shadow, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: C.ink }}>Food Quality</div>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 26, fontWeight: 700, color: gradeColor, marginLeft: "auto" }}>{grade}</div>
+        <div style={{ fontSize: 12.5, color: C.muted }}>{total}<span style={{ fontSize: 10 }}>/100</span></div>
+      </div>
+      <div style={{ height: 6, background: C.bg2, borderRadius: 99, marginBottom: 10, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${total}%`, background: gradeColor, borderRadius: 99 }} />
+      </div>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {components.map((comp) => (
+          <div key={comp.label} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: comp.ok ? C.green + "18" : C.coral + "18", color: comp.ok ? C.greenSoft : C.coral, display: "flex", alignItems: "center", gap: 3 }}>
+            <span>{comp.ok ? "✓" : "⚠"}</span><span>{comp.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main NutritionTab ─────────────────────────────────────────────────────────
 function NutritionTab({
   t, targets, entries, onRemove, profile, advanced, sub = "meals", onSub, nutriInfo, moveInfo, sleepInfo,
   daily, onDaily, onAddEntry,
-  supps = [], takenIds = [], onToggleSupp, onRemoveSupp, onAddSupp,
+  supps = [], takenIds = [], onToggleSupp, onRemoveSupp, onAddSupp, onSuppDirect,
   library = [], onQuick, entriesHistory = [],
   favoriteMeals = [], onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood,
   onSnapFood, onScanLabel, onDescribe, onManual,
   onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate, onOpenLogSheet, flashEntryId, dt = null,
 }) {
-  const [showMicros, setShowMicros] = useState(advanced);
-  const [favSearch,  setFavSearch]  = useState("");
-  const [favSort,    setFavSort]    = useState("most");
-  const [sheetOpen,  setSheetOpen]  = useState(false);
-  const [viewDateStr, setViewDateStr] = useState(todayStr);
+  const [showMicros,     setShowMicros]     = useState(advanced);
+  const [favSearch,      setFavSearch]      = useState("");
+  const [favSort,        setFavSort]        = useState("most");
+  const [sheetOpen,      setSheetOpen]      = useState(false);
+  const [suppPickerOpen, setSuppPickerOpen] = useState(false);
+  const [viewDateStr,    setViewDateStr]    = useState(todayStr);
 
   const takenCount = supps.filter((s) => takenIds.includes(s.id)).length;
   const allLogged  = supps.length > 0 && takenCount === supps.length;
@@ -888,6 +1048,9 @@ function NutritionTab({
           {/* SECTION B: Macro bars */}
           <MacroProgressBars t={viewT} targets={targets} />
 
+          {/* SECTION B2: Food Quality Score */}
+          <FoodQualityScore entries={viewEntries} targets={targets} />
+
           {/* SECTION C: Projection */}
           {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
 
@@ -934,10 +1097,10 @@ function NutritionTab({
               <Pill size={18} color={C.greenSoft} /> Daily stack
               {supps.length > 0 && <span style={{ fontFamily: "DM Sans", fontSize: 12, color: C.muted, fontWeight: 500 }}>· {takenCount}/{supps.length}</span>}
             </div>
-            <button className="sprig-tap" onClick={onAddSupp} style={{ ...btn(C.bg2, C.greenSoft), padding: "7px 12px", fontSize: 12.5, borderRadius: 11 }}><Plus size={14} /> Add</button>
+            <button className="sprig-tap" onClick={() => setSuppPickerOpen(true)} style={{ ...btn(C.bg2, C.greenSoft), padding: "7px 12px", fontSize: 12.5, borderRadius: 11 }}><Plus size={14} /> Add</button>
           </div>
           {supps.length === 0 ? (
-            <button className="sprig-tap" onClick={onAddSupp}
+            <button className="sprig-tap" onClick={() => setSuppPickerOpen(true)}
               style={{ width: "100%", background: C.card, border: `1px dashed ${C.line}`, borderRadius: 16, padding: "16px 14px", cursor: "pointer", color: C.muted, fontSize: 13, fontFamily: "DM Sans", textAlign: "left", display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "14", display: "grid", placeItems: "center", flexShrink: 0 }}><Pill size={17} color={C.greenSoft} /></div>
               <span>Add the supplements you take — tick them off each day to count their nutrients.</span>
@@ -977,7 +1140,7 @@ function NutritionTab({
                 );
               })}
               {/* Quick add at bottom */}
-              <button className="sprig-tap" onClick={onAddSupp}
+              <button className="sprig-tap" onClick={() => setSuppPickerOpen(true)}
                 style={{ width: "100%", background: "none", border: "none", borderTop: `1px solid ${C.line}`, cursor: "pointer", padding: "11px 14px", fontSize: 12.5, fontWeight: 700, color: C.greenSoft, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 6 }}>
                 <Plus size={14} /> Quick add supplement
               </button>
@@ -1083,6 +1246,14 @@ function NutritionTab({
         </>
       )}
 
+      {/* Supplement picker sheet */}
+      <SuppPickerSheet
+        open={suppPickerOpen}
+        onClose={() => setSuppPickerOpen(false)}
+        supps={supps}
+        onSuppDirect={onSuppDirect || (() => {})}
+      />
+
       {/* Food search sheet */}
       <FoodSearchSheet
         open={sheetOpen}
@@ -1101,17 +1272,6 @@ function lsGet(key, fallback) {
 }
 function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) {} }
 
-function mealQuality(items = []) {
-  const cal  = items.reduce((s, i) => s + (i.calories || 0), 0);
-  const p    = items.reduce((s, i) => s + (i.protein_g || 0), 0);
-  const carbs = items.reduce((s, i) => s + (i.carbs_g || 0), 0);
-  const fat  = items.reduce((s, i) => s + (i.fat_g || 0), 0);
-  const fatPct = cal > 0 ? (fat * 9 / cal) * 100 : 0;
-  if (p >= 20 && carbs <= p * 3 && fatPct < 40) return { label: "Balanced",    color: "#52B788", bg: "#52B78820" };
-  if (p < 20)                                    return { label: "Low protein", color: "#E06B5D", bg: "#E06B5D20" };
-  return                                                 { label: "High carb",  color: "#F5A623", bg: "#F5A62320" };
-}
-
 function sumItems(items = [], mult = 1) {
   return {
     calories:  Math.round(items.reduce((s, i) => s + (i.calories  || 0), 0) * mult),
@@ -1122,402 +1282,101 @@ function sumItems(items = [], mult = 1) {
   };
 }
 
-function relDate(ts) {
-  if (!ts) return null;
-  const diff = Math.floor((Date.now() - ts) / 86400000);
-  if (diff === 0) return "today";
-  if (diff === 1) return "yesterday";
-  if (diff < 7)  return `${diff} days ago`;
-  return new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-
-function getMonday(offsetWeeks = 0) {
-  const now = new Date();
-  const d = now.getDay();
-  const diff = d === 0 ? -6 : 1 - d;
-  const mon = new Date(now);
-  mon.setDate(now.getDate() + diff + offsetWeeks * 7);
-  mon.setHours(0, 0, 0, 0);
-  return mon.toLocaleDateString("en-CA");
-}
-function shiftDate(dateStr, n) {
-  const d = new Date(dateStr); d.setDate(d.getDate() + n);
-  return d.toLocaleDateString("en-CA");
-}
-const planKey = (ws, di, mt) => `${ws}_${di}_${mt}`;
-
-const MULTS       = [0.5, 1, 1.5, 2];
-const MEAL_TYPES  = ["breakfast", "lunch", "dinner"];
-const MEAL_LABELS = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" };
-const DAY_LABELS  = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const EMOJIS      = ["🍽️","🥣","🥗","🍳","🥘","🌮","🍜","🥙","🍱","🥩","🍗","🥦","🍚","🍞","🥚","🧆","🫕","🥒","🍣","🥡"];
-
-function MealsTab({ library = [], onLog, onRemove, onNew, entries = [], onAddEntry, entriesHistory = [] }) {
-  const [section, setSection] = useState("saved");
+function MealsTab({ library = [], onLog, onRemove, onNew, entries = [], onAddEntry, entriesHistory = [], favoriteMeals = [], onSaveFavorite, onRemoveFavorite, onUpdateFavorite }) {
+  const [section, setSection] = useState("favourites");
   const toastTimer = useRef(null);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), 2400); };
 
-  // ── Saved Meals ────────────────────────────────────────────────────────────
-  const [savedMeals, setSavedMeals]   = useState(() => lsGet("sprig_saved_meals_v1", []));
-  const [mealSearch, setMealSearch]   = useState("");
-  const [detailMeal, setDetailMeal]   = useState(null);
-  const [servingMeal, setServingMeal] = useState(null);
-  const [servingMult, setServingMult] = useState(1);
+  // ── Favourites state ───────────────────────────────────────────────────────
+  const [expandedId, setExpandedId] = useState(null);
+  const [mults, setMults]           = useState({});
+  const getMult = (id) => mults[id] || 1;
+  const setMult = (id, m) => setMults((prev) => ({ ...prev, [id]: m }));
+
+  // ── Save today state ───────────────────────────────────────────────────────
   const [saveDayOpen, setSaveDayOpen] = useState(false);
   const [saveDayName, setSaveDayName] = useState("");
-  const [mealBldrOpen, setMealBldrOpen] = useState(false);
-  const [editMealId,   setEditMealId]   = useState(null);
-  const [bldrName,     setBldrName]     = useState("");
-  const [bldrEmoji,    setBldrEmoji]    = useState("🍽️");
-  const [bldrItems,    setBldrItems]    = useState([]);
-  const [bldrSheet,    setBldrSheet]    = useState(false);
 
-  const persistSaved = (next) => { setSavedMeals(next); lsSet("sprig_saved_meals_v1", next); };
+  // ── Meal builder state ─────────────────────────────────────────────────────
+  const [bldrOpen,   setBldrOpen]   = useState(false);
+  const [bldrName,   setBldrName]   = useState("");
+  const [bldrEmoji,  setBldrEmoji]  = useState("🍽️");
+  const [bldrItems,  setBldrItems]  = useState([]);
+  const [bldrFoodSh, setBldrFoodSh] = useState(false);
 
-  const openMealBldr = (meal = null) => {
-    setEditMealId(meal?.id || null);
-    setBldrName(meal?.name || "");
-    setBldrEmoji(meal?.emoji || "🍽️");
-    setBldrItems(meal?.items || []);
-    setMealBldrOpen(true);
+  // ── AI import state ────────────────────────────────────────────────────────
+  const [aiOpen,       setAiOpen]       = useState(false);
+  const [aiText,       setAiText]       = useState("");
+  const [aiLoading,    setAiLoading]    = useState(false);
+  const [aiItems,      setAiItems]      = useState([]);
+  const [aiReviewOpen, setAiReviewOpen] = useState(false);
+  const [aiName,       setAiName]       = useState("");
+
+  const logFavourite = (f) => {
+    const mult = getMult(f.id);
+    onAddEntry({
+      name: f.name,
+      serving: mult === 1 ? (f.serving || "1 serving") : `${mult}x ${f.serving || "serving"}`,
+      calories: Math.round((f.calories || 0) * mult),
+      protein_g: +((f.protein_g || 0) * mult).toFixed(1),
+      carbs_g:   +((f.carbs_g   || 0) * mult).toFixed(1),
+      fat_g:     +((f.fat_g     || 0) * mult).toFixed(1),
+      fiber_g:   +((f.fiber_g   || 0) * mult).toFixed(1),
+      micros: f.micros || {}, omega3: f.omega3 ?? null, mult: 1,
+    });
+    if (onUpdateFavorite) onUpdateFavorite(f.id, { useCount: (f.useCount || 0) + 1, lastUsedTs: Date.now() });
+    showToast(`added ${f.name}`);
   };
 
-  const saveMealBldr = () => {
-    const meal = { id: editMealId || uid(), name: bldrName.trim() || "Untitled meal", emoji: bldrEmoji, items: bldrItems, createdAt: Date.now(), lastLogged: null };
-    persistSaved(editMealId ? savedMeals.map((m) => (m.id === editMealId ? meal : m)) : [meal, ...savedMeals]);
-    setMealBldrOpen(false);
-    showToast(`✓ ${meal.name} saved`);
-  };
-
-  const logSavedMeal = (meal, mult) => {
-    const totals = meal.items?.length ? sumItems(meal.items, mult) : { calories: Math.round((meal.calories || 0) * mult), protein_g: +((meal.protein_g || 0) * mult).toFixed(1), carbs_g: +((meal.carbs_g || 0) * mult).toFixed(1), fat_g: +((meal.fat_g || 0) * mult).toFixed(1), fiber_g: +((meal.fiber_g || 0) * mult).toFixed(1) };
-    onAddEntry({ name: meal.name, serving: mult === 1 ? "1 serving" : `${mult}× serving`, ...totals, micros: {}, omega3: null, mult: 1 });
-    if (meal.id && savedMeals.some((m) => m.id === meal.id)) persistSaved(savedMeals.map((m) => m.id === meal.id ? { ...m, lastLogged: Date.now() } : m));
-  };
-
-  const saveDayAsMeal = () => {
+  const saveTodayAsFavourite = () => {
     if (!entries.length) return;
-    const items = entries.map((e) => ({ name: e.name, amount: e.serving || "1 serving", calories: Math.round((e.calories || 0) * (e.mult || 1)), protein_g: +((e.protein_g || 0) * (e.mult || 1)).toFixed(1), carbs_g: +((e.carbs_g || 0) * (e.mult || 1)).toFixed(1), fat_g: +((e.fat_g || 0) * (e.mult || 1)).toFixed(1), fiber_g: +((e.fiber_g || 0) * (e.mult || 1)).toFixed(1) }));
+    const t = dayTotals(entries);
     const name = saveDayName.trim() || "Today's meals";
-    persistSaved([{ id: uid(), name, emoji: "📅", items, createdAt: Date.now(), lastLogged: null }, ...savedMeals]);
-    setSaveDayOpen(false); setSaveDayName(""); showToast(`✓ "${name}" saved`);
+    if (onSaveFavorite) onSaveFavorite({ name, serving: "1 day", calories: t.calories, protein_g: t.protein, carbs_g: t.carbs, fat_g: t.fat, fiber_g: t.fiber, micros: {}, omega3: null, tags: ["daily"] });
+    setSaveDayOpen(false); setSaveDayName(""); showToast(`"${name}" saved`);
   };
 
-  const filteredMeals = savedMeals.filter((m) => !mealSearch || m.name.toLowerCase().includes(mealSearch.toLowerCase()));
-
-  // ── Recipes ────────────────────────────────────────────────────────────────
-  const [recipes,        setRecipes]        = useState(() => lsGet("sprig_recipes_v1", []));
-  const [recBldrOpen,    setRecBldrOpen]    = useState(false);
-  const [editRecipeId,   setEditRecipeId]   = useState(null);
-  const [rName,          setRName]          = useState("");
-  const [rEmoji,         setREmoji]         = useState("🥘");
-  const [rServings,      setRServings]      = useState(4);
-  const [rIngredients,   setRIngredients]   = useState([]);
-  const [rFoodSheet,     setRFoodSheet]     = useState(false);
-  const [aiRecOpen,      setAiRecOpen]      = useState(false);
-  const [aiRecText,      setAiRecText]      = useState("");
-  const [aiRecLoading,   setAiRecLoading]   = useState(false);
-
-  const persistRecipes = (next) => { setRecipes(next); lsSet("sprig_recipes_v1", next); };
-
-  const openRecBldr = (rec = null) => {
-    setEditRecipeId(rec?.id || null); setRName(rec?.name || ""); setREmoji(rec?.emoji || "🥘");
-    setRServings(rec?.servings || 4); setRIngredients(rec?.ingredients || []);
-    setRecBldrOpen(true);
+  const saveBldr = () => {
+    const t = sumItems(bldrItems);
+    const name = bldrName.trim() || "My meal";
+    if (onSaveFavorite) onSaveFavorite({ name, serving: "1 serving", calories: t.calories, protein_g: t.protein_g, carbs_g: t.carbs_g, fat_g: t.fat_g, fiber_g: t.fiber_g, micros: {}, omega3: null, tags: [] });
+    setBldrOpen(false); setBldrName(""); setBldrEmoji("🍽️"); setBldrItems([]);
+    showToast(`"${name}" saved`);
   };
 
-  const saveRecipe = () => {
-    const rec = { id: editRecipeId || uid(), name: rName.trim() || "Untitled recipe", emoji: rEmoji, servings: Math.max(1, rServings), ingredients: rIngredients, createdAt: Date.now() };
-    persistRecipes(editRecipeId ? recipes.map((r) => (r.id === editRecipeId ? rec : r)) : [rec, ...recipes]);
-    setRecBldrOpen(false); showToast(`✓ ${rec.name} saved`);
-    return rec;
-  };
-
-  const logRecipe = (rec) => {
-    const mult = 1 / Math.max(1, rec.servings);
-    const totals = sumItems(rec.ingredients || [], mult);
-    onAddEntry({ name: rec.name, serving: "1 serving", ...totals, micros: {}, omega3: null, mult: 1 });
-  };
-
-  const doAiRecipe = async () => {
-    if (!aiRecText.trim()) return;
-    setAiRecLoading(true);
+  const doAiImport = async () => {
+    if (!aiText.trim()) return;
+    setAiLoading(true);
     try {
-      const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nutrition", description: aiRecText.trim() }) });
+      const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nutrition", description: aiText.trim() }) });
       const d = await r.json();
       if (d.items?.length) {
-        setRIngredients(d.items.map((i) => ({ name: i.name, amount: i.amount || "1 serving", calories: Math.round(i.calories || 0), protein_g: +(i.protein || 0).toFixed(1), carbs_g: +(i.carbs || 0).toFixed(1), fat_g: +(i.fat || 0).toFixed(1), fiber_g: +(i.fiber || 0).toFixed(1) })));
-        setRName(aiRecText.split(":")[0].trim().slice(0, 40));
-        setAiRecOpen(false); setRecBldrOpen(true);
+        setAiItems(d.items.map((i) => ({ name: i.name, amount: i.amount || "1 serving", calories: Math.round(i.calories || 0), protein_g: +(i.protein || 0).toFixed(1), carbs_g: +(i.carbs || 0).toFixed(1), fat_g: +(i.fat || 0).toFixed(1), fiber_g: +(i.fiber || 0).toFixed(1) })));
+        setAiName(aiText.split(/[:\n]/)[0].trim().slice(0, 40));
+        setAiOpen(false); setAiReviewOpen(true);
       }
     } catch (_) {}
-    setAiRecLoading(false);
+    setAiLoading(false);
   };
 
-  const rPerServing = sumItems(rIngredients, 1 / Math.max(1, rServings));
-  const rTotal      = sumItems(rIngredients);
-
-  // ── Meal Plan ──────────────────────────────────────────────────────────────
-  const [plan,       setPlan]       = useState(() => lsGet("sprig_meal_plan_v1", {}));
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [assignCell, setAssignCell] = useState(null);
-
-  const persistPlan = (next) => { setPlan(next); lsSet("sprig_meal_plan_v1", next); };
-  const weekStart = getMonday(weekOffset);
-
-  const assignMeal = (src) => {
-    if (!assignCell) return;
-    const key = planKey(weekStart, assignCell.dayIdx, assignCell.mealType);
-    persistPlan({ ...plan, [key]: { type: src.type, id: src.id, name: src.name, calories: src.calories } });
-    setAssignCell(null);
-  };
-  const clearCell = (dayIdx, mt) => {
-    const next = { ...plan }; delete next[planKey(weekStart, dayIdx, mt)]; persistPlan(next);
-  };
-  const copyLastWeek = () => {
-    const lws = getMonday(weekOffset - 1); const added = {};
-    DAY_LABELS.forEach((_, di) => MEAL_TYPES.forEach((mt) => { const sk = planKey(lws, di, mt); if (plan[sk]) added[planKey(weekStart, di, mt)] = plan[sk]; }));
-    if (!Object.keys(added).length) { showToast("No last week plan to copy"); return; }
-    persistPlan({ ...plan, ...added }); showToast("Last week's plan copied");
+  const saveAiMeal = () => {
+    const t = sumItems(aiItems);
+    const name = aiName.trim() || "AI meal";
+    if (onSaveFavorite) onSaveFavorite({ name, serving: "1 serving", calories: t.calories, protein_g: t.protein_g, carbs_g: t.carbs_g, fat_g: t.fat_g, fiber_g: t.fiber_g, micros: {}, omega3: null, tags: [] });
+    setAiReviewOpen(false); setAiItems([]); setAiName(""); setAiText("");
+    showToast(`"${name}" saved`);
   };
 
-  const planAvgCal = (() => {
-    let total = 0, days = 0;
-    DAY_LABELS.forEach((_, di) => {
-      let day = 0;
-      MEAL_TYPES.forEach((mt) => { day += plan[planKey(weekStart, di, mt)]?.calories || 0; });
-      if (day > 0) { total += day; days++; }
-    });
-    return days > 0 ? Math.round(total / days) : null;
-  })();
-
-  const allSources = [
-    ...savedMeals.map((m) => ({ type: "saved",   id: m.id, name: m.name, emoji: m.emoji || "🍽️", calories: sumItems(m.items || []).calories })),
-    ...recipes.map((r)     => ({ type: "recipe",  id: r.id, name: r.name, emoji: r.emoji || "🥘", calories: sumItems(r.ingredients || [], 1 / Math.max(1, r.servings)).calories })),
-    ...library.map((m)     => ({ type: "library", id: m.id, name: m.name, emoji: "🍴",             calories: m.calories || 0 })),
-  ];
-
-  // ── Sheet helper ───────────────────────────────────────────────────────────
-  const Sheet = ({ open, onClose, children, maxH = "90vh" }) => !open ? null : (
-    <Portal>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.62)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", zIndex: 3000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 500, background: C.cardSolid, borderRadius: "22px 22px 0 0", padding: "18px 18px 40px", maxHeight: maxH, overflowY: "auto", WebkitOverflowScrolling: "touch", boxShadow: "0 -8px 30px rgba(0,0,0,.4)" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.line }} />
-          </div>
-          {children}
-        </div>
-      </div>
-    </Portal>
-  );
+  const qBadge = (f) => {
+    const p = f.protein_g || 0; const cal = f.calories || 1;
+    if (p >= 20) return { label: "High protein", color: "#4A9EDB", bg: "#4A9EDB18" };
+    if (((f.fat_g || 0) * 9 / cal) * 100 > 40) return { label: "High fat", color: "#9B6BBE", bg: "#9B6BBE18" };
+    return { label: "Balanced", color: "#52B788", bg: "#52B78818" };
+  };
 
   return (
-    <div className="sprig-rise" style={{ position: "relative" }}>
-
-      {/* ── Pill toggle ──────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 3, background: C.bg2, borderRadius: 14, padding: 4, marginBottom: 16 }}>
-        {[["saved","Saved Meals"],["recipes","Recipes"],["plan","Meal Plan"]].map(([k, l]) => (
-          <button key={k} className="sprig-tap" onClick={() => { setSection(k); buzz("select"); }}
-            style={{ flex: 1, border: "none", cursor: "pointer", padding: "9px 4px", borderRadius: 11, fontSize: 12, fontWeight: 700, fontFamily: "DM Sans", background: section === k ? C.card : "transparent", color: section === k ? C.greenSoft : C.muted, boxShadow: section === k ? "0 1px 6px rgba(0,0,0,.18)" : "none", transition: "all .15s" }}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {/* ════════════════════ SAVED MEALS ════════════════════════════════ */}
-      {section === "saved" && (
-        <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button className="sprig-tap" onClick={() => { setSaveDayName(""); setSaveDayOpen(true); }} disabled={!entries.length}
-              style={{ ...btn(C.bg2, C.inkSoft), padding: "9px 12px", fontSize: 12, flex: 1, opacity: entries.length ? 1 : 0.4 }}>
-              <Plus size={13} /> Save today's log
-            </button>
-            <button className="sprig-tap" onClick={() => openMealBldr(null)}
-              style={{ ...btn(C.green, "#fff"), padding: "9px 14px", fontSize: 12 }}>
-              <Plus size={13} /> New meal
-            </button>
-          </div>
-
-          {savedMeals.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "9px 12px", marginBottom: 12 }}>
-              <Search size={14} color={C.muted} />
-              <input value={mealSearch} onChange={(e) => setMealSearch(e.target.value)} placeholder="Search saved meals…"
-                style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 13, fontFamily: "DM Sans", color: C.ink }} />
-              {mealSearch && <button onClick={() => setMealSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 0 }}><X size={13} /></button>}
-            </div>
-          )}
-
-          {savedMeals.length === 0 ? (
-            <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, padding: "32px 20px", textAlign: "center", boxShadow: C.shadow }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>🍽️</div>
-              <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, marginBottom: 6 }}>No saved meals yet</div>
-              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>Log a full day and save it as a meal template, or create a new meal manually.</div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {filteredMeals.map((meal) => {
-                const totals  = sumItems(meal.items || []);
-                const quality = mealQuality(meal.items || []);
-                return (
-                  <div key={meal.id} style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, boxShadow: C.shadow, overflow: "hidden" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 14px 10px", cursor: "pointer" }} onClick={() => setDetailMeal(meal)}>
-                      <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{meal.emoji || "🍽️"}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14.5, fontWeight: 700, color: C.ink, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meal.name}</div>
-                        <div style={{ fontSize: 12, color: C.muted }}><b style={{ color: C.ink }}>{fmtCal(totals.calories)}</b> kcal · P {fmtMacro(totals.protein_g)}g C {fmtMacro(totals.carbs_g)}g F {fmtMacro(totals.fat_g)}g</div>
-                        {meal.lastLogged && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Last logged {relDate(meal.lastLogged)}</div>}
-                      </div>
-                      <div style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 99, background: quality.bg, color: quality.color, flexShrink: 0 }}>{quality.label}</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", padding: "7px 10px", borderTop: `1px solid ${C.line}`, gap: 4 }}>
-                      <button className="sprig-tap" onClick={() => openMealBldr(meal)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: "4px 6px", fontSize: 11.5, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 4 }}><PencilLine size={12} /> Edit</button>
-                      <button className="sprig-tap" onClick={() => { persistSaved([{ ...meal, id: uid(), name: meal.name + " (copy)", createdAt: Date.now() }, ...savedMeals]); showToast("Duplicated"); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: "4px 6px", fontSize: 11.5, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 4 }}><BookMarked size={12} /> Copy</button>
-                      <button className="sprig-tap" onClick={() => persistSaved(savedMeals.filter((m) => m.id !== meal.id))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: "4px 6px", fontSize: 11.5, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 4 }}><Trash2 size={12} /> Delete</button>
-                      <div style={{ flex: 1 }} />
-                      <button className="sprig-tap" onClick={() => { setServingMeal(meal); setServingMult(1); buzz("tap"); }}
-                        style={{ ...btn(C.green, "#fff"), padding: "7px 13px", fontSize: 12.5 }}>Log now →</button>
-                    </div>
-                  </div>
-                );
-              })}
-              {filteredMeals.length === 0 && mealSearch && <div style={{ textAlign: "center", padding: "16px 0", color: C.muted, fontSize: 12.5 }}>No meals match "{mealSearch}"</div>}
-            </div>
-          )}
-
-          {library.length > 0 && (
-            <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 0.4, textTransform: "uppercase", margin: "20px 2px 10px" }}>From AI log</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {library.map((m) => (
-                  <div key={m.id} style={{ background: C.card, borderRadius: 14, padding: "12px 13px", boxShadow: C.shadow, border: `1px solid ${C.line}`, display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name}</div>
-                      <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{m.calories} kcal · P{Math.round(m.protein_g || 0)} C{Math.round(m.carbs_g || 0)} F{Math.round(m.fat_g || 0)}</div>
-                    </div>
-                    <button className="sprig-tap" onClick={() => { if (onLog) onLog(m); }} style={{ ...btn(C.green, "#fff"), padding: "8px 12px", fontSize: 12 }}><Plus size={13} /> Log</button>
-                    <button className="sprig-tap" onClick={() => { if (onRemove) onRemove(m.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><Trash2 size={14} /></button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </>
-      )}
-
-      {/* ════════════════════ RECIPES ════════════════════════════════════ */}
-      {section === "recipes" && (
-        <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            <button className="sprig-tap" onClick={() => { setAiRecText(""); setAiRecOpen(true); }}
-              style={{ ...btn(C.bg2, C.inkSoft), padding: "9px 12px", fontSize: 12, flex: 1 }}>
-              <Sparkles size={13} /> Describe a recipe
-            </button>
-            <button className="sprig-tap" onClick={() => openRecBldr(null)}
-              style={{ ...btn(C.green, "#fff"), padding: "9px 14px", fontSize: 12 }}>
-              <Plus size={13} /> New recipe
-            </button>
-          </div>
-
-          {recipes.length === 0 ? (
-            <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, padding: "32px 20px", textAlign: "center", boxShadow: C.shadow }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>🥘</div>
-              <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, marginBottom: 6 }}>No recipes yet</div>
-              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>Build your first recipe or describe one with AI.</div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {recipes.map((rec) => {
-                const perServ = sumItems(rec.ingredients || [], 1 / Math.max(1, rec.servings));
-                return (
-                  <div key={rec.id} style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, boxShadow: C.shadow, overflow: "hidden" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 14px 10px" }}>
-                      <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{rec.emoji || "🥘"}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14.5, fontWeight: 700, color: C.ink, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.name}</div>
-                        <div style={{ fontSize: 12, color: C.muted }}>{rec.servings} servings · <b style={{ color: C.ink }}>{fmtCal(perServ.calories)}</b> kcal/serving</div>
-                        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>P {fmtMacro(perServ.protein_g)}g C {fmtMacro(perServ.carbs_g)}g F {fmtMacro(perServ.fat_g)}g</div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", padding: "7px 10px", borderTop: `1px solid ${C.line}`, gap: 4 }}>
-                      <button className="sprig-tap" onClick={() => openRecBldr(rec)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: "4px 6px", fontSize: 11.5, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 4 }}><PencilLine size={12} /> Edit</button>
-                      <button className="sprig-tap" onClick={() => persistRecipes(recipes.filter((r) => r.id !== rec.id))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: "4px 6px", fontSize: 11.5, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 4 }}><Trash2 size={12} /> Delete</button>
-                      <div style={{ flex: 1 }} />
-                      <button className="sprig-tap" onClick={() => logRecipe(rec)} style={{ ...btn(C.green, "#fff"), padding: "7px 13px", fontSize: 12.5 }}>Cook & log 1 serving</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ════════════════════ MEAL PLAN ══════════════════════════════════ */}
-      {section === "plan" && (
-        <>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <button className="sprig-tap" onClick={() => setWeekOffset((w) => w - 1)} style={{ width: 34, height: 34, borderRadius: 10, background: C.bg2, border: "none", cursor: "pointer", display: "grid", placeItems: "center" }}><ChevronLeft size={18} color={C.inkSoft} /></button>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 14, fontWeight: 700, color: C.ink }}>
-              {weekOffset === 0 ? "This week" : weekOffset === -1 ? "Last week" : weekOffset === 1 ? "Next week" : `Wk of ${new Date(weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
-            </div>
-            <button className="sprig-tap" onClick={() => setWeekOffset((w) => w + 1)} style={{ width: 34, height: 34, borderRadius: 10, background: C.bg2, border: "none", cursor: "pointer", display: "grid", placeItems: "center" }}><ChevronRight size={18} color={C.inkSoft} /></button>
-          </div>
-
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", marginBottom: 10 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "62px repeat(7, 1fr)", minWidth: 520, gap: 3 }}>
-              <div />
-              {DAY_LABELS.map((d, i) => {
-                const isT = shiftDate(weekStart, i) === todayStr();
-                return (
-                  <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: isT ? C.greenSoft : C.muted, padding: "3px 0" }}>
-                    {d}
-                    {isT && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.greenSoft, margin: "2px auto 0" }} />}
-                  </div>
-                );
-              })}
-              {MEAL_TYPES.map((mt) => (
-                <React.Fragment key={mt}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: 0.2, paddingRight: 5, textTransform: "uppercase" }}>{MEAL_LABELS[mt].slice(0, 5)}</div>
-                  {DAY_LABELS.map((_, di) => {
-                    const slot = plan[planKey(weekStart, di, mt)];
-                    return (
-                      <button key={di} className="sprig-tap"
-                        onClick={() => { slot ? clearCell(di, mt) : setAssignCell({ dayIdx: di, mealType: mt }); buzz("tap"); }}
-                        style={{ background: slot ? C.green + "14" : C.bg2, border: `1px solid ${slot ? C.green + "44" : C.line}`, borderRadius: 8, cursor: "pointer", minHeight: 52, padding: "4px 3px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                        {slot ? (
-                          <>
-                            <div style={{ fontSize: 8.5, fontWeight: 700, color: C.ink, lineHeight: 1.2, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%", padding: "0 2px" }}>{slot.name}</div>
-                            <div style={{ fontSize: 8, color: C.muted }}>{slot.calories} kcal</div>
-                          </>
-                        ) : (
-                          <span style={{ fontSize: 14, color: C.line, lineHeight: 1 }}>+</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <button className="sprig-tap" onClick={copyLastWeek} style={{ ...btn(C.bg2, C.inkSoft), padding: "9px 12px", fontSize: 12, flex: 1 }}>Copy last week</button>
-          </div>
-
-          {planAvgCal ? (
-            <div style={{ background: C.card, borderRadius: 14, padding: "11px 14px", border: `1px solid ${C.line}`, fontSize: 12.5, color: C.muted, textAlign: "center" }}>
-              Daily average: <b style={{ color: C.ink }}>{fmtCal(planAvgCal)} kcal</b>
-            </div>
-          ) : (
-            <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.line}`, padding: "20px", textAlign: "center", fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
-              Plan your week — tap any cell to assign a meal or recipe
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Toast ─────────────────────────────────────────────────────────── */}
+    <div className="sprig-rise">
       {toast && (
         <Portal>
           <div style={{ position: "fixed", bottom: 88, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", borderRadius: 99, padding: "10px 18px", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", boxShadow: "0 4px 20px rgba(0,0,0,.4)", zIndex: 9999, whiteSpace: "nowrap", pointerEvents: "none" }}>
@@ -1526,249 +1385,242 @@ function MealsTab({ library = [], onLog, onRemove, onNew, entries = [], onAddEnt
         </Portal>
       )}
 
-      {/* ── Save today's log sheet ────────────────────────────────────────── */}
-      <Sheet open={saveDayOpen} onClose={() => setSaveDayOpen(false)}>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4, color: C.ink }}>Save today's food log</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>{entries.length} items · {fmtCal(entries.reduce((s, e) => s + (e.calories || 0) * (e.mult || 1), 0))} kcal</div>
-        <input value={saveDayName} onChange={(e) => setSaveDayName(e.target.value)} placeholder="Meal template name…"
-          style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 13px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, marginBottom: 12, boxSizing: "border-box" }} />
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="sprig-tap" onClick={() => setSaveDayOpen(false)} style={{ flex: 1, ...btn(C.bg2, C.inkSoft), padding: "12px 0", fontSize: 13 }}>Cancel</button>
-          <button className="sprig-tap" onClick={saveDayAsMeal} style={{ flex: 1, ...btn(C.green, "#fff"), padding: "12px 0", fontSize: 13 }}>Save meal</button>
-        </div>
-      </Sheet>
+      <SubTabs tabs={[["favourites","Favourites"],["new","New Meal"]]} active={section} onChange={(s) => { setSection(s); buzz("select"); }} />
 
-      {/* ── Serving multiplier sheet ──────────────────────────────────────── */}
-      <Sheet open={!!servingMeal} onClose={() => setServingMeal(null)} maxH="60vh">
-        {servingMeal && (() => {
-          const totals = sumItems(servingMeal.items || [], servingMult);
-          return (
-            <>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4, color: C.ink }}>Log "{servingMeal.name}"</div>
-              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Choose serving size</div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                {MULTS.map((m) => (
-                  <button key={m} className="sprig-tap" onClick={() => { setServingMult(m); buzz("select"); }}
-                    style={{ flex: 1, ...btn(servingMult === m ? C.green : C.bg2, servingMult === m ? "#fff" : C.inkSoft), padding: "11px 0", fontSize: 14 }}>
-                    {m}×
-                  </button>
-                ))}
-              </div>
-              <div style={{ background: C.bg2, borderRadius: 12, padding: "11px 14px", marginBottom: 16, fontSize: 12.5, color: C.muted }}>
-                <b style={{ color: C.ink }}>{fmtCal(totals.calories)} kcal</b> · P {fmtMacro(totals.protein_g)}g C {fmtMacro(totals.carbs_g)}g F {fmtMacro(totals.fat_g)}g
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="sprig-tap" onClick={() => setServingMeal(null)} style={{ flex: 1, ...btn(C.bg2, C.inkSoft), padding: "12px 0", fontSize: 13 }}>Cancel</button>
-                <button className="sprig-tap" onClick={() => { logSavedMeal(servingMeal, servingMult); setServingMeal(null); }} style={{ flex: 1, ...btn(C.green, "#fff"), padding: "12px 0", fontSize: 13 }}>
-                  <Check size={15} /> Add to today
-                </button>
-              </div>
-            </>
-          );
-        })()}
-      </Sheet>
-
-      {/* ── Meal detail sheet ─────────────────────────────────────────────── */}
-      <Sheet open={!!detailMeal} onClose={() => setDetailMeal(null)}>
-        {detailMeal && (() => {
-          const totals  = sumItems(detailMeal.items || []);
-          const quality = mealQuality(detailMeal.items || []);
-          return (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                <div style={{ fontSize: 34 }}>{detailMeal.emoji || "🍽️"}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700, color: C.ink }}>{detailMeal.name}</div>
-                  {detailMeal.lastLogged && <div style={{ fontSize: 12, color: C.muted }}>Last logged {relDate(detailMeal.lastLogged)}</div>}
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 99, background: quality.bg, color: quality.color }}>{quality.label}</div>
-              </div>
-              {(detailMeal.items || []).length > 0 && (
-                <>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>Ingredients</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14 }}>
-                    {detailMeal.items.map((item, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", background: C.bg2, borderRadius: 10 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{item.name}</div>
-                          {item.amount && <div style={{ fontSize: 11, color: C.muted }}>{item.amount}</div>}
-                        </div>
-                        <div style={{ fontSize: 11.5, color: C.muted, textAlign: "right" }}>
-                          <div style={{ fontWeight: 700, color: C.ink }}>{fmtCal(item.calories)} kcal</div>
-                          <div>P{fmtMacro(item.protein_g)} C{fmtMacro(item.carbs_g)} F{fmtMacro(item.fat_g)}</div>
+      {/* ── FAVOURITES ─────────────────────────────────────────────────────── */}
+      {section === "favourites" && (
+        <>
+          {(favoriteMeals?.length || 0) === 0 ? (
+            <div style={{ background: C.card, border: `1px dashed ${C.line}`, borderRadius: 16, padding: "28px 20px", textAlign: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🍽️</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, marginBottom: 6 }}>No favourite meals yet</div>
+              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>Log a meal in the Nutrition tab,<br />then tap ☆ to save it here</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(favoriteMeals || []).map((f) => {
+                const mult     = getMult(f.id);
+                const expanded = expandedId === f.id;
+                const badge    = qBadge(f);
+                const scaledCal = Math.round((f.calories || 0) * mult);
+                return (
+                  <div key={f.id} style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, boxShadow: C.shadow, overflow: "hidden" }}>
+                    <button className="sprig-tap" onClick={() => setExpandedId(expanded ? null : f.id)}
+                      style={{ width: "100%", background: "none", border: "none", padding: "13px 14px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontSize: 26, flexShrink: 0 }}>{f.emoji || "🍽️"}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</div>
+                        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
+                          <span style={{ color: MC.protein }}>P{f.protein_g}</span>
+                          {" "}<span style={{ color: MC.carbs }}>C{f.carbs_g}</span>
+                          {" "}<span style={{ color: MC.fat }}>F{f.fat_g}</span>
+                          {f.useCount ? ` · used ${f.useCount}×` : ""}
                         </div>
                       </div>
-                    ))}
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: 16, color: C.ink }}>{fmtCal(scaledCal)}</div>
+                        <div style={{ fontSize: 9.5, padding: "2px 7px", borderRadius: 99, background: badge.bg, color: badge.color, marginTop: 3, whiteSpace: "nowrap" }}>{badge.label}</div>
+                      </div>
+                      <ChevronDown size={14} color={C.muted} style={{ flexShrink: 0, transition: "transform .2s", transform: expanded ? "rotate(180deg)" : "none" }} />
+                    </button>
+                    {expanded && (
+                      <div style={{ borderTop: `1px solid ${C.line}`, padding: "12px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                          <span style={{ fontSize: 12, color: C.muted }}>Servings:</span>
+                          {[0.5, 1, 1.5, 2].map((m) => (
+                            <button key={m} className="sprig-tap" onClick={() => { setMult(f.id, m); buzz("select"); }}
+                              style={{ ...btn(mult === m ? C.green : C.bg2, mult === m ? "#fff" : C.inkSoft), padding: "5px 10px", fontSize: 12, borderRadius: 8 }}>
+                              {m}×
+                            </button>
+                          ))}
+                        </div>
+                        <button className="sprig-tap" onClick={() => { logFavourite(f); buzz("success"); setExpandedId(null); }}
+                          style={{ ...btn(C.green, "#fff"), width: "100%", padding: "11px 0", fontSize: 13.5, borderRadius: 12, justifyContent: "center" }}>
+                          <Plus size={15} /> Log meal ({fmtCal(scaledCal)} kcal) →
+                        </button>
+                        {onRemoveFavorite && (
+                          <button className="sprig-tap" onClick={() => { onRemoveFavorite(f.id); buzz("light"); }}
+                            style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: 11.5, marginTop: 8, fontFamily: "DM Sans" }}>
+                            <Trash2 size={12} /> Remove favourite
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </>
-              )}
-              <div style={{ background: C.bg2, borderRadius: 13, padding: "12px 14px", marginBottom: 16 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 8 }}>Total nutrition</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 0" }}>
-                  {[["Calories", `${fmtCal(totals.calories)} kcal`], ["Protein", `${fmtMacro(totals.protein_g)}g`], ["Carbs", `${fmtMacro(totals.carbs_g)}g`], ["Fat", `${fmtMacro(totals.fat_g)}g`], ["Fiber", `${fmtMacro(totals.fiber_g)}g`]].map(([lbl, val]) => (
-                    <div key={lbl}><div style={{ fontSize: 10.5, color: C.muted }}>{lbl}</div><div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{val}</div></div>
+                );
+              })}
+            </div>
+          )}
+          {entries.length > 0 && (
+            <button className="sprig-tap" onClick={() => { setSaveDayName(""); setSaveDayOpen(true); }}
+              style={{ width: "100%", background: C.card, border: `1px dashed ${C.green}66`, borderRadius: 14, padding: "13px 16px", cursor: "pointer", fontSize: 13, color: C.greenSoft, fontFamily: "DM Sans", textAlign: "center", marginTop: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <BookMarked size={15} /> Save today's food as a favourite meal →
+            </button>
+          )}
+        </>
+      )}
+
+      {/* ── NEW MEAL ────────────────────────────────────────────────────────── */}
+      {section === "new" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <button className="sprig-tap" onClick={() => { setBldrName(""); setBldrEmoji("🍽️"); setBldrItems([]); setBldrOpen(true); }}
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "20px 18px", cursor: "pointer", textAlign: "left", display: "flex", gap: 16, alignItems: "center", boxShadow: C.shadow }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: C.green + "20", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Sparkles size={24} color={C.greenSoft} />
+            </div>
+            <div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, color: C.ink }}>Build from scratch</div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>Search and add foods one by one</div>
+            </div>
+          </button>
+
+          <button className="sprig-tap" onClick={() => { setSaveDayName(""); setSaveDayOpen(true); }}
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "20px 18px", cursor: "pointer", textAlign: "left", display: "flex", gap: 16, alignItems: "center", boxShadow: C.shadow, opacity: entries.length === 0 ? 0.5 : 1 }}
+            disabled={entries.length === 0}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: C.amber + "20", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <BookMarked size={24} color={C.amber} />
+            </div>
+            <div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, color: C.ink }}>Save today's food</div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>{entries.length === 0 ? "No food logged today" : `Save today's ${entries.length} items as a favourite`}</div>
+            </div>
+          </button>
+
+          <button className="sprig-tap" onClick={() => { setAiText(""); setAiOpen(true); }}
+            style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "20px 18px", cursor: "pointer", textAlign: "left", display: "flex", gap: 16, alignItems: "center", boxShadow: C.shadow }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: "#8B5CF620", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Zap size={24} color="#8B5CF6" />
+            </div>
+            <div>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 700, color: C.ink }}>Describe with AI</div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>Describe a meal — AI fills in the macros</div>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* ── Save today sheet ───────────────────────────────────────────────── */}
+      {saveDayOpen && (
+        <Portal>
+          <div onClick={() => setSaveDayOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(6px)", zIndex: 200 }} />
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.bg, borderRadius: "24px 24px 0 0", padding: "24px 20px 44px", zIndex: 201, maxWidth: 480, margin: "0 auto" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Name this meal</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>{entries.length} items · {fmtCal(entries.reduce((s, e) => s + (e.calories || 0) * (e.mult || 1), 0))} kcal</div>
+            <input value={saveDayName} onChange={(e) => setSaveDayName(e.target.value)} onFocus={scrollIntoViewOnFocus}
+              placeholder="e.g. High protein day"
+              style={{ width: "100%", background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: C.ink, fontFamily: "DM Sans", outline: "none", boxSizing: "border-box", marginBottom: 12 }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="sprig-tap" onClick={() => setSaveDayOpen(false)} style={{ flex: 1, ...btn(C.bg2, C.inkSoft), padding: "12px 0", fontSize: 13, borderRadius: 12 }}>Cancel</button>
+              <button className="sprig-tap" onClick={saveTodayAsFavourite}
+                style={{ flex: 2, ...btn(C.green, "#fff"), padding: "12px 0", fontSize: 13, borderRadius: 12, justifyContent: "center" }}>
+                <BookMarked size={14} /> Save favourite
+              </button>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      {/* ── Meal builder sheet ─────────────────────────────────────────────── */}
+      {bldrOpen && (
+        <Portal>
+          <div onClick={() => setBldrOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(6px)", zIndex: 200 }} />
+          <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 201, overflowY: "auto", paddingBottom: 40 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 16px 14px", borderBottom: `1px solid ${C.line}` }}>
+              <button className="sprig-tap" onClick={() => setBldrOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.ink, padding: 4 }}><X size={22} /></button>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: C.ink, flex: 1 }}>Build a meal</div>
+              <button className="sprig-tap" onClick={saveBldr}
+                style={{ ...btn(bldrName.trim() || bldrItems.length > 0 ? C.green : C.bg2, bldrName.trim() || bldrItems.length > 0 ? "#fff" : C.muted), padding: "8px 16px", fontSize: 13 }}>Save</button>
+            </div>
+            <div style={{ padding: "16px 16px 0" }}>
+              <input value={bldrName} onChange={(e) => setBldrName(e.target.value)} onFocus={scrollIntoViewOnFocus}
+                placeholder="Meal name (e.g. Pre-workout breakfast)"
+                style={{ width: "100%", background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: C.ink, fontFamily: "DM Sans", outline: "none", boxSizing: "border-box", marginBottom: 12 }} />
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>Foods</div>
+              {bldrItems.length === 0 ? (
+                <div style={{ background: C.card, borderRadius: 14, padding: "20px", textAlign: "center", color: C.muted, fontSize: 13, marginBottom: 12, border: `1px dashed ${C.line}` }}>No foods added yet</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                  {bldrItems.map((item, i) => (
+                    <div key={i} style={{ background: C.card, borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, border: `1px solid ${C.line}` }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{item.name}</div>
+                        <div style={{ fontSize: 11, color: C.muted }}>{item.serving} · {Math.round(item.calories || 0)} kcal</div>
+                      </div>
+                      <button className="sprig-tap" onClick={() => setBldrItems((prev) => prev.filter((_, j) => j !== i))}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><Trash2 size={14} /></button>
+                    </div>
                   ))}
                 </div>
-              </div>
-              <button className="sprig-tap" onClick={() => { setDetailMeal(null); setServingMeal(detailMeal); setServingMult(1); }}
-                style={{ ...btn(C.green, "#fff"), width: "100%", padding: "13px 0", fontSize: 14 }}>
-                <Plus size={15} /> Log this meal
+              )}
+              <button className="sprig-tap" onClick={() => setBldrFoodSh(true)}
+                style={{ ...btn(C.bg2, C.greenSoft), width: "100%", padding: "12px 0", fontSize: 13, borderRadius: 13, justifyContent: "center", marginBottom: 14 }}>
+                <Plus size={15} /> Add food
               </button>
-            </>
-          );
-        })()}
-      </Sheet>
-
-      {/* ── Meal builder sheet ────────────────────────────────────────────── */}
-      <Sheet open={mealBldrOpen} onClose={() => setMealBldrOpen(false)}>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 14, color: C.ink }}>{editMealId ? "Edit meal" : "New meal"}</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <select value={bldrEmoji} onChange={(e) => setBldrEmoji(e.target.value)}
-            style={{ width: 52, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, fontSize: 22, padding: "5px 2px", textAlign: "center" }}>
-            {EMOJIS.map((e) => <option key={e} value={e}>{e}</option>)}
-          </select>
-          <input value={bldrName} onChange={(e) => setBldrName(e.target.value)} placeholder="Meal name…"
-            style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 13px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
-        </div>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 7 }}>Ingredients</div>
-        {bldrItems.length === 0 ? (
-          <div style={{ color: C.muted, fontSize: 12.5, textAlign: "center", padding: "10px 0 8px" }}>No items yet</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
-            {bldrItems.map((item, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg2, borderRadius: 10, padding: "8px 10px" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.name}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>{item.amount} · {fmtCal(item.calories)} kcal</div>
-                </div>
-                <button onClick={() => setBldrItems((it) => it.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><X size={13} /></button>
-              </div>
-            ))}
-          </div>
-        )}
-        {bldrItems.length > 0 && (
-          <div style={{ background: C.bg2, borderRadius: 11, padding: "9px 12px", marginBottom: 10, fontSize: 12, color: C.muted }}>
-            Total: <b style={{ color: C.ink }}>{fmtCal(sumItems(bldrItems).calories)} kcal</b> · P {fmtMacro(sumItems(bldrItems).protein_g)}g C {fmtMacro(sumItems(bldrItems).carbs_g)}g F {fmtMacro(sumItems(bldrItems).fat_g)}g
-          </div>
-        )}
-        <button className="sprig-tap" onClick={() => setBldrSheet(true)}
-          style={{ ...btn(C.bg2, C.greenSoft), width: "100%", padding: "10px 0", fontSize: 13, marginBottom: 14 }}>
-          <Plus size={14} /> Add food item
-        </button>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="sprig-tap" onClick={() => setMealBldrOpen(false)} style={{ flex: 1, ...btn(C.bg2, C.inkSoft), padding: "12px 0", fontSize: 13 }}>Cancel</button>
-          <button className="sprig-tap" disabled={!bldrName.trim()} onClick={saveMealBldr}
-            style={{ flex: 1, ...btn(bldrName.trim() ? C.green : C.bg2, bldrName.trim() ? "#fff" : C.muted), padding: "12px 0", fontSize: 13, opacity: bldrName.trim() ? 1 : 0.6 }}>
-            Save meal
-          </button>
-        </div>
-      </Sheet>
-      <FoodSearchSheet open={bldrSheet} onClose={() => setBldrSheet(false)} entriesHistory={entriesHistory} activeMeal={null}
-        onAdd={(item) => setBldrItems((prev) => [...prev, { name: item.name, amount: item.serving || "1 serving", calories: item.calories || 0, protein_g: item.protein_g || 0, carbs_g: item.carbs_g || 0, fat_g: item.fat_g || 0, fiber_g: item.fiber_g || 0 }])} />
-
-      {/* ── Recipe builder sheet ─────────────────────────────────────────── */}
-      <Sheet open={recBldrOpen} onClose={() => setRecBldrOpen(false)}>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 14, color: C.ink }}>{editRecipeId ? "Edit recipe" : "New recipe"}</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <select value={rEmoji} onChange={(e) => setREmoji(e.target.value)}
-            style={{ width: 52, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, fontSize: 22, padding: "5px 2px", textAlign: "center" }}>
-            {EMOJIS.map((e) => <option key={e} value={e}>{e}</option>)}
-          </select>
-          <input value={rName} onChange={(e) => setRName(e.target.value)} placeholder="Recipe name…"
-            style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 11, padding: "10px 13px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, boxSizing: "border-box" }} />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <span style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600 }}>Servings</span>
-          <button onClick={() => setRServings((s) => Math.max(1, s - 1))} style={{ width: 30, height: 30, borderRadius: 99, background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", display: "grid", placeItems: "center" }}><Minus size={13} color={C.inkSoft} /></button>
-          <span style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: C.ink, minWidth: 26, textAlign: "center" }}>{rServings}</span>
-          <button onClick={() => setRServings((s) => s + 1)} style={{ width: 30, height: 30, borderRadius: 99, background: C.bg2, border: `1px solid ${C.line}`, cursor: "pointer", display: "grid", placeItems: "center" }}><Plus size={13} color={C.inkSoft} /></button>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: 0.4, textTransform: "uppercase" }}>Ingredients</div>
-          <button className="sprig-tap" onClick={() => setRFoodSheet(true)} style={{ ...btn(C.bg2, C.greenSoft), padding: "6px 10px", fontSize: 11.5 }}><Plus size={12} /> Add</button>
-        </div>
-        {rIngredients.length === 0 ? (
-          <div style={{ color: C.muted, fontSize: 12.5, textAlign: "center", padding: "10px 0 8px" }}>No ingredients yet</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
-            {rIngredients.map((item, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg2, borderRadius: 10, padding: "8px 10px" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.name}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>{item.amount} · {fmtCal(item.calories)} kcal</div>
-                </div>
-                <button onClick={() => setRIngredients((it) => it.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><X size={13} /></button>
-              </div>
-            ))}
-          </div>
-        )}
-        {rIngredients.length > 0 && (
-          <div style={{ background: C.bg2, borderRadius: 11, padding: "9px 12px", marginBottom: 12, fontSize: 12, color: C.muted }}>
-            <div>Total: <b style={{ color: C.ink }}>{fmtCal(rTotal.calories)} kcal</b></div>
-            <div>Per serving: <b style={{ color: C.ink }}>{fmtCal(rPerServing.calories)} kcal</b> · P {fmtMacro(rPerServing.protein_g)}g C {fmtMacro(rPerServing.carbs_g)}g F {fmtMacro(rPerServing.fat_g)}g</div>
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 8, marginBottom: rIngredients.length ? 8 : 0 }}>
-          <button className="sprig-tap" onClick={() => setRecBldrOpen(false)} style={{ flex: 1, ...btn(C.bg2, C.inkSoft), padding: "12px 0", fontSize: 13 }}>Cancel</button>
-          <button className="sprig-tap" disabled={!rName.trim()} onClick={saveRecipe}
-            style={{ flex: 1, ...btn(rName.trim() ? C.green : C.bg2, rName.trim() ? "#fff" : C.muted), padding: "12px 0", fontSize: 13, opacity: rName.trim() ? 1 : 0.6 }}>
-            Save recipe
-          </button>
-        </div>
-        {rIngredients.length > 0 && (
-          <button className="sprig-tap" onClick={() => { const rec = saveRecipe(); logRecipe(rec); }}
-            style={{ ...btn(C.bg2, C.greenSoft), width: "100%", padding: "11px 0", fontSize: 13 }}>
-            Save & log 1 serving now
-          </button>
-        )}
-      </Sheet>
-      <FoodSearchSheet open={rFoodSheet} onClose={() => setRFoodSheet(false)} entriesHistory={entriesHistory} activeMeal={null}
-        onAdd={(item) => setRIngredients((prev) => [...prev, { name: item.name, amount: item.serving || "1 serving", calories: item.calories || 0, protein_g: item.protein_g || 0, carbs_g: item.carbs_g || 0, fat_g: item.fat_g || 0, fiber_g: item.fiber_g || 0 }])} />
-
-      {/* ── AI recipe import sheet ────────────────────────────────────────── */}
-      <Sheet open={aiRecOpen} onClose={() => setAiRecOpen(false)} maxH="65vh">
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4, color: C.ink }}>Describe a recipe</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>AI will estimate ingredients and nutrition from your description.</div>
-        <textarea value={aiRecText} onChange={(e) => setAiRecText(e.target.value)}
-          placeholder="e.g. Pasta bolognese: 250g beef mince, 100g pasta, tomato sauce, parmesan"
-          rows={4} style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 13px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, resize: "none", boxSizing: "border-box", lineHeight: 1.5, marginBottom: 12 }} />
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="sprig-tap" onClick={() => setAiRecOpen(false)} style={{ flex: 1, ...btn(C.bg2, C.inkSoft), padding: "12px 0", fontSize: 13 }}>Cancel</button>
-          <button className="sprig-tap" disabled={!aiRecText.trim() || aiRecLoading} onClick={doAiRecipe}
-            style={{ flex: 1, ...btn(aiRecText.trim() && !aiRecLoading ? C.green : C.bg2, aiRecText.trim() && !aiRecLoading ? "#fff" : C.muted), padding: "12px 0", fontSize: 13, opacity: aiRecText.trim() && !aiRecLoading ? 1 : 0.6 }}>
-            {aiRecLoading ? "Analysing…" : <><Sparkles size={14} /> Build recipe</>}
-          </button>
-        </div>
-      </Sheet>
-
-      {/* ── Meal plan assign sheet ────────────────────────────────────────── */}
-      <Sheet open={!!assignCell} onClose={() => setAssignCell(null)} maxH="70vh">
-        {assignCell && (
-          <>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, marginBottom: 4, color: C.ink }}>
-              {MEAL_LABELS[assignCell.mealType]} · {DAY_LABELS[assignCell.dayIdx]}
-            </div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Pick a meal or recipe</div>
-            {allSources.length === 0 ? (
-              <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>No saved meals or recipes yet</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {allSources.map((src) => (
-                  <button key={src.type + src.id} className="sprig-tap" onClick={() => { assignMeal(src); buzz("select"); }}
-                    style={{ display: "flex", alignItems: "center", gap: 10, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 13px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", width: "100%" }}>
-                    <span style={{ fontSize: 20 }}>{src.emoji}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{src.name}</div>
-                      <div style={{ fontSize: 11.5, color: C.muted }}>{fmtCal(src.calories)} kcal · {src.type}</div>
+              {bldrItems.length > 0 && (
+                <div style={{ background: C.card, borderRadius: 14, padding: "14px", border: `1px solid ${C.line}` }}>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Total</div>
+                  {(() => { const t = sumItems(bldrItems); return (
+                    <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "baseline" }}>
+                      <span style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: 20, color: C.ink }}>{fmtCal(t.calories)} kcal</span>
+                      <span style={{ fontSize: 12, color: MC.protein }}>P {t.protein_g}g</span>
+                      <span style={{ fontSize: 12, color: MC.carbs }}>C {t.carbs_g}g</span>
+                      <span style={{ fontSize: 12, color: MC.fat }}>F {t.fat_g}g</span>
                     </div>
-                    <ChevronRight size={14} color={C.muted} />
-                  </button>
-                ))}
+                  ); })()}
+                </div>
+              )}
+            </div>
+          </div>
+          <FoodSearchSheet open={bldrFoodSh} onClose={() => setBldrFoodSh(false)}
+            onAdd={(r) => { setBldrItems((prev) => [...prev, { name: r.name, serving: r.serving, calories: r.calories || 0, protein_g: r.protein_g || 0, carbs_g: r.carbs_g || 0, fat_g: r.fat_g || 0, fiber_g: r.fiber_g || 0 }]); setBldrFoodSh(false); }}
+            entriesHistory={entriesHistory} activeMeal={null} />
+        </Portal>
+      )}
+
+      {/* ── AI import sheet ────────────────────────────────────────────────── */}
+      {aiOpen && (
+        <Portal>
+          <div onClick={() => setAiOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(6px)", zIndex: 200 }} />
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.bg, borderRadius: "24px 24px 0 0", padding: "24px 20px 48px", zIndex: 201, maxWidth: 480, margin: "0 auto" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Describe with AI</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Describe a meal — AI fills in the macros</div>
+            <textarea value={aiText} onChange={(e) => setAiText(e.target.value)} onFocus={scrollIntoViewOnFocus}
+              placeholder="e.g. 2 scrambled eggs, toast with butter, orange juice"
+              style={{ width: "100%", background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, color: C.ink, fontFamily: "DM Sans", outline: "none", boxSizing: "border-box", resize: "none", minHeight: 90 }} />
+            <button className="sprig-tap" onClick={doAiImport} disabled={aiLoading || !aiText.trim()}
+              style={{ ...btn(aiLoading || !aiText.trim() ? C.bg2 : "#8B5CF6", "#fff"), width: "100%", padding: "13px 0", fontSize: 14, borderRadius: 14, justifyContent: "center", marginTop: 12 }}>
+              {aiLoading ? "Analysing…" : <><Zap size={15} /> Analyse meal</>}
+            </button>
+          </div>
+        </Portal>
+      )}
+
+      {/* ── AI review sheet ────────────────────────────────────────────────── */}
+      {aiReviewOpen && (
+        <Portal>
+          <div onClick={() => setAiReviewOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(6px)", zIndex: 200 }} />
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: C.bg, borderRadius: "24px 24px 0 0", padding: "24px 20px 48px", zIndex: 201, maxWidth: 480, margin: "0 auto", maxHeight: "80vh", overflowY: "auto" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 14 }}>Review & save</div>
+            <input value={aiName} onChange={(e) => setAiName(e.target.value)} onFocus={scrollIntoViewOnFocus}
+              placeholder="Meal name"
+              style={{ width: "100%", background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, color: C.ink, fontFamily: "DM Sans", outline: "none", boxSizing: "border-box", marginBottom: 12 }} />
+            {aiItems.map((item, i) => (
+              <div key={i} style={{ background: C.card, borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, border: `1px solid ${C.line}`, marginBottom: 6 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{item.name}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{item.amount} · {item.calories} kcal</div>
+                </div>
+                <button className="sprig-tap" onClick={() => setAiItems((prev) => prev.filter((_, j) => j !== i))}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4 }}><X size={14} /></button>
               </div>
-            )}
-          </>
-        )}
-      </Sheet>
+            ))}
+            <button className="sprig-tap" onClick={saveAiMeal}
+              style={{ ...btn(C.green, "#fff"), width: "100%", padding: "13px 0", fontSize: 14, borderRadius: 14, justifyContent: "center", marginTop: 12 }}>
+              <BookMarked size={15} /> Save as favourite
+            </button>
+          </div>
+        </Portal>
+      )}
 
       <div style={{ height: 16 }} />
     </div>
