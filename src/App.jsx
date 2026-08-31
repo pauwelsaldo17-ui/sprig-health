@@ -3845,7 +3845,8 @@ function SprigApp() {
           </>
         )}
         {tab === "meals" && (
-          <MealsTab library={library} onLog={logFromLibrary} onRemove={removeLibrary} onNew={() => { setTab("today"); setFoodOverlayMode("text"); }} />
+          <MealsTab library={library} onLog={logFromLibrary} onRemove={removeLibrary} onNew={() => { setTab("today"); setFoodOverlayMode("text"); }}
+            entries={entries} onAddEntry={addEntry} entriesHistory={entriesHistory} />
         )}
         {tab === "sleep" && (
           <SleepTab sleepLogs={sleepLogs} sleepInfo={sleepInfo} alarm={alarm} onSaveAlarm={saveAlarm}
