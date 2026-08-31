@@ -13,30 +13,6 @@ import { btn, SubTabs, EmptyState, useKeyboardInset, Portal, scrollIntoViewOnFoc
 const HAPTIC = { tap: 14, light: 10, select: 8, success: [30, 50, 30], error: [100, 50, 100] };
 function buzz(kind = "tap") { try { navigator.vibrate?.(HAPTIC[kind] ?? 14); } catch (_) {} }
 
-// ── Meal definitions ─────────────────────────────────────────────────────────
-const MEALS = [
-  { key: "breakfast", label: "Breakfast", emoji: "🌅", from: 0,    to: 630,  mid: 480 },
-  { key: "lunch",     label: "Lunch",     emoji: "☀️", from: 630,  to: 900,  mid: 750 },
-  { key: "dinner",    label: "Dinner",    emoji: "🌙", from: 900,  to: 1200, mid: 1080 },
-  { key: "snack",     label: "Snacks",    emoji: "🍎", from: 1200, to: 1440, mid: 1260 },
-];
-
-function getMealKey(ts) {
-  const m = tsToMin(ts || Date.now());
-  for (const meal of MEALS) { if (m >= meal.from && m < meal.to) return meal.key; }
-  return "snack";
-}
-
-function getMealTimestampForAdd(mealKey) {
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const meal = MEALS.find((m) => m.key === mealKey);
-  if (!meal) return Date.now();
-  if (nowMin >= meal.from && nowMin < meal.to) return Date.now();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return today.getTime() + meal.mid * 60 * 1000;
-}
-
 // ── Formatting ───────────────────────────────────────────────────────────────
 const fmtCal  = (n) => Math.round(n || 0).toLocaleString();
 const fmtMacro = (n) => { const r = Math.round((n || 0) * 10) / 10; return r % 1 === 0 ? String(r) : r.toFixed(1); };
@@ -293,47 +269,6 @@ function FoodEntryRow({ entry, onRemove, isToday: isT, flashId }) {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Meal Section ──────────────────────────────────────────────────────────────
-function MealSection({ meal, mealEntries, onRemove, onAddFood, isToday: isT, flashId }) {
-  const [expanded, setExpanded] = useState(true);
-  const mealKcal = mealEntries.reduce((sum, e) => sum + Math.round((e.calories || 0) * (e.mult || 1)), 0);
-
-  return (
-    <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, overflow: "hidden" }}>
-      {/* Header */}
-      <button className="sprig-tap" onClick={() => setExpanded((e) => !e)}
-        style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: "13px 14px", display: "flex", alignItems: "center", gap: 10, fontFamily: "DM Sans" }}>
-        <span style={{ fontSize: 16 }}>{meal.emoji}</span>
-        <span style={{ fontSize: 14, fontWeight: 700, color: C.ink, flex: 1, textAlign: "left" }}>{meal.label}</span>
-        {mealKcal > 0 && <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>{fmtCal(mealKcal)} kcal</span>}
-        <ChevronDown size={16} color={C.muted} style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-      </button>
-
-      {expanded && (
-        <div style={{ padding: "0 10px 10px" }}>
-          {mealEntries.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", padding: "14px 0" }}>
-              Tap + to log {meal.label.toLowerCase()}
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
-              {mealEntries.map((e) => (
-                <FoodEntryRow key={e.id} entry={e} onRemove={onRemove} isToday={isT} flashId={flashId} />
-              ))}
-            </div>
-          )}
-          {isT && (
-            <button className="sprig-tap" onClick={() => onAddFood(meal.key)}
-              style={{ width: "100%", background: C.bg2, border: `1px dashed ${C.line}`, cursor: "pointer", borderRadius: 12, padding: "9px 0", fontSize: 12.5, fontWeight: 700, color: C.greenSoft, fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Plus size={14} /> Add food
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -750,50 +685,6 @@ function WaterCard({ daily, onDaily, waterGoalMl }) {
   );
 }
 
-// ── SECTION G: Micronutrients ─────────────────────────────────────────────────
-function MicroCard({ t }) {
-  const [open, setOpen] = useState(false);
-  const SHOW_MICROS = [
-    ["vitamin_c", "Vitamin C"], ["vitamin_d", "Vitamin D"],
-    ["calcium", "Calcium"], ["iron", "Iron"],
-    ["potassium", "Potassium"], ["magnesium", "Magnesium"],
-    ["b12", "B12"], ["zinc", "Zinc"],
-  ];
-  const present = SHOW_MICROS.filter(([k]) => (t.micros?.[k] || 0) > 0);
-  if (present.length < 3) return null;
-
-  return (
-    <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, marginTop: 10, overflow: "hidden" }}>
-      <button className="sprig-tap" onClick={() => setOpen((o) => !o)}
-        style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: "13px 16px", display: "flex", alignItems: "center", gap: 10, fontFamily: "DM Sans" }}>
-        <Pill size={16} color={C.greenSoft} />
-        <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: C.ink, textAlign: "left" }}>Nutrients</span>
-        <span style={{ fontSize: 11.5, color: C.muted }}>{present.length} tracked</span>
-        <ChevronDown size={16} color={C.muted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-      </button>
-      {open && (
-        <div style={{ padding: "4px 16px 14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 20px" }}>
-          {present.map(([k, label]) => {
-            const v = Math.min(150, t.micros[k] || 0);
-            const over = v >= 100;
-            return (
-              <div key={k}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 4 }}>
-                  <span style={{ color: C.inkSoft }}>{label}</span>
-                  <span style={{ color: over ? C.greenSoft : C.muted, fontWeight: over ? 700 : 500 }}>{t.micros[k]}%</span>
-                </div>
-                <div style={{ height: 5, background: C.bg2, borderRadius: 99 }}>
-                  <div style={{ width: `${Math.min(100, v)}%`, height: "100%", background: over ? C.greenSoft : C.leaf, borderRadius: 99 }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Drinks Card (original, unchanged) ────────────────────────────────────────
 const MEAL_TAGS = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
 
@@ -929,16 +820,14 @@ function NutritionTab({
   onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate, onOpenLogSheet, flashEntryId, dt = null,
 }) {
   const [showMicros, setShowMicros] = useState(advanced);
-  const [showSupps,  setShowSupps]  = useState(advanced || (supps?.length || 0) <= 4);
   const [favSearch,  setFavSearch]  = useState("");
   const [favSort,    setFavSort]    = useState("most");
   const [sheetOpen,  setSheetOpen]  = useState(false);
-  const [activeMeal, setActiveMeal] = useState(null);
   const [viewDateStr, setViewDateStr] = useState(todayStr);
 
   const takenCount = supps.filter((s) => takenIds.includes(s.id)).length;
-  const adjTarget = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
-  const delta     = moveInfo?.calAdjust?.delta || 0;
+  const allLogged  = supps.length > 0 && takenCount === supps.length;
+  const adjTarget  = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
 
   const isViewingToday = isToday(viewDateStr);
   const viewEntries = isViewingToday
@@ -946,24 +835,11 @@ function NutritionTab({
     : (entriesHistory || []).filter((e) => e.date === viewDateStr);
   const viewT = isViewingToday ? t : dayTotals(viewEntries);
 
-  // Group entries into meal sections
-  const mealMap = {};
-  MEALS.forEach((m) => (mealMap[m.key] = []));
-  viewEntries.forEach((e) => {
-    const key = e.mealKey || getMealKey(e.time);
-    if (!mealMap[key]) mealMap[key] = [];
-    mealMap[key].push(e);
-  });
+  // Sorted food log — newest first (consistent with original app ordering)
+  const sortedEntries = [...viewEntries].sort((a, b) => (b.time || 0) - (a.time || 0));
 
-  const openFoodSheet = (mealKey) => {
-    setActiveMeal(mealKey);
-    setSheetOpen(true);
-    buzz("tap");
-  };
-
-  const handleAddFood = (r, mealKey) => {
-    const ts = getMealTimestampForAdd(mealKey || activeMeal || "lunch");
-    onAddEntry({ ...r, time: ts });
+  const handleAddFood = (r) => {
+    onAddEntry({ ...r, time: Date.now() });
   };
 
   const favs = (favoriteMeals || [])
@@ -1015,23 +891,29 @@ function NutritionTab({
           {/* SECTION C: Projection */}
           {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
 
-          {/* SECTION D: Meal sections */}
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, margin: "22px 2px 10px", letterSpacing: -0.25, color: C.ink }}>
-            The Plate
+          {/* SECTION D: Unified food log */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 2px 10px" }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, letterSpacing: -0.25, color: C.ink }}>
+              Today's Food
+            </div>
+            {isViewingToday && (
+              <button className="sprig-tap" onClick={() => { setSheetOpen(true); buzz("tap"); }}
+                style={{ ...btn(C.green, "#fff"), padding: "8px 14px", fontSize: 13 }}>
+                <Plus size={14} /> Add
+              </button>
+            )}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {MEALS.map((meal) => (
-              <MealSection
-                key={meal.key}
-                meal={meal}
-                mealEntries={mealMap[meal.key] || []}
-                onRemove={onRemove}
-                onAddFood={openFoodSheet}
-                isToday={isViewingToday}
-                flashId={flashEntryId}
-              />
-            ))}
-          </div>
+          {sortedEntries.length === 0 ? (
+            <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, padding: "28px 20px", textAlign: "center" }}>
+              <div style={{ fontSize: 13, color: C.muted }}>Nothing logged yet — tap + to add food</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {sortedEntries.map((e) => (
+                <FoodEntryRow key={e.id} entry={e} onRemove={onRemove} isToday={isViewingToday} flashId={flashEntryId} />
+              ))}
+            </div>
+          )}
 
           {/* SECTION F: Water */}
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, margin: "22px 2px 10px", letterSpacing: -0.25, color: C.ink }}>
@@ -1046,51 +928,60 @@ function NutritionTab({
           )}
           {isViewingToday && <DrinksCard daily={daily} onDaily={onDaily} onAddEntry={onAddEntry} />}
 
-          {/* SECTION G: Micronutrients */}
-          <MicroCard t={viewT} />
-
           {/* Supplements */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 2px 10px" }}>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}>
-              <Pill size={16} color={C.greenSoft} /> Daily stack
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, letterSpacing: -0.25, display: "flex", alignItems: "center", gap: 7, color: C.ink }}>
+              <Pill size={18} color={C.greenSoft} /> Daily stack
               {supps.length > 0 && <span style={{ fontFamily: "DM Sans", fontSize: 12, color: C.muted, fontWeight: 500 }}>· {takenCount}/{supps.length}</span>}
             </div>
-            <button className="sprig-tap" onClick={onAddSupp} style={{ ...btn(C.bg2, C.green), padding: "7px 12px", fontSize: 12.5, borderRadius: 11 }}><Plus size={15} /> Add</button>
+            <button className="sprig-tap" onClick={onAddSupp} style={{ ...btn(C.bg2, C.greenSoft), padding: "7px 12px", fontSize: 12.5, borderRadius: 11 }}><Plus size={14} /> Add</button>
           </div>
           {supps.length === 0 ? (
             <button className="sprig-tap" onClick={onAddSupp}
               style={{ width: "100%", background: C.card, border: `1px dashed ${C.line}`, borderRadius: 16, padding: "16px 14px", cursor: "pointer", color: C.muted, fontSize: 13, fontFamily: "DM Sans", textAlign: "left", display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "14", display: "grid", placeItems: "center", flexShrink: 0 }}><Pill size={17} color={C.greenSoft} /></div>
-              <span>Add your supplements — tick them off each day.</span>
+              <span>Add the supplements you take — tick them off each day to count their nutrients.</span>
             </button>
           ) : (
-            <>
-              {!showSupps && (
-                <button className="sprig-tap" onClick={() => setShowSupps(true)} style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "12px 14px", cursor: "pointer", fontSize: 13, color: C.inkSoft, fontFamily: "DM Sans", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>{takenCount}/{supps.length} taken today</span><span style={{ color: C.greenSoft, fontWeight: 600 }}>Show stack ▾</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 0, background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, overflow: "hidden" }}>
+              {/* Log all / all logged banner */}
+              {allLogged ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: C.green + "12", borderBottom: `1px solid ${C.line}` }}>
+                  <Check size={14} color={C.greenSoft} />
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: C.greenSoft }}>All supplements logged today</span>
+                </div>
+              ) : (
+                <button className="sprig-tap"
+                  onClick={() => supps.forEach((s) => { if (!takenIds.includes(s.id)) onToggleSupp(s.id); })}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "none", border: "none", borderBottom: `1px solid ${C.line}`, cursor: "pointer", fontFamily: "DM Sans", width: "100%", textAlign: "left" }}>
+                  <Check size={14} color={C.muted} />
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: C.greenSoft }}>Log all {supps.length} supplements</span>
+                  <span style={{ fontSize: 11.5, color: C.muted, marginLeft: "auto" }}>{supps.length - takenCount} remaining</span>
                 </button>
               )}
-              {showSupps && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {supps.map((s) => {
-                    const on = takenIds.includes(s.id);
-                    return (
-                      <div key={s.id} className="sprig-tap" onClick={() => onToggleSupp(s.id)}
-                        style={{ background: on ? C.green + "0d" : C.card, borderRadius: 14, padding: "11px 13px", cursor: "pointer", boxShadow: C.shadow, border: `1px solid ${on ? C.leaf + "66" : C.line}`, display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", background: on ? C.green : "transparent", border: on ? "none" : `2px solid ${C.line}` }}>
-                          {on && <Check size={16} color="#fff" strokeWidth={3} />}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: on ? C.green : C.ink }}>{s.name}</div>
-                          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.serving}</div>
-                        </div>
-                        <button className="sprig-tap" onClick={(e) => { e.stopPropagation(); onRemoveSupp(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+              {/* Supplement rows */}
+              {supps.map((s, i) => {
+                const taken = takenIds.includes(s.id);
+                return (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < supps.length - 1 ? `1px solid ${C.line}` : "none", background: taken ? C.green + "08" : "transparent" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>{s.name}</div>
+                      {s.serving && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>{s.serving}</div>}
+                    </div>
+                    <button className="sprig-tap" onClick={() => { onToggleSupp(s.id); buzz("light"); }}
+                      style={{ ...btn(taken ? C.green : C.bg2, taken ? "#fff" : C.inkSoft), padding: "7px 13px", fontSize: 12.5, flexShrink: 0, borderRadius: 10 }}>
+                      {taken ? <><Check size={13} /> Logged</> : "Log"}
+                    </button>
+                    <button className="sprig-tap" onClick={() => onRemoveSupp(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 4, flexShrink: 0 }}><Trash2 size={14} /></button>
+                  </div>
+                );
+              })}
+              {/* Quick add at bottom */}
+              <button className="sprig-tap" onClick={onAddSupp}
+                style={{ width: "100%", background: "none", border: "none", borderTop: `1px solid ${C.line}`, cursor: "pointer", padding: "11px 14px", fontSize: 12.5, fontWeight: 700, color: C.greenSoft, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 6 }}>
+                <Plus size={14} /> Quick add supplement
+              </button>
+            </div>
           )}
 
           {/* Vitamins */}
@@ -1198,7 +1089,7 @@ function NutritionTab({
         onClose={() => setSheetOpen(false)}
         onAdd={handleAddFood}
         entriesHistory={entriesHistory}
-        activeMeal={activeMeal}
+        activeMeal={null}
       />
     </div>
   );
