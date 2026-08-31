@@ -98,6 +98,63 @@ export default async function handler(req, res) {
   if (typeof body === "string") { try { body = JSON.parse(body); } catch (_) { body = {}; } }
   body = body || {};
 
+  // ── New: nutrition items extraction (AI Log tab in FoodSearchSheet)
+  // Request: { mode: 'nutrition', description: '...' }
+  // Response: { items: [{ name, amount, calories, protein, carbs, fat, fiber }, ...] }
+  if (body.mode === "nutrition" && typeof body.description === "string") {
+    const description = body.description.slice(0, 4000);
+    if (!description.trim()) {
+      res.status(400).json({ error: "Missing description" });
+      return;
+    }
+    console.log("[api/analyze][nutrition-items] description=" + description.length + " bytes");
+    const itemsPayload = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 1500,
+      system: "You are a precise nutrition extraction assistant. Given a plain-language description of food eaten, return a JSON array of food items with estimated nutritional values. Be specific about amounts. Use standard nutritional databases for estimates. Return ONLY valid JSON, no explanation.",
+      messages: [{
+        role: "user",
+        content: [{
+          type: "text",
+          text: `Extract food items from this description and return a JSON array:\n\n"${description}"\n\nReturn ONLY a JSON array in this exact format, no markdown, no explanation:\n[{"name": "food name", "amount": "2 large", "calories": 182, "protein": 12, "carbs": 2, "fat": 14, "fiber": 0}, ...]`,
+        }],
+      }],
+    };
+    let upstreamItems;
+    try {
+      upstreamItems = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify(itemsPayload),
+      });
+    } catch (e) {
+      console.error("[api/analyze] nutrition-items: fetch failed:", e?.message || e);
+      res.status(502).json({ error: "Upstream connection failed" });
+      return;
+    }
+    if (!upstreamItems.ok) {
+      const detail = await upstreamItems.text().catch(() => "");
+      console.error("[api/analyze] nutrition-items: Anthropic " + upstreamItems.status + ": " + detail.slice(0, 300));
+      res.status(upstreamItems.status >= 500 ? 502 : upstreamItems.status).json({ error: "AI request failed" });
+      return;
+    }
+    let itemsData;
+    try { itemsData = await upstreamItems.json(); } catch (_) {
+      res.status(502).json({ error: "Bad upstream response" });
+      return;
+    }
+    const rawItems = (itemsData.content || []).map((b) => (b.type === "text" ? b.text : "")).join("\n");
+    const s = String(rawItems || "").replace(/```json/gi, "").replace(/```/g, "").trim();
+    const a = s.indexOf("["), b2 = s.lastIndexOf("]");
+    let items = [];
+    if (a !== -1 && b2 !== -1) {
+      try { items = JSON.parse(s.slice(a, b2 + 1)); } catch (_) { items = []; }
+    }
+    console.log("[api/analyze][nutrition-items] parsed " + items.length + " items");
+    res.status(200).json({ items });
+    return;
+  }
+
   const kind = body.kind === "text" ? "text" : "nutrition";
 
   // Per spec: one clear log line per request, tagged by kind, easy to grep in Vercel function logs.
