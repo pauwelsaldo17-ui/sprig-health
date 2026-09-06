@@ -31,12 +31,17 @@ workflows:
 
       - name: Fetch signing files
         script: |
+          # Write keys to files to avoid env var formatting issues
+          printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > /tmp/asc_key.p8
+          printf '%s' "$CERTIFICATE_PRIVATE_KEY" > /tmp/cert_key.pem
+          echo "ASC key length: $(wc -c < /tmp/asc_key.p8)"
+          echo "Cert key length: $(wc -c < /tmp/cert_key.pem)"
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --private-key @env:APP_STORE_CONNECT_PRIVATE_KEY \
+            --private-key @file:/tmp/asc_key.p8 \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --certificate-key @env:CERTIFICATE_PRIVATE_KEY \
+            --certificate-key @file:/tmp/cert_key.pem \
             --create
 
       - name: Add certificates to keychain
