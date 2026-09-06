@@ -26,21 +26,13 @@ workflows:
       - name: Sync Capacitor
         script: npx cap sync ios
 
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install
+
       - name: Set up keychain
         script: keychain initialize
-
-      - name: Diagnose credentials
-        script: |
-          echo "=== CREDENTIAL CHECK ==="
-          echo "KEY_ID value: '$APP_STORE_CONNECT_KEY_IDENTIFIER'"
-          echo "ISSUER_ID value: '$APP_STORE_CONNECT_ISSUER_ID'"
-          echo "ASC key length: ${#APP_STORE_CONNECT_PRIVATE_KEY}"
-          echo "ASC key line count: $(printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" | wc -l)"
-          echo "ASC key first line: $(printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" | head -1)"
-          echo "ASC key last line: $(printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" | tail -1)"
-          echo "CERT key length: ${#CERTIFICATE_PRIVATE_KEY}"
-          echo "CERT key line count: $(printf '%s' "$CERTIFICATE_PRIVATE_KEY" | wc -l)"
-          echo "=== END CHECK ==="
 
       - name: Fetch signing files
         script: |
