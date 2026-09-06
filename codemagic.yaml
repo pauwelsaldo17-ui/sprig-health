@@ -8,7 +8,7 @@ workflows:
       node: 22
       vars:
         BUNDLE_ID: com.pauwelsaldo.vitae
-        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
     scripts:
       - name: Install dependencies
@@ -25,11 +25,6 @@ workflows:
 
       - name: Sync Capacitor
         script: npx cap sync ios
-
-      - name: Install CocoaPods
-        script: |
-          cd ios/App
-          pod install
 
       - name: Set up keychain
         script: keychain initialize
@@ -62,10 +57,11 @@ workflows:
       - name: Build iOS
         script: |
           xcodebuild \
-            -workspace "$XCODE_WORKSPACE" \
+            -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -archivePath build/App.xcarchive \
+            -allowProvisioningUpdates \
             archive
           xcodebuild \
             -exportArchive \
