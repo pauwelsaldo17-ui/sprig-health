@@ -31,30 +31,6 @@ workflows:
 
       - name: Fetch signing files
         script: |
-          # Verify credentials before use
-          echo "Key ID: $APP_STORE_CONNECT_KEY_IDENTIFIER"
-          echo "Issuer ID: $APP_STORE_CONNECT_ISSUER_ID"
-          python3 -c "
-import os, sys
-key = os.environ.get('APP_STORE_CONNECT_PRIVATE_KEY', '')
-print(f'ASC key length (chars): {len(key)}')
-print(f'ASC key first line: {key.split(chr(10))[0]}')
-try:
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
-    k = load_pem_private_key(key.encode(), password=None)
-    print(f'ASC key OK - type: {type(k).__name__}')
-except Exception as e:
-    print(f'ASC key ERROR: {e}')
-    sys.exit(1)
-cert_key = os.environ.get('CERTIFICATE_PRIVATE_KEY', '')
-print(f'Cert key length (chars): {len(cert_key)}')
-try:
-    k2 = load_pem_private_key(cert_key.encode(), password=None)
-    print(f'Cert key OK - type: {type(k2).__name__}')
-except Exception as e:
-    print(f'Cert key ERROR: {e}')
-    sys.exit(1)
-"
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --private-key @env:APP_STORE_CONNECT_PRIVATE_KEY \
