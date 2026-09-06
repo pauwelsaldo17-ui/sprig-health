@@ -7,6 +7,10 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.pauwelsaldo.vitae
       node: 18
+      vars:
+        BUNDLE_ID: com.pauwelsaldo.vitae
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
     scripts:
       - name: Install dependencies
         script: npm install
@@ -27,8 +31,8 @@ workflows:
         script: |
           xcode-project use-profiles
           xcodebuild \
-            -workspace ios/App/App.xcworkspace \
-            -scheme App \
+            -workspace $XCODE_WORKSPACE \
+            -scheme $XCODE_SCHEME \
             -configuration Release \
             -archivePath build/App.xcarchive \
             archive
@@ -41,5 +45,7 @@ workflows:
       - build/export/*.ipa
     publishing:
       app_store_connect:
-        auth: integration
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
