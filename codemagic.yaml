@@ -69,6 +69,15 @@ workflows:
             -exportPath build/export \
             -exportOptionsPlist /Users/builder/export_options.plist
 
+      - name: Upload to TestFlight
+        script: |
+          app-store-connect publish \
+            --path build/export/*.ipa \
+            --private-key @file:/tmp/asc_key.p8 \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --max-build-processing-wait 25
+
     artifacts:
       - build/export/*.ipa
 
@@ -77,4 +86,4 @@ workflows:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: true
+        submit_to_testflight: false

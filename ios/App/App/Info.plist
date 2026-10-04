@@ -47,5 +47,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Vitae reads your steps, weight, and sleep data to give you accurate health insights without manual entry.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Vitae may write workout summaries back to Apple Health.</string>
 </dict>
 </plist>

@@ -28,6 +28,8 @@ import TrendsTab from "./screens/TrendsTab.jsx";
 import SleepTab, { EnergyTab } from "./screens/SleepTab.jsx";
 import NutritionTab, { MealsTab, FavoriteFormSheet } from "./screens/NutritionTab.jsx";
 import TodayTab from "./screens/TodayTab.jsx";
+import { isHealthAvailable, requestHealthPermissions, syncHealthData } from "./healthService.js";
+import { requestNotificationPermissions, scheduleSmartNotifications } from "./notifications.js";
 import { useSupabaseAuth } from "./hooks/useSupabaseAuth.js";
 import { C, THEMES, applyTheme } from "./theme.js";
 import { Ring, MacroBar, btn, Btn, Badge, SectionHeader, EmptyState, ProgressBar, PremiumCard, GlassCard, cardStyle, solidCardStyle, sectionTitleStyle, eyebrowStyle, iconButtonStyle, pillStyle, SourceLabel, RingMetric, MetricCard, PageHeader, SubTabs, winIconFor, KudosButton, WinRow, TodayWinsCard, Legend, PerfectRecoveryCard } from "./components/ui.jsx";
@@ -404,6 +406,8 @@ const store = {
   },
   onWriteError(fn) { return () => {}; },
 };
+const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, workoutAdjustment, calorieAdjustment, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, bestGymWindow, smartWake, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeText, localCoachAnswer } from "./utils/vitaeCalc.js";
 
 /* ---------------- Sprig "day" boundary --------------
@@ -1924,6 +1928,8 @@ function SprigApp() {
   const tickRef = useRef(null);
   const entriesRef = useRef([]); // mirrors `entries` so persistEntries always sees the latest value
   useEffect(() => { entriesRef.current = entries; }, [entries]);
+  const applyHealthSyncRef = useRef(null); // always points to the latest applyHealthSync closure
+  const notifStateRef = useRef(null);      // latest app state snapshot for notifications
   // The "current day" Sprig logs against — a Sprig day, not a calendar day (see getSprigDate).
   // Late-night food/drink before the morning boundary counts toward the previous day.
   const latestSleepLog = sleepLogs.length ? sleepLogs[sleepLogs.length - 1] : null;
@@ -2053,6 +2059,45 @@ function SprigApp() {
     })();
   }, []);
 
+  // ── Health auto-sync ────────────────────────────────────────────────────────
+  // Keep the ref current so the foreground listener always calls the latest closure.
+  useEffect(() => { applyHealthSyncRef.current = applyHealthSync; });
+
+  // Initial sync — runs once after the data load completes.
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      try {
+        if (!(await isHealthAvailable())) return;
+        await requestHealthPermissions();
+        const data = await syncHealthData();
+        applyHealthSyncRef.current?.(data);
+        localStorage.setItem("sprig_health_connected", "1");
+        localStorage.setItem("sprig_health_sync_ts", new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }));
+      } catch {}
+      scheduleSmartNotifications(notifStateRef.current);
+    })();
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-sync whenever the app returns to foreground.
+  useEffect(() => {
+    let handle = null;
+    import("@capacitor/app").then(({ App: CapApp }) => {
+      CapApp.addListener("appStateChange", async ({ isActive }) => {
+        if (!isActive) return;
+        try {
+          if (!(await isHealthAvailable())) return;
+          const data = await syncHealthData();
+          applyHealthSyncRef.current?.(data);
+          localStorage.setItem("sprig_health_sync_ts", new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }));
+        } catch {}
+        scheduleSmartNotifications(notifStateRef.current);
+      }).then((h) => { handle = h; });
+    }).catch(() => {});
+    return () => { handle?.remove().catch(() => {}); };
+  }, []);
+  // ── End health auto-sync ────────────────────────────────────────────────────
+
   // Subscribe to storage write failures so we can surface a banner.
   // The store falls back to in-memory on failure, so data isn't lost mid-session — but the user should know.
   useEffect(() => {
@@ -2087,6 +2132,7 @@ function SprigApp() {
     pushRegisteredRef.current = true;
     const supabase = getSupabase();
     registerPushNotifications(supabase, cloudUser.id);
+    requestNotificationPermissions();
   }, [cloudUser]);
   const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "syncing" | "synced" | "error"
   const syncTimerRef = useRef(null);
@@ -2191,6 +2237,7 @@ function SprigApp() {
       id: uid(), name: f.name, serving: f.serving,
       calories: f.calories, protein_g: f.protein_g, carbs_g: f.carbs_g, fat_g: f.fat_g, fiber_g: f.fiber_g,
       micros: f.micros || {}, omega3: f.omega3 ?? null, mult: 1, time: Date.now(),
+      source: 'favorite', timezone: tz(), confirmed: true,
     };
     persistEntries((prev) => [...prev, entry]);
     persistFavoriteMeals(favoriteMeals.map((x) => (x.id === id ? { ...x, useCount: (x.useCount || 0) + 1, lastUsedTs: Date.now() } : x)));
@@ -2344,7 +2391,7 @@ function SprigApp() {
       if (others.length) {
         const raw = [...weightSeries];
         others.forEach(({ date: d, kg }) => {
-          if (!raw.find((w) => w.date === d)) raw.push({ date: d, kg });
+          if (!raw.find((w) => w.date === d)) raw.push({ date: d, kg, source: 'health_sync', source_record_id: `healthkit_weight_${d}` });
         });
         const ns = raw.sort((a, b) => a.date.localeCompare(b.date)).slice(-60);
         setWeightSeries(ns);
@@ -2359,7 +2406,19 @@ function SprigApp() {
         .map((log) => {
           const dur = Math.round((log.wakeTs - log.bedTs) / 60000);
           if (dur < 60 || dur > 660) return null;
-          return { id: `health_${log.bedTs}`, bedTs: log.bedTs, wakeTs: log.wakeTs, durationMin: dur, score: 70, source: "health_sync" };
+          const bedTs = log.bedTs;
+          const wakeTs = log.wakeTs;
+          return {
+            id: `health_${bedTs}`,
+            date: new Date(wakeTs).toLocaleDateString("en-CA"),
+            bedtime: bedTs, waketime: wakeTs, durationMin: dur,
+            score: 70, restlessness: 30,
+            stages: estimateStages(dur, 30),
+            source: "health_sync",
+            timezone: log.timezone || tz(),
+            confirmed: true,
+            source_record_id: `healthkit_sleep_${bedTs}`,
+          };
         })
         .filter(Boolean);
       if (toAdd.length) {
@@ -2387,10 +2446,10 @@ function SprigApp() {
     // Add a sleep log for last night
     const wakeTs = Date.now() - 36e5 * 7;
     const sleepTs = wakeTs - 60 * 27000; // ~7.5h sleep
-    const newSleep = { id: uid(), startTime: sleepTs, waketime: wakeTs, durationMin: 450, score: 82, bedtime: sleepTs, stages: {}, manual: true };
+    const newSleep = { id: uid(), date: new Date(wakeTs).toLocaleDateString("en-CA"), bedtime: sleepTs, waketime: wakeTs, durationMin: 450, score: 82, restlessness: 20, stages: estimateStages(450, 20), source: 'manual', timezone: tz(), confirmed: true };
     await persistSleep([...sleepLogs.filter((l) => Math.abs(l.waketime - wakeTs) > 36e5 * 12), newSleep]);
     // Add a workout
-    const newWorkout = { id: uid(), ts: Date.now() - 36e5 * 6, label: "Upper Body", exercises: [
+    const newWorkout = { id: uid(), date, ts: Date.now() - 36e5 * 6, durationMin: 55, label: "Upper Body", source: 'manual', timezone: tz(), confirmed: true, exercises: [
       { name: "Bench Press", group: "chest", sets: [{ w: 80, reps: 8, rir: 2 }, { w: 80, reps: 8, rir: 2 }, { w: 75, reps: 10, rir: 1 }] },
       { name: "Barbell Row", group: "back", sets: [{ w: 70, reps: 8, rir: 2 }, { w: 70, reps: 8, rir: 2 }] },
       { name: "Overhead Press", group: "shoulders", sets: [{ w: 50, reps: 8, rir: 2 }, { w: 50, reps: 8, rir: 2 }] },
@@ -2854,8 +2913,10 @@ function SprigApp() {
       stages: estimateStages(durationMin, restlessness ?? 30),
       score: scoreSleep({ durationMin, restlessness: restlessness ?? 30, bedMin: tsToMin(bedTs) }, need, usualBed),
       source: source || "manual",
+      timezone: tz(),
+      confirmed: true,
       short: isShort,
-      ignoredFromScore: isShort, // excluded from debt/score until the user confirms otherwise
+      ignoredFromScore: isShort,
     };
     const next = [...sleepLogs.filter((l) => l.date !== log.date), log].sort((a, b) => a.waketime - b.waketime).slice(-30);
     persistSleep(next);
@@ -3186,7 +3247,7 @@ function SprigApp() {
     const done = (activeWorkout?.exercises || []).filter((e) => e.sets.length);
     let doneRecap = null;
     if (done.length) {
-      const w = { id: uid(), date, ts: Date.now(), durationMin: Math.max(1, Math.round((Date.now() - activeWorkout.startTs) / 60000)), exercises: done };
+      const w = { id: uid(), date, ts: Date.now(), durationMin: Math.max(1, Math.round((Date.now() - activeWorkout.startTs) / 60000)), exercises: done, source: 'manual', timezone: tz(), confirmed: true };
       // recap vs all prior workouts → drives wins + history badges
       const recap = recapFor(w, workouts);
       doneRecap = recap;
@@ -3344,10 +3405,12 @@ function SprigApp() {
   }
 
   function addEntry(r) {
+    const sourceMap = { photo: 'ai_photo', label: 'ai_label', text: 'ai_text' };
     const entry = {
       id: uid(), name: r.name, serving: r.serving, calories: r.calories,
       protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g, fiber_g: r.fiber_g,
       micros: normalizeMicros(r.micros), omega3: r.omega3, mult: r.mult || 1, time: Date.now(),
+      source: sourceMap[resultMode] || 'ai_text', timezone: tz(), confirmed: true,
     };
     persistEntries((prev) => [...prev, entry]);
     // detect nutrition wins right away from the new totals (doesn't wait on the reactive effect)
@@ -3368,7 +3431,7 @@ function SprigApp() {
   }
 
   function logFromLibrary(meal) {
-    const entry = { ...meal, id: uid(), mult: 1, time: Date.now() };
+    const entry = { ...meal, id: uid(), mult: 1, time: Date.now(), source: 'library', timezone: tz(), confirmed: true };
     persistEntries((prev) => [...prev, entry]);
     setTab("nutrition");
     setFoodSub("nutrition");
@@ -3411,6 +3474,7 @@ function SprigApp() {
         iron_mg: n["iron_100g"] ? +((n["iron_100g"] * 1000) * factor).toFixed(1) : null,
       },
       omega3: null, mult: 1, time: Date.now(),
+      source: 'food_search', timezone: tz(), confirmed: true,
     };
     persistEntries((prev) => [...prev, entry]);
     setFoodOverlayMode(null);
@@ -3424,6 +3488,7 @@ function SprigApp() {
       id: uid(), name: m.name || "Quick entry", serving: "manual",
       calories: +m.calories || 0, protein_g: +m.protein || 0, carbs_g: +m.carbs || 0,
       fat_g: +m.fat || 0, fiber_g: +m.fiber || 0, micros: {}, omega3: null, mult: 1, time: Date.now(),
+      source: 'manual', timezone: tz(), confirmed: true,
     };
     const commit = () => { persistEntries((prev) => [...prev, entry]); setFoodOverlayMode(null); setTab("nutrition"); setFoodSub("nutrition"); setFlashEntryId(entry.id); setTimeout(() => setFlashEntryId((id) => (id === entry.id ? null : id)), 2200); logged("Meal added", "light"); };
     if (entry.calories > 3000) { askConfirm(`${entry.calories} kcal for one item is unusually high. Save anyway?`, commit); return; }
@@ -3553,6 +3618,10 @@ function SprigApp() {
   // ---- daily command center derivations ----
   // trainedToday: exact workout OR quick log says trained
   const trainedToday = workouts.some((w) => (w.date || getSprigDate(w.ts, latestSleepLog, profile?.dayResetMode || "after-wake")) === date) || (quickLog?.trainedToday === true);
+  // Keep notifStateRef current so the notification effects always use latest state.
+  // No-dep effect: re-runs after every render, captures the current render's closure.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { notifStateRef.current = { entries, workouts, sleepLogs, profile, targets, trackingPrefs, date, quickLog, trainedToday }; });
   const suggestion = suggestSplit({ workouts, recovery, volume, sleepReadiness, debtMin, daily, trainedToday, routines });
   trainInfo.suggestion = suggestion;
   // nutrition coaching (hoisted here so recoveryInfo can use nutriInfo.waterGoal)
