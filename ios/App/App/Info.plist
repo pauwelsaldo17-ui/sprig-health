@@ -51,5 +51,11 @@
 	<string>Vitae reads your steps, weight, and sleep data to give you accurate health insights without manual entry.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Vitae may write workout summaries back to Apple Health.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Vitae uses your photo library to let you log meals by photo and track body progress photos.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Vitae uses your camera to scan food for nutrition logging and capture body progress photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Vitae saves progress photos to your photo library.</string>
 </dict>
 </plist>
