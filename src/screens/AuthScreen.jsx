@@ -36,7 +36,14 @@ export default function AuthScreen() {
       });
         setBusy(false);
         if (err) { setError(err.message); return; }
-        if (data?.url) window.open(data.url, "_blank");
+        if (data?.url) {
+          try {
+            const { Browser } = await import("@capacitor/browser");
+            await Browser.open({ url: data.url });
+          } catch (_) {
+            window.location.href = data.url;
+          }
+        }
   }
 
   return (
