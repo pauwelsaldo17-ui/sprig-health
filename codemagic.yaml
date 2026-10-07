@@ -10,14 +10,15 @@ workflows:
         BUNDLE_ID: com.pauwelsaldo.vitae
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
-        VITE_SUPABASE_URL: $VITE_SUPABASE_URL
-        VITE_SUPABASE_ANON_KEY: $VITE_SUPABASE_ANON_KEY
     scripts:
       - name: Install dependencies
         script: npm install --legacy-peer-deps
 
       - name: Build web app
-        script: npm run build
+        script: |
+          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" > .env
+          echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> .env
+          npm run build
 
       - name: Add iOS platform
         script: |
@@ -35,8 +36,6 @@ workflows:
         script: |
           printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > /tmp/asc_key.p8
           printf '%s\n' "$CERTIFICATE_PRIVATE_KEY" > /tmp/cert_key.pem
-          echo "Written ASC key: $(wc -c < /tmp/asc_key.p8) bytes, $(wc -l < /tmp/asc_key.p8) lines"
-          echo "First line of file: $(head -1 /tmp/asc_key.p8)"
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --private-key @file:/tmp/asc_key.p8 \
@@ -82,5 +81,3 @@ workflows:
 
     artifacts:
       - build/export/*.ipa
-
-    
