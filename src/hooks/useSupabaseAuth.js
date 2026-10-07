@@ -27,6 +27,7 @@ export function useSupabaseAuth() {
         const { App } = await import("@capacitor/app");
         appListener = await App.addListener("appUrlOpen", async ({ url }) => {
           if (!url || !url.startsWith("com.pauwelsaldo.vitae://")) return;
+          try { const { Browser } = await import("@capacitor/browser"); await Browser.close(); } catch (_) {}
           try {
             await supabase.auth.exchangeCodeForSession(url);
           } catch (e) {
