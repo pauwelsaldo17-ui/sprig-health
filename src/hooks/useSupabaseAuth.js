@@ -27,9 +27,13 @@ export function useSupabaseAuth() {
         const { App } = await import("@capacitor/app");
         appListener = await App.addListener("appUrlOpen", async ({ url }) => {
           if (!url || !url.startsWith("com.pauwelsaldo.vitae://")) return;
+          // Close SFSafariViewController before exchanging the code
           try { const { Browser } = await import("@capacitor/browser"); await Browser.close(); } catch (_) {}
           try {
-            await supabase.auth.exchangeCodeForSession(url);
+            // Extract code directly — Supabase URL parser rejects custom schemes
+            const code = new URLSearchParams(url.split("?")[1] || "").get("code");
+            if (!code) { console.warn("[vitae] no code in deep link:", url); return; }
+            await supabase.auth.exchangeCodeForSession(code);
           } catch (e) {
             console.warn("[vitae] deep link auth exchange failed:", e?.message || e);
           }
@@ -38,7 +42,8 @@ export function useSupabaseAuth() {
         const launchInfo = await App.getLaunchUrl();
         if (launchInfo?.url?.startsWith("com.pauwelsaldo.vitae://")) {
           try {
-            await supabase.auth.exchangeCodeForSession(launchInfo.url);
+            const code = new URLSearchParams(launchInfo.url.split("?")[1] || "").get("code");
+            if (code) await supabase.auth.exchangeCodeForSession(code);
           } catch (e) {
             console.warn("[vitae] launch URL auth exchange failed:", e?.message || e);
           }
