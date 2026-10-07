@@ -19,10 +19,6 @@ export function useSupabaseAuth() {
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
       setUser(session?.user || null);
     });
-
-    // Handle OAuth deep link callbacks on native iOS/Android.
-    // When Google OAuth completes it redirects to com.pauwelsaldo.vitae://login-callback
-    // Capacitor fires appUrlOpen; we pass the URL to Supabase to exchange the code for a session.
     let appListener = null;
     (async () => {
       try {
@@ -37,15 +33,22 @@ export function useSupabaseAuth() {
             console.warn("[vitae] deep link auth exchange failed:", e?.message || e);
           }
         });
+        // Cold-start: app killed then launched via OAuth deep link
+        const launchInfo = await App.getLaunchUrl();
+        if (launchInfo?.url?.startsWith("com.pauwelsaldo.vitae://")) {
+          try {
+            await supabase.auth.exchangeCodeForSession(launchInfo.url);
+          } catch (e) {
+            console.warn("[vitae] launch URL auth exchange failed:", e?.message || e);
+          }
+        }
       } catch (_) {}
     })();
-
     return () => {
       mounted = false;
       sub?.subscription?.unsubscribe?.();
       appListener?.remove?.();
     };
   }, [supabase]);
-
   return { user, loading, supabase };
 }
