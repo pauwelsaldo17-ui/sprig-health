@@ -39,6 +39,8 @@ export function getSupabase() {
         autoRefreshToken: true,
         // sessionStorage keeps the session if the user closes the tab; storage key is namespaced.
         storageKey: "sprig.supabase.auth",
+        flowType: "pkce",
+        detectSessionInUrl: false,
       },
     });
     return _client;
