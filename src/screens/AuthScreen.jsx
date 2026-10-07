@@ -30,12 +30,13 @@ export default function AuthScreen() {
                 }
         } catch (_) {}
 
-      const { error: err } = await supabase.auth.signInWithOAuth({
+      const { data, error: err } = await supabase.auth.signInWithOAuth({
               provider: "google",
-              options: { redirectTo },
+              options: { redirectTo, skipBrowserRedirect: true },
       });
         setBusy(false);
-        if (err) setError(err.message);
+        if (err) { setError(err.message); return; }
+        if (data?.url) window.open(data.url, "_blank");
   }
 
   return (
