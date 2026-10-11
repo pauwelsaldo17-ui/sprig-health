@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, BarChart3, Coffee, Dumbbell, Flame, Moon, Sparkles, Trophy, User } from "lucide-react";
+import { Activity, BarChart3, Coffee, Dumbbell, Flame, Moon, Sparkles, Trophy, User, TrendingUp } from "lucide-react";
 import { C } from "../theme.js";
 import { durLabel } from "../utils/vitaeCalc.js";
 import { Legend, EmptyState } from "../components/ui.jsx";
@@ -33,10 +33,20 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
   const avg = days.length ? Math.round(days.reduce((a, d) => a + d.calories, 0) / days.length) : 0;
   const unit = profile?.unit || "kg";
   const R = report || {};
+  const stepDays = history.slice(-7).filter((d) => d.steps > 0);
+  const maxSteps = stepDays.length > 0 ? Math.max(...stepDays.map((d) => d.steps)) : 0;
   return (
     <div className="sprig-rise">
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 4px" }}>Trends</div>
-      <div style={{ fontSize: 12, color: C.muted, margin: "0 2px 14px" }}>Your last 7 days at a glance.</div>
+      {/* ── Domain header ── */}
+      <div style={{ margin: "4px 2px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 13, background: `${TRENDS_CLR}22`, border: `1px solid ${TRENDS_CLR}33`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <TrendingUp size={20} color={TRENDS_CLR} />
+        </div>
+        <div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink, letterSpacing: -.3, lineHeight: 1.1 }}>Trends</div>
+          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>Your last 7 days at a glance.</div>
+        </div>
+      </div>
 
       {/* WEEKLY REPORT */}
       {R.hasData ? (
@@ -166,6 +176,33 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
           </div>
         ))}
       </div>
+
+      {/* step trend */}
+      {stepDays.length > 0 && (
+        <>
+          <div style={{ margin: "16px 2px 8px", fontSize: 13, fontWeight: 600, color: C.inkSoft, display: "flex", alignItems: "center", gap: 6 }}>
+            <Activity size={14} color={C.greenSoft} /> Steps · last 7 days
+          </div>
+          <div style={{ background: C.card, borderRadius: 18, padding: "18px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 120 }}>
+              {history.slice(-7).map((d) => {
+                const h = d.steps > 0 ? Math.max(8, (d.steps / Math.max(maxSteps, 1)) * 100) : 0;
+                const ok = d.steps >= (targets.steps || 8000);
+                return (
+                  <div key={d.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                    {d.steps > 0 && <div style={{ fontSize: 9, color: C.muted }}>{d.steps >= 1000 ? `${(d.steps / 1000).toFixed(1)}k` : d.steps}</div>}
+                    <div style={{ width: "100%", height: h || 4, background: h > 0 ? (ok ? C.greenSoft : C.amber) : C.line, borderRadius: 7, opacity: h > 0 ? 1 : 0.4 }} />
+                    <div style={{ fontSize: 10, color: C.muted }}>{new Date(d.date).toLocaleDateString(undefined, { weekday: "short" }).slice(0, 2)}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ borderTop: `1px dashed ${C.line}`, marginTop: 10, paddingTop: 8, fontSize: 11, color: C.muted, textAlign: "center" }}>
+              goal {(targets.steps || 8000).toLocaleString()} steps/day
+            </div>
+          </div>
+        </>
+      )}
 
       {/* sleep trend */}
       {sleepLogs && sleepLogs.length > 0 && (

@@ -526,6 +526,26 @@ export function QuickLogSheet({ profile, quickLog, date, onSave, onClose, tp = {
           </>
         )}
 
+        {/* Supplements */}
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: .3 }}>Supplements</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+          {[["true","Taken 💊", MOVE_CLR], ["false","Skipped", C.coral]].map(([k, lbl, clr]) => (
+            <button
+              key={k}
+              className="sprig-tap"
+              onClick={() => { setSupplementsTaken(k); buzz("select"); }}
+              style={{
+                flex: 1, padding: "11px 6px", borderRadius: 12,
+                background: supplementsTaken === k ? clr : C.bg2,
+                border: supplementsTaken === k ? "none" : `1px solid ${C.line}`,
+                color: supplementsTaken === k ? "#fff" : C.inkSoft,
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+                fontFamily: "DM Sans",
+              }}
+            >{lbl}</button>
+          ))}
+        </div>
+
         <NextBtn onNext={advance} label="Almost done" color={SLEEP_CLR} />
       </>
     );
@@ -533,6 +553,20 @@ export function QuickLogSheet({ profile, quickLog, date, onSave, onClose, tp = {
 
   /* ── STEP: DONE ── */
   function StepDone() {
+    // compute a simple day score out of 10
+    const checks = [
+      trainedToday === true || trainedToday === false,
+      hitProtein === "true",
+      hitCalories === "true" && ateHealthy === "true",
+      enoughSleep === "true",
+      hitWater === "true",
+      noAlcohol === "true",
+      supplementsTaken === "true",
+    ];
+    const wins = checks.filter(Boolean).length;
+    const dayScore = Math.round((wins / checks.length) * 10);
+    const scoreEmoji = dayScore >= 8 ? "🔥" : dayScore >= 5 ? "⚡" : "💪";
+    const scoreLine = dayScore >= 8 ? "Exceptional day!" : dayScore >= 5 ? "Solid effort!" : "Keep building!";
     const lines = [
       trainedToday === true && `🏋️ Trained${trainingType ? ` — ${TRAIN_TYPES.find(t => t[0] === trainingType)?.[1] || trainingType}` : ""}${trainingIntensity ? ` (${trainingIntensity})` : ""}`,
       trainedToday === false && "😴 Rest day",
@@ -542,23 +576,42 @@ export function QuickLogSheet({ profile, quickLog, date, onSave, onClose, tp = {
       hitCalories === "false" && "🥗 Ate light",
       hitCalories === "true" && ateHealthy === "false" && "🍕 Over on food",
       enoughSleep === "true" && "😌 Good sleep",
+      enoughSleep === "null" && "😐 Okay sleep",
       enoughSleep === "false" && "😵 Poor sleep",
       hitWater === "true" && "💧 Hit water goal",
       hitWater === "false" && "😬 Low on water",
       noAlcohol === "true" && "🌿 No alcohol",
       noAlcohol === "false" && "🍷 Some alcohol",
+      supplementsTaken === "true" && "💊 Supplements taken",
+      supplementsTaken === "false" && "⏭️ Skipped supplements",
     ].filter(Boolean);
 
     return (
       <>
-        {/* Done header */}
+        {/* Done header with score ring */}
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <div style={{ fontSize: 48, marginBottom: 10 }}>⚡</div>
+          <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+            <svg width={90} height={90} style={{ transform: "rotate(-90deg)" }}>
+              <circle cx={45} cy={45} r={38} fill="none" stroke={C.line} strokeWidth={6} />
+              <circle cx={45} cy={45} r={38} fill="none"
+                stroke={dayScore >= 8 ? MOVE_CLR : dayScore >= 5 ? C.amber : C.coral}
+                strokeWidth={6}
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 38}`}
+                strokeDashoffset={`${2 * Math.PI * 38 * (1 - dayScore / 10)}`}
+                style={{ transition: "stroke-dashoffset 1s ease" }}
+              />
+            </svg>
+            <div style={{ position: "absolute", textAlign: "center" }}>
+              <div style={{ fontSize: 22, lineHeight: 1 }}>{scoreEmoji}</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: C.ink, lineHeight: 1.1 }}>{dayScore}<span style={{ fontSize: 10, color: C.muted }}>/10</span></div>
+            </div>
+          </div>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink }}>
             Day logged
           </div>
-          <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-            Quick estimate saved — exact logs always win.
+          <div style={{ fontSize: 13.5, color: dayScore >= 8 ? MOVE_CLR : dayScore >= 5 ? C.amber : C.muted, marginTop: 3, fontWeight: 600 }}>
+            {scoreLine}
           </div>
         </div>
 
