@@ -623,6 +623,14 @@ function TodayTab({
         return <TonightPlanCard plan={moveInfo.tonight} />;
       })()}
 
+      {/* ══ 4ab. NEXT WORKOUT SUGGESTION (no workout today) ════════════ */}
+      {tp.training !== false && !dtTrainSrc && moveInfo?.nextWorkout && trainInfo?.suggestion?.type !== "rest" && (
+        <NextWorkoutCard
+          suggestion={moveInfo.nextWorkout}
+          onStart={() => { onStartWorkout?.(); buzz("tap"); }}
+        />
+      )}
+
       {/* ══ 4b. QUICK SLEEP STRIP (morning, no sleep logged yet) ═════ */}
       {tp.sleep !== false && !quickSleepDone && !sleepDur && !dtSleepSrc && onQuickSleep && (() => {
         const h = new Date().getHours();
