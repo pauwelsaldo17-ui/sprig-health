@@ -395,12 +395,13 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 12px", marginTop: 12 }}>
                 {MEASURE_KEYS.map(([k, lbl]) => {
                   const m = measureCur[k]; if (!m) return null;
-                  const upCol = m.change == null ? C.muted : m.change > 0 ? C.greenSoft : C.coral;
+                  const chgColor = m.change == null ? C.muted : m.change > 0 ? C.amber : C.greenSoft;
                   return (
                     <div key={k} style={{ background: C.bg, borderRadius: 11, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 11, color: C.muted }}>{lbl}</div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3 }}>
-                        {m.change != null && <span style={{ fontSize: 11, color: upCol, fontWeight: 600, marginLeft: "auto" }}>{m.change > 0 ? "+" : ""}{m.change}</span>}
+                      <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{lbl}</div>
+                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 4 }}>
+                        <span style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink }}>{m.current}<span style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginLeft: 2 }}>cm</span></span>
+                        {m.change != null && <span style={{ fontSize: 10.5, color: chgColor, fontWeight: 600 }}>{m.change > 0 ? "+" : ""}{m.change}</span>}
                       </div>
                     </div>
                   );
