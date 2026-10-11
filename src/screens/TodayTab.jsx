@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Activity, Check, ChevronRight, Droplets, Dumbbell,
-  Flame, Heart, Moon, Pill, Plus, Repeat, Zap,
+  Flame, Heart, Moon, Pill, Plus, Repeat, Scale, Zap,
 } from "lucide-react";
 import { C } from "../theme.js";
 import {
@@ -353,10 +353,12 @@ function TodayTab({
   onToast, loggedDays = 0, onGoSettings, onQuickSleep,
 }) {
   const { lastSleep }                         = sleepInfo;
-  const { daily, subScores, healthScore, actions } = dailyInfo;
+  const { daily, subScores, healthScore, actions, weightSeries: wSeries = [] } = dailyInfo;
   const [stepsEditing, setStepsEditing]       = useState(false);
   const [stepsInput,   setStepsInput]         = useState("");
   const [quickSleepDone, setQuickSleepDone]   = useState(false);
+  const [weightInput,   setWeightInput]         = useState("");
+  const [weightEditing, setWeightEditing]       = useState(false);
 
   /* ── derived data ─────────────────────────────────────────────── */
   const adjTarget  = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
@@ -775,6 +777,84 @@ function TodayTab({
           )}
         </div>
       )}
+
+      {/* ══ 6.2. WEIGHT STRIP (if not yet logged today) ════════════════ */}
+      {tp.body !== false && !daily.weight && !weightEditing && (() => {
+        const sorted = [...wSeries].sort((a, b) => a.date > b.date ? 1 : -1);
+        const lastKg = sorted[sorted.length - 1]?.kg ?? null;
+        const unit   = profile?.unit || "kg";
+        const presets = lastKg
+          ? [-1, -0.5, 0, 0.5, 1].map(d => Math.round((lastKg + d) * 10) / 10)
+          : null;
+        const WEIGHT_CLR = "#4FC3F7";
+        return (
+          <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: presets ? 10 : 0 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: WEIGHT_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <Scale size={15} color={WEIGHT_CLR} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4 }}>Weight</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>
+                  {lastKg ? `Last: ${lastKg}${unit}` : "Log today's weight"}
+                </div>
+              </div>
+              <button className="sprig-tap" onClick={() => setWeightEditing(true)}
+                style={{ background: WEIGHT_CLR + "1A", border: `1px solid ${WEIGHT_CLR}33`, borderRadius: 9, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: WEIGHT_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap", flexShrink: 0 }}>
+                {lastKg ? "Other" : "Enter"}
+              </button>
+            </div>
+            {presets && (
+              <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+                {presets.map((kg) => (
+                  <button key={kg} className="sprig-tap"
+                    onClick={() => { onDaily({ weight: kg }); buzz("success"); if (onToast) onToast(`Weight logged: ${kg}${unit} ✓`); }}
+                    style={{ flexShrink: 0, background: kg === lastKg ? WEIGHT_CLR + "28" : WEIGHT_CLR + "14", border: `1px solid ${kg === lastKg ? WEIGHT_CLR + "55" : WEIGHT_CLR + "33"}`, borderRadius: 10, padding: "9px 14px", cursor: "pointer", fontFamily: "DM Sans", fontSize: 13, fontWeight: 700, color: kg === lastKg ? WEIGHT_CLR : C.ink, whiteSpace: "nowrap" }}>
+                    {kg}{unit}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+      {tp.body !== false && !daily.weight && weightEditing && (() => {
+        const WEIGHT_CLR = "#4FC3F7";
+        const unit       = profile?.unit || "kg";
+        return (
+          <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: WEIGHT_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <Scale size={15} color={WEIGHT_CLR} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4 }}>Weight</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>Enter today's weight</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                type="number" inputMode="decimal" min="20" max="300" step="0.1" autoFocus
+                value={weightInput} onChange={(e) => setWeightInput(e.target.value)}
+                placeholder={`kg`}
+                style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontSize: 14, fontFamily: "DM Sans", color: C.ink, outline: "none" }}
+              />
+              <span style={{ display: "flex", alignItems: "center", fontSize: 12, color: C.muted, flexShrink: 0 }}>{unit}</span>
+              <button className="sprig-tap" onClick={() => {
+                const v = parseFloat(weightInput);
+                if (Number.isFinite(v) && v > 20 && v < 400) {
+                  onDaily({ weight: v });
+                  buzz("success");
+                  if (onToast) onToast(`Weight logged: ${v}${unit} ✓`);
+                }
+                setWeightEditing(false); setWeightInput("");
+              }} style={{ background: WEIGHT_CLR + "22", border: `1px solid ${WEIGHT_CLR}44`, borderRadius: 10, padding: "9px 14px", fontSize: 12, fontWeight: 700, color: WEIGHT_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>Save</button>
+              <button className="sprig-tap" onClick={() => { setWeightEditing(false); setWeightInput(""); }}
+                style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 700, color: C.inkSoft, cursor: "pointer", fontFamily: "DM Sans" }}>✕</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ 6.5. SUPPLEMENT STRIP ════════════════════════════════════ */}
       {supps && supps.length > 0 && (() => {
