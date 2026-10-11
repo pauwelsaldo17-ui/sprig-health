@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Check, Camera, Ruler, User, Trophy, Plus, RotateCcw, Crown, TrendingDown } from "lucide-react";
+import { Check, Camera, Ruler, User, Trophy, Plus, RotateCcw, Crown, TrendingDown, TrendingUp, Activity } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Area, ComposedChart, Dot } from "recharts";
 import { C } from "../theme.js";
 import {
@@ -8,6 +8,9 @@ import {
   MUSCLE_LIFT, MUSCLE_LIFT_FB
 } from "../utils/vitaeCalc.js";
 import { btn, Legend } from "../components/ui.jsx";
+
+// ── Body domain color (cyan/blue) ─────────────────────────────────────────────
+const BODY_CLR = "#4FC3F7";
 
 function MeasurementForm({ current, onSave, onClose }) {
   const init = {}; MEASURE_KEYS.forEach(([k]) => (init[k] = current[k]?.current != null ? String(current[k].current) : ""));
@@ -241,16 +244,48 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
   const reminder = photoReminder(photoLog);
   const verdictColor = verdict.tag === "good" ? C.greenSoft : verdict.tag === "fast" ? C.coral : verdict.tag === "slow" ? C.amber : C.amber;
 
+  // ── Body status hero ────────────────────────────────────────────────────────
+  const bmi = (wStats.current && profile.height_cm)
+    ? +(wStats.current / ((profile.height_cm / 100) ** 2)).toFixed(1)
+    : null;
+  const bmiLabel = bmi == null ? null : bmi < 18.5 ? "Underweight" : bmi < 25 ? "Healthy" : bmi < 30 ? "Overweight" : "Obese";
+  const bmiColor = bmi == null ? BODY_CLR : bmi < 18.5 ? C.amber : bmi < 25 ? C.greenSoft : bmi < 30 ? C.amber : C.coral;
+
   return (
     <div className="sprig-rise">
-      {(
-        <></>
-      )}
+      {/* Body Status Hero */}
+      <div style={{ background: `linear-gradient(148deg, #0C2A3F 0%, #071A28 100%)`, borderRadius: 22, padding: "18px 18px 16px", color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, opacity: .6, textTransform: "uppercase", marginBottom: 12 }}>Body</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 42, fontWeight: 700, lineHeight: 1, color: "#fff" }}>
+              {wStats.current != null ? wStats.current : "—"}
+              <span style={{ fontSize: 14, fontWeight: 500, opacity: .7, marginLeft: 4 }}>{profile?.unit || "kg"}</span>
+            </div>
+            <div style={{ fontSize: 11.5, opacity: .6, marginTop: 3 }}>Current weight</div>
+          </div>
+          {bmi != null && (
+            <div style={{ textAlign: "center", background: "rgba(255,255,255,.07)", borderRadius: 14, padding: "10px 14px" }}>
+              <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: bmiColor }}>{bmi}</div>
+              <div style={{ fontSize: 9.5, opacity: .6, fontWeight: 600, marginTop: 2 }}>BMI · {bmiLabel}</div>
+            </div>
+          )}
+        </div>
+        {wStats.rate != null && (
+          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+            {wStats.rate > 0 ? <TrendingUp size={13} color={BODY_CLR} /> : <TrendingDown size={13} color={BODY_CLR} />}
+            <span style={{ color: verdictColor, fontWeight: 600 }}>{wStats.rate > 0 ? "+" : ""}{wStats.rate} {profile?.unit || "kg"}/wk</span>
+            <span style={{ opacity: .5 }}>·</span>
+            <span style={{ opacity: .6, fontSize: 12 }}>{verdict.text}</span>
+          </div>
+        )}
+      </div>
+
       {(
         <>
-          <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+          <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${BODY_CLR}22` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 10 }}>
-              <User size={15} color={C.amber} /> Weight
+              <User size={15} color={BODY_CLR} /> Weight
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
               <div>
@@ -332,9 +367,9 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
             </div>
           </div>
 
-          <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
+          <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${BODY_CLR}22`, marginTop: 12 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12.5, color: C.inkSoft, fontWeight: 600 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 5 }}><Ruler size={15} color={C.greenSoft} /> Measurements</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5 }}><Ruler size={15} color={BODY_CLR} /> Measurements</span>
               <button className="sprig-tap" onClick={() => setShowMeasure((x) => !x)}
                 style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "5px 11px", fontSize: 11.5, fontWeight: 600, color: C.green, cursor: "pointer", fontFamily: "DM Sans" }}>
                 {showMeasure ? "Cancel" : "Log"}
@@ -366,9 +401,9 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
             )}
           </div>
 
-          <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
+          <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${BODY_CLR}22`, marginTop: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600 }}>
-              <Camera size={15} color="#7A6FB0" /> Progress photos
+              <Camera size={15} color={BODY_CLR} /> Progress photos
             </div>
             <div style={{ fontSize: 12, color: reminder.due ? C.coral : C.muted, marginTop: 7, lineHeight: 1.5, fontWeight: reminder.due ? 600 : 400 }}>
               {reminder.text}
