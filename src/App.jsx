@@ -3877,6 +3877,7 @@ function SprigApp() {
             dailyInfo={dailyInfo} nutriInfo={nutriInfo} healthInfo={healthInfo} mindInfo={mindInfo} moveInfo={moveInfo} onDaily={persistDaily} onAddEntry={addEntry} onCheckin={setCheckin} onQuickLog={() => setQuickOpen(true)} quickLog={quickLog} tp={trackingPrefs}
             onStartWorkout={() => { startWorkout(); setTab("train"); }}
             onGoSleep={() => setTab("sleep")} onGoEnergy={() => setTab("energy")} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")}
+            onQuickSleep={saveSleepLog}
             onGoNutrition={() => setTab("nutrition")} onGoTrain={() => setTab("train")}
             recoveryInfo={recoveryInfo} dt={dailyTruth} onToast={showToast}
             wins={(profile?.showWins === false) ? null : (wins[date] || [])} onKudos={(id) => kudoWin(id, date)} onViewAllWins={() => setWinsOpen(true)}
@@ -3916,7 +3917,7 @@ function SprigApp() {
             <BodyTab workouts={workouts} profile={profile} trainInfo={trainInfo} sleepInfo={sleepInfo} advanced={advanced}
               weightSeries={weightSeries} measureSeries={measureSeries} photoLog={photoLog}
               onLogWeight={(kg) => persistDaily({ weight: kg })} onSaveMeasurement={saveMeasurement} onLogPhotoSet={logPhotoSet}
-              onOpenPhotos={() => setPhotoOpen(true)} progressPhotosCount={progressPhotos.length} />
+              onOpenPhotos={() => setPhotoOpen(true)} progressPhotosCount={progressPhotos.length} timeline={timeline} />
             <TrendsTab history={history} targets={targets} t={t} scores={scores} sleepLogs={sleepLogs} sleepInfo={sleepInfo} advanced={advanced} report={report} profile={profile} achievements={achievements} timeline={timeline} onGoToday={() => setTab("today")} />
           </>
         )}

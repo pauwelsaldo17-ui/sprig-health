@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Check, Camera, Ruler, User, Trophy, Plus, RotateCcw, Crown, TrendingDown, TrendingUp, Activity } from "lucide-react";
+import { Check, Camera, Ruler, User, Trophy, Plus, RotateCcw, Crown, TrendingDown, TrendingUp, Activity, Target, ArrowRight, Flag } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Area, ComposedChart, Dot } from "recharts";
 import { C } from "../theme.js";
 import {
@@ -96,6 +96,70 @@ function BodyFigure({ colorOf, selected, onPick }) {
       <Mu k="calves" cx={cxB - 8} cy={176} rx={7} ry={14} colorOf={colorOf} selected={selected} onPick={onPick} />
       <Mu k="calves" cx={cxB + 8} cy={176} rx={7} ry={14} colorOf={colorOf} selected={selected} onPick={onPick} />
     </svg>
+  );
+}
+
+function GoalTimelineCard({ timeline, profile }) {
+  const w = timeline?.weight;
+  if (!w || profile.goal === "maintain" || w.status === "goal_met") return null;
+  const unit = profile?.unit || "kg";
+  const kgAbs = Math.abs(w.kgLeft ?? 0);
+
+  const STATUS = {
+    on_track:  { label: "On track",  color: "#22C55E", bg: "#22C55E18" },
+    too_fast:  { label: "Too fast",  color: C.amber,   bg: C.amber + "22" },
+    stalled:   { label: "Stalled",   color: C.coral,   bg: C.coral + "18" },
+    off_track: { label: "Off track", color: C.coral,   bg: C.coral + "18" },
+  };
+  const st = STATUS[w.status] || { label: w.status || "In progress", color: BODY_CLR, bg: BODY_CLR + "18" };
+
+  const etaText = w.weeksAtPace != null && w.weeksAtPace > 0 && w.weeksAtPace < 200
+    ? `~${Math.round(w.weeksAtPace)} week${Math.round(w.weeksAtPace) === 1 ? "" : "s"} away`
+    : w.status === "stalled" ? "No ETA — log more weight" : "Estimating…";
+
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: "14px 15px", boxShadow: C.shadow, border: `1.5px solid ${BODY_CLR}33`, marginBottom: 12 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Flag size={13} color={BODY_CLR} />
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: C.inkSoft, textTransform: "uppercase" }}>Goal tracker</span>
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: st.color, background: st.bg, borderRadius: 20, padding: "3px 10px" }}>{st.label}</div>
+      </div>
+
+      {/* Current → Target */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ flex: 1, background: C.bg, borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, lineHeight: 1, color: C.ink }}>{w.current}</div>
+          <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{unit} now</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flexShrink: 0 }}>
+          <ArrowRight size={16} color={BODY_CLR} />
+          <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, textAlign: "center", lineHeight: 1.3 }}>
+            {kgAbs > 0 ? `${kgAbs.toFixed(1)} ${unit}` : "Almost!"}
+          </div>
+        </div>
+        <div style={{ flex: 1, background: BODY_CLR + "14", border: `1.5px solid ${BODY_CLR}44`, borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, lineHeight: 1, color: BODY_CLR }}>{w.target}</div>
+          <div style={{ fontSize: 10, color: BODY_CLR, opacity: 0.8, marginTop: 3 }}>goal {unit}</div>
+        </div>
+      </div>
+
+      {/* ETA row */}
+      <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+        <div style={{ fontSize: 12, color: C.muted }}>{etaText}</div>
+        {w.rate != null && (
+          <div style={{ fontSize: 11.5, color: C.inkSoft, fontWeight: 600 }}>
+            <span style={{ color: C.muted, fontWeight: 400 }}>pace </span>
+            {w.rate > 0 ? "+" : ""}{w.rate} {unit}/wk
+            {w.ideal != null && (
+              <span style={{ color: C.muted, fontWeight: 400 }}> · ideal {w.ideal > 0 ? "+" : ""}{w.ideal}</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -235,7 +299,7 @@ export function RecoveryStrengthSection({ workouts, profile, trainInfo, sleepInf
   );
 }
 
-function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeries, measureSeries, photoLog, onLogWeight, onSaveMeasurement, onLogPhotoSet, onOpenPhotos, progressPhotosCount }) {
+function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeries, measureSeries, photoLog, onLogWeight, onSaveMeasurement, onLogPhotoSet, onOpenPhotos, progressPhotosCount, timeline }) {
   const [showMeasure, setShowMeasure] = useState(false);
   const [weightInput, setWeightInput] = useState("");
   const measureCur = measurementStats(measureSeries);
@@ -279,7 +343,21 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
             <span style={{ opacity: .6, fontSize: 12 }}>{verdict.text}</span>
           </div>
         )}
+        {/* ── Quick weigh-in inside hero ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, borderTop: "1px solid rgba(255,255,255,.13)", paddingTop: 12 }}>
+          <input value={weightInput} onChange={(e) => setWeightInput(e.target.value)}
+            inputMode="decimal" placeholder={wStats.current != null ? String(wStats.current) : "0.0"}
+            style={{ flex: 1, background: "rgba(255,255,255,.10)", border: "1px solid rgba(255,255,255,.22)", borderRadius: 9, padding: "8px 10px", color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "DM Sans", outline: "none" }} />
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,.45)", flexShrink: 0 }}>{profile?.unit || "kg"}</span>
+          <button className="sprig-tap" disabled={!weightInput} onClick={() => { onLogWeight(parseFloat(weightInput)); setWeightInput(""); }}
+            style={{ background: weightInput ? C.lime : "rgba(255,255,255,.15)", color: weightInput ? "#0A1F12" : "rgba(255,255,255,.35)", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: weightInput ? "pointer" : "default", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, transition: "background .15s, color .15s" }}>
+            <Check size={14} /> Log
+          </button>
+        </div>
       </div>
+
+      {/* Goal ETA card — shown when user has a non-maintain goal and timeline data */}
+      {profile.goal !== "maintain" && <GoalTimelineCard timeline={timeline} profile={profile} />}
 
       {(
         <>
@@ -384,12 +462,13 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 12px", marginTop: 12 }}>
                 {MEASURE_KEYS.map(([k, lbl]) => {
                   const m = measureCur[k]; if (!m) return null;
-                  const upCol = m.change == null ? C.muted : m.change > 0 ? C.greenSoft : C.coral;
+                  const chgColor = m.change == null ? C.muted : m.change > 0 ? C.amber : C.greenSoft;
                   return (
                     <div key={k} style={{ background: C.bg, borderRadius: 11, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 11, color: C.muted }}>{lbl}</div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3 }}>
-                        {m.change != null && <span style={{ fontSize: 11, color: upCol, fontWeight: 600, marginLeft: "auto" }}>{m.change > 0 ? "+" : ""}{m.change}</span>}
+                      <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{lbl}</div>
+                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 4 }}>
+                        <span style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink }}>{m.current}<span style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginLeft: 2 }}>cm</span></span>
+                        {m.change != null && <span style={{ fontSize: 10.5, color: chgColor, fontWeight: 600 }}>{m.change > 0 ? "+" : ""}{m.change}</span>}
                       </div>
                     </div>
                   );
