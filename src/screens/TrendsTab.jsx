@@ -4,6 +4,8 @@ import { C } from "../theme.js";
 import { durLabel } from "../utils/vitaeCalc.js";
 import { Legend, EmptyState } from "../components/ui.jsx";
 
+const TRENDS_CLR = "#38BDF8";
+
 function ReportStat({ label, value, sub, icon, color }) {
   return (
     <div style={{ background: C.bg, borderRadius: 12, padding: "11px 12px" }}>
@@ -40,7 +42,7 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
       {R.hasData ? (
         <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <BarChart3 size={17} color={C.greenSoft} />
+            <BarChart3 size={17} color={TRENDS_CLR} />
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700 }}>Weekly report</div>
           </div>
 
@@ -72,7 +74,7 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
           )}
           {/* PRs */}
           {R.training.prs.length > 0 && (
-            <div style={{ fontSize: 11.5, color: C.greenSoft, marginTop: 6, lineHeight: 1.5, fontWeight: 600 }}>
+            <div style={{ fontSize: 11.5, color: TRENDS_CLR, marginTop: 6, lineHeight: 1.5, fontWeight: 600 }}>
               🏆 {R.training.prs.length} PR{R.training.prs.length > 1 ? "s" : ""}: {R.training.prs.slice(0, 3).map((p) => p.name).join(", ")}
             </div>
           )}
@@ -86,17 +88,17 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
           {/* win / bottleneck / next */}
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}`, display: "flex", flexDirection: "column", gap: 10 }}>
             {R.win && (
-              <ReportLine emoji="🌟" label="Best win" text={R.win} color={C.greenSoft} />
+              <ReportLine emoji="🌟" label="Best win" text={R.win} color={TRENDS_CLR} />
             )}
             {R.bottleneck && (
               <ReportLine emoji="🚧" label="Biggest bottleneck" text={R.bottleneck} color={C.amber} />
             )}
-            <ReportLine emoji="🎯" label="Next week" text={R.nextWeek} color={C.green} />
+            <ReportLine emoji="🎯" label="Next week" text={R.nextWeek} color={TRENDS_CLR} />
           </div>
         </div>
       ) : (
         <div style={{ marginBottom: 14 }}>
-          <EmptyState icon={<BarChart3 size={20} color={C.greenSoft} />}
+          <EmptyState icon={<BarChart3 size={20} color={TRENDS_CLR} />}
             title="No weekly report yet"
             text="Log food, sleep, and workouts across a few days and your personalised weekly report builds automatically."
             actionLabel="Start logging" onAction={onGoToday} />

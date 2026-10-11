@@ -9,6 +9,9 @@ import { C } from "../theme.js";
 import { computeTargets, ALARM_SOUNDS, SPORTS, EQUIPMENT, minToLabel } from "../utils/vitaeCalc.js";
 import { btn, Btn } from "../components/ui.jsx";
 
+const ME_CLR = "#FBBF24";
+const ME_CLR_SOFT = "#FDE68A";
+
 const HAPTIC_PATTERNS = { tap: 14, light: 10, select: 8, success: [30, 50, 30], complete: [30, 50, 50], strong: 40, error: [100, 50, 100] };
 function buzz(kind = "tap") {
   try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
@@ -107,7 +110,7 @@ function HealthIntegrationCard({ onSync }) {
         </div>
         {connected && (
           <button className="sprig-tap" onClick={doSync} disabled={syncing}
-            style={{ marginLeft: "auto", background: C.bg2, border: "none", cursor: "pointer", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", color: C.greenSoft }}>
+            style={{ marginLeft: "auto", background: C.bg2, border: "none", cursor: "pointer", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", color: ME_CLR_SOFT }}>
             <RefreshCw size={15} style={syncing ? { animation: "spin 1s linear infinite" } : {}} />
           </button>
         )}
@@ -118,7 +121,7 @@ function HealthIntegrationCard({ onSync }) {
         </div>
       ) : (
         <button className="sprig-tap" onClick={connect}
-          style={{ ...btn(C.green, "#fff"), width: "100%", padding: "11px 0", fontSize: 13.5, fontWeight: 700 }}>
+          style={{ ...btn(ME_CLR, "#fff"), width: "100%", padding: "11px 0", fontSize: 13.5, fontWeight: 700 }}>
           Connect {isIOS ? "Apple Health" : "Health Connect"}
         </button>
       )}
@@ -231,7 +234,7 @@ function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Account</div>
       <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: C.inkSoft, lineHeight: 1.5, marginBottom: 12 }}>
-          <Cloud size={15} color={C.greenSoft} style={{ flexShrink: 0 }} />
+          <Cloud size={15} color={ME_CLR_SOFT} style={{ flexShrink: 0 }} />
           <span>Data is saved locally on this device. When logged in, you can sync a backup to your account and restore it on a new phone.</span>
         </div>
 
@@ -281,11 +284,11 @@ function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="sprig-tap" onClick={handleSignUp} disabled={busy}
-                style={{ flex: 1, background: C.green, color: "#fff", border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                style={{ flex: 1, background: ME_CLR, color: "#fff", border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
                 <Plus size={14} /> Create account
               </button>
               <button className="sprig-tap" onClick={handleSignIn} disabled={busy}
-                style={{ flex: 1, background: C.bg2, color: C.green, border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                style={{ flex: 1, background: C.bg2, color: ME_CLR, border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
                 <LogIn size={14} /> Log in
               </button>
             </div>
@@ -305,12 +308,12 @@ function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button className="sprig-tap" onClick={handleSync} disabled={busy}
-                style={{ background: C.green, color: "#fff", border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                style={{ background: ME_CLR, color: "#fff", border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
                 <CloudUpload size={14} /> Sync now
               </button>
               {!confirmRestore ? (
                 <button className="sprig-tap" onClick={() => setConfirmRestore(true)} disabled={busy}
-                  style={{ background: C.bg2, color: C.green, border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
+                  style={{ background: C.bg2, color: ME_CLR, border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
                   <CloudDownload size={14} /> Restore from cloud
                 </button>
               ) : (
@@ -363,11 +366,11 @@ function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button className="sprig-tap" onClick={() => { dismissFirstChoice(); handleSync(); }}
-                style={{ background: C.green, color: "#fff", border: "none", cursor: "pointer", borderRadius: 11, padding: "12px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans" }}>
+                style={{ background: ME_CLR, color: "#fff", border: "none", cursor: "pointer", borderRadius: 11, padding: "12px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans" }}>
                 <CloudUpload size={14} /> Upload this device
               </button>
               <button className="sprig-tap" onClick={() => { dismissFirstChoice(); setConfirmRestore(true); }}
-                style={{ background: C.bg2, color: C.green, border: "none", cursor: "pointer", borderRadius: 11, padding: "12px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans" }}>
+                style={{ background: C.bg2, color: ME_CLR, border: "none", cursor: "pointer", borderRadius: 11, padding: "12px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans" }}>
                 <CloudDownload size={14} /> Restore cloud data
               </button>
               <button className="sprig-tap" onClick={dismissFirstChoice}
@@ -399,9 +402,9 @@ export function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoS
   const items = [
     ...(coachFoldedIntoMore && onGoCoach ? [["Coach", <Sparkles size={18} color={C.lime} />, onGoCoach, "AI-powered personalized advice"]] : []),
     ["Your targets", <Target size={18} color={C.lime} />, onGoTargets, "Calories, protein, macro goals"],
-    ["Health markers", <HeartPulse size={18} color={C.greenSoft} />, onGoHealth, "Bloodwork, vitals & health score"],
-    ["Mind & Habits", <Sparkles size={18} color={C.greenSoft} />, onGoMind, "Daily habits & consistency streak"],
-    ["Progress", <TrendingUp size={18} color={C.greenSoft} />, onGoProgress, "Photos, weight & measurements"],
+    ["Health markers", <HeartPulse size={18} color={ME_CLR_SOFT} />, onGoHealth, "Bloodwork, vitals & health score"],
+    ["Mind & Habits", <Sparkles size={18} color={ME_CLR_SOFT} />, onGoMind, "Daily habits & consistency streak"],
+    ["Progress", <TrendingUp size={18} color={ME_CLR_SOFT} />, onGoProgress, "Photos, weight & measurements"],
     ["Settings", <Settings size={18} color={C.muted} />, onGoSettings, "Account, tracking, preferences & data"],
   ];
   return (
@@ -470,7 +473,7 @@ export function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoS
                   </div>
                   {onToggleTracking && (
                     <button className="sprig-tap" onClick={() => { onToggleTracking(k, true); buzz("success"); }}
-                      style={{ background: C.green + "18", border: `1px solid ${C.green}44`, borderRadius: 10, padding: "6px 13px", fontSize: 12, fontWeight: 700, color: C.greenSoft, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
+                      style={{ background: ME_CLR + "18", border: `1px solid ${ME_CLR}44`, borderRadius: 10, padding: "6px 13px", fontSize: 12, fontWeight: 700, color: ME_CLR_SOFT, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
                       Start tracking
                     </button>
                   )}
@@ -509,7 +512,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       {opts.map(([v, lbl]) => (
         <button key={v} onClick={() => set(k, v)} className="sprig-tap"
           style={{ border: "none", cursor: "pointer", padding: "6px 11px", borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
-            background: p[k] === v ? C.card : "transparent", color: p[k] === v ? C.green : C.muted, boxShadow: p[k] === v ? C.shadow : "none" }}>{lbl}</button>
+            background: p[k] === v ? C.card : "transparent", color: p[k] === v ? ME_CLR : C.muted, boxShadow: p[k] === v ? C.shadow : "none" }}>{lbl}</button>
       ))}
     </div>
   );
@@ -538,7 +541,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       {view === "targets" && (<>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 12px" }}>Your targets</div>
 
-      <div style={{ background: C.green, borderRadius: 18, padding: 16, color: "#fff", display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+      <div style={{ background: "linear-gradient(148deg, #3D2A00 0%, #201500 100%)", borderRadius: 18, padding: 16, color: "#fff", border: `1px solid ${ME_CLR}22`, display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
         {[["Calories", live.calories], ["Protein", live.protein + "g"], ["Carbs", live.carbs + "g"], ["Fat", live.fat + "g"]].map(([l, v]) => (
           <div key={l} style={{ textAlign: "center" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 700 }}>{v}</div>
@@ -566,7 +569,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       {/* advanced profile (optional, collapsed) */}
       <details style={{ marginTop: 16 }}>
         <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 8, fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, padding: "2px 2px 10px" }}>
-          <Calculator size={15} color={C.greenSoft} /> Advanced profile <span style={{ fontSize: 11.5, color: C.muted, fontWeight: 400, fontFamily: "DM Sans", marginLeft: "auto" }}>optional ▾</span>
+          <Calculator size={15} color={ME_CLR_SOFT} /> Advanced profile <span style={{ fontSize: 11.5, color: C.muted, fontWeight: 400, fontFamily: "DM Sans", marginLeft: "auto" }}>optional ▾</span>
         </summary>
         <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
           <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
@@ -601,7 +604,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                 const on = (p.diet || []).includes(k);
                 return (
                   <button key={k} className="sprig-tap" onClick={() => set("diet", on ? (p.diet || []).filter((x) => x !== k) : [...(p.diet || []), k])}
-                    style={{ border: "none", cursor: "pointer", padding: "6px 11px", borderRadius: 8, fontSize: 11.5, fontWeight: 600, fontFamily: "DM Sans", background: on ? C.green : C.bg2, color: on ? "#fff" : C.muted }}>{lbl}</button>
+                    style={{ border: "none", cursor: "pointer", padding: "6px 11px", borderRadius: 8, fontSize: 11.5, fontWeight: 600, fontFamily: "DM Sans", background: on ? ME_CLR : C.bg2, color: on ? "#fff" : C.muted }}>{lbl}</button>
                 );
               })}
             </div>
@@ -617,7 +620,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
               <div style={{ display: "flex", gap: 4 }}>
                 {[["kg", "kg"], ["lb", "lb"]].map(([k, lbl]) => (
                   <button key={k} className="sprig-tap" onClick={() => set("unit", k)}
-                    style={{ flex: 1, border: "none", cursor: "pointer", padding: "8px 0", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", background: (p.unit || "kg") === k ? C.green : C.bg2, color: (p.unit || "kg") === k ? "#fff" : C.muted }}>{lbl}</button>
+                    style={{ flex: 1, border: "none", cursor: "pointer", padding: "8px 0", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", background: (p.unit || "kg") === k ? ME_CLR : C.bg2, color: (p.unit || "kg") === k ? "#fff" : C.muted }}>{lbl}</button>
                 ))}
               </div>
             </div>
@@ -626,7 +629,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
               <div style={{ display: "flex", gap: 4 }}>
                 {[["cm", "cm"], ["in", "in"]].map(([k, lbl]) => (
                   <button key={k} className="sprig-tap" onClick={() => set("lengthUnit", k)}
-                    style={{ flex: 1, border: "none", cursor: "pointer", padding: "8px 0", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", background: (p.lengthUnit || "cm") === k ? C.green : C.bg2, color: (p.lengthUnit || "cm") === k ? "#fff" : C.muted }}>{lbl}</button>
+                    style={{ flex: 1, border: "none", cursor: "pointer", padding: "8px 0", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", background: (p.lengthUnit || "cm") === k ? ME_CLR : C.bg2, color: (p.lengthUnit || "cm") === k ? "#fff" : C.muted }}>{lbl}</button>
                 ))}
               </div>
             </div>
@@ -650,7 +653,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       </details>
 
       <button className="sprig-tap" onClick={() => { onSave(p); setSaved(true); }}
-        style={{ ...btn(saved ? C.greenSoft : C.green, "#fff"), width: "100%", padding: "14px 0", marginTop: 16 }}>
+        style={{ ...btn(saved ? ME_CLR_SOFT : ME_CLR, "#fff"), width: "100%", padding: "14px 0", marginTop: 16 }}>
         {saved ? <><Check size={16} /> Saved</> : "Save targets"}
       </button>
       </>)}
@@ -661,7 +664,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Moon size={16} color={C.greenSoft} />
+            <Moon size={16} color={ME_CLR_SOFT} />
             <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Theme</span>
           </div>
           <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 3, borderRadius: 11 }}>
@@ -670,7 +673,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
               return (
                 <button key={v} className="sprig-tap" onClick={() => onSetTheme && onSetTheme(v)}
                   style={{ border: "none", cursor: "pointer", padding: "7px 13px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 6,
-                    background: on ? C.card : "transparent", color: on ? C.green : C.muted, boxShadow: on ? C.shadow : "none" }}><Ic size={14} /> {lbl}</button>
+                    background: on ? C.card : "transparent", color: on ? ME_CLR : C.muted, boxShadow: on ? C.shadow : "none" }}><Ic size={14} /> {lbl}</button>
               );
             })}
           </div>
@@ -681,7 +684,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         {/* Detail level */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Gauge size={16} color={C.greenSoft} />
+            <Gauge size={16} color={ME_CLR_SOFT} />
             <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Detail level</span>
           </div>
           <div style={{ display: "flex", gap: 5, background: C.bg2, padding: 3, borderRadius: 11 }}>
@@ -690,7 +693,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
               return (
                 <button key={v} className="sprig-tap" onClick={() => { const np = { ...p, mode: v }; setP(np); onSave(np); }}
                   style={{ border: "none", cursor: "pointer", padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, fontFamily: "DM Sans",
-                    background: on ? C.card : "transparent", color: on ? C.green : C.muted, boxShadow: on ? C.shadow : "none" }}>{lbl}</button>
+                    background: on ? C.card : "transparent", color: on ? ME_CLR : C.muted, boxShadow: on ? C.shadow : "none" }}>{lbl}</button>
               );
             })}
           </div>
@@ -703,11 +706,11 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         {/* Haptics on/off */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Activity size={16} color={C.greenSoft} />
+            <Activity size={16} color={ME_CLR_SOFT} />
             <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Haptics</span>
           </div>
           <button className="sprig-tap" onClick={() => { const on = p.haptics === false; const np = { ...p, haptics: on }; setP(np); onSave(np); if (on) buzz("light"); }}
-            style={{ position: "relative", width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: p.haptics === false ? C.bg2 : C.green, transition: "background .2s" }}>
+            style={{ position: "relative", width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: p.haptics === false ? C.bg2 : ME_CLR, transition: "background .2s" }}>
             <span style={{ position: "absolute", top: 3, left: p.haptics === false ? 3 : 21, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s" }} />
           </button>
         </div>
@@ -721,7 +724,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
             <span style={{ fontSize: 13.5, color: C.inkSoft, fontWeight: 600 }}>Show wins</span>
           </div>
           <button className="sprig-tap" onClick={() => { const on = p.showWins === false; const np = { ...p, showWins: on }; setP(np); onSave(np); if (on) buzz("light"); }}
-            style={{ position: "relative", width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: p.showWins === false ? C.bg2 : C.green, transition: "background .2s" }}>
+            style={{ position: "relative", width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: p.showWins === false ? C.bg2 : ME_CLR, transition: "background .2s" }}>
             <span style={{ position: "absolute", top: 3, left: p.showWins === false ? 3 : 21, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s" }} />
           </button>
         </div>
@@ -741,15 +744,15 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
           const on = p[key] !== false;
           return (
             <div key={key} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.line}` : "none" }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: C.green + "18", display: "grid", placeItems: "center", flexShrink: 0, marginRight: 12 }}>
-                <Ic size={16} color={C.greenSoft} />
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: ME_CLR + "18", display: "grid", placeItems: "center", flexShrink: 0, marginRight: 12 }}>
+                <Ic size={16} color={ME_CLR_SOFT} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: C.inkSoft }}>{label}</div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{sub}</div>
               </div>
               <button className="sprig-tap" onClick={() => { const np = { ...p, [key]: !on }; setP(np); onSave(np); }}
-                style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: on ? C.green : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+                style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: on ? ME_CLR : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
                 <div style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
               </button>
             </div>
@@ -781,9 +784,9 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                 return (
                   <button key={k} className="sprig-tap"
                     onClick={() => onSave({ ...profile, workoutCalorieMode: k })}
-                    style={{ background: active ? C.green + "11" : C.bg, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "DM Sans" }}>
-                    <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${active ? C.green : C.muted}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                      {active && <div style={{ width: 7, height: 7, borderRadius: 99, background: C.green }} />}
+                    style={{ background: active ? ME_CLR + "11" : C.bg, border: `1px solid ${active ? ME_CLR : C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "DM Sans" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${active ? ME_CLR : C.muted}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      {active && <div style={{ width: 7, height: 7, borderRadius: 99, background: ME_CLR }} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{lbl}</div>
@@ -812,8 +815,8 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                 const active = cur && cur[0] === range[0] && cur[1] === range[1];
                 return (
                   <button key={lbl} className="sprig-tap" onClick={() => onSave({ ...profile, repRange: range, repRangeAsked: true })}
-                    style={{ flex: 1, background: active ? C.green + "11" : C.bg, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 11, padding: "10px 4px", cursor: "pointer", textAlign: "center", fontFamily: "DM Sans" }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: active ? C.green : C.ink }}>{lbl}</div>
+                    style={{ flex: 1, background: active ? ME_CLR + "11" : C.bg, border: `1px solid ${active ? ME_CLR : C.line}`, borderRadius: 11, padding: "10px 4px", cursor: "pointer", textAlign: "center", fontFamily: "DM Sans" }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: active ? ME_CLR : C.ink }}>{lbl}</div>
                     <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{sub}</div>
                   </button>
                 );
@@ -844,8 +847,8 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                 const active = cur === k;
                 return (
                   <button key={k} className="sprig-tap" onClick={() => { const next = { ...(rirPref || {}), trackRir: k }; saveRirPref(next); }}
-                    style={{ flex: 1, background: active ? C.green + "11" : C.bg, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 11, padding: "10px 4px", cursor: "pointer", textAlign: "center", fontFamily: "DM Sans" }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.green : C.ink }}>{lbl}</div>
+                    style={{ flex: 1, background: active ? ME_CLR + "11" : C.bg, border: `1px solid ${active ? ME_CLR : C.line}`, borderRadius: 11, padding: "10px 4px", cursor: "pointer", textAlign: "center", fontFamily: "DM Sans" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: active ? ME_CLR : C.ink }}>{lbl}</div>
                     <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{sub}</div>
                   </button>
                 );
@@ -868,9 +871,9 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                 const active = cur === k;
                 return (
                   <button key={k} className="sprig-tap" onClick={() => { const next = { ...(rirPref || {}), intensityStyle: k }; saveRirPref(next); }}
-                    style={{ background: active ? C.green + "11" : C.bg, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "DM Sans" }}>
-                    <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${active ? C.green : C.muted}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                      {active && <div style={{ width: 7, height: 7, borderRadius: 99, background: C.green }} />}
+                    style={{ background: active ? ME_CLR + "11" : C.bg, border: `1px solid ${active ? ME_CLR : C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "DM Sans" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${active ? ME_CLR : C.muted}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      {active && <div style={{ width: 7, height: 7, borderRadius: 99, background: ME_CLR }} />}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{lbl}</div>
@@ -903,9 +906,9 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                 const active = cur === k;
                 return (
                   <button key={k} className="sprig-tap" onClick={() => onSave({ ...profile, dayResetMode: k })}
-                    style={{ background: active ? C.green + "11" : C.bg, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "DM Sans" }}>
-                    <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${active ? C.green : C.muted}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                      {active && <div style={{ width: 7, height: 7, borderRadius: 99, background: C.green }} />}
+                    style={{ background: active ? ME_CLR + "11" : C.bg, border: `1px solid ${active ? ME_CLR : C.line}`, borderRadius: 11, padding: "10px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "DM Sans" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${active ? ME_CLR : C.muted}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      {active && <div style={{ width: 7, height: 7, borderRadius: 99, background: ME_CLR }} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{lbl}</div>
@@ -929,7 +932,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
             <div key={k} style={{ display: "flex", alignItems: "center", gap: 11, padding: "8px 2px" }}>
               <span style={{ flex: 1, fontSize: 13, color: C.ink }}>{lbl}</span>
               <button className="sprig-tap" onClick={() => onSave({ ...profile, [k]: !on })}
-                style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: on ? C.green : C.bg2, position: "relative", transition: "background .2s" }}>
+                style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: on ? ME_CLR : C.bg2, position: "relative", transition: "background .2s" }}>
                 <div style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
               </button>
             </div>
@@ -943,7 +946,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
             return (
               <button key={s.id} className="sprig-tap"
                 onClick={() => { onSave({ ...profile, restTimerSoundChoice: s.id }); playAlarmTone(s.id, profile?.alarmVolume ?? 0.7); }}
-                style={{ background: active ? C.green : C.bg, color: active ? "#fff" : C.inkSoft, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 99, padding: "6px 11px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans" }}>
+                style={{ background: active ? ME_CLR : C.bg, color: active ? "#fff" : C.inkSoft, border: `1px solid ${active ? ME_CLR : C.line}`, borderRadius: 99, padding: "6px 11px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans" }}>
                 {s.label}
               </button>
             );
@@ -960,7 +963,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
             return (
               <button key={s.id} className="sprig-tap"
                 onClick={() => { onSave({ ...profile, alarmSound: s.id }); playAlarmTone(s.id, profile?.alarmVolume ?? 0.7); }}
-                style={{ background: active ? C.green : C.bg, color: active ? "#fff" : C.inkSoft, border: `1px solid ${active ? C.green : C.line}`, borderRadius: 99, padding: "6px 11px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans" }}>
+                style={{ background: active ? ME_CLR : C.bg, color: active ? "#fff" : C.inkSoft, border: `1px solid ${active ? ME_CLR : C.line}`, borderRadius: 99, padding: "6px 11px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans" }}>
                 {s.label}
               </button>
             );
@@ -971,11 +974,11 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
         <div style={{ fontSize: 11.5, color: C.muted, margin: "0 2px 6px" }}>Alarm volume · {Math.round((profile?.alarmVolume ?? 0.7) * 100)}%</div>
         <input type="range" min="0" max="100" value={Math.round((profile?.alarmVolume ?? 0.7) * 100)}
           onChange={(e) => onSave({ ...profile, alarmVolume: (+e.target.value) / 100 })}
-          style={{ width: "100%", accentColor: C.green }} />
+          style={{ width: "100%", accentColor: ME_CLR }} />
 
         {/* test button */}
         <button className="sprig-tap" onClick={() => playAlarmTone(profile?.alarmSound || "bells", profile?.alarmVolume ?? 0.7)}
-          style={{ ...btn(C.bg2, C.green), width: "100%", padding: "11px 0", marginTop: 12, fontSize: 13, fontWeight: 700 }}>
+          style={{ ...btn(C.bg2, ME_CLR), width: "100%", padding: "11px 0", marginTop: 12, fontSize: 13, fontWeight: 700 }}>
           <Play size={14} /> Test alarm sound
         </button>
         <div style={{ fontSize: 10.5, color: C.muted, marginTop: 8, lineHeight: 1.5, textAlign: "center" }}>
@@ -992,7 +995,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Shows extra detail in scores, charts, and coach responses.</div>
           </div>
           <button className="sprig-tap" onClick={() => onSave({ ...profile, devMode: !profile?.devMode })}
-            style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: profile?.devMode ? C.green : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+            style={{ width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer", background: profile?.devMode ? ME_CLR : C.bg2, position: "relative", transition: "background .2s", flexShrink: 0 }}>
             <div style={{ position: "absolute", top: 3, left: profile?.devMode ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
           </button>
         </div>
@@ -1009,7 +1012,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                 <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, marginBottom: 10 }}>This will show the setup flow again. Your logged data will not be deleted.</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="sprig-tap" onClick={() => setConfirmResetOnb(false)} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "10px 0", fontSize: 13 }}>Cancel</button>
-                  <button className="sprig-tap" onClick={() => { setConfirmResetOnb(false); onResetOnboarding(); }} style={{ ...btn(C.green, "#fff"), flex: 1, padding: "10px 0", fontSize: 13 }}>Show setup</button>
+                  <button className="sprig-tap" onClick={() => { setConfirmResetOnb(false); onResetOnboarding(); }} style={{ ...btn(ME_CLR, "#fff"), flex: 1, padding: "10px 0", fontSize: 13 }}>Show setup</button>
                 </div>
               </div>
             )}
@@ -1050,7 +1053,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                     </div>
                     <button className="sprig-tap" onClick={() => onSaveTrackingPrefs({ ...trackingPrefs, [k]: !on })}
                       style={{ position: "relative", width: 44, height: 26, borderRadius: 99, border: "none", cursor: "pointer",
-                        background: on ? C.green : C.bg2, transition: "background .2s", flexShrink: 0 }}>
+                        background: on ? ME_CLR : C.bg2, transition: "background .2s", flexShrink: 0 }}>
                       <div style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff",
                         transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
                     </button>
@@ -1089,7 +1092,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                     <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>{when}</div>
                   </div>
                   <button className="sprig-tap" onClick={() => onSaveReminders({ ...reminders, [k]: !reminders[k] })}
-                    style={{ border: "none", cursor: "pointer", width: 44, height: 26, borderRadius: 99, background: reminders[k] ? C.green : C.bg2, position: "relative", transition: "background .2s" }}>
+                    style={{ border: "none", cursor: "pointer", width: 44, height: 26, borderRadius: 99, background: reminders[k] ? ME_CLR : C.bg2, position: "relative", transition: "background .2s" }}>
                     <span style={{ position: "absolute", top: 3, left: reminders[k] ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.15)", transition: "left .2s" }} />
                   </button>
                 </div>
@@ -1118,11 +1121,11 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "22px 2px 10px" }}>Data &amp; privacy</div>
           <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: C.inkSoft, lineHeight: 1.5, marginBottom: 10 }}>
-              <EyeOff size={15} color={C.greenSoft} style={{ flexShrink: 0 }} />
+              <EyeOff size={15} color={ME_CLR_SOFT} style={{ flexShrink: 0 }} />
               <span>Your health data is synced to your account and stored securely on our servers. Food and supplement photos are analyzed in the moment and never stored.</span>
             </div>
             {/* GDPR rights button */}
-            <button className="sprig-tap" onClick={() => setLegalView("gdpr")} style={{ ...btn(C.bg2, C.green), width: "100%", padding: "12px 16px", marginBottom: 8, justifyContent: "space-between" }}>
+            <button className="sprig-tap" onClick={() => setLegalView("gdpr")} style={{ ...btn(C.bg2, ME_CLR), width: "100%", padding: "12px 16px", marginBottom: 8, justifyContent: "space-between" }}>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}><EyeOff size={15} /> Your data rights (GDPR)</span>
               <ChevronRight size={15} color={C.muted} />
             </button>
@@ -1143,7 +1146,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
             </button>
             {/* demo */}
             {onLoadDemo && (
-              <button className="sprig-tap" onClick={onLoadDemo} style={{ width: "100%", background: "none", border: `1px dashed ${C.line}`, cursor: "pointer", borderRadius: 11, padding: "10px 0", fontSize: 12.5, fontWeight: 600, color: C.greenSoft, fontFamily: "DM Sans", marginBottom: 6 }}>
+              <button className="sprig-tap" onClick={onLoadDemo} style={{ width: "100%", background: "none", border: `1px dashed ${C.line}`, cursor: "pointer", borderRadius: 11, padding: "10px 0", fontSize: 12.5, fontWeight: 600, color: ME_CLR_SOFT, fontFamily: "DM Sans", marginBottom: 6 }}>
                 <Sparkles size={13} /> Load demo data (14 days)
               </button>
             )}
@@ -1218,7 +1221,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <button className="sprig-tap" onClick={onDevSeedFull}
-              style={{ background: C.green, color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", cursor: "pointer" }}>
+              style={{ background: ME_CLR, color: "#fff", border: "none", borderRadius: 10, padding: "11px 0", fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", cursor: "pointer" }}>
               Seed: Full exact day
             </button>
             <button className="sprig-tap" onClick={onDevSeedQL}

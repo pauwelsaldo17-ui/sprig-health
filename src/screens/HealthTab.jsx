@@ -4,6 +4,8 @@ import { C } from "../theme.js";
 import { PAIN_LEVELS, PAIN_LOCATIONS, PAIN_TYPES, RISK_TAG } from "../utils/vitaeCalc.js";
 import { btn } from "../components/ui.jsx";
 
+const HEALTH_CLR = "#FF6B5F";
+
 function PainLogForm({ initial, onSave, onCancel }) {
   const [level, setLevel] = useState(initial?.level || "mild");
   const [location, setLocation] = useState(initial?.location || "shoulder");
@@ -27,7 +29,7 @@ function PainLogForm({ initial, onSave, onCancel }) {
       <div className="sprig-eyebrow" style={{ marginBottom: 8 }}>Location</div>
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 12 }}>
         {PAIN_LOCATIONS.map(([k, lbl]) => (
-          <Chip key={k} on={location === k} color={C.greenSoft} onClick={() => setLocation(k)}>{lbl}</Chip>
+          <Chip key={k} on={location === k} color={HEALTH_CLR} onClick={() => setLocation(k)}>{lbl}</Chip>
         ))}
       </div>
       <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontWeight: 600 }}>TYPE (optional)</div>
@@ -42,7 +44,7 @@ function PainLogForm({ initial, onSave, onCancel }) {
         style={{ width: "100%", border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 11px", fontFamily: "DM Sans", fontSize: 13, background: C.bg, color: C.ink, minHeight: 46, resize: "vertical", lineHeight: 1.45 }} />
       <div style={{ display: "flex", gap: 7, marginTop: 12 }}>
         <button className="sprig-tap" onClick={onCancel} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "10px 0" }}>Cancel</button>
-        <button className="sprig-tap" onClick={submit} style={{ ...btn(C.green, "#fff"), flex: 2, padding: "10px 0" }}><Check size={15} /> Log pain</button>
+        <button className="sprig-tap" onClick={submit} style={{ ...btn(HEALTH_CLR, "#fff"), flex: 2, padding: "10px 0", boxShadow: `0 4px 14px ${HEALTH_CLR}55` }}><Check size={15} /> Log pain</button>
       </div>
     </div>
   );
@@ -337,7 +339,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
       <div style={{ fontSize: 11.5, color: C.muted, margin: "0 2px 14px", lineHeight: 1.5 }}>A summary of your health based on what you've logged.</div>
 
       {/* ---- HEALTH SCORE ---- */}
-      <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
+      <div style={{ background: score != null ? "linear-gradient(148deg, #3D1010 0%, #200606 100%)" : C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: score != null ? `1px solid ${HEALTH_CLR}22` : `1px solid ${C.line}`, marginBottom: 12 }}>
         {score == null ? (
           <div style={{ textAlign: "center", padding: "8px 0" }}>
             <Activity size={28} color={C.muted} style={{ margin: "0 auto 10px" }} />
@@ -351,7 +353,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
             {/* Score ring */}
             <div style={{ position: "relative", flexShrink: 0 }}>
               <svg width="80" height="80" viewBox="0 0 80 80">
-                <circle cx="40" cy="40" r="32" fill="none" stroke={C.bg2} strokeWidth="9" />
+                <circle cx="40" cy="40" r="32" fill="none" stroke={HEALTH_CLR + "22"} strokeWidth="9" />
                 <circle cx="40" cy="40" r="32" fill="none" stroke={scoreColor} strokeWidth="9"
                   strokeDasharray={`${score / 100 * 201} 201`} strokeLinecap="round"
                   transform="rotate(-90 40 40)" style={{ transition: "stroke-dasharray .6s" }} />
@@ -428,7 +430,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>Top improvements</div>
           {hr.improvements.map((item, i) => (
             <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderTop: i > 0 ? `1px solid ${C.line}` : "none" }}>
-              <span style={{ width: 22, height: 22, borderRadius: 99, background: C.green + "22", color: C.green, fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</span>
+              <span style={{ width: 22, height: 22, borderRadius: 99, background: HEALTH_CLR + "22", color: HEALTH_CLR, fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</span>
               <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{item}</span>
             </div>
           ))}
@@ -441,7 +443,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>Continue doing</div>
           {hr.continueDoing.map((item, i) => (
             <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13, color: C.inkSoft, lineHeight: 1.45, marginTop: i ? 7 : 0 }}>
-              <span style={{ color: C.green, fontWeight: 700, flexShrink: 0 }}>→</span>{item}
+              <span style={{ color: HEALTH_CLR, fontWeight: 700, flexShrink: 0 }}>→</span>{item}
             </div>
           ))}
         </div>
@@ -464,7 +466,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
               <HeartPulse size={15} color={C.coral} /> Pain &amp; injury
             </div>
             {!painOpen && !editingPain && (
-              <button className="sprig-tap" onClick={() => setPainOpen(true)} style={{ ...btn(C.bg2, C.green), padding: "6px 11px", fontSize: 12, borderRadius: 10 }}>
+              <button className="sprig-tap" onClick={() => setPainOpen(true)} style={{ ...btn(C.bg2, HEALTH_CLR), padding: "6px 11px", fontSize: 12, borderRadius: 10 }}>
                 <Plus size={13} /> Log pain
               </button>
             )}
@@ -496,7 +498,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
                       </div>
                       <div style={{ display: "flex", gap: 5 }}>
                         <button className="sprig-tap" onClick={() => setEditingPain(a.latest)} style={{ background: C.bg2, border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center" }}><PencilLine size={13} /></button>
-                        <button className="sprig-tap" onClick={() => onUpdatePain(a.latest.id, { status: "resolved" })} style={{ background: C.greenSoft + "22", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: C.green }}><Check size={14} /></button>
+                        <button className="sprig-tap" onClick={() => onUpdatePain(a.latest.id, { status: "resolved" })} style={{ background: HEALTH_CLR + "22", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "grid", placeItems: "center", color: HEALTH_CLR }}><Check size={14} /></button>
                       </div>
                     </div>
                   </div>
@@ -508,7 +510,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
             <div style={{ marginTop: 10, padding: "10px 12px", background: C.bg, borderRadius: 11 }}>
               {pain.coach.lines.map((l, i) => (
                 <div key={i} style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, display: "flex", gap: 7, padding: "2px 0" }}>
-                  <span style={{ color: C.greenSoft }}>•</span><span>{l}</span>
+                  <span style={{ color: HEALTH_CLR }}>•</span><span>{l}</span>
                 </div>
               ))}
               {pain.coach.seekHelp && (
@@ -531,7 +533,7 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
       {sortedRadar.length > 0 && (
         <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: C.inkSoft, fontWeight: 600, marginBottom: 11 }}>
-            <Activity size={15} color={C.greenSoft} /> Risk radar
+            <Activity size={15} color={HEALTH_CLR} /> Risk radar
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {sortedRadar.map((r) => {
