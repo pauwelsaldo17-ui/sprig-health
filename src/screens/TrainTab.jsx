@@ -1084,6 +1084,28 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
           onSave={(r) => { onSaveRoutine(r); setBuilder(null); }} onClose={() => setBuilder(null)} />
       )}
 
+      {/* ── Repeat last workout shortcut ── */}
+      {!builder && workouts.length > 0 && (() => {
+        const last = [...workouts].reverse()[0];
+        const matchRoutine = last.routineName ? routines.find((r) => r.name === last.routineName) : null;
+        if (!last.routineName && !matchRoutine) return null;
+        const dayAgo = Math.round((Date.now() - last.ts) / 86400000);
+        const dayLabel = dayAgo === 0 ? "today" : dayAgo === 1 ? "yesterday" : `${dayAgo}d ago`;
+        return (
+          <button className="sprig-tap" onClick={() => { matchRoutine ? onStart(matchRoutine) : onStart(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 13, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow, fontFamily: "DM Sans", marginTop: 0 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 9, background: TRAIN_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Repeat size={14} color={TRAIN_CLR} />
+            </div>
+            <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>Repeat last workout</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{last.routineName || "Custom"} · {dayLabel}</div>
+            </div>
+            <ChevronRight size={14} color={C.muted} style={{ flexShrink: 0 }} />
+          </button>
+        );
+      })()}
+
       {/* saved routines */}
       {routines.length > 0 && !builder && (
         <>

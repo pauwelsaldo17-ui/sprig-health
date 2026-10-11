@@ -1212,6 +1212,16 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
 
   return (
     <div className="sprig-rise">
+      {/* ── Domain identity ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: SLEEP_CLR + "1A", border: `1px solid ${SLEEP_CLR}33`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Moon size={20} color={SLEEP_CLR} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: C.ink, lineHeight: 1.1 }}>Sleep</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Tracking, debt & smart alarm</div>
+        </div>
+      </div>
       <SubTabs tabs={[["sleep", "Sleep"], ["alarm", "Alarm & Routine"]]} active={sub} onChange={onSub} />
 
       {/* ── SLEEP SUB-TAB ─────────────────────────────────── */}

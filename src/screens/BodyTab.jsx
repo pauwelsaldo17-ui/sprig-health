@@ -279,6 +279,17 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
             <span style={{ opacity: .6, fontSize: 12 }}>{verdict.text}</span>
           </div>
         )}
+        {/* ── Quick weigh-in inside hero ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, borderTop: "1px solid rgba(255,255,255,.13)", paddingTop: 12 }}>
+          <input value={weightInput} onChange={(e) => setWeightInput(e.target.value)}
+            inputMode="decimal" placeholder={wStats.current != null ? String(wStats.current) : "0.0"}
+            style={{ flex: 1, background: "rgba(255,255,255,.10)", border: "1px solid rgba(255,255,255,.22)", borderRadius: 9, padding: "8px 10px", color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "DM Sans", outline: "none" }} />
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,.45)", flexShrink: 0 }}>{profile?.unit || "kg"}</span>
+          <button className="sprig-tap" disabled={!weightInput} onClick={() => { onLogWeight(parseFloat(weightInput)); setWeightInput(""); }}
+            style={{ background: weightInput ? C.lime : "rgba(255,255,255,.15)", color: weightInput ? "#0A1F12" : "rgba(255,255,255,.35)", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: weightInput ? "pointer" : "default", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, transition: "background .15s, color .15s" }}>
+            <Check size={14} /> Log
+          </button>
+        </div>
       </div>
 
       {(
