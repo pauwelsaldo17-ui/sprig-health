@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   BookMarked, ChevronDown, ChevronLeft, ChevronRight, Check,
-  Coffee, Flame, Pill, Plus, Search, Trash2, X, Zap, TrendingUp,
+  Coffee, Flame, Pill, Plus, Repeat, Search, Trash2, X, Zap, TrendingUp,
   Minus, Sparkles, PencilLine, Moon, Target, Droplets
 } from "lucide-react";
 import { C } from "../theme.js";
@@ -1074,6 +1074,30 @@ function NutritionTab({
               Past day — read only
             </div>
           )}
+
+          {/* SECTION A0: Repeat yesterday's meals */}
+          {isViewingToday && (t.calories === 0 || t.calories == null) && (() => {
+            const yStr = addDays(todayStr(), -1);
+            const yEntries = (entriesHistory || []).filter(e => e.date === yStr);
+            if (yEntries.length === 0) return null;
+            const yT = dayTotals(yEntries);
+            return (
+              <button className="sprig-tap" onClick={() => {
+                yEntries.forEach(e => onAddEntry({ ...e, id: uid(), date: todayStr(), time: Date.now() }));
+                buzz("success");
+              }}
+                style={{ width: "100%", background: C.card, border: `1px solid ${NUTR_CLR}44`, borderRadius: 16, padding: "13px 14px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", display: "flex", alignItems: "center", gap: 12, boxShadow: C.shadow, marginBottom: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 12, background: NUTR_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <Repeat size={18} color={NUTR_CLR} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>Repeat yesterday's meals</div>
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>{yEntries.length} item{yEntries.length !== 1 ? "s" : ""} · {Math.round(yT.calories || 0)} kcal · {Math.round(yT.protein || 0)}g protein</div>
+                </div>
+                <ChevronRight size={16} color={C.muted} style={{ flexShrink: 0 }} />
+              </button>
+            );
+          })()}
 
           {/* SECTION A: Banner */}
           <NutritionBanner t={viewT} targets={targets} adjTarget={adjTarget} />

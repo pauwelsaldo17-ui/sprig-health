@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Activity, Check, ChevronRight, Droplets, Dumbbell,
-  Flame, Heart, Moon, Plus, Repeat, Zap,
+  Flame, Heart, Moon, Pill, Plus, Repeat, Zap,
 } from "lucide-react";
 import { C } from "../theme.js";
 import {
@@ -729,6 +729,36 @@ function TodayTab({
           )}
         </div>
       )}
+
+      {/* ══ 6.5. SUPPLEMENT STRIP ════════════════════════════════════ */}
+      {supps && supps.length > 0 && (() => {
+        const taken = supps.filter(s => takenIds.includes(s.id));
+        const allTaken = taken.length === supps.length;
+        const SUPP_CLR = "#52C878";
+        return (
+          <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${allTaken ? SUPP_CLR + "44" : C.line}`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: allTaken ? SUPP_CLR + "28" : SUPP_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <Pill size={15} color={SUPP_CLR} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4 }}>Daily Stack</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: allTaken ? SUPP_CLR : C.ink }}>
+                  {allTaken ? "All taken today ✓" : `${taken.length} / ${supps.length} taken`}
+                </div>
+              </div>
+              {!allTaken ? (
+                <button className="sprig-tap" onClick={() => { supps.forEach(s => { if (!takenIds.includes(s.id)) onToggleSupp?.(s.id); }); buzz("light"); if (onToast) onToast(`All ${supps.length} supplements logged ✓`); }}
+                  style={{ background: SUPP_CLR + "18", border: `1px solid ${SUPP_CLR}44`, borderRadius: 9, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: SUPP_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  Log all
+                </button>
+              ) : (
+                <Check size={16} color={SUPP_CLR} />
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ 7. QUICK LOG ═════════════════════════════════════════ */}
       {quickLog ? (
