@@ -337,6 +337,51 @@ export function SrcPill({ source }) {
   );
 }
 
+/* ─── Daily Check-In Strip ──────────────────────────────────────── */
+const MIND_CLR = "#A78BFA";
+const CI_ROWS = [
+  { key: "mood",   label: "Mood",   opts: [["bad","😔","Bad"], ["okay","😐","OK"], ["good","😊","Good"]] },
+  { key: "energy", label: "Energy", opts: [["low","🪫","Low"], ["normal","⚡","Normal"], ["high","🔥","High"]] },
+  { key: "stress", label: "Stress", opts: [["low","😌","Low"], ["medium","😤","Medium"], ["high","😰","High"]] },
+];
+
+function DailyCheckinStrip({ checkin, onCheckin }) {
+  const ci = checkin || {};
+  const allDone = CI_ROWS.every(({ key }) => ci[key]);
+  if (allDone) {
+    return (
+      <div style={{ background: MIND_CLR + "12", border: `1px solid ${MIND_CLR}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 14 }}>✅</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: MIND_CLR }}>Check-in done —</span>
+        <span style={{ fontSize: 11.5, color: C.muted }}>Mood: <b>{ci.mood}</b> · Energy: <b>{ci.energy}</b> · Stress: <b>{ci.stress}</b></span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ background: C.card, borderRadius: 16, padding: "12px 13px", marginTop: 8, boxShadow: C.shadow, border: `1px solid ${MIND_CLR}33` }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: MIND_CLR, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>How are you feeling?</div>
+      {CI_ROWS.map(({ key, label, opts }) => (
+        <div key={key} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, width: 46, flexShrink: 0 }}>{label}</div>
+          <div style={{ display: "flex", gap: 5, flex: 1 }}>
+            {opts.map(([val, emoji, text]) => {
+              const sel = ci[key] === val;
+              return (
+                <button key={val} className="sprig-tap"
+                  onClick={() => { onCheckin(key, val); buzz("tap"); }}
+                  style={{ flex: 1, background: sel ? MIND_CLR : C.bg2, border: `1px solid ${sel ? MIND_CLR : C.line}`, borderRadius: 10, padding: "7px 2px", cursor: "pointer", fontFamily: "DM Sans", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, transition: "background .15s, border-color .15s" }}>
+                  <span style={{ fontSize: 15 }}>{emoji}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: sel ? "#fff" : C.muted }}>{text}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════════════════ */
@@ -916,6 +961,11 @@ function TodayTab({
           </div>
         );
       })()}
+
+      {/* ══ 6.7. DAILY CHECK-IN ══════════════════════════════════ */}
+      {tp.mind !== false && onCheckin && (
+        <DailyCheckinStrip checkin={daily.checkin} onCheckin={onCheckin} />
+      )}
 
       {/* ══ 7. QUICK LOG ═════════════════════════════════════════ */}
       {quickLog ? (
