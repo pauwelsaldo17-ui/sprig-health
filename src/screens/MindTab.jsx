@@ -241,17 +241,20 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
 
   return (
     <div className="sprig-rise">
-      {/* ---- HEADER ---- */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "4px 2px 14px" }}>
-        <div>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, lineHeight: 1, letterSpacing: -.3 }}>Habits</div>
-          <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>
-            {active.length === 0 ? "Build habits that stick." : `${active.length} active habit${active.length !== 1 ? "s" : ""}`}
+      {/* ── Domain header ── */}
+      <div style={{ margin: "4px 2px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 13, background: `${MIND_CLR}22`, border: `1px solid ${MIND_CLR}33`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Sparkles size={20} color={MIND_CLR} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink, letterSpacing: -.3, lineHeight: 1.1 }}>Habits</div>
+          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
+            {active.length === 0 ? "Build habits that stick." : `${active.length} active${totalDone ? ` · ${totalDone} done today` : ""}`}
           </div>
         </div>
         {!showAddForm && !editingHabit && (
           <button className="sprig-tap" onClick={() => { setShowAddForm(true); setManageMode(false); }}
-            style={{ ...btn(MIND_CLR, "#fff"), padding: "8px 14px", fontSize: 12 }}>
+            style={{ ...btn(MIND_CLR, "#fff"), padding: "8px 14px", fontSize: 12, flexShrink: 0 }}>
             <Plus size={14} /> Add
           </button>
         )}

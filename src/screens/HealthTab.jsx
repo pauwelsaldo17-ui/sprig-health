@@ -335,8 +335,16 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
         </div>
       )}
 
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 19, fontWeight: 600, margin: "4px 2px 2px" }}>Health</div>
-      <div style={{ fontSize: 11.5, color: C.muted, margin: "0 2px 14px", lineHeight: 1.5 }}>A summary of your health based on what you've logged.</div>
+      {/* ── Domain header ── */}
+      <div style={{ margin: "4px 2px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 13, background: `${HEALTH_CLR}22`, border: `1px solid ${HEALTH_CLR}33`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <HeartPulse size={20} color={HEALTH_CLR} />
+        </div>
+        <div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink, letterSpacing: -.3, lineHeight: 1.1 }}>Health</div>
+          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>Symptoms, vitals and risk · based on your logs.</div>
+        </div>
+      </div>
 
       {/* ---- HEALTH SCORE ---- */}
       <div style={{ background: score != null ? "linear-gradient(148deg, #3D1010 0%, #200606 100%)" : C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: score != null ? `1px solid ${HEALTH_CLR}22` : `1px solid ${C.line}`, marginBottom: 12 }}>
