@@ -616,6 +616,13 @@ function TodayTab({
         )}
       </div>
 
+      {/* ══ 4a. TONIGHT PLAN CARD (evening, 20:00+) ════════════════════ */}
+      {tp.sleep !== false && moveInfo?.tonight && (() => {
+        const h = new Date().getHours();
+        if (h < 20) return null;
+        return <TonightPlanCard plan={moveInfo.tonight} />;
+      })()}
+
       {/* ══ 4b. QUICK SLEEP STRIP (morning, no sleep logged yet) ═════ */}
       {tp.sleep !== false && !quickSleepDone && !sleepDur && !dtSleepSrc && onQuickSleep && (() => {
         const h = new Date().getHours();
