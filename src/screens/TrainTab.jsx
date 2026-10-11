@@ -10,7 +10,7 @@ import {
   findEx, progressionFor, suggestNext, restDefault, est1RM, exercisePainRisk,
   SET_PAIN, warmupSets, EXERCISES, MUSCLES, canDoWith, volumeStatus,
   VOL_TAG_COLOR, VOL_TAG_LABEL, liftE1RMSeries, SPORTS_LIBRARY, sportKcal,
-  sportMuscleImpact, stepGoal, uid, detectPRs, recapFor, TEMPLATES,
+  sportMuscleImpact, stepGoal, uid, detectPRs, detectSetPR, recapFor, TEMPLATES,
   MOBILITY_ROUTINES
 } from "../utils/vitaeCalc.js";
 
@@ -45,7 +45,7 @@ function PlateView({ target, unit }) {
 }
 
 
-function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain }) {
+function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain, nextExName }) {
   const meta = findEx(ex.name);
   const prog = progressionFor(workouts, ex.name, daily, sleepReadiness, repRangePref, intensityStyle);  // richer: action + text + suggested w/reps
   const sug = prog || suggestNext(workouts, ex.name);                     // fall back to lightweight hint
@@ -62,6 +62,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   const [showCue, setShowCue] = useState(false);
   const [showPlate, setShowPlate] = useState(false);
   const [editRest, setEditRest] = useState(false);
+  const [prBadges, setPrBadges] = useState({});   // setIdx → { kind, label }
   const restSecs = customRests[ex.name] ?? restDefault(meta);
   const setNo = ex.sets.length + 1;
 
@@ -71,6 +72,8 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
     workouts.forEach((wk) => wk.exercises.forEach((e) => { if (e.name === ex.name && wk.ts > ts && e.sets.length) { ts = wk.ts; found = e.sets; } }));
     return found;
   })();
+  const targetSets = prevSets?.length || 3;
+  const setsComplete = ex.sets.length >= targetSets;
 
   // Ghost hint: single most-useful previous value shown near the input row.
   // Priority: (1) last completed set in this session, (2) same position in prev workout, (3) last set of prev workout.
@@ -88,13 +91,19 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
   function log() {
     const W = parseFloat(w) || 0, R = parseInt(reps) || 0;
     if (R <= 0) return;
+    // Detect PR before logging (ex.sets is the state before this set)
+    const pr = detectSetPR(workouts, ex.name, W, R, ex.sets);
+    if (pr) {
+      buzz("success");
+      setPrBadges((prev) => ({ ...prev, [ex.sets.length]: pr }));
+    }
     onLogSet(exIdx, { w: W, reps: R, rir: null });
     onStartRest(ex.name);
     // Keep weight, clear reps for next set
     setReps("");
   }
   return (
-    <div className="vitae-fade-up" style={{ background: C.cardSolid, borderRadius: 24, padding: "18px 16px", boxShadow: "0 2px 16px rgba(0,0,0,.28)", border: `1px solid ${C.line}`, marginBottom: 16, position: "relative" }}>
+    <div className="vitae-fade-up" data-ex-card={exIdx} style={{ background: C.cardSolid, borderRadius: 24, padding: "18px 16px", boxShadow: "0 2px 16px rgba(0,0,0,.28)", border: `1px solid ${C.line}`, marginBottom: 16, position: "relative" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, letterSpacing: -0.3, lineHeight: 1.15 }}>{ex.name}</div>
@@ -160,12 +169,33 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
                 </button>
               )}
               {advanced && <span style={{ fontSize: 10.5, color: C.greenSoft, fontWeight: 600, whiteSpace: "nowrap" }}>{Math.round(est1RM(s.w, s.reps))}kg</span>}
+              {prBadges[realIdx] && (
+                <span className="sprig-pop" style={{ fontSize: 10, fontWeight: 800, color: C.amber, background: C.amber + "1E", borderRadius: 7, padding: "2px 7px", flexShrink: 0, letterSpacing: 0.2, whiteSpace: "nowrap" }}>
+                  🏆 PR
+                </span>
+              )}
               <button className="sprig-tap" onClick={() => onRemoveSet(exIdx, realIdx)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: "3px 4px", flexShrink: 0 }}><X size={12} /></button>
             </div>
             );
           })}
         </div>
       )}
+
+      {/* PR detail banner — shows detail for the most recent PR set */}
+      {(() => {
+        const lastPrIdx = Object.keys(prBadges).map(Number).sort((a, b) => b - a)[0];
+        if (lastPrIdx == null || lastPrIdx !== ex.sets.length - 1) return null;
+        const pr = prBadges[lastPrIdx];
+        return (
+          <div className="sprig-pop" style={{ marginTop: 8, background: C.amber + "14", border: `1px solid ${C.amber}44`, borderRadius: 11, padding: "9px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>🏆</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: C.amber, lineHeight: 1 }}>Personal Record!</div>
+              <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 2 }}>{pr.label}</div>
+            </div>
+          </div>
+        );
+      })()}
 
       {sug && ex.sets.length === 0 && (() => {
         const action = sug.action || "add_w";
@@ -236,6 +266,12 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
           />
           {showGhost && ghostR != null && (
             <span style={{ fontSize: 10.5, color: C.muted, opacity: 0.62, fontWeight: 600, lineHeight: 1, letterSpacing: 0.1 }}>{ghostR}r</span>
+          )}
+          {ex.sets.length > 0 && !reps && (
+            <button className="sprig-tap" onClick={() => { setReps(String(ex.sets[ex.sets.length - 1].reps)); buzz("tap"); }}
+              style={{ fontSize: 11, fontWeight: 700, color: TRAIN_CLR, background: TRAIN_CLR + "14", border: "1px solid " + TRAIN_CLR + "33", borderRadius: 8, padding: "3px 8px", cursor: "pointer", lineHeight: 1, fontFamily: "DM Sans", whiteSpace: "nowrap", marginTop: 1 }}>
+              ={ex.sets[ex.sets.length - 1].reps}r
+            </button>
           )}
         </div>
         {meta?.bar && (
@@ -313,6 +349,29 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
       )}
 
       {/* RIR prompt now renders at the app-frame level (see SprigApp) so it's never clipped. */}
+
+      {/* AUTO-ADVANCE BANNER — shows when all planned sets done and there's a next exercise */}
+      {setsComplete && nextExName && (
+        <button
+          className="sprig-tap"
+          onClick={() => {
+            buzz("success");
+            const cards = document.querySelectorAll("[data-ex-card]");
+            const next = Array.from(cards).find(c => Number(c.dataset.exCard) === exIdx + 1);
+            if (next) next.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          style={{ width: "100%", marginTop: 14, background: TRAIN_CLR + "18", border: `1.5px solid ${TRAIN_CLR}44`, borderRadius: 14, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, fontFamily: "DM Sans" }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: 9, background: TRAIN_CLR, display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Check size={14} color="#fff" />
+          </div>
+          <div style={{ flex: 1, textAlign: "left" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: TRAIN_CLR, letterSpacing: 0.3, marginBottom: 1 }}>ALL SETS DONE</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Next: {nextExName}</div>
+          </div>
+          <ChevronRight size={17} color={TRAIN_CLR} />
+        </button>
+      )}
     </div>
   );
 }
@@ -974,6 +1033,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
             painLevel={trainInfo.pain?.level} painLocations={trainInfo.pain?.locations} repRangePref={profile.repRange} intensityStyle={rirPref?.intensityStyle}
             onLogSet={onLogSet} onSetRir={onSetRir} onOpenRirPrompt={onOpenRirPrompt} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
             onSetExercisePain={onSetExercisePain}
+            nextExName={exList[i + 1]?.name || null}
             />
         ))}
 
@@ -999,6 +1059,16 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
   };
   return (
     <div className="sprig-rise">
+      {/* ── Domain identity ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: TRAIN_CLR + "1A", border: `1px solid ${TRAIN_CLR}33`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Dumbbell size={20} color={TRAIN_CLR} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: C.ink, lineHeight: 1.1 }}>Training</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Workouts, movement & recovery</div>
+        </div>
+      </div>
       <SubTabs tabs={[["training", "Training"], ["movement", "Movement"], ["recovery", "Recovery"]]} active={normSub} onChange={onSub} />
       {normSub === "training" && (<>
       {/* PAIN COACH — only when active pain logged */}
@@ -1057,6 +1127,11 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
               <Play size={15} /> {sug.routine ? `Start ${sug.routine.name}` : `Start ${sug.label.toLowerCase()}`}
             </button>
           )}
+          {sug.type === "mobility" && (
+            <button className="sprig-tap" onClick={() => { setShowMobility(true); buzz("tap"); }} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), width: "100%", padding: "11px 0", marginTop: 12, fontSize: 14, border: "1px solid rgba(255,255,255,.2)" }}>
+              <Activity size={15} /> See mobility routines
+            </button>
+          )}
         </div>
       )}
 
@@ -1073,6 +1148,28 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         <RoutineBuilder initial={builder.id ? builder : null}
           onSave={(r) => { onSaveRoutine(r); setBuilder(null); }} onClose={() => setBuilder(null)} />
       )}
+
+      {/* ── Repeat last workout shortcut ── */}
+      {!builder && workouts.length > 0 && (() => {
+        const last = [...workouts].reverse()[0];
+        const matchRoutine = last.routineName ? routines.find((r) => r.name === last.routineName) : null;
+        if (!last.routineName && !matchRoutine) return null;
+        const dayAgo = Math.round((Date.now() - last.ts) / 86400000);
+        const dayLabel = dayAgo === 0 ? "today" : dayAgo === 1 ? "yesterday" : `${dayAgo}d ago`;
+        return (
+          <button className="sprig-tap" onClick={() => { matchRoutine ? onStart(matchRoutine) : onStart(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 13, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, boxShadow: C.shadow, fontFamily: "DM Sans", marginTop: 0 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 9, background: TRAIN_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Repeat size={14} color={TRAIN_CLR} />
+            </div>
+            <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>Repeat last workout</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{last.routineName || "Custom"} · {dayLabel}</div>
+            </div>
+            <ChevronRight size={14} color={C.muted} style={{ flexShrink: 0 }} />
+          </button>
+        );
+      })()}
 
       {/* saved routines */}
       {routines.length > 0 && !builder && (
@@ -1197,6 +1294,23 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
           <div style={{ fontSize: 12, color: "#9a3d22", lineHeight: 1.45 }}>
             <b>Consider a deload week.</b> {trainInfo.deload.reasons.join(" · ")}. Drop volume ~40% for a week and let everything supercompensate.
           </div>
+        </div>
+      )}
+
+      {/* ── Compact PR banner (visible in Training tab) */}
+      {prs.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.amber + "12", border: `1px solid ${C.amber}33`, borderRadius: 11, padding: "8px 12px", marginTop: 8 }}>
+          <Trophy size={14} color={C.amber} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: 12, color: C.inkSoft, lineHeight: 1.4, minWidth: 0 }}>
+            <b style={{ color: C.amber }}>{prs.length} recent PR{prs.length !== 1 ? "s" : ""}:</b>{" "}
+            {prs.slice(0, 2).map((p, i) => (
+              <span key={i}>{i > 0 ? " · " : ""}<b style={{ color: C.ink }}>{p.name}</b> {p.w}{unit}×{p.reps}</span>
+            ))}
+          </div>
+          <button className="sprig-tap" onClick={() => onSub("recovery")}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.amber, fontSize: 11, fontWeight: 700, fontFamily: "DM Sans", flexShrink: 0, padding: 0 }}>
+            See all →
+          </button>
         </div>
       )}
 
