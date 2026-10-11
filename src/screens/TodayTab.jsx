@@ -426,18 +426,28 @@ function TodayTab({
           </div>
         )}
 
-        {/* AI insight */}
-        {actions.length > 0 && (
-          <div style={{
-            background: "rgba(255,255,255,0.09)", borderRadius: 14,
-            padding: "11px 13px", display: "flex", alignItems: "flex-start", gap: 9,
-          }}>
-            <Zap size={13} color={C.lime} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.88)", lineHeight: 1.5, fontWeight: 500 }}>
-              {actions[0].text}
-            </span>
-          </div>
-        )}
+        {/* AI insight — tappable, navigates to relevant tab */}
+        {actions.length > 0 && (() => {
+          const icon = actions[0].icon;
+          const navFn = { train: onGoTrain, food: onGoNutrition, protein: onGoNutrition, sleep: onGoSleep, walk: onGoTrain, pain: onGoHealth }[icon];
+          return navFn ? (
+            <button className="sprig-tap" onClick={() => { navFn(); buzz("tap"); }}
+              style={{ width: "100%", background: "rgba(255,255,255,0.09)", borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "flex-start", gap: 9, border: "none", cursor: "pointer", textAlign: "left" }}>
+              <Zap size={13} color={C.lime} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.88)", lineHeight: 1.5, fontWeight: 500, flex: 1 }}>
+                {actions[0].text}
+              </span>
+              <ChevronRight size={14} color="rgba(255,255,255,0.40)" style={{ flexShrink: 0, marginTop: 2 }} />
+            </button>
+          ) : (
+            <div style={{ background: "rgba(255,255,255,0.09)", borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "flex-start", gap: 9 }}>
+              <Zap size={13} color={C.lime} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.88)", lineHeight: 1.5, fontWeight: 500 }}>
+                {actions[0].text}
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ══ 2. SCORE CHIPS ═══════════════════════════════════════ */}

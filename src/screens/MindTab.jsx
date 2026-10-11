@@ -334,7 +334,15 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
       {/* ---- DUE TODAY ---- */}
       {dueToday.length > 0 && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, textTransform: "uppercase", marginBottom: 8 }}>Due today</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, textTransform: "uppercase" }}>Due today</div>
+            {dueToday.length > 1 && (
+              <button className="sprig-tap" onClick={() => { dueToday.forEach(h => onToggleHabit2(h.id)); }}
+                style={{ background: MIND_CLR + "18", border: `1px solid ${MIND_CLR}44`, borderRadius: 8, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, color: MIND_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
+                <Check size={12} style={{ verticalAlign: -1 }} /> All done
+              </button>
+            )}
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             {dueToday.map((h) => {
               const status = habitStatusMap[h.id] || {};
