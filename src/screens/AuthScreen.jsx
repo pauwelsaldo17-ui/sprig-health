@@ -6,11 +6,11 @@ import { C } from "../theme.js";
 import { getSupabase } from "../supabaseClient.js";
 
 const FEATURES = [
-  { emoji: "🥗", text: "AI food scanning — snap a photo, get macros" },
-  { emoji: "💪", text: "Smart training tracker with PR detection" },
-  { emoji: "🌙", text: "Sleep quality tracking and recovery scoring" },
-  { emoji: "🤖", text: "Elite AI coach that knows your full picture" },
-  ];
+  { color: "#FB923C", emoji: "🥗", head: "Smart Nutrition", text: "Log meals & scan food · hit your macros effortlessly" },
+  { color: "#52C878", emoji: "💪", head: "Training Tracker", text: "PR detection · volume tracking · muscle recovery" },
+  { color: "#8B7CF7", emoji: "🌙", head: "Sleep & Recovery", text: "Deep sleep analysis · optimised bedtime planning" },
+  { color: "#38BDF8", emoji: "✨", head: "Elite AI Coach", text: "Cross-domain insights · personalised to your data" },
+];
 
 export default function AuthScreen() {
     const [busy, setBusy] = useState(false);
@@ -84,18 +84,27 @@ export default function AuthScreen() {
                     textAlign: "center", lineHeight: 1.5, maxWidth: 260,
                     marginBottom: 44,
         }}>
-                                      Your health, all in one place
+                                      Track everything. Optimise anything.
                           </div>
 
                   {/* Feature list */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 320, marginBottom: 52 }}>
-                            {FEATURES.map(({ emoji, text }) => (
-                      <div key={text} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                      <span style={{ fontSize: 20, width: 28, textAlign: "center", flexShrink: 0 }}>{emoji}</span>
-                                      <span style={{ fontSize: 14, color: C.inkSoft, fontWeight: 500, lineHeight: 1.4 }}>{text}</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", maxWidth: 340, marginBottom: 44 }}>
+                    {FEATURES.map(({ color, emoji, head, text }) => (
+                      <div key={head} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0" }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 13, flexShrink: 0,
+                          background: color + "22", border: `1px solid ${color}33`,
+                          display: "grid", placeItems: "center", fontSize: 19,
+                        }}>
+                          {emoji}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, marginBottom: 1 }}>{head}</div>
+                          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.4 }}>{text}</div>
+                        </div>
                       </div>
                     ))}
-                          </div>
+                  </div>
                 </div>
 
           {/* Bottom: sign-in */}

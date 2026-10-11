@@ -417,6 +417,15 @@ function TodayTab({
           <ScoreDonut score={healthScore} size={76} />
         </div>
 
+        {/* ── logged-days badge ── */}
+        {loggedDays >= 3 && (
+          <div style={{ display: "flex", marginBottom: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.65)", background: "rgba(255,255,255,.1)", padding: "3px 11px", borderRadius: 99, letterSpacing: .3, display: "inline-flex", alignItems: "center", gap: 5 }}>
+              {loggedDays >= 30 ? "🔥" : "🌿"} {loggedDays} days logged
+            </span>
+          </div>
+        )}
+
         {/* AI insight */}
         {actions.length > 0 && (
           <div style={{
@@ -441,18 +450,23 @@ function TodayTab({
           {scoreChips.map((ch) => {
             const v   = Math.round(ch.v);
             const clr = v >= 70 ? ch.color : v >= 45 ? C.amber : C.coral;
+            const navFn = { Sleep: onGoSleep, Nutrition: onGoNutrition, Movement: onGoTrain, Recovery: onGoHealth || onGoBody }[ch.label];
             return (
-              <div key={ch.label} style={{
-                background: C.card, borderRadius: 14, padding: "9px 6px",
-                textAlign: "center", border: `1px solid ${C.line}`,
-              }}>
+              <button key={ch.label} className="sprig-tap" onClick={() => navFn?.()}
+                style={{
+                  background: C.card, borderRadius: 14, padding: "9px 6px 7px",
+                  textAlign: "center", border: `1px solid ${C.line}`,
+                  cursor: navFn ? "pointer" : "default",
+                  fontFamily: "DM Sans", width: "100%",
+                }}>
                 <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: clr, lineHeight: 1 }}>
                   {v}
                 </div>
-                <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: .4, textTransform: "uppercase", marginTop: 3 }}>
+                <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: .4, textTransform: "uppercase", marginTop: 3, marginBottom: 5 }}>
                   {ch.label}
                 </div>
-              </div>
+                <div style={{ height: 2, borderRadius: 99, background: clr, width: "38%", margin: "0 auto", opacity: 0.55 }} />
+              </button>
             );
           })}
         </div>
