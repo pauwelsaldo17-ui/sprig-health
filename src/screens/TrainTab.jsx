@@ -1067,6 +1067,11 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
               <Play size={15} /> {sug.routine ? `Start ${sug.routine.name}` : `Start ${sug.label.toLowerCase()}`}
             </button>
           )}
+          {sug.type === "mobility" && (
+            <button className="sprig-tap" onClick={() => { setShowMobility(true); buzz("tap"); }} style={{ ...btn("rgba(255,255,255,.15)", "#fff"), width: "100%", padding: "11px 0", marginTop: 12, fontSize: 14, border: "1px solid rgba(255,255,255,.2)" }}>
+              <Activity size={15} /> See mobility routines
+            </button>
+          )}
         </div>
       )}
 
