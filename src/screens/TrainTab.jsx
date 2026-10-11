@@ -19,6 +19,8 @@ function buzz(kind = "tap") {
   try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
 }
 import { Ring, SubTabs, EmptyState, btn, PerfectRecoveryCard } from "../components/ui.jsx";
+
+const TRAIN_CLR = "#F43F5E";
 import { RecoveryStrengthSection } from "./BodyTab.jsx";
 
 const fmtClock = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
@@ -239,7 +241,7 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         {meta?.bar && (
           <button className="sprig-tap" onClick={() => setShowPlate((s) => !s)} title="Plate calculator" style={{ background: showPlate ? C.green : C.bg2, border: "none", cursor: "pointer", width: 40, height: 40, borderRadius: 11, display: "grid", placeItems: "center", color: showPlate ? "#fff" : C.inkSoft, flexShrink: 0 }}><Calculator size={17} /></button>
         )}
-        <button className="sprig-tap sprig-cta" onClick={log} style={{ flex: 1, background: C.green, color: "#fff", borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 800, boxShadow: `0 6px 18px ${C.green}50`, letterSpacing: -0.3, transition: "box-shadow .15s" }}><Check size={16} /> Log set</button>
+        <button className="sprig-tap sprig-cta" onClick={log} style={{ flex: 1, background: TRAIN_CLR, color: "#fff", borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 800, boxShadow: `0 6px 18px ${TRAIN_CLR}50`, letterSpacing: -0.3, transition: "box-shadow .15s" }}><Check size={16} /> Log set</button>
       </div>
 
       {showPlate && meta?.bar && <PlateView target={parseFloat(w) || 0} unit={unit} />}
@@ -369,7 +371,7 @@ function ExercisePicker({ onPick, onClose, onCustom, equipment, workouts = [] })
       <div className="sprig-scroll" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8, marginBottom: 6 }}>
         {[["all", "All"], ...MUSCLES].map(([k, n]) => (
           <button key={k} onClick={() => setFilter(k)} className="sprig-tap"
-            style={{ flexShrink: 0, border: "none", cursor: "pointer", padding: "6px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: filter === k ? C.green : C.bg2, color: filter === k ? "#fff" : C.inkSoft, display: "flex", alignItems: "center", gap: 4 }}>
+            style={{ flexShrink: 0, border: "none", cursor: "pointer", padding: "6px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", background: filter === k ? TRAIN_CLR : C.bg2, color: filter === k ? "#fff" : C.inkSoft, display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ fontSize: 13 }}>{MUSCLE_ICONS[k] || "💪"}</span>{n}
           </button>
         ))}
@@ -470,7 +472,7 @@ function RoutineBuilder({ initial, onSave, onClose }) {
       <div className="sprig-scroll" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8, marginBottom: 4 }}>
         {[["all", "All"], ...MUSCLES].map(([k, n]) => (
           <button key={k} onClick={() => setFilter(k)} className="sprig-tap"
-            style={{ flexShrink: 0, border: "none", cursor: "pointer", padding: "5px 11px", borderRadius: 99, fontSize: 11.5, fontWeight: 600, fontFamily: "DM Sans", background: filter === k ? C.green : C.bg2, color: filter === k ? "#fff" : C.inkSoft }}>{n}</button>
+            style={{ flexShrink: 0, border: "none", cursor: "pointer", padding: "5px 11px", borderRadius: 99, fontSize: 11.5, fontWeight: 600, fontFamily: "DM Sans", background: filter === k ? TRAIN_CLR : C.bg2, color: filter === k ? "#fff" : C.inkSoft }}>{n}</button>
         ))}
       </div>
       <div className="sprig-scroll" style={{ maxHeight: 220, overflowY: "auto" }}>
@@ -668,7 +670,7 @@ function MovementSportsPanel({ daily, onDaily, profile }) {
   if (!mode) return (
     <div className="sprig-rise">
       {/* Movement today — hero card */}
-      <div style={{ background: C.heroGrad1, borderRadius: 20, padding: "16px 18px", color: "#fff", boxShadow: C.shadow, marginBottom: 10 }}>
+      <div style={{ background: "linear-gradient(148deg, #4A0A1A 0%, #2A0510 100%)", borderRadius: 20, padding: "16px 18px", color: "#fff", boxShadow: C.shadow, marginBottom: 10 }}>
         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: .6, textTransform: "uppercase", opacity: .65, marginBottom: 10 }}>Movement today</div>
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 10 }}>
           {[
@@ -950,7 +952,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
     const totalSets = exList.reduce((a, e) => a + (e.sets?.length || 0), 0);
     return (
       <div className="sprig-rise">
-        <div style={{ position: "sticky", top: 0, zIndex: 110, background: C.cardSolid, border: `1px solid ${C.green}44`, borderRadius: 22, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 28px rgba(0,0,0,.36)", marginBottom: 18 }}>
+        <div style={{ position: "sticky", top: 0, zIndex: 110, background: C.cardSolid, border: `1px solid ${TRAIN_CLR}44`, borderRadius: 22, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 28px rgba(0,0,0,.36)", marginBottom: 18 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>
               {active.routineName || "New Workout"}
@@ -961,7 +963,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
             {totalSets > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{totalSets} set{totalSets !== 1 ? "s" : ""} logged</div>}
           </div>
           <button className="sprig-tap" onClick={onCancel} style={{ background: "transparent", border: `1px solid ${C.line}`, cursor: "pointer", padding: "9px 13px", borderRadius: 11, fontSize: 12, fontWeight: 600, color: C.muted, fontFamily: "DM Sans" }}>Cancel</button>
-          <button className="sprig-tap" onClick={onFinish} style={{ ...btn(C.green, "#fff"), padding: "11px 20px", fontSize: 14, fontWeight: 800, boxShadow: `0 4px 16px ${C.green}66`, letterSpacing: -0.2 }}><Check size={16} /> Finish</button>
+          <button className="sprig-tap" onClick={onFinish} style={{ ...btn(TRAIN_CLR, "#fff"), padding: "11px 20px", fontSize: 14, fontWeight: 800, boxShadow: `0 4px 16px ${TRAIN_CLR}66`, letterSpacing: -0.2 }}><Check size={16} /> Finish</button>
         </div>
 
         {/* (Rest timer now renders at the app-frame level so it tracks scroll — see SprigApp.) */}
@@ -1034,10 +1036,10 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
 
       {/* SUGGESTED WORKOUT */}
       {sug && (
-        <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 16, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
+        <div style={{ background: "linear-gradient(148deg, #4A0A1A 0%, #2A0510 100%)", borderRadius: 20, padding: 16, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
             <div style={{ width: 44, height: 44, borderRadius: 13, background: "rgba(255,255,255,.14)", display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <SugIcon size={22} color="#E7DCC6" />
+              <SugIcon size={22} color={TRAIN_CLR} />
             </div>
             <div style={{ flex: 1 }}>
               <div className="sprig-eyebrow" style={{ opacity: .75 }}>Suggested for today</div>
@@ -1091,7 +1093,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
                   </div>
                   <button className="sprig-tap" onClick={() => setBuilder(r)} title="Edit" style={{ background: C.bg2, border: "none", cursor: "pointer", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", color: C.inkSoft }}><PencilLine size={15} /></button>
                   <button className="sprig-tap" onClick={() => onDeleteRoutine(r.id)} title="Delete" style={{ background: C.bg2, border: "none", cursor: "pointer", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", color: C.muted }}><Trash2 size={15} /></button>
-                  <button className="sprig-tap" onClick={() => onStart(r)} style={{ ...btn(C.green, "#fff"), padding: "9px 14px", fontSize: 13 }}><Play size={14} /> Start</button>
+                  <button className="sprig-tap" onClick={() => onStart(r)} style={{ ...btn(TRAIN_CLR, "#fff"), padding: "9px 14px", fontSize: 13 }}><Play size={14} /> Start</button>
                 </div>
               </div>
             ))}
@@ -1177,7 +1179,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
             ? "Most muscles still recovering"
             : "Log a workout to see muscle freshness";
         return (
-          <div style={{ width: "100%", textAlign: "left", marginTop: 14, background: C.heroGrad1, borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
+          <div style={{ width: "100%", textAlign: "left", marginTop: 14, background: "linear-gradient(148deg, #4A0A1A 0%, #2A0510 100%)", borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
             <Ring value={rScore} max={100} size={64} stroke={8} label={rScore} sub="ready" color={rColor} track="rgba(255,255,255,.15)" />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11.5, opacity: .8 }}>Recovery</div>
