@@ -4,6 +4,8 @@ import { C } from "../theme.js";
 import { FOCUS_PRESETS, HABIT_CATEGORIES, DAY_NAMES_SHORT, HABIT_SUGGESTIONS, computeHabitStreak } from "../utils/vitaeCalc.js";
 import { btn } from "../components/ui.jsx";
 
+const MIND_CLR = "#A78BFA";
+
 function FocusTimer({ onLogFocus }) {
   const [minutes, setMinutes] = useState(25);
   const [remaining, setRemaining] = useState(null); // seconds left, null = idle
@@ -28,9 +30,9 @@ function FocusTimer({ onLogFocus }) {
   const completeNow = () => { setRunning(false); setRemaining(null); onLogFocus(minutes, label.trim() || "Deep work"); };
 
   return (
-    <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow }}>
+    <div style={{ background: "linear-gradient(148deg, #1E1050 0%, #0F0730 100%)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, opacity: .85, fontWeight: 600, marginBottom: 12 }}>
-        <Timer size={15} color="#E7DCC6" /> Focus session
+        <Timer size={15} color={MIND_CLR} /> Focus session
       </div>
       {remaining == null ? (
         <>
@@ -38,14 +40,14 @@ function FocusTimer({ onLogFocus }) {
             {FOCUS_PRESETS.map((m) => (
               <button key={m} className="sprig-tap" onClick={() => setMinutes(m)}
                 style={{ flex: 1, border: "none", cursor: "pointer", padding: "12px 0", borderRadius: 12, fontFamily: "DM Sans", fontWeight: 700, fontSize: 14,
-                  background: minutes === m ? "#fff" : "rgba(255,255,255,.12)", color: minutes === m ? C.green : "#fff" }}>
+                  background: minutes === m ? "#fff" : "rgba(255,255,255,.12)", color: minutes === m ? MIND_CLR : "#fff" }}>
                 {m}<span style={{ fontSize: 10, fontWeight: 500 }}> min</span>
               </button>
             ))}
           </div>
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="What are you focusing on? (optional)"
             style={{ width: "100%", border: "none", borderRadius: 11, padding: "10px 12px", fontFamily: "DM Sans", fontSize: 13, background: "rgba(255,255,255,.12)", color: "#fff", marginBottom: 12, outline: "none" }} />
-          <button className="sprig-tap" onClick={start} style={{ ...btn("#fff", C.green), width: "100%", padding: "13px 0", fontSize: 15 }}>
+          <button className="sprig-tap" onClick={start} style={{ ...btn("#fff", MIND_CLR), width: "100%", padding: "13px 0", fontSize: 15 }}>
             <Play size={16} /> Start {minutes} min
           </button>
         </>
@@ -56,7 +58,7 @@ function FocusTimer({ onLogFocus }) {
           <div style={{ display: "flex", gap: 8 }}>
             <button className="sprig-tap" onClick={cancel} style={{ ...btn("rgba(255,255,255,.14)", "#fff"), flex: 1, padding: "12px 0" }}>Cancel</button>
             <button className="sprig-tap" onClick={() => setRunning((r) => !r)} style={{ ...btn("rgba(255,255,255,.14)", "#fff"), flex: 1, padding: "12px 0" }}>{running ? "Pause" : "Resume"}</button>
-            <button className="sprig-tap" onClick={completeNow} style={{ ...btn("#fff", C.green), flex: 1, padding: "12px 0" }}><Check size={15} /> Done</button>
+            <button className="sprig-tap" onClick={completeNow} style={{ ...btn("#fff", MIND_CLR), flex: 1, padding: "12px 0" }}><Check size={15} /> Done</button>
           </div>
         </>
       )}
@@ -80,12 +82,12 @@ function AddHabitForm({ onSave, onCancel, initial }) {
   const FreqBtn = ({ id, label }) => (
     <button className="sprig-tap" onClick={() => setFreqType(id)}
       style={{ flex: 1, border: "none", cursor: "pointer", padding: "9px 0", borderRadius: 10, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
-        background: freqType === id ? C.green : C.bg2, color: freqType === id ? "#fff" : C.muted }}>{label}</button>
+        background: freqType === id ? MIND_CLR : C.bg2, color: freqType === id ? "#fff" : C.muted }}>{label}</button>
   );
   const CatBtn = ({ id, label }) => (
     <button className="sprig-tap" onClick={() => setCategory(id)}
       style={{ border: "none", cursor: "pointer", padding: "7px 11px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans",
-        background: category === id ? C.green : C.bg2, color: category === id ? "#fff" : C.muted }}>{label}</button>
+        background: category === id ? MIND_CLR : C.bg2, color: category === id ? "#fff" : C.muted }}>{label}</button>
   );
 
   return (
@@ -115,7 +117,7 @@ function AddHabitForm({ onSave, onCancel, initial }) {
           {[1,2,3,4,5,6,7].map((n) => (
             <button key={n} className="sprig-tap" onClick={() => setWeeklyTarget(n)}
               style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "DM Sans",
-                background: weeklyTarget === n ? C.green : C.bg2, color: weeklyTarget === n ? "#fff" : C.muted }}>{n}</button>
+                background: weeklyTarget === n ? MIND_CLR : C.bg2, color: weeklyTarget === n ? "#fff" : C.muted }}>{n}</button>
           ))}
         </div>
       )}
@@ -125,7 +127,7 @@ function AddHabitForm({ onSave, onCancel, initial }) {
           {DAY_NAMES_SHORT.map((d, i) => (
             <button key={i} className="sprig-tap" onClick={() => toggleDay(i)}
               style={{ flex: 1, border: "none", cursor: "pointer", padding: "8px 0", borderRadius: 9, fontSize: 11.5, fontWeight: 700, fontFamily: "DM Sans",
-                background: specificDays.includes(i) ? C.green : C.bg2, color: specificDays.includes(i) ? "#fff" : C.muted }}>{d}</button>
+                background: specificDays.includes(i) ? MIND_CLR : C.bg2, color: specificDays.includes(i) ? "#fff" : C.muted }}>{d}</button>
           ))}
         </div>
       )}
@@ -134,7 +136,7 @@ function AddHabitForm({ onSave, onCancel, initial }) {
         <span style={{ fontSize: 12.5, color: C.inkSoft, fontWeight: 600 }}>Reminder</span>
         <button className="sprig-tap" onClick={() => setReminderOn((v) => !v)}
           style={{ width: 40, height: 22, borderRadius: 99, border: "none", cursor: "pointer", position: "relative",
-            background: reminderOn ? C.green : C.bg2, transition: "background .2s" }}>
+            background: reminderOn ? MIND_CLR : C.bg2, transition: "background .2s" }}>
           <span style={{ position: "absolute", top: 3, width: 16, height: 16, borderRadius: 99, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.2)",
             left: reminderOn ? 21 : 3, transition: "left .2s" }} />
         </button>
@@ -153,7 +155,7 @@ function AddHabitForm({ onSave, onCancel, initial }) {
       <div style={{ display: "flex", gap: 8 }}>
         <button className="sprig-tap" onClick={onCancel} style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "11px 0" }}>Cancel</button>
         <button className="sprig-tap" disabled={!valid} onClick={() => valid && onSave({ name, category, frequencyType: freqType, weeklyTarget: freqType === "weekly_x" ? weeklyTarget : null, specificDays: freqType === "specific_days" ? specificDays : null, reminderEnabled: reminderOn, reminderTime: reminderOn ? reminderTime : null, notes })}
-          style={{ ...btn(valid ? C.green : C.bg2, valid ? "#fff" : C.muted), flex: 2, padding: "11px 0" }}>
+          style={{ ...btn(valid ? MIND_CLR : C.bg2, valid ? "#fff" : C.muted), flex: 2, padding: "11px 0" }}>
           <Check size={14} /> {initial ? "Save changes" : "Add habit"}
         </button>
       </div>
@@ -172,7 +174,7 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
   const active = habits2.filter((h) => !h.archived);
   const archived = habits2.filter((h) => h.archived);
   const cv2 = consistencyV2 || { pct: null, label: "No habits yet", details: [] };
-  const scoreColor = cv2.pct == null ? C.muted : cv2.pct >= 75 ? C.greenSoft : cv2.pct >= 50 ? C.amber : C.coral;
+  const scoreColor = cv2.pct == null ? C.muted : cv2.pct >= 90 ? MIND_CLR : cv2.pct >= 75 ? C.greenSoft : cv2.pct >= 50 ? C.amber : C.coral;
 
   // Section split
   const isAutoMet = (h) => !!(h.autoType && autoToday[h.id]?.met);
@@ -249,7 +251,7 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
         </div>
         {!showAddForm && !editingHabit && (
           <button className="sprig-tap" onClick={() => { setShowAddForm(true); setManageMode(false); }}
-            style={{ ...btn(C.green, "#fff"), padding: "8px 14px", fontSize: 12 }}>
+            style={{ ...btn(MIND_CLR, "#fff"), padding: "8px 14px", fontSize: 12 }}>
             <Plus size={14} /> Add
           </button>
         )}
@@ -293,7 +295,7 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
 
       {/* ---- CONSISTENCY SCORE ---- */}
       {active.length > 0 && (
-        <div style={{ background: C.heroGrad1, borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginBottom: 14, display: "flex", alignItems: "center", gap: 18 }}>
+        <div style={{ background: "linear-gradient(148deg, #1E1050 0%, #0F0730 100%)", borderRadius: 20, padding: 18, color: "#fff", boxShadow: C.shadow, marginBottom: 14, display: "flex", alignItems: "center", gap: 18 }}>
           {cv2.pct !== null ? (
             <div style={{ flexShrink: 0 }}>
               <svg width="72" height="72" viewBox="0 0 72 72">
@@ -336,8 +338,8 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
               const streak = computeHabitStreak(h, habitCompletions, today);
               return (
                 <button key={h.id} className="sprig-tap" onClick={() => onToggleHabit2(h.id)}
-                  style={{ display: "flex", alignItems: "center", gap: 11, background: C.card, border: `1px solid ${C.line}`, borderRadius: 13, padding: "12px 14px", boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", width: "100%" }}>
-                  <span style={{ width: 26, height: 26, borderRadius: 99, border: `2px solid ${C.line}`, display: "grid", placeItems: "center", flexShrink: 0 }} />
+                  style={{ display: "flex", alignItems: "center", gap: 11, background: C.card, border: `1px solid ${MIND_CLR}22`, borderRadius: 13, padding: "12px 14px", boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", width: "100%" }}>
+                  <span style={{ width: 26, height: 26, borderRadius: 99, border: `2px solid ${MIND_CLR}44`, display: "grid", placeItems: "center", flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>{h.name}</div>
                     <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
@@ -375,7 +377,7 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
 
       {/* ---- THIS WEEK / PERIOD ---- */}
       {thisPeriod.length > 0 && (
-        <div style={{ background: C.card, borderRadius: 18, padding: "13px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 14 }}>
+        <div style={{ background: C.card, borderRadius: 18, padding: "13px 16px", boxShadow: C.shadow, border: `1px solid ${MIND_CLR}22`, marginBottom: 14 }}>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, textTransform: "uppercase", marginBottom: 8 }}>This week</div>
           {thisPeriod.map((h, i) => {
             const status = habitStatusMap[h.id] || {};
@@ -402,7 +404,7 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
                   {status.isComplete
                     ? <Check size={16} color={C.greenSoft} style={{ flexShrink: 0 }} />
                     : status.isDue && <button className="sprig-tap" onClick={() => onToggleHabit2(h.id)}
-                        style={{ ...btn(C.green, "#fff"), padding: "6px 11px", borderRadius: 9, fontSize: 12, flexShrink: 0 }}>
+                        style={{ ...btn(MIND_CLR, "#fff"), padding: "6px 11px", borderRadius: 9, fontSize: 12, flexShrink: 0 }}>
                         {ft === "weekly_x" ? "+ Log" : "Done"}
                       </button>
                   }
@@ -422,11 +424,11 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
               const status = habitStatusMap[h.id] || {};
               const streak = computeHabitStreak(h, habitCompletions, today);
               return (
-                <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 11, background: C.green + "0a", border: `1px solid ${C.leaf}33`, borderRadius: 13, padding: "10px 14px", opacity: .85 }}>
+                <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 11, background: `${MIND_CLR}0a`, border: `1px solid ${MIND_CLR}33`, borderRadius: 13, padding: "10px 14px", opacity: .85 }}>
                   <button className="sprig-tap" onClick={() => onUndoCompletion(h.id, status.periodKey)}
-                    style={{ width: 26, height: 26, borderRadius: 99, background: C.green, border: "none", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, color: "#fff" }}><Check size={14} /></button>
+                    style={{ width: 26, height: 26, borderRadius: 99, background: MIND_CLR, border: "none", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, color: "#fff" }}><Check size={14} /></button>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, textDecoration: "line-through", textDecorationColor: C.green + "77" }}>{h.name}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: C.ink, textDecoration: "line-through", textDecorationColor: `${MIND_CLR}77` }}>{h.name}</div>
                     {streak > 1 && <div style={{ fontSize: 11, color: C.amber, marginTop: 1 }}>🔥 {streak}-day streak</div>}
                   </div>
                 </div>
@@ -441,7 +443,7 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
         <div style={{ marginBottom: 14 }}>
           <button className="sprig-tap" onClick={() => setShowSuggestions((s) => !s)}
             style={{ width: "100%", background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 12, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12.5, fontWeight: 600, color: C.inkSoft, fontFamily: "DM Sans", marginBottom: showSuggestions ? 8 : 0 }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 7 }}><Sparkles size={13} color={C.greenSoft} /> Add more habits</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 7 }}><Sparkles size={13} color={MIND_CLR} /> Add more habits</span>
             <ChevronDown size={14} color={C.muted} style={{ transform: showSuggestions ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
           </button>
           {showSuggestions && (
@@ -449,7 +451,7 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
               {suggestions.slice(0, 8).map((sug, i) => (
                 <button key={i} className="sprig-tap" onClick={() => handleAddSuggestion(sug)}
                   style={{ display: "flex", alignItems: "center", gap: 11, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "10px 14px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", width: "100%" }}>
-                  <Plus size={14} color={C.greenSoft} style={{ flexShrink: 0 }} />
+                  <Plus size={14} color={MIND_CLR} style={{ flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: C.inkSoft }}>{sug.name}</span>
                     <span style={{ fontSize: 11, color: C.muted, marginLeft: 7 }}>{sug.category} · {sug.frequencyType === "weekly_x" ? `${sug.weeklyTarget}× / week` : sug.frequencyType || "Daily"}</span>
@@ -464,11 +466,11 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
 
       {/* ---- ALL HABITS (manage) ---- */}
       {active.length > 0 && (
-        <div style={{ background: C.card, borderRadius: 18, padding: "12px 14px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
+        <div style={{ background: C.card, borderRadius: 18, padding: "12px 14px 14px", boxShadow: C.shadow, border: `1px solid ${MIND_CLR}22`, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
             <div className="sprig-eyebrow">All habits</div>
             <button className="sprig-tap" onClick={() => setManageMode((s) => !s)}
-              style={{ ...btn(manageMode ? C.green : "transparent", manageMode ? "#fff" : C.muted), padding: "4px 10px", fontSize: 11.5, borderRadius: 8 }}>
+              style={{ ...btn(manageMode ? MIND_CLR : "transparent", manageMode ? "#fff" : C.muted), padding: "4px 10px", fontSize: 11.5, borderRadius: 8 }}>
               {manageMode ? "Done" : "Edit"}
             </button>
           </div>
