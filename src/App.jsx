@@ -3877,7 +3877,6 @@ function SprigApp() {
             dailyInfo={dailyInfo} nutriInfo={nutriInfo} healthInfo={healthInfo} mindInfo={mindInfo} moveInfo={moveInfo} onDaily={persistDaily} onAddEntry={addEntry} onCheckin={setCheckin} onQuickLog={() => setQuickOpen(true)} quickLog={quickLog} tp={trackingPrefs}
             onStartWorkout={() => { startWorkout(); setTab("train"); }}
             onGoSleep={() => setTab("sleep")} onGoEnergy={() => setTab("energy")} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")}
-            onQuickSleep={saveSleepLog}
             onGoNutrition={() => setTab("nutrition")} onGoTrain={() => setTab("train")}
             recoveryInfo={recoveryInfo} dt={dailyTruth} onToast={showToast}
             wins={(profile?.showWins === false) ? null : (wins[date] || [])} onKudos={(id) => kudoWin(id, date)} onViewAllWins={() => setWinsOpen(true)}

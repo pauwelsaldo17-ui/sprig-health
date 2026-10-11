@@ -279,17 +279,6 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
             <span style={{ opacity: .6, fontSize: 12 }}>{verdict.text}</span>
           </div>
         )}
-        {/* ── Quick weigh-in inside hero ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, borderTop: "1px solid rgba(255,255,255,.13)", paddingTop: 12 }}>
-          <input value={weightInput} onChange={(e) => setWeightInput(e.target.value)}
-            inputMode="decimal" placeholder={wStats.current != null ? String(wStats.current) : "0.0"}
-            style={{ flex: 1, background: "rgba(255,255,255,.10)", border: "1px solid rgba(255,255,255,.22)", borderRadius: 9, padding: "8px 10px", color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "DM Sans", outline: "none" }} />
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,.45)", flexShrink: 0 }}>{profile?.unit || "kg"}</span>
-          <button className="sprig-tap" disabled={!weightInput} onClick={() => { onLogWeight(parseFloat(weightInput)); setWeightInput(""); }}
-            style={{ background: weightInput ? C.lime : "rgba(255,255,255,.15)", color: weightInput ? "#0A1F12" : "rgba(255,255,255,.35)", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: weightInput ? "pointer" : "default", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, transition: "background .15s, color .15s" }}>
-            <Check size={14} /> Log
-          </button>
-        </div>
       </div>
 
       {(
@@ -395,13 +384,12 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 12px", marginTop: 12 }}>
                 {MEASURE_KEYS.map(([k, lbl]) => {
                   const m = measureCur[k]; if (!m) return null;
-                  const chgColor = m.change == null ? C.muted : m.change > 0 ? C.amber : C.greenSoft;
+                  const upCol = m.change == null ? C.muted : m.change > 0 ? C.greenSoft : C.coral;
                   return (
                     <div key={k} style={{ background: C.bg, borderRadius: 11, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 10.5, color: C.muted, marginBottom: 3 }}>{lbl}</div>
-                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 4 }}>
-                        <span style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink }}>{m.current}<span style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginLeft: 2 }}>cm</span></span>
-                        {m.change != null && <span style={{ fontSize: 10.5, color: chgColor, fontWeight: 600 }}>{m.change > 0 ? "+" : ""}{m.change}</span>}
+                      <div style={{ fontSize: 11, color: C.muted }}>{lbl}</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3 }}>
+                        {m.change != null && <span style={{ fontSize: 11, color: upCol, fontWeight: 600, marginLeft: "auto" }}>{m.change > 0 ? "+" : ""}{m.change}</span>}
                       </div>
                     </div>
                   );
