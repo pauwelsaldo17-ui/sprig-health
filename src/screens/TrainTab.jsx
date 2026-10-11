@@ -237,6 +237,12 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
           {showGhost && ghostR != null && (
             <span style={{ fontSize: 10.5, color: C.muted, opacity: 0.62, fontWeight: 600, lineHeight: 1, letterSpacing: 0.1 }}>{ghostR}r</span>
           )}
+          {ex.sets.length > 0 && !reps && (
+            <button className="sprig-tap" onClick={() => { setReps(String(ex.sets[ex.sets.length - 1].reps)); buzz("tap"); }}
+              style={{ fontSize: 11, fontWeight: 700, color: TRAIN_CLR, background: TRAIN_CLR + "14", border: "1px solid " + TRAIN_CLR + "33", borderRadius: 8, padding: "3px 8px", cursor: "pointer", lineHeight: 1, fontFamily: "DM Sans", whiteSpace: "nowrap", marginTop: 1 }}>
+              ={ex.sets[ex.sets.length - 1].reps}r
+            </button>
+          )}
         </div>
         {meta?.bar && (
           <button className="sprig-tap" onClick={() => setShowPlate((s) => !s)} title="Plate calculator" style={{ background: showPlate ? C.green : C.bg2, border: "none", cursor: "pointer", width: 40, height: 40, borderRadius: 11, display: "grid", placeItems: "center", color: showPlate ? "#fff" : C.inkSoft, flexShrink: 0 }}><Calculator size={17} /></button>
