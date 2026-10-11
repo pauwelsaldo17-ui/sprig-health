@@ -28,11 +28,11 @@ const WATER_CLR  = "#5B9BD5";
 const RECOV_CLR  = "#4FC3F7";
 
 /* ─── utilities ──────────────────────────────────────────────────── */
-function getGreeting() {
+function getGreeting(profile) {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  const base = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  const firstName = profile?.name?.trim().split(/\s+/)[0];
+  return firstName ? `${base}, ${firstName}` : base;
 }
 
 /* ─── MiniArc ────────────────────────────────────────────────────── */
@@ -53,11 +53,12 @@ function MiniArc({ pct = 0, color = C.greenSoft, size = 38, strokeWidth = 4 }) {
 }
 
 /* ─── BentoCard ──────────────────────────────────────────────────── */
-function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty }) {
+function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty, active }) {
   return (
     <button className="sprig-tap" onClick={onTap}
       style={{
-        background: C.card, border: `1px solid ${C.line}`,
+        background: active ? color + "0F" : C.card,
+        border: `1px solid ${active ? color + "33" : C.line}`,
         borderRadius: 20, padding: "14px 13px",
         textAlign: "left", cursor: "pointer", fontFamily: "DM Sans",
         width: "100%", display: "flex", flexDirection: "column",
@@ -410,7 +411,7 @@ function TodayTab({
               {new Date().toLocaleDateString("en", { weekday: "long", month: "short", day: "numeric" })}
             </div>
             <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginTop: 4, letterSpacing: -.4 }}>
-              {getGreeting()}
+              {getGreeting(profile)}
             </div>
           </div>
           <ScoreDonut score={healthScore} size={76} />
@@ -501,6 +502,7 @@ function TodayTab({
             onTap={onGoSleep}
             cta={!dtSleepSrc ? "Log tonight's sleep" : null}
             empty={!sleepDur && dtSleepSrc !== "quick_log"}
+            active={!!(sleepDur || dtSleepSrc === "quick_log")}
           />
         )}
 
@@ -529,6 +531,7 @@ function TodayTab({
             onTap={onGoNutrition}
             cta={!dtNutrSrc && t.calories === 0 ? "Log your meals" : null}
             empty={t.calories === 0 && !dtNutrSrc}
+            active={t.calories > 0 || dtNutrSrc === "quick_log"}
           />
         )}
 
@@ -559,6 +562,7 @@ function TodayTab({
             onTap={onGoTrain}
             cta={!dtMoveSrc && !dtTrainSrc && steps === 0 ? "Log workout" : null}
             empty={!dtMoveSrc && !dtTrainSrc && steps === 0}
+            active={!!(dtMoveSrc || steps > 0 || dtTrainSrc === "exact")}
           />
         )}
 
@@ -580,6 +584,7 @@ function TodayTab({
             pct={recovScore}
             onTap={onGoHealth || onGoBody}
             empty={recovScore == null}
+            active={recovScore != null}
           />
         )}
       </div>
@@ -603,20 +608,36 @@ function TodayTab({
                   : `${(waterMl / 1000).toFixed(1)}L / ${(waterGoal / 1000).toFixed(1)}L`}
               </div>
             </div>
-            <button className="sprig-tap"
-              onClick={() => {
-                onDaily({ water: waterMl + 250 });
-                buzz("light");
-                if (onToast) onToast("Added 250ml water ✓");
-              }}
-              style={{
-                background: WATER_CLR + "1A", border: `1px solid ${WATER_CLR}33`,
-                borderRadius: 11, padding: "8px 14px",
-                fontSize: 12.5, fontWeight: 700, color: WATER_CLR,
-                cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap", flexShrink: 0,
-              }}>
-              +1 glass
-            </button>
+            <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+              <button className="sprig-tap"
+                onClick={() => {
+                  onDaily({ water: waterMl + 250 });
+                  buzz("light");
+                  if (onToast) onToast("Added 250ml water ✓");
+                }}
+                style={{
+                  background: WATER_CLR + "1A", border: `1px solid ${WATER_CLR}33`,
+                  borderRadius: 9, padding: "8px 10px",
+                  fontSize: 12, fontWeight: 700, color: WATER_CLR,
+                  cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap",
+                }}>
+                +250
+              </button>
+              <button className="sprig-tap"
+                onClick={() => {
+                  onDaily({ water: waterMl + 500 });
+                  buzz("light");
+                  if (onToast) onToast("Added 500ml water ✓");
+                }}
+                style={{
+                  background: WATER_CLR + "28", border: `1px solid ${WATER_CLR}55`,
+                  borderRadius: 9, padding: "8px 10px",
+                  fontSize: 12, fontWeight: 700, color: WATER_CLR,
+                  cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap",
+                }}>
+                +500
+              </button>
+            </div>
           </div>
           {waterMl > 0 && (
             <div style={{ height: 5, background: C.bg2, borderRadius: 9 }}>
@@ -662,10 +683,12 @@ function TodayTab({
           )}
           {!stepsEditing ? (
             <div style={{ display: "flex", gap: 6 }}>
-              <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 500 }); buzz("light"); }}
-                style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+500</button>
               <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 1000 }); buzz("light"); }}
-                style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+1,000</button>
+                style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+1K</button>
+              <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 2000 }); buzz("light"); }}
+                style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+2K</button>
+              <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 5000 }); buzz("light"); }}
+                style={{ ...btn(C.bg2, C.greenSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+5K</button>
               <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); }}
                 style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>Set</button>
             </div>

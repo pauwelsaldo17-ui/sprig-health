@@ -11,6 +11,7 @@ import {
 import { C } from "../theme.js";
 
 /* ─── domain palette ────────────────────────────────────────────── */
+const COACH_CLR = "#C084FC";  // purple-pink — AI intelligence feel
 const SLEEP_CLR = "#8B7CF7";
 const NUTR_CLR  = "#FB923C";
 const MOVE_CLR  = "#52C878";
@@ -125,12 +126,12 @@ function DailyBriefing({ coach }) {
       <div
         style={{
           display: "flex", alignItems: "center", gap: 6,
-          fontSize: 10.5, opacity: .7, letterSpacing: .5,
+          fontSize: 10.5, opacity: .85, letterSpacing: .5,
           marginBottom: 10,
           fontWeight: 700, textTransform: "uppercase",
         }}
       >
-        <Brain size={13} color="#C8FFD4" /> Coach analysis
+        <Sparkles size={13} color="#E9D5FF" /> Coach analysis
       </div>
       {/* summary */}
       <div
@@ -181,8 +182,8 @@ function CrossDomainInsight({ patterns, advanced }) {
   return (
     <div
       style={{
-        background: `${SLEEP_CLR}14`,
-        border: `1px solid ${SLEEP_CLR}30`,
+        background: `${COACH_CLR}10`,
+        border: `1px solid ${COACH_CLR}28`,
         borderRadius: 18,
         padding: "14px 15px",
         marginBottom: 10,
@@ -195,7 +196,7 @@ function CrossDomainInsight({ patterns, advanced }) {
       <div>
         <div
           style={{
-            fontSize: 10.5, fontWeight: 700, color: SLEEP_CLR,
+            fontSize: 10.5, fontWeight: 700, color: COACH_CLR,
             textTransform: "uppercase", letterSpacing: .6, marginBottom: 5,
           }}
         >
@@ -646,23 +647,17 @@ function CoachTab({
   return (
     <div className="sprig-rise">
       {/* ── page title */}
-      <div style={{ margin: "4px 2px 16px" }}>
-        <div
-          style={{
-            fontFamily: "Fraunces, serif",
-            fontSize: 24, fontWeight: 700,
-            color: C.ink, letterSpacing: -.3,
-          }}
-        >
-          Your coach
+      <div style={{ margin: "4px 2px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 13, background: `linear-gradient(135deg, ${COACH_CLR}33 0%, ${SLEEP_CLR}22 100%)`, border: `1px solid ${COACH_CLR}33`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Brain size={20} color={COACH_CLR} />
         </div>
-        <div
-          style={{
-            fontSize: 12.5, color: C.muted,
-            marginTop: 3, lineHeight: 1.5,
-          }}
-        >
-          More you log, sharper the advice.
+        <div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink, letterSpacing: -.3, lineHeight: 1.1 }}>
+            Your coach
+          </div>
+          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
+            More you log, sharper the advice.
+          </div>
         </div>
       </div>
 
@@ -740,12 +735,12 @@ function CoachTab({
           <div
             style={{
               display: "flex", alignItems: "center", gap: 6,
-              fontSize: 10.5, fontWeight: 700, color: SLEEP_CLR,
+              fontSize: 10.5, fontWeight: 700, color: COACH_CLR,
               textTransform: "uppercase", letterSpacing: .6,
               marginBottom: 10,
             }}
           >
-            <Search size={12} color={SLEEP_CLR} /> All patterns
+            <Search size={12} color={COACH_CLR} /> All patterns
           </div>
           {patterns.map((p, i) => (
             <div
