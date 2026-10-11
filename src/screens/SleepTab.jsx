@@ -130,6 +130,9 @@ function setNoiseVolume(vol) {
   if (_noiseGain) _noiseGain.gain.value = Math.max(0, Math.min(1, vol));
 }
 
+// ── Sleep domain color (purple) ───────────────────────────────────────────────
+const SLEEP_CLR = "#8B5CF6";
+
 // ─── Score Computation ────────────────────────────────────────────────────────
 function calcSleepScore(log, allLogs, need) {
   if (!log || !need) return null;
@@ -152,7 +155,7 @@ function calcSleepScore(log, allLogs, need) {
 
   const overall = Math.round(0.4 * durationScore + 0.3 * routineScore + 0.3 * qualityScore);
   const grade = overall >= 90 ? "Excellent" : overall >= 80 ? "Good" : overall >= 65 ? "Fair" : "Poor";
-  const gradeColor = overall >= 80 ? C.greenSoft : overall >= 65 ? C.amber : C.coral;
+  const gradeColor = overall >= 90 ? SLEEP_CLR : overall >= 80 ? C.greenSoft : overall >= 65 ? C.amber : C.coral;
 
   return { durationScore, routineScore, qualityScore, overall, grade, gradeColor };
 }
@@ -177,7 +180,7 @@ function SleepScoreCard({ log, allLogs, need }) {
   const score = calcSleepScore(log, allLogs, need);
   if (!log) {
     return (
-      <div style={{ background: C.heroGrad1, borderRadius: 24, padding: "22px 18px", color: "#fff", boxShadow: C.shadow }}>
+      <div style={{ background: "linear-gradient(148deg, #2D1B6B 0%, #1A0F3F 100%)", borderRadius: 24, padding: "22px 18px", color: "#fff", boxShadow: C.shadow }}>
         <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, opacity: .65, textTransform: "uppercase", marginBottom: 10 }}>Sleep Score · Last night</div>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, opacity: .7 }}>No data yet</div>
         <div style={{ fontSize: 12.5, opacity: .65, marginTop: 6 }}>Log a night's sleep to see your score.</div>
@@ -186,7 +189,7 @@ function SleepScoreCard({ log, allLogs, need }) {
   }
   const dots = Array.from({ length: 10 }, (_, i) => i < Math.round(score.overall / 10));
   return (
-    <div style={{ background: C.heroGrad1, borderRadius: 24, padding: "20px 18px", color: "#fff", boxShadow: C.shadow }}>
+    <div style={{ background: "linear-gradient(148deg, #2D1B6B 0%, #1A0F3F 100%)", borderRadius: 24, padding: "20px 18px", color: "#fff", boxShadow: C.shadow }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, opacity: .65, textTransform: "uppercase" }}>Sleep Score</div>
         <div style={{ fontSize: 10.5, opacity: .65, fontWeight: 600 }}>Last night</div>
@@ -195,7 +198,7 @@ function SleepScoreCard({ log, allLogs, need }) {
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 52, fontWeight: 700, lineHeight: 1 }}>{score.overall}</div>
         <div style={{ display: "flex", justifyContent: "center", gap: 3, marginTop: 8 }}>
           {dots.map((filled, i) => (
-            <span key={i} style={{ fontSize: 16, opacity: filled ? 1 : 0.3 }}>●</span>
+            <span key={i} style={{ fontSize: 16, opacity: filled ? 1 : 0.25, color: filled ? SLEEP_CLR : "#fff" }}>●</span>
           ))}
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6, color: score.gradeColor }}>{score.grade}</div>
@@ -236,7 +239,7 @@ function SleepDebtCard({ debtMin, need, logs }) {
   }
 
   return (
-    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ fontSize: 18 }}>😴</span>
@@ -398,7 +401,7 @@ function LastNightSummary({ log, allLogs, need, onEdit, onRemove }) {
   const bedLabel = minToLabel(tsToMin(log.bedtime));
   const wakeLabel = minToLabel(tsToMin(log.waketime));
   return (
-    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: .4, textTransform: "uppercase", marginBottom: 4 }}>Last night</div>
@@ -506,10 +509,10 @@ function SleepHistoryChart({ sleepLogs, need }) {
   }
 
   const maxDur = Math.max(need * 1.1, ...days.map(d => d.dur), 1);
-  const barColor = (dur) => dur >= need ? C.greenSoft : dur >= need - 60 ? C.amber : C.coral;
+  const barColor = (dur) => dur >= need ? SLEEP_CLR : dur >= need - 60 ? C.amber : C.coral;
 
   return (
-    <div style={{ background: C.card, borderRadius: 20, padding: "16px 16px 12px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+    <div style={{ background: C.card, borderRadius: 20, padding: "16px 16px 12px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: .4, textTransform: "uppercase", marginBottom: 12 }}>7-day history</div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80, position: "relative" }}>
         {/* Sleep need reference line */}
@@ -936,11 +939,11 @@ function WindDownCard({ alarm, need, winddownEnabled, onToggle }) {
   const bedMin = ((wakeMin - need - 15) + DAYMIN) % DAYMIN;
   const windMin = (bedMin - 30 + DAYMIN) % DAYMIN;
   return (
-    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#3B3F7022", display: "grid", placeItems: "center" }}>
-            <Moon size={18} color="#8E9BEA" />
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: `${SLEEP_CLR}22`, display: "grid", placeItems: "center" }}>
+            <Moon size={18} color={SLEEP_CLR} />
           </div>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>Wind-down reminder</div>
@@ -948,7 +951,7 @@ function WindDownCard({ alarm, need, winddownEnabled, onToggle }) {
           </div>
         </div>
         <button className="sprig-tap" onClick={onToggle}
-          style={{ width: 44, height: 26, borderRadius: 99, background: winddownEnabled ? C.green : C.bg2, border: "none", cursor: "pointer", position: "relative", transition: "background .2s" }}>
+          style={{ width: 44, height: 26, borderRadius: 99, background: winddownEnabled ? SLEEP_CLR : C.bg2, border: "none", cursor: "pointer", position: "relative", transition: "background .2s" }}>
           <div style={{ position: "absolute", top: 3, left: winddownEnabled ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.3)" }} />
         </button>
       </div>
@@ -981,7 +984,7 @@ function AlarmCard({ alarm, onSaveAlarm, profile }) {
   return (
     <div style={{ background: C.card, borderRadius: 20, overflow: "hidden", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
       {/* Header */}
-      <div style={{ background: C.heroGrad2, padding: "20px 18px", color: "#fff" }}>
+      <div style={{ background: "linear-gradient(158deg, #1A0F3F 0%, #2D1B6B 100%)", padding: "20px 18px", color: "#fff" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700 }}>
             <AlarmClock size={17} /> Smart Alarm
@@ -1217,6 +1220,22 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
 
           {/* A. Sleep Score Card */}
           <SleepScoreCard log={lastSleep} allLogs={sleepLogs} need={need} />
+
+          {/* A2. Tonight's bedtime chip */}
+          {alarm?.enabled && (() => {
+            const wMin = hmToMin(alarm.latest || "07:00");
+            const bedMin = ((wMin - need - 15) + DAYMIN) % DAYMIN;
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, background: `${SLEEP_CLR}15`, borderRadius: 14, padding: "10px 14px", border: `1px solid ${SLEEP_CLR}33` }}>
+                <Moon size={15} color={SLEEP_CLR} />
+                <div style={{ fontSize: 13, color: C.ink, flex: 1 }}>
+                  <span style={{ fontWeight: 700 }}>Tonight's bedtime</span>
+                  <span style={{ color: C.muted }}> · get {(need / 60).toFixed(1)}h</span>
+                </div>
+                <span style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: SLEEP_CLR }}>{minToLabel(bedMin)}</span>
+              </div>
+            );
+          })()}
 
           {/* B. Sleep Debt Card */}
           <SleepDebtCard debtMin={debtMin} need={need} logs={sleepLogs} />
