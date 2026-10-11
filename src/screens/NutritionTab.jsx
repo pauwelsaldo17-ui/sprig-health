@@ -973,6 +973,120 @@ function FoodQualityScore({ entries = [], targets = {} }) {
 
 // ── Quick-Add Action Bar ──────────────────────────────────────────────────────
 // ── Protein-to-go card ───────────────────────────────────────────────────────
+// ── SECTION C3: Time-based meal ideas ────────────────────────────────────────
+const MEAL_IDEAS = {
+  breakfast: {
+    label: "Breakfast ideas",
+    emoji: "🌅",
+    hours: [5, 10],
+    calorieThreshold: 200,
+    foods: [
+      { name: "Oatmeal",         serving: "80g dry",  calories: 300, protein_g: 10, carbs_g: 54, fat_g: 5,   fiber_g: 8, micros: {}, omega3: 0, mult: 1 },
+      { name: "Scrambled Eggs",  serving: "3 eggs",   calories: 210, protein_g: 18, carbs_g: 1,  fat_g: 15,  fiber_g: 0, micros: {}, omega3: 0, mult: 1 },
+      { name: "Greek Yogurt",    serving: "170g",     calories: 130, protein_g: 17, carbs_g: 7,  fat_g: 0.7, fiber_g: 0, micros: {}, omega3: 0, mult: 1 },
+      { name: "Protein Shake",   serving: "1 scoop",  calories: 130, protein_g: 25, carbs_g: 5,  fat_g: 2,   fiber_g: 1, micros: {}, omega3: 0, mult: 1 },
+      { name: "Avocado Toast",   serving: "2 slices", calories: 320, protein_g: 8,  carbs_g: 35, fat_g: 16,  fiber_g: 7, micros: {}, omega3: 0, mult: 1 },
+      { name: "Banana",          serving: "1 medium", calories: 90,  protein_g: 1,  carbs_g: 23, fat_g: 0.3, fiber_g: 2.6, micros: {}, omega3: 0, mult: 1 },
+    ],
+  },
+  snack_am: {
+    label: "Morning snack",
+    emoji: "☕",
+    hours: [10, 12],
+    calorieThreshold: 400,
+    foods: [
+      { name: "Banana",          serving: "1 medium", calories: 90,  protein_g: 1,  carbs_g: 23, fat_g: 0.3, fiber_g: 2.6, micros: {}, omega3: 0, mult: 1 },
+      { name: "Mixed Nuts",      serving: "30g",      calories: 175, protein_g: 5,  carbs_g: 7,  fat_g: 15,  fiber_g: 2,   micros: {}, omega3: 0, mult: 1 },
+      { name: "Greek Yogurt",    serving: "170g",     calories: 130, protein_g: 17, carbs_g: 7,  fat_g: 0.7, fiber_g: 0,   micros: {}, omega3: 0, mult: 1 },
+      { name: "Protein Bar",     serving: "1 bar",    calories: 200, protein_g: 20, carbs_g: 22, fat_g: 6,   fiber_g: 4,   micros: {}, omega3: 0, mult: 1 },
+      { name: "Apple",           serving: "1 medium", calories: 80,  protein_g: 0.4,carbs_g: 21, fat_g: 0.2, fiber_g: 3.7, micros: {}, omega3: 0, mult: 1 },
+    ],
+  },
+  lunch: {
+    label: "Lunch ideas",
+    emoji: "🍽️",
+    hours: [11, 15],
+    calorieThreshold: 500,
+    foods: [
+      { name: "Chicken & Rice",  serving: "1 bowl",   calories: 520, protein_g: 42, carbs_g: 52, fat_g: 10,  fiber_g: 2, micros: {}, omega3: 0, mult: 1 },
+      { name: "Tuna Salad",      serving: "1 serving",calories: 280, protein_g: 30, carbs_g: 10, fat_g: 12,  fiber_g: 3, micros: {}, omega3: 0.5, mult: 1 },
+      { name: "Chicken Wrap",    serving: "1 wrap",   calories: 450, protein_g: 32, carbs_g: 42, fat_g: 12,  fiber_g: 4, micros: {}, omega3: 0, mult: 1 },
+      { name: "Lentil Soup",     serving: "300ml",    calories: 180, protein_g: 12, carbs_g: 28, fat_g: 2,   fiber_g: 8, micros: {}, omega3: 0, mult: 1 },
+      { name: "Salmon & Veg",    serving: "1 fillet", calories: 380, protein_g: 35, carbs_g: 14, fat_g: 18,  fiber_g: 5, micros: {}, omega3: 2, mult: 1 },
+      { name: "Egg Salad",       serving: "1 serving",calories: 260, protein_g: 18, carbs_g: 8,  fat_g: 16,  fiber_g: 2, micros: {}, omega3: 0, mult: 1 },
+    ],
+  },
+  snack_pm: {
+    label: "Afternoon snack",
+    emoji: "🍎",
+    hours: [14, 17],
+    calorieThreshold: 900,
+    foods: [
+      { name: "Greek Yogurt",    serving: "170g",     calories: 130, protein_g: 17, carbs_g: 7,  fat_g: 0.7, fiber_g: 0,   micros: {}, omega3: 0, mult: 1 },
+      { name: "Cottage Cheese",  serving: "200g",     calories: 180, protein_g: 28, carbs_g: 6,  fat_g: 4,   fiber_g: 0,   micros: {}, omega3: 0, mult: 1 },
+      { name: "Rice Cakes x2",   serving: "2 cakes",  calories: 70,  protein_g: 1.5,carbs_g: 15, fat_g: 0.5, fiber_g: 0.5, micros: {}, omega3: 0, mult: 1 },
+      { name: "Mixed Nuts",      serving: "30g",      calories: 175, protein_g: 5,  carbs_g: 7,  fat_g: 15,  fiber_g: 2,   micros: {}, omega3: 0, mult: 1 },
+      { name: "Protein Bar",     serving: "1 bar",    calories: 200, protein_g: 20, carbs_g: 22, fat_g: 6,   fiber_g: 4,   micros: {}, omega3: 0, mult: 1 },
+    ],
+  },
+  dinner: {
+    label: "Dinner ideas",
+    emoji: "🌙",
+    hours: [17, 22],
+    calorieThreshold: 1200,
+    foods: [
+      { name: "Chicken Breast",  serving: "200g",     calories: 220, protein_g: 41, carbs_g: 0,  fat_g: 4.8, fiber_g: 0, micros: {}, omega3: 0, mult: 1 },
+      { name: "Salmon Fillet",   serving: "180g",     calories: 340, protein_g: 36, carbs_g: 0,  fat_g: 20,  fiber_g: 0, micros: {}, omega3: 2.4, mult: 1 },
+      { name: "Ground Beef",     serving: "150g",     calories: 280, protein_g: 26, carbs_g: 0,  fat_g: 19,  fiber_g: 0, micros: {}, omega3: 0, mult: 1 },
+      { name: "Pasta",           serving: "100g dry", calories: 350, protein_g: 12, carbs_g: 70, fat_g: 1.5, fiber_g: 3, micros: {}, omega3: 0, mult: 1 },
+      { name: "Rice (cooked)",   serving: "200g",     calories: 260, protein_g: 5,  carbs_g: 57, fat_g: 0.5, fiber_g: 1, micros: {}, omega3: 0, mult: 1 },
+      { name: "Broccoli",        serving: "200g",     calories: 68,  protein_g: 5.7,carbs_g: 11, fat_g: 0.8, fiber_g: 5, micros: {}, omega3: 0, mult: 1 },
+    ],
+  },
+};
+
+function MealTimeCard({ calories, onAdd }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [logged, setLogged]       = useState(new Set());
+  if (dismissed) return null;
+
+  const h    = new Date().getHours();
+  const slot = Object.values(MEAL_IDEAS).find(s => h >= s.hours[0] && h < s.hours[1] && calories < s.calorieThreshold);
+  if (!slot) return null;
+
+  return (
+    <div style={{ background: C.card, border: `1.5px solid ${NUTR_CLR}33`, borderRadius: 16, padding: "14px 14px 12px", marginBottom: 14, boxShadow: C.shadow }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: NUTR_CLR + "18", display: "grid", placeItems: "center", flexShrink: 0, fontSize: 17 }}>
+          {slot.emoji}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{slot.label}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Tap to add · multiple OK</div>
+        </div>
+        <button onClick={() => setDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, lineHeight: 1 }}>
+          <X size={15} color={C.muted} />
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 3, WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+        {slot.foods.map((f, i) => {
+          const isLogged = logged.has(i);
+          return (
+            <button key={i} className="sprig-tap"
+              onClick={() => { onAdd(f); buzz(isLogged ? "light" : "success"); setLogged(prev => new Set([...prev, i])); }}
+              style={{ flexShrink: 0, background: isLogged ? NUTR_CLR + "22" : NUTR_CLR + "10", border: `1px solid ${isLogged ? NUTR_CLR + "55" : NUTR_CLR + "28"}`, borderRadius: 11, padding: "8px 11px", cursor: "pointer", fontFamily: "DM Sans", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, minWidth: 88, maxWidth: 130, position: "relative" }}>
+              {isLogged && <div style={{ position: "absolute", top: 5, right: 5, width: 6, height: 6, borderRadius: "50%", background: NUTR_CLR }} />}
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 110 }}>{f.name}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: NUTR_CLR }}>{Math.round(f.calories)} kcal</div>
+              <div style={{ fontSize: 10, color: C.muted }}>{f.protein_g}g pro</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const PROTEIN_FOODS = [
   { name: "Greek Yogurt",   serving: "170g",    calories: 130, protein_g: 17, carbs_g: 7,   fat_g: 0.7, fiber_g: 0, micros: {}, omega3: 0,   mult: 1 },
   { name: "Chicken Breast", serving: "150g",    calories: 165, protein_g: 31, carbs_g: 0,   fat_g: 3.6, fiber_g: 0, micros: {}, omega3: 0,   mult: 1 },
@@ -1163,6 +1277,11 @@ function NutritionTab({
 
           {/* SECTION C: Projection */}
           {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
+
+          {/* SECTION C1.5: Time-based meal ideas */}
+          {isViewingToday && (
+            <MealTimeCard calories={viewT.calories || 0} onAdd={handleAddFood} />
+          )}
 
           {/* SECTION C2: Evening protein-to-go */}
           {isViewingToday && (() => {
