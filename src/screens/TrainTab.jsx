@@ -1232,6 +1232,23 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         </div>
       )}
 
+      {/* ── Compact PR banner (visible in Training tab) */}
+      {prs.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.amber + "12", border: `1px solid ${C.amber}33`, borderRadius: 11, padding: "8px 12px", marginTop: 8 }}>
+          <Trophy size={14} color={C.amber} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: 12, color: C.inkSoft, lineHeight: 1.4, minWidth: 0 }}>
+            <b style={{ color: C.amber }}>{prs.length} recent PR{prs.length !== 1 ? "s" : ""}:</b>{" "}
+            {prs.slice(0, 2).map((p, i) => (
+              <span key={i}>{i > 0 ? " · " : ""}<b style={{ color: C.ink }}>{p.name}</b> {p.w}{unit}×{p.reps}</span>
+            ))}
+          </div>
+          <button className="sprig-tap" onClick={() => onSub("recovery")}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.amber, fontSize: 11, fontWeight: 700, fontFamily: "DM Sans", flexShrink: 0, padding: 0 }}>
+            See all →
+          </button>
+        </div>
+      )}
+
       {/* recent workout history preview */}
       </>)}
 
