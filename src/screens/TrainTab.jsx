@@ -999,6 +999,16 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
   };
   return (
     <div className="sprig-rise">
+      {/* ── Domain identity ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: TRAIN_CLR + "1A", border: `1px solid ${TRAIN_CLR}33`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Dumbbell size={20} color={TRAIN_CLR} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: C.ink, lineHeight: 1.1 }}>Training</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Workouts, movement & recovery</div>
+        </div>
+      </div>
       <SubTabs tabs={[["training", "Training"], ["movement", "Movement"], ["recovery", "Recovery"]]} active={normSub} onChange={onSub} />
       {normSub === "training" && (<>
       {/* PAIN COACH — only when active pain logged */}

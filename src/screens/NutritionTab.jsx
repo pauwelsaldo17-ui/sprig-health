@@ -1041,6 +1041,16 @@ function NutritionTab({
 
   return (
     <div className="sprig-rise">
+      {/* ── Domain identity ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: NUTR_CLR + "1A", border: `1px solid ${NUTR_CLR}33`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Target size={20} color={NUTR_CLR} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: C.ink, lineHeight: 1.1 }}>Nutrition</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Calories, macros & food log</div>
+        </div>
+      </div>
       <SubTabs tabs={[["nutrition","Nutrition"],["meals","Meals"]]} active={sub} onChange={onSub} />
 
       {/* ── NUTRITION SUB ── */}

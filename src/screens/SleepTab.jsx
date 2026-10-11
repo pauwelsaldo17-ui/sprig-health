@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-  AlarmClock, ArrowDown, ArrowUp, Check, ChevronDown,
+  AlarmClock, ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight,
   Coffee, EyeOff, Mic, MicOff, Moon, MoonStar, Pause, PencilLine,
   Play, Plus, SkipForward, Sun, Trash2,
   Volume2, Zap, Music, Wind
@@ -1217,6 +1217,21 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
       {/* ── SLEEP SUB-TAB ─────────────────────────────────── */}
       {sub === "sleep" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* A0. Quick-log banner when no sleep logged today */}
+          {!hasRecentLog && (
+            <button className="sprig-tap" onClick={() => { setShowLogForm(true); playChime(0.3); }}
+              style={{ width: "100%", background: `${SLEEP_CLR}15`, border: `1px solid ${SLEEP_CLR}44`, borderRadius: 14, padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontFamily: "DM Sans", boxShadow: C.shadow }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: `${SLEEP_CLR}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <PencilLine size={16} color={SLEEP_CLR} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>No sleep logged yet</div>
+                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>Tap to log last night's sleep</div>
+              </div>
+              <ChevronRight size={15} color={C.muted} style={{ flexShrink: 0 }} />
+            </button>
+          )}
 
           {/* A. Sleep Score Card */}
           <SleepScoreCard log={lastSleep} allLogs={sleepLogs} need={need} />
