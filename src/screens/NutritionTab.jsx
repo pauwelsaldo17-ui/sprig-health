@@ -1141,6 +1141,29 @@ function NutritionTab({
               onFavorites={() => onSub?.("meals")}
             />
           )}
+          {/* ── Quick-pick recent foods ────────────────────────────── */}
+          {isViewingToday && (() => {
+            const seen = new Set(); const picks = [];
+            for (const e of [...(entriesHistory || [])].reverse()) {
+              const key = (e.name || "").toLowerCase().trim();
+              if (!seen.has(key) && e.name) { seen.add(key); picks.push(e); if (picks.length >= 5) break; }
+            }
+            if (!picks.length) return null;
+            return (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .5, marginBottom: 7 }}>Recently logged</div>
+                <div style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+                  {picks.map((p, i) => (
+                    <button key={i} className="sprig-tap" onClick={() => { handleAddFood({ name: p.name, serving: p.serving, calories: p.calories, protein_g: p.protein_g, carbs_g: p.carbs_g, fat_g: p.fat_g, fiber_g: p.fiber_g, micros: p.micros || {}, omega3: p.omega3, mult: p.mult || 1 }); buzz("tap"); }}
+                      style={{ flexShrink: 0, background: C.card, border: `1px solid ${C.line}`, borderRadius: 11, padding: "7px 11px", cursor: "pointer", fontFamily: "DM Sans", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, boxShadow: C.shadow, minWidth: 90, maxWidth: 130 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 110 }}>{p.name}</div>
+                      <div style={{ fontSize: 10.5, color: NUTR_CLR, fontWeight: 600 }}>{Math.round(p.calories || 0)} kcal</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           {sortedEntries.length === 0 ? (
             <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, padding: "28px 20px", textAlign: "center" }}>
               <div style={{ fontSize: 13, color: C.muted }}>Nothing logged yet</div>
