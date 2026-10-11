@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { C } from "../theme.js";
 import {
-  stepGoal, ACTIVITY_SOURCES, durLabel, scoreVerdict,
+  stepGoal, ACTIVITY_SOURCES, durLabel, scoreVerdict, uid, todayStr,
 } from "../utils/vitaeCalc.js";
 import {
   btn, Btn, Ring, Badge, TodayWinsCard, ScoreDonut, ACTION_ICON,
@@ -663,6 +663,22 @@ function TodayTab({
               ))}
             </div>
           </div>
+        );
+      })()}
+
+      {/* ══ 4c. MEAL SHORTCUTS (when food log is near empty) ═══════════ */}
+      {tp.nutrition !== false && t.calories < 300 && moveInfo?.mealShortcuts && (() => {
+        const sc = moveInfo.mealShortcuts;
+        if (!sc.hasYesterday && !sc.slotSugg?.length && !sc.frequent?.length) return null;
+        return (
+          <MealShortcutsCard
+            shortcuts={sc}
+            onLog={(entry) => {
+              onAddEntry({ ...entry, id: uid(), date: todayStr(), time: Date.now() });
+              buzz("success");
+              if (onToast) onToast(`${entry.name} added ✓`);
+            }}
+          />
         );
       })()}
 
