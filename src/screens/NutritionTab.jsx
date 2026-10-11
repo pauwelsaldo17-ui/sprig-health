@@ -972,6 +972,49 @@ function FoodQualityScore({ entries = [], targets = {} }) {
 }
 
 // ── Quick-Add Action Bar ──────────────────────────────────────────────────────
+// ── Protein-to-go card ───────────────────────────────────────────────────────
+const PROTEIN_FOODS = [
+  { name: "Greek Yogurt",   serving: "170g",    calories: 130, protein_g: 17, carbs_g: 7,   fat_g: 0.7, fiber_g: 0, micros: {}, omega3: 0,   mult: 1 },
+  { name: "Chicken Breast", serving: "150g",    calories: 165, protein_g: 31, carbs_g: 0,   fat_g: 3.6, fiber_g: 0, micros: {}, omega3: 0,   mult: 1 },
+  { name: "Protein Shake",  serving: "1 scoop", calories: 130, protein_g: 25, carbs_g: 5,   fat_g: 2,   fiber_g: 1, micros: {}, omega3: 0,   mult: 1 },
+  { name: "Cottage Cheese", serving: "200g",    calories: 180, protein_g: 28, carbs_g: 6,   fat_g: 4,   fiber_g: 0, micros: {}, omega3: 0,   mult: 1 },
+  { name: "Eggs x2",        serving: "2 large", calories: 140, protein_g: 12, carbs_g: 0.7, fat_g: 9.5, fiber_g: 0, micros: {}, omega3: 0,   mult: 1 },
+  { name: "Tuna (can)",     serving: "85g",     calories: 100, protein_g: 22, carbs_g: 0,   fat_g: 0.5, fiber_g: 0, micros: {}, omega3: 0.3, mult: 1 },
+];
+const MC_PROTEIN = "#E8A87C";
+
+function ProteinEndOfDayCard({ remaining, onAdd }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div style={{ background: C.card, border: `1.5px solid ${MC_PROTEIN}44`, borderRadius: 16, padding: "14px 14px 12px", marginBottom: 14, boxShadow: C.shadow }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: MC_PROTEIN + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Zap size={16} color={MC_PROTEIN} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{Math.round(remaining)}g protein to go</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Tap a food to hit your goal</div>
+        </div>
+        <button onClick={() => setDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, lineHeight: 1 }}>
+          <X size={15} color={C.muted} />
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 3, WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+        {PROTEIN_FOODS.map((f, i) => (
+          <button key={i} className="sprig-tap"
+            onClick={() => { onAdd(f); buzz("success"); setDismissed(true); }}
+            style={{ flexShrink: 0, background: MC_PROTEIN + "14", border: `1px solid ${MC_PROTEIN}33`, borderRadius: 11, padding: "8px 11px", cursor: "pointer", fontFamily: "DM Sans", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, minWidth: 88, maxWidth: 120 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }}>{f.name}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: MC_PROTEIN }}>{f.protein_g}g protein</div>
+            <div style={{ fontSize: 10, color: C.muted }}>{Math.round(f.calories)} kcal</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function QuickAddBar({ onSearch, onDescribe, onSnap, onFavorites }) {
   const actions = [
     { icon: "📸", label: "Snap", fn: onSnap, color: NUTR_CLR },
@@ -1120,6 +1163,14 @@ function NutritionTab({
 
           {/* SECTION C: Projection */}
           {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
+
+          {/* SECTION C2: Evening protein-to-go */}
+          {isViewingToday && (() => {
+            const h = new Date().getHours();
+            const remaining = (targets.protein || 0) - (viewT.protein || 0);
+            if (h < 16 || remaining < 20) return null;
+            return <ProteinEndOfDayCard remaining={remaining} onAdd={handleAddFood} />;
+          })()}
 
           {/* SECTION D: Unified food log */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 2px 10px" }}>
