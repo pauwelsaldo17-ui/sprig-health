@@ -350,12 +350,13 @@ function TodayTab({
   onGoNutrition, onGoTrain,
   wins, onKudos, onViewAllWins,
   recoveryInfo, quickLog, tp = {}, dt = null,
-  onToast, loggedDays = 0, onGoSettings,
+  onToast, loggedDays = 0, onGoSettings, onQuickSleep,
 }) {
   const { lastSleep }                         = sleepInfo;
   const { daily, subScores, healthScore, actions } = dailyInfo;
   const [stepsEditing, setStepsEditing]       = useState(false);
   const [stepsInput,   setStepsInput]         = useState("");
+  const [quickSleepDone, setQuickSleepDone]   = useState(false);
 
   /* ── derived data ─────────────────────────────────────────────── */
   const adjTarget  = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
@@ -612,6 +613,41 @@ function TodayTab({
           />
         )}
       </div>
+
+      {/* ══ 4b. QUICK SLEEP STRIP (morning, no sleep logged yet) ═════ */}
+      {tp.sleep !== false && !quickSleepDone && !sleepDur && !dtSleepSrc && onQuickSleep && (() => {
+        const h = new Date().getHours();
+        if (h < 5 || h >= 11) return null;
+        const DURATIONS = [5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9];
+        return (
+          <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${SLEEP_CLR}44`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: SLEEP_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <Moon size={15} color={SLEEP_CLR} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4 }}>Quick sleep log</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>How long did you sleep?</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+              {DURATIONS.map((hrs) => (
+                <button key={hrs} className="sprig-tap"
+                  onClick={() => {
+                    const now = Date.now();
+                    onQuickSleep({ bedTs: now - hrs * 3600000, wakeTs: now, restlessness: 25, source: "quick_today" });
+                    buzz("success");
+                    setQuickSleepDone(true);
+                    if (onToast) onToast(`Sleep logged: ${hrs}h ✓`);
+                  }}
+                  style={{ flexShrink: 0, background: SLEEP_CLR + "14", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontFamily: "DM Sans", fontSize: 13, fontWeight: 700, color: SLEEP_CLR, whiteSpace: "nowrap" }}>
+                  {hrs}h
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ 5. WATER STRIP ═══════════════════════════════════════ */}
       {tp.water !== false && (
