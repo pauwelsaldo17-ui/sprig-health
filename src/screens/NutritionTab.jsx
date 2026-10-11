@@ -36,6 +36,9 @@ function formatHeaderDate(dateStr) {
 // ── Macro colors ─────────────────────────────────────────────────────────────
 const MC = { protein: "#4A9EDB", carbs: "#F5A623", fat: "#9B6BBE", fiber: "#52B788" };
 
+// ── Nutrition domain color (orange) ──────────────────────────────────────────
+const NUTR_CLR = "#FB923C";
+
 // ── Common supplements list ───────────────────────────────────────────────────
 const COMMON_SUPPLEMENTS = [
   { name: "Vitamin D3",        dose: "1000 IU",     emoji: "☀️" },
@@ -66,7 +69,7 @@ function NutritionBanner({ t, targets, adjTarget }) {
   const remainF = Math.round(targets.fat - (t.fat || 0));
 
   const calColor = view === "remaining"
-    ? (remainCals < 0 ? C.coral : remainCals < adjTarget * 0.1 ? C.amber : C.greenSoft)
+    ? (remainCals < 0 ? C.coral : remainCals < adjTarget * 0.1 ? C.amber : NUTR_CLR)
     : C.ink;
 
   const handlePointerDown = (e) => { startXRef.current = e.clientX; };
@@ -94,7 +97,7 @@ function NutritionBanner({ t, targets, adjTarget }) {
       onClick={() => { setView((v) => v === "eaten" ? "remaining" : "eaten"); buzz("select"); }}
       style={{
         background: C.card, borderRadius: 22, padding: "20px 18px 16px",
-        boxShadow: C.shadow, border: `1px solid ${C.line}`,
+        boxShadow: C.shadow, border: `1px solid ${NUTR_CLR}22`,
         cursor: "pointer", userSelect: "none", WebkitUserSelect: "none",
       }}
     >
@@ -133,7 +136,7 @@ function NutritionBanner({ t, targets, adjTarget }) {
       {/* dot indicator */}
       <div style={{ display: "flex", justifyContent: "center", gap: 5, marginTop: 10 }}>
         {["eaten","remaining"].map((v) => (
-          <div key={v} style={{ width: v === view ? 16 : 6, height: 6, borderRadius: 99, background: v === view ? C.greenSoft : C.line, transition: "all .2s ease" }} />
+          <div key={v} style={{ width: v === view ? 16 : 6, height: 6, borderRadius: 99, background: v === view ? NUTR_CLR : C.line, transition: "all .2s ease" }} />
         ))}
       </div>
     </div>
@@ -968,6 +971,36 @@ function FoodQualityScore({ entries = [], targets = {} }) {
   );
 }
 
+// ── Quick-Add Action Bar ──────────────────────────────────────────────────────
+function QuickAddBar({ onSearch, onDescribe, onSnap, onFavorites }) {
+  const actions = [
+    { icon: "📸", label: "Snap", fn: onSnap, color: NUTR_CLR },
+    { icon: "✨", label: "AI",   fn: onDescribe, color: "#8B5CF6" },
+    { icon: "🔍", label: "Search", fn: onSearch, color: C.blue },
+    { icon: "⭐", label: "Saved", fn: onFavorites, color: C.amber },
+  ];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
+      {actions.map(({ icon, label, fn, color }) => (
+        <button
+          key={label}
+          className="sprig-tap"
+          onClick={() => { fn?.(); buzz("tap"); }}
+          style={{
+            background: C.bg2, border: `1px solid ${C.line}`,
+            borderRadius: 14, padding: "10px 4px",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            cursor: "pointer", fontFamily: "DM Sans",
+          }}
+        >
+          <span style={{ fontSize: 20 }}>{icon}</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: color }}>{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Main NutritionTab ─────────────────────────────────────────────────────────
 function NutritionTab({
   t, targets, entries, onRemove, profile, advanced, sub = "meals", onSub, nutriInfo, moveInfo, sleepInfo,
@@ -1057,18 +1090,27 @@ function NutritionTab({
           {/* SECTION D: Unified food log */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 2px 10px" }}>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, letterSpacing: -0.25, color: C.ink }}>
-              Today's Food
+              {isViewingToday ? "Today's Food" : "Food Log"}
             </div>
             {isViewingToday && (
               <button className="sprig-tap" onClick={() => { setSheetOpen(true); buzz("tap"); }}
-                style={{ ...btn(C.green, "#fff"), padding: "8px 14px", fontSize: 13 }}>
+                style={{ ...btn(NUTR_CLR, "#fff"), padding: "8px 14px", fontSize: 13 }}>
                 <Plus size={14} /> Add
               </button>
             )}
           </div>
+          {isViewingToday && (
+            <QuickAddBar
+              onSearch={() => setSheetOpen(true)}
+              onDescribe={onDescribe}
+              onSnap={onSnapFood}
+              onFavorites={() => onSub?.("meals")}
+            />
+          )}
           {sortedEntries.length === 0 ? (
             <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, padding: "28px 20px", textAlign: "center" }}>
-              <div style={{ fontSize: 13, color: C.muted }}>Nothing logged yet — tap + to add food</div>
+              <div style={{ fontSize: 13, color: C.muted }}>Nothing logged yet</div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>Use the buttons above to add food</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
