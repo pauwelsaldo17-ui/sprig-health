@@ -27,7 +27,7 @@ function ReportLine({ emoji, label, text, color }) {
   );
 }
 
-function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced, report, profile, achievements, onGoToday }) {
+function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced, report, profile, achievements, timeline, onGoToday }) {
   const days = history.slice(-7);
   const maxC = Math.max(targets.calories, ...days.map((d) => d.calories), 1);
   const avg = days.length ? Math.round(days.reduce((a, d) => a + d.calories, 0) / days.length) : 0;
@@ -112,6 +112,65 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
             title="No weekly report yet"
             text="Log food, sleep, and workouts across a few days and your personalised weekly report builds automatically."
             actionLabel="Start logging" onAction={onGoToday} />
+        </div>
+      )}
+
+      {/* GOAL TIMELINE */}
+      {(timeline?.weight || timeline?.strength?.length > 0) && (
+        <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <TrendingUp size={17} color={TRENDS_CLR} />
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700 }}>Goal progress</div>
+          </div>
+
+          {/* Weight goal */}
+          {timeline.weight && (() => {
+            const w = timeline.weight;
+            const kgAbs = Math.abs(w.kgLeft);
+            return (
+              <div style={{ marginBottom: timeline.strength?.length > 0 ? 16 : 0 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: w.color, background: w.color + "18", border: `1px solid ${w.color}44`, borderRadius: 20, padding: "4px 11px", alignSelf: "flex-start" }}>{w.status}</span>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 700, color: C.ink, lineHeight: 1 }}>{w.current} <span style={{ fontSize: 13, fontWeight: 400 }}>{unit}</span></div>
+                    <div style={{ fontSize: 10.5, color: C.muted, marginTop: 2 }}>goal {w.target} {unit}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 0 }}>
+                  {[
+                    { label: "Left", value: `${kgAbs} ${unit}` },
+                    { label: "Pace", value: `${w.rate > 0 ? "+" : ""}${w.rate}/wk` },
+                    ...(w.weeksAtPace != null && w.weeksAtPace > 0 ? [{ label: "ETA", value: `~${w.weeksAtPace}w` }] : []),
+                    { label: "Ideal", value: `${w.ideal > 0 ? "+" : ""}${w.ideal}/wk` },
+                  ].map(({ label, value }, i, arr) => (
+                    <div key={label} style={{ flex: 1, textAlign: "center", ...(i < arr.length - 1 ? { borderRight: `1px solid ${C.line}` } : {}) }}>
+                      <div style={{ fontSize: 9.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 700 }}>{label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginTop: 3 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Strength e1RM trend */}
+          {timeline.strength?.length > 0 && (
+            <div style={{ ...(timeline.weight ? { paddingTop: 14, borderTop: `1px solid ${C.line}` } : {}) }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <Dumbbell size={13} color={C.inkSoft} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.inkSoft }}>Strength e1RM trend</span>
+              </div>
+              {timeline.strength.map((s) => (
+                <div key={s.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                  <span style={{ fontSize: 12, color: C.inkSoft }}>{s.name.replace("Barbell ", "")}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 14, fontWeight: 700, color: C.ink }}>{s.e1} {unit}</span>
+                    <span style={{ fontSize: 11, color: s.perMonth >= 0 ? C.greenSoft : C.coral, fontWeight: 600 }}>{s.perMonth >= 0 ? "+" : ""}{s.perMonth}/mo</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
