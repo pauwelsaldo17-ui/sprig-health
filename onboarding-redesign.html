@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <title>Vitae — Onboarding Redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #07140F; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      color: #F4F7F2;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { border: none; outline: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      max-width: 390px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    @media (min-width: 391px) {
+      #app { border-left: 1px solid rgba(255,255,255,0.07); border-right: 1px solid rgba(255,255,255,0.07); }
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .screen.active { opacity: 1; pointer-events: all; }
+
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .rise { animation: riseIn 0.4s ease both; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+
+    /* ── Splash ── */
+    #splash {
+      background: radial-gradient(ellipse 90% 55% at 50% 58%, rgba(28,82,55,0.92) 0%, #07140F 70%);
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Carousel ── */
+    #carousel { background: #07140F; }
+    .carousel-slides { flex: 1; position: relative; overflow: hidden; }
+
+    .c-slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      transform: translateX(24px);
+      transition: opacity 0.32s ease, transform 0.32s ease;
+      pointer-events: none;
+    }
+    .c-slide.active { opacity: 1; transform: translateX(0); pointer-events: all; }
+    .c-slide.exit   { opacity: 0; transform: translateX(-24px); }
+
+    .c-visual {
+      flex: 0 0 56%;
+      padding: 48px 24px 18px;
+      display: flex;
+      align-items: flex-end;
+    }
+    .c-text { padding: 18px 24px 0; }
+
+    .c-headline {
+      font-family: 'Fraunces', serif;
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1.18;
+      letter-spacing: -0.5px;
+      color: #F4F7F2;
+    }
+    .c-body {
+      font-size: 14px;
+      line-height: 1.62;
+      color: rgba(244,247,242,0.55);
+      margin-top: 7px;
+    }
+
+    .c-footer {
+      padding: 18px 24px;
+      padding-bottom: max(28px, env(safe-area-inset-bottom, 28px));
+    }
+    .dots {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      margin-bottom: 18px;
+    }
+    .dot {
+      height: 5px;
+      border-radius: 99px;
+      background: rgba(244,247,242,0.18);
+      transition: width 0.28s ease, background 0.28s ease;
+      width: 5px;
+      padding: 0;
+    }
+    .dot.active { width: 20px; background: rgba(244,247,242,0.80); }
+
+    /* ── Metrics grid (slide 1) ── */
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; width: 100%; }
+    .m-chip {
+      background: rgba(255,255,255,0.065);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 14px 14px 12px;
+    }
+    .m-label { font-size: 11px; font-weight: 600; color: rgba(244,247,242,0.42); margin-bottom: 5px; }
+    .m-val {
+      font-family: 'Fraunces', serif;
+      font-size: 27px;
+      font-weight: 700;
+      color: #F4F7F2;
+      line-height: 1;
+    }
+    .m-unit { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: rgba(244,247,242,0.40); }
+    .m-bar { height: 2.5px; background: rgba(255,255,255,0.09); border-radius: 99px; margin-top: 9px; }
+    .m-fill { height: 100%; border-radius: 99px; }
+
+    /* ── AI chat (slide 2) ── */
+    .chat { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    .bubble {
+      max-width: 90%;
+      padding: 10px 13px;
+      font-size: 12.5px;
+      line-height: 1.52;
+    }
+    .bubble.user {
+      align-self: flex-end;
+      background: rgba(255,255,255,0.09);
+      color: rgba(244,247,242,0.82);
+      border-radius: 14px 14px 3px 14px;
+    }
+    .bubble.ai {
+      align-self: flex-start;
+      background: rgba(62,157,99,0.13);
+      border: 1px solid rgba(82,200,120,0.22);
+      color: #F4F7F2;
+      border-radius: 3px 14px 14px 14px;
+    }
+    .ai-name { font-size: 10px; font-weight: 700; color: #52C878; margin-bottom: 4px; letter-spacing: 0.2px; }
+
+    /* ── Quick-log (slide 3) ── */
+    .ql { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    .ql-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255,255,255,0.055);
+      border: 1px solid rgba(255,255,255,0.075);
+      border-radius: 13px;
+      padding: 11px 13px;
+    }
+    .ql-icon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; font-size: 16px; }
+    .ql-info { flex: 1; }
+    .ql-name { font-size: 13px; font-weight: 600; color: #F4F7F2; }
+    .ql-sub  { font-size: 11px; color: rgba(244,247,242,0.42); margin-top: 1px; }
+    .ql-time { font-size: 11px; color: rgba(244,247,242,0.32); }
+    .ql-score { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; color: #C7FF3D; }
+
+    /* ── Primary button ── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 17px 0;
+      border-radius: 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      transition: opacity 0.12s ease, transform 0.1s ease;
+    }
+    .btn:active { transform: scale(0.97); opacity: 0.82; }
+    .btn-lime { background: #C7FF3D; color: #0A1F12; }
+    .btn-ghost-round {
+      width: 52px; height: 52px; flex-shrink: 0;
+      border-radius: 26px;
+      border: 1.5px solid rgba(244,247,242,0.13);
+      background: rgba(244,247,242,0.055);
+      display: grid; place-items: center;
+      color: #F4F7F2;
+      padding: 0;
+      transition: background 0.15s;
+    }
+    .btn-ghost-round:active { background: rgba(244,247,242,0.11); }
+    .btn-dim { opacity: 0.32; pointer-events: none; }
+
+    /* ── Questions ── */
+    .q-screen { background: #07140F; }
+
+    .q-header {
+      padding: 18px 20px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .q-logo {
+      font-family: 'Fraunces', serif;
+      font-size: 17px;
+      font-weight: 700;
+      color: #F4F7F2;
+      letter-spacing: -0.3px;
+    }
+    .q-logo span { color: #C7FF3D; }
+    .q-counter { margin-left: auto; font-size: 12px; color: rgba(244,247,242,0.38); font-weight: 500; }
+
+    .q-progress { height: 2px; background: rgba(255,255,255,0.07); margin: 0 20px 0; }
+    .q-progress-fill { height: 100%; background: #3E9D63; border-radius: 99px; transition: width 0.35s ease; }
+
+    .q-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 26px 20px 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .q-question {
+      font-family: 'Fraunces', serif;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.22;
+      letter-spacing: -0.3px;
+      color: #F4F7F2;
+      margin-bottom: 5px;
+    }
+    .q-sub {
+      font-size: 13.5px;
+      color: rgba(244,247,242,0.48);
+      line-height: 1.56;
+      margin-bottom: 22px;
+    }
+    .opts { display: flex; flex-direction: column; gap: 9px; }
+
+    .opt {
+      width: 100%;
+      text-align: left;
+      border: 1.5px solid rgba(255,255,255,0.09);
+      background: rgba(255,255,255,0.035);
+      border-radius: 14px;
+      padding: 15px 16px;
+      font-family: 'DM Sans', sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: border-color 0.14s, background 0.14s;
+    }
+    .opt.sel {
+      border-color: #3E9D63;
+      background: rgba(62,157,99,0.09);
+    }
+    .opt-text { flex: 1; }
+    .opt-label { font-size: 14.5px; font-weight: 600; color: #F4F7F2; }
+    .opt-sub   { font-size: 12px; color: rgba(244,247,242,0.48); margin-top: 2px; line-height: 1.4; }
+
+    .opt-check {
+      width: 22px; height: 22px;
+      border-radius: 99px;
+      border: 2px solid rgba(255,255,255,0.14);
+      background: transparent;
+      display: grid; place-items: center;
+      flex-shrink: 0;
+      transition: border-color 0.14s, background 0.14s;
+    }
+    .opt-check.sq { border-radius: 7px; }
+    .opt.sel .opt-check { border-color: #3E9D63; background: #3E9D63; }
+    .checkmark { display: none; }
+    .opt.sel .checkmark { display: block; }
+
+    .q-footer {
+      padding: 10px 20px;
+      padding-bottom: max(28px, env(safe-area-inset-bottom, 28px));
+      display: flex;
+      gap: 10px;
+    }
+    .q-footer .btn { flex: 1; width: auto; }
+
+    /* ── Interstitial ── */
+    .inter-screen {
+      background: linear-gradient(155deg, #1C5237 0%, #0E2C1E 55%, #07140F 100%);
+    }
+    .inter-ticks {
+      padding: 20px 20px 0;
+      display: flex;
+      gap: 3px;
+    }
+    .inter-tick {
+      flex: 1; height: 2.5px; border-radius: 99px;
+      background: rgba(244,247,242,0.16);
+    }
+    .inter-tick.done { background: rgba(244,247,242,0.82); }
+
+    .inter-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0 24px 24px;
+    }
+    .inter-headline {
+      font-family: 'Fraunces', serif;
+      font-size: 50px;
+      font-weight: 700;
+      line-height: 1.04;
+      letter-spacing: -1.8px;
+      color: #F4F7F2;
+      margin-bottom: 16px;
+    }
+    .inter-body-text {
+      font-size: 14.5px;
+      line-height: 1.65;
+      color: rgba(244,247,242,0.60);
+    }
+    .inter-footer {
+      padding: 0 24px;
+      padding-bottom: max(32px, env(safe-area-inset-bottom, 32px));
+      display: flex;
+      gap: 10px;
+    }
+    .btn-inter {
+      flex: 1;
+      background: rgba(244,247,242,0.10);
+      color: #F4F7F2;
+      border: 1.5px solid rgba(244,247,242,0.18);
+      border-radius: 14px;
+      padding: 15px 0;
+      font-size: 15.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.14s;
+    }
+    .btn-inter:active { background: rgba(244,247,242,0.16); }
+
+    /* ── Done ── */
+    #done {
+      background: radial-gradient(ellipse 100% 60% at 50% 30%, rgba(28,82,55,0.95) 0%, #07140F 65%);
+      align-items: center;
+      justify-content: center;
+      padding: 40px 28px;
+      text-align: center;
+    }
+    .done-check {
+      width: 66px; height: 66px;
+      border-radius: 99px;
+      background: #3E9D63;
+      display: grid; place-items: center;
+      margin: 0 auto 26px;
+      box-shadow: 0 0 0 14px rgba(62,157,99,0.12);
+    }
+    .done-headline {
+      font-family: 'Fraunces', serif;
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -0.8px;
+      color: #F4F7F2;
+      margin-bottom: 10px;
+    }
+    .done-sub {
+      font-size: 15px;
+      color: rgba(244,247,242,0.52);
+      line-height: 1.62;
+      margin-bottom: 36px;
+    }
+    .done-btn { max-width: 280px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SPLASH -->
+  <div id="splash" class="screen active">
+    <div style="display:flex;height:100%;align-items:center;justify-content:center;">
+      <div class="rise" style="text-align:center">
+        <div style="font-family:'Fraunces',serif;font-size:74px;font-weight:700;letter-spacing:-3px;color:#F4F7F2;line-height:1">
+          Vitae<span style="color:#C7FF3D">.</span>
+        </div>
+        <div style="font-size:13px;font-weight:500;color:rgba(244,247,242,0.38);letter-spacing:0.5px;margin-top:13px">
+          Health intelligence
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAROUSEL -->
+  <div id="carousel" class="screen">
+    <div class="carousel-slides" id="c-slides">
+
+      <!-- Slide 1: unified health overview -->
+      <div class="c-slide active" data-idx="0">
+        <div class="c-visual" style="background:linear-gradient(180deg,rgba(18,53,36,0.45) 0%,rgba(7,20,15,0) 100%)">
+          <div class="metrics-grid rise">
+            <div class="m-chip">
+              <div class="m-label">Steps today</div>
+              <div class="m-val">8,240<span class="m-unit"> steps</span></div>
+              <div class="m-bar"><div class="m-fill" style="width:74%;background:#52C878"></div></div>
+            </div>
+            <div class="m-chip">
+              <div class="m-label">Sleep last night</div>
+              <div class="m-val">7.4<span class="m-unit"> hrs</span></div>
+              <div class="m-bar"><div class="m-fill" style="width:82%;background:#52C878"></div></div>
+            </div>
+            <div class="m-chip">
+              <div class="m-label">Calories</div>
+              <div class="m-val">1,640<span class="m-unit"> kcal</span></div>
+              <div class="m-bar"><div class="m-fill" style="width:62%;background:#F5A623"></div></div>
+            </div>
+            <div class="m-chip">
+              <div class="m-label">Training streak</div>
+              <div class="m-val">4<span class="m-unit"> days</span></div>
+              <div class="m-bar"><div class="m-fill" style="width:57%;background:#52C878"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="c-text rise">
+          <div class="c-headline">Everything that matters about your health.</div>
+          <div class="c-body">Food, training, sleep, recovery — one app, one complete picture.</div>
+        </div>
+      </div>
+
+      <!-- Slide 2: AI intelligence -->
+      <div class="c-slide" data-idx="1">
+        <div class="c-visual" style="background:radial-gradient(ellipse 80% 60% at 50% 30%,rgba(14,44,30,0.55) 0%,rgba(7,20,15,0) 100%)">
+          <div class="chat rise">
+            <div class="bubble user">Why am I so tired even after 8 hours of sleep?</div>
+            <div class="bubble ai">
+              <div class="ai-name">Vitae</div>
+              Last Tuesday your deep sleep was 22% — below your 31% average. You also hit a deadlift PR that day. Heavy compound training often cuts into deep sleep. Try eating dinner 3 hours earlier tonight.
+            </div>
+          </div>
+        </div>
+        <div class="c-text rise">
+          <div class="c-headline">An AI that reads between the lines.</div>
+          <div class="c-body">It knows your sleep stages, your training, your food — and how they connect.</div>
+        </div>
+      </div>
+
+      <!-- Slide 3: simplicity -->
+      <div class="c-slide" data-idx="2">
+        <div class="c-visual" style="background:radial-gradient(ellipse 90% 55% at 50% 10%,rgba(199,255,61,0.06) 0%,rgba(7,20,15,0) 70%)">
+          <div class="ql rise">
+            <div class="ql-row">
+              <div class="ql-icon" style="background:rgba(82,200,120,0.12)">🥗</div>
+              <div class="ql-info">
+                <div class="ql-name">Logged lunch</div>
+                <div class="ql-sub">620 kcal · 38g protein</div>
+              </div>
+              <div class="ql-time">12:34</div>
+            </div>
+            <div class="ql-row">
+              <div class="ql-icon" style="background:rgba(62,157,99,0.12)">💪</div>
+              <div class="ql-info">
+                <div class="ql-name">Upper body — 52 min</div>
+                <div class="ql-sub">6 exercises · 483 kcal</div>
+              </div>
+              <div class="ql-time">09:15</div>
+            </div>
+            <div class="ql-row" style="border-color:rgba(199,255,61,0.18);background:rgba(199,255,61,0.03)">
+              <div class="ql-info" style="margin-left:4px">
+                <div style="font-size:12px;font-weight:500;color:rgba(244,247,242,0.50)">Health score today</div>
+              </div>
+              <div class="ql-score">87</div>
+            </div>
+          </div>
+        </div>
+        <div class="c-text rise">
+          <div class="c-headline">20 seconds to log. Instant insight.</div>
+          <div class="c-body">Simple enough to use every day. Deep enough to actually matter.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="c-footer">
+      <div class="dots" id="dots">
+        <button class="dot active" data-di="0"></button>
+        <button class="dot" data-di="1"></button>
+        <button class="dot" data-di="2"></button>
+      </div>
+      <button class="btn btn-lime" id="c-cta">Next</button>
+    </div>
+  </div>
+
+  <!-- Q1: GOAL -->
+  <div id="q-goal" class="screen q-screen">
+    <div class="q-header">
+      <span class="q-logo">Vitae<span>.</span></span>
+      <span class="q-counter">1 of 4</span>
+    </div>
+    <div class="q-progress"><div class="q-progress-fill" style="width:0%"></div></div>
+    <div class="q-body">
+      <div class="rise">
+        <p class="q-question">What are you working toward?</p>
+        <p class="q-sub">This shapes how Vitae reads your data.</p>
+        <div class="opts" id="goal-opts">
+          <button class="opt" data-v="lose">
+            <div class="opt-text">
+              <div class="opt-label">Lose weight</div>
+              <div class="opt-sub">Build a calorie deficit that fits your life</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="muscle">
+            <div class="opt-text">
+              <div class="opt-label">Build muscle</div>
+              <div class="opt-sub">Progressive training with enough fuel to grow</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="energy">
+            <div class="opt-text">
+              <div class="opt-label">More energy</div>
+              <div class="opt-sub">Better sleep, steadier focus, less fatigue</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="health">
+            <div class="opt-text">
+              <div class="opt-label">Stay healthy</div>
+              <div class="opt-sub">Maintain what you have and feel your best</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="sport">
+            <div class="opt-text">
+              <div class="opt-label">Perform better in sport</div>
+              <div class="opt-sub">Training load, recovery, and peak timing</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="q-footer">
+      <button class="btn-ghost-round" id="goal-back">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4L7 10L13 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn btn-lime btn-dim" id="goal-next">Continue</button>
+    </div>
+  </div>
+
+  <!-- Q2: FOCUS AREAS -->
+  <div id="q-focus" class="screen q-screen">
+    <div class="q-header">
+      <span class="q-logo">Vitae<span>.</span></span>
+      <span class="q-counter">2 of 4</span>
+    </div>
+    <div class="q-progress"><div class="q-progress-fill" style="width:25%"></div></div>
+    <div class="q-body">
+      <div class="rise">
+        <p class="q-question">What should Vitae help you track?</p>
+        <p class="q-sub">Choose as many as you like.</p>
+        <div class="opts" id="focus-opts">
+          <button class="opt" data-v="nutrition">
+            <div class="opt-text"><div class="opt-label">Food &amp; nutrition</div></div>
+            <div class="opt-check sq"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="training">
+            <div class="opt-text"><div class="opt-label">Training &amp; strength</div></div>
+            <div class="opt-check sq"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="sleep">
+            <div class="opt-text"><div class="opt-label">Sleep &amp; recovery</div></div>
+            <div class="opt-check sq"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="habits">
+            <div class="opt-text"><div class="opt-label">Daily habits</div></div>
+            <div class="opt-check sq"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="all" id="focus-all">
+            <div class="opt-text">
+              <div class="opt-label">Everything</div>
+              <div class="opt-sub">Full picture, full insight</div>
+            </div>
+            <div class="opt-check sq"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="q-footer">
+      <button class="btn-ghost-round" id="focus-back">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4L7 10L13 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn btn-lime btn-dim" id="focus-next">Continue</button>
+    </div>
+  </div>
+
+  <!-- INTERSTITIAL -->
+  <div id="inter" class="screen inter-screen">
+    <div class="inter-ticks">
+      <div class="inter-tick done"></div>
+      <div class="inter-tick done"></div>
+      <div class="inter-tick"></div>
+      <div class="inter-tick"></div>
+    </div>
+    <div class="inter-body rise">
+      <div class="inter-headline">Good<br>choices.<br>Vitae is<br>listening.</div>
+      <p class="inter-body-text">Small, consistent habits are how real change happens. Vitae will track the patterns you can't see yourself.</p>
+    </div>
+    <div class="inter-footer">
+      <button class="btn-ghost-round" id="inter-back" style="color:#F4F7F2;border-color:rgba(244,247,242,0.15);background:rgba(244,247,242,0.07)">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4L7 10L13 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn-inter" id="inter-next">Continue</button>
+    </div>
+  </div>
+
+  <!-- Q4: FIRST ACTION -->
+  <div id="q-action" class="screen q-screen">
+    <div class="q-header">
+      <span class="q-logo">Vitae<span>.</span></span>
+      <span class="q-counter">4 of 4</span>
+    </div>
+    <div class="q-progress"><div class="q-progress-fill" style="width:75%"></div></div>
+    <div class="q-body">
+      <div class="rise">
+        <p class="q-question">Start with one thing right now.</p>
+        <p class="q-sub">The fastest way to see Vitae work.</p>
+        <div class="opts" id="action-opts">
+          <button class="opt" data-v="food">
+            <div class="opt-text">
+              <div class="opt-label">Log what I just ate</div>
+              <div class="opt-sub">Photo, scan, or describe it</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="workout">
+            <div class="opt-text">
+              <div class="opt-label">Start a workout</div>
+              <div class="opt-sub">Pick an exercise and go</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="sleep">
+            <div class="opt-text">
+              <div class="opt-label">Add last night's sleep</div>
+              <div class="opt-sub">Takes 10 seconds</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+          <button class="opt" data-v="coach">
+            <div class="opt-text">
+              <div class="opt-label">Ask Vitae a question</div>
+              <div class="opt-sub">It's ready when you are</div>
+            </div>
+            <div class="opt-check"><svg class="checkmark" width="13" height="10" viewBox="0 0 13 10" fill="none"><path d="M1 4.5L4.5 8L12 1" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="q-footer">
+      <button class="btn-ghost-round" id="action-back">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4L7 10L13 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn btn-lime btn-dim" id="action-next">Open Vitae</button>
+    </div>
+  </div>
+
+  <!-- DONE -->
+  <div id="done" class="screen">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px 28px;text-align:center;background:radial-gradient(ellipse 100% 60% at 50% 30%,rgba(28,82,55,0.95) 0%,#07140F 65%)">
+      <div class="rise">
+        <div class="done-check">
+          <svg width="28" height="22" viewBox="0 0 28 22" fill="none"><path d="M2 10.5L9.5 18L26 2" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="done-headline">Vitae is ready.</div>
+        <div class="done-sub">The more you track,<br>the smarter it gets.</div>
+        <div class="done-btn">
+          <button class="btn btn-lime" onclick="alert('This is where the app opens.')">Open Vitae</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let cIdx = 0;
+  const TOTAL_C = 3;
+
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(id);
+    el.classList.add('active');
+    el.querySelectorAll('.rise').forEach(r => {
+      r.style.animation = 'none';
+      void r.offsetHeight;
+      r.style.animation = '';
+    });
+  }
+
+  // Splash auto-advance
+  setTimeout(() => show('carousel'), 1800);
+
+  // Carousel
+  function goSlide(idx) {
+    const slides = document.querySelectorAll('.c-slide');
+    slides[cIdx].classList.add('exit');
+    setTimeout(() => { slides[cIdx].classList.remove('active', 'exit'); }, 50);
+    cIdx = idx;
+    slides[idx].classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+    document.getElementById('c-cta').textContent = idx === TOTAL_C - 1 ? 'Set up Vitae' : 'Next';
+  }
+
+  document.getElementById('c-cta').addEventListener('click', () => {
+    if (cIdx < TOTAL_C - 1) goSlide(cIdx + 1); else show('q-goal');
+  });
+  document.querySelectorAll('.dot').forEach(d => {
+    d.addEventListener('click', () => goSlide(+d.dataset.di));
+  });
+
+  let tx = 0;
+  const cs = document.getElementById('c-slides');
+  cs.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+  cs.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (dx < -50 && cIdx < TOTAL_C - 1) goSlide(cIdx + 1);
+    if (dx >  50 && cIdx > 0) goSlide(cIdx - 1);
+  }, { passive: true });
+
+  // Single-select helper
+  function singleSelect(containerId, nextBtn) {
+    let val = null;
+    document.querySelectorAll('#' + containerId + ' .opt').forEach(o => {
+      o.addEventListener('click', () => {
+        document.querySelectorAll('#' + containerId + ' .opt').forEach(x => x.classList.remove('sel'));
+        o.classList.add('sel');
+        val = o.dataset.v;
+        const b = document.getElementById(nextBtn);
+        b.classList.remove('btn-dim');
+        setTimeout(() => b.click(), 260);
+      });
+    });
+    return () => val;
+  }
+
+  // Multi-select helper
+  function multiSelect(containerId, nextBtn, allId) {
+    const sel = new Set();
+    document.querySelectorAll('#' + containerId + ' .opt').forEach(o => {
+      o.addEventListener('click', () => {
+        const v = o.dataset.v;
+        if (v === 'all') {
+          const wasOn = o.classList.contains('sel');
+          document.querySelectorAll('#' + containerId + ' .opt').forEach(x => x.classList.remove('sel'));
+          sel.clear();
+          if (!wasOn) {
+            document.querySelectorAll('#' + containerId + ' .opt').forEach(x => { x.classList.add('sel'); sel.add(x.dataset.v); });
+          }
+        } else {
+          if (allId) { document.getElementById(allId).classList.remove('sel'); sel.delete('all'); }
+          o.classList.toggle('sel');
+          if (o.classList.contains('sel')) sel.add(v); else sel.delete(v);
+        }
+        const b = document.getElementById(nextBtn);
+        if (sel.size > 0) b.classList.remove('btn-dim'); else b.classList.add('btn-dim');
+      });
+    });
+    return () => sel;
+  }
+
+  const getGoal  = singleSelect('goal-opts',   'goal-next');
+  const getFocus = multiSelect('focus-opts',  'focus-next', 'focus-all');
+  const getAction = singleSelect('action-opts', 'action-next');
+
+  document.getElementById('goal-next').addEventListener('click',   () => { if (!document.getElementById('goal-next').classList.contains('btn-dim')) show('q-focus'); });
+  document.getElementById('goal-back').addEventListener('click',   () => { show('carousel'); });
+
+  document.getElementById('focus-next').addEventListener('click',  () => { if (!document.getElementById('focus-next').classList.contains('btn-dim')) show('inter'); });
+  document.getElementById('focus-back').addEventListener('click',  () => show('q-goal'));
+
+  document.getElementById('inter-next').addEventListener('click',  () => show('q-action'));
+  document.getElementById('inter-back').addEventListener('click',  () => show('q-focus'));
+
+  document.getElementById('action-next').addEventListener('click', () => { if (!document.getElementById('action-next').classList.contains('btn-dim')) show('done'); });
+  document.getElementById('action-back').addEventListener('click', () => show('inter'));
+</script>
+</body>
+</html>

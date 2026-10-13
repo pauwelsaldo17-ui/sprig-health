@@ -28,3 +28,10 @@ dist-ssr
 
 # Vite HMR timestamp artifacts
 vite.config.js.timestamp-*.mjs
+
+# Claude Code local config
+.claude/
+
+# Stray shell artifacts
+cd
+npm
