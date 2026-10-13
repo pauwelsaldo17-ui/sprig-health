@@ -692,6 +692,26 @@ function TodayTab({
         )}
       </div>
 
+      {/* ══ 4c2. RECOVERY LIMITERS — why the recovery score is below peak ════ */}
+      {recoveryInfo?.limiters?.length > 0 && (recoveryInfo.score ?? 100) < 80 && (
+        <div style={{ background: RECOV_CLR + "0E", border: `1px solid ${RECOV_CLR}2A`, borderRadius: 14, padding: "10px 14px", marginTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, color: RECOV_CLR, textTransform: "uppercase", letterSpacing: 0.4 }}>Affecting recovery</span>
+            {recoveryInfo.bestAction && (
+              <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, color: recoveryInfo.score >= 70 ? C.greenSoft : recoveryInfo.score >= 45 ? C.amber : C.coral }}>
+                → {recoveryInfo.bestAction}
+              </span>
+            )}
+          </div>
+          {recoveryInfo.limiters.map((l, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, ...(i > 0 ? { marginTop: 4 } : {}) }}>
+              <span style={{ fontSize: 11, color: RECOV_CLR, flexShrink: 0, lineHeight: 1.45, fontWeight: 700 }}>·</span>
+              <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{l}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ══ 4d. CALORIE TREND — weight-rate vs goal nudge ════════════ */}
       {tp.nutrition !== false && moveInfo?.calorieTrend && (() => {
         const ct = moveInfo.calorieTrend;
