@@ -1104,6 +1104,18 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         );
       })()}
 
+      {/* SPORT ADVICE — sport-specific load alerts (football/fight/running) */}
+      {trainInfo.sportAdvice?.length > 0 && (
+        <div style={{ background: TRAIN_CLR + "10", border: `1px solid ${TRAIN_CLR}33`, borderRadius: 14, padding: "10px 14px", marginBottom: 10 }}>
+          {trainInfo.sportAdvice.map((line, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", ...(i > 0 ? { marginTop: 7, paddingTop: 7, borderTop: `1px solid ${TRAIN_CLR}18` } : {}) }}>
+              <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1.3 }}>⚡</span>
+              <span style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>{line}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* SUGGESTED WORKOUT */}
       {sug && (
         <div style={{ background: "linear-gradient(148deg, #4A0A1A 0%, #2A0510 100%)", borderRadius: 20, padding: 16, color: "#fff", boxShadow: C.shadow, marginBottom: 12 }}>
