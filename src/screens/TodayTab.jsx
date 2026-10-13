@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Activity, Check, ChevronRight, Droplets, Dumbbell,
-  Flame, Heart, Moon, Pill, Plus, Repeat, Scale, Zap,
+  Flame, Heart, Moon, Pill, Plus, Repeat, Scale, TrendingUp, Zap,
 } from "lucide-react";
 import { C } from "../theme.js";
 import {
@@ -683,6 +683,35 @@ function TodayTab({
           />
         )}
       </div>
+
+      {/* ══ 4d. CALORIE TREND — weight-rate vs goal nudge ════════════ */}
+      {tp.nutrition !== false && moveInfo?.calorieTrend && (() => {
+        const ct = moveInfo.calorieTrend;
+        if (ct.onTrack) return (
+          <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 9, background: C.card, borderRadius: 14, padding: "10px 14px", border: `1px solid ${C.green}33`, marginTop: 8, boxShadow: C.shadow }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: C.green + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <TrendingUp size={14} color={C.greenSoft} />
+            </div>
+            <span style={{ fontSize: 12.5, color: C.inkSoft, flex: 1, lineHeight: 1.4 }}>{ct.message}</span>
+          </div>
+        );
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 14, padding: "12px 14px", border: `1px solid ${C.amber}33`, marginTop: 8, boxShadow: C.shadow }}>
+            <div style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1.2 }}>⚖️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 3 }}>Weight trend</div>
+                <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>{ct.rationale}</div>
+                {ct.suggestedTarget > 0 && (
+                  <div style={{ fontSize: 12, color: C.ink, fontWeight: 700, marginTop: 6, background: C.bg2, borderRadius: 8, padding: "5px 9px", display: "inline-block" }}>
+                    Try {ct.suggestedTarget} kcal/day <span style={{ color: ct.suggestedDelta > 0 ? C.greenSoft : C.coral, fontWeight: 700 }}>({ct.suggestedDelta > 0 ? "+" : ""}{ct.suggestedDelta} kcal)</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ 4a. TONIGHT PLAN CARD (evening, 20:00+) ════════════════════ */}
       {tp.sleep !== false && moveInfo?.tonight && (() => {
