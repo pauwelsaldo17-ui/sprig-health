@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, AlertTriangle, BarChart3, Coffee, Dumbbell, Flame, Moon, Sparkles, Trophy, User, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Coffee, Dumbbell, Flame, Moon, Sparkles, Timer, Trophy, User, TrendingUp } from "lucide-react";
 import { C } from "../theme.js";
 import { durLabel } from "../utils/vitaeCalc.js";
 import { Legend, EmptyState } from "../components/ui.jsx";
@@ -59,7 +59,7 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
           {/* stat grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <ReportStat label="Training" value={`${R.training.count} workout${R.training.count !== 1 ? "s" : ""}`} sub={R.training.totalSets ? `${R.training.totalSets} sets` : "—"} icon={<Dumbbell size={13} />} color="#3E7B53" />
-            <ReportStat label="Sleep" value={R.sleep.avgMin != null ? durLabel(R.sleep.avgMin) : "—"} sub={R.sleep.avgScore != null ? `score ${R.sleep.avgScore}` : `${R.sleep.nights} nights`} icon={<Moon size={13} />} color="#7A6FB0" />
+            <ReportStat label="Sleep" value={R.sleep.avgMin != null ? durLabel(R.sleep.avgMin) : "—"} sub={R.sleep.avgScore != null ? `score ${R.sleep.avgScore}${R.sleep.bedConsistency != null ? ` · ±${R.sleep.bedConsistency}m` : ""}` : `${R.sleep.nights} nights`} icon={<Moon size={13} />} color="#7A6FB0" />
             <ReportStat label="Avg calories" value={R.nutrition.avgCal != null ? `${R.nutrition.avgCal}` : "—"} sub={R.nutrition.foodDays ? `${R.nutrition.foodDays} days logged` : "no food logged"} icon={<Flame size={13} />} color={C.amber} />
             <ReportStat label="Avg protein" value={R.nutrition.avgProt != null ? `${R.nutrition.avgProt}g` : "—"} sub={`hit ${R.nutrition.proteinHitDays}/7 days`} icon={<Flame size={13} />} color={C.green} />
             {R.weight.current != null && (
@@ -73,6 +73,18 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
             )}
             {R.mind.consistency != null && (
               <ReportStat label="Habits" value={`${R.mind.consistency}%`} sub="consistency" icon={<Sparkles size={13} />} color={C.greenSoft} />
+            )}
+            {R.mind.avgMood != null && (
+              <ReportStat
+                label="Avg mood"
+                value={R.mind.avgMood >= 2.5 ? "Good" : R.mind.avgMood >= 1.5 ? "Okay" : "Low"}
+                sub={`${R.mind.moodDays} check-in${R.mind.moodDays !== 1 ? "s" : ""}`}
+                icon={<Sparkles size={13} />}
+                color={R.mind.avgMood >= 2.5 ? C.greenSoft : R.mind.avgMood >= 1.5 ? C.amber : C.coral}
+              />
+            )}
+            {R.mind.focusMin > 0 && (
+              <ReportStat label="Focus" value={`${R.mind.focusMin} min`} sub="deep work this week" icon={<Timer size={13} />} color="#A78BFA" />
             )}
           </div>
 
