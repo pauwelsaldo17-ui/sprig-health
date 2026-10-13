@@ -163,14 +163,14 @@ function AddHabitForm({ onSave, onCancel, initial }) {
   );
 }
 
-function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabit2, onEditHabit2, onArchiveHabit2, onRestoreHabit2, onDeleteHabit2, onUndoCompletion, tp = {} }) {
+function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabit2, onEditHabit2, onArchiveHabit2, onRestoreHabit2, onDeleteHabit2, onUndoCompletion, onLogFocus, tp = {} }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingHabit, setEditingHabit] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [manageMode, setManageMode] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const { habits2 = [], habitCompletions = [], habitStatusMap = {}, consistencyV2, autoToday = {} } = mindInfo;
+  const { habits2 = [], habitCompletions = [], habitStatusMap = {}, consistencyV2, autoToday = {}, focusToday = [], focusMinutesToday = 0, focusWeek = [] } = mindInfo;
   const active = habits2.filter((h) => !h.archived);
   const archived = habits2.filter((h) => h.archived);
   const cv2 = consistencyV2 || { pct: null, label: "No habits yet", details: [] };
@@ -264,6 +264,23 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
       {(showAddForm || editingHabit) && (
         <div style={{ marginBottom: 14 }}>
           <AddHabitForm initial={editingHabit} onSave={handleSaveForm} onCancel={handleCancelForm} />
+        </div>
+      )}
+
+      {/* ── Focus today — compact stats strip ── */}
+      {focusMinutesToday > 0 && (
+        <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 10, background: MIND_CLR + "0D", border: `1px solid ${MIND_CLR}22`, borderRadius: 14, padding: "10px 14px", marginBottom: 14 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 9, background: MIND_CLR + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Timer size={14} color={MIND_CLR} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: MIND_CLR, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 1 }}>Focus today</div>
+            <div style={{ fontSize: 12.5, color: C.inkSoft }}>
+              <span style={{ fontFamily: "Fraunces, serif", fontWeight: 700, color: C.ink }}>{focusMinutesToday} min</span>
+              {focusToday.length > 1 && <span style={{ color: C.muted }}> across {focusToday.length} sessions</span>}
+              {(() => { const wt = focusWeek.reduce((a, s) => a + s.minutes, 0); return wt > focusMinutesToday ? <span style={{ color: C.muted }}> · {wt} min this week</span> : null; })()}
+            </div>
+          </div>
         </div>
       )}
 
@@ -511,6 +528,13 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Focus timer ── */}
+      {onLogFocus && (
+        <div style={{ marginBottom: 14 }}>
+          <FocusTimer onLogFocus={onLogFocus} />
         </div>
       )}
 
