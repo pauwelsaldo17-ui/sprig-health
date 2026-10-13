@@ -11,7 +11,7 @@ import {
   SET_PAIN, warmupSets, EXERCISES, MUSCLES, canDoWith, volumeStatus,
   VOL_TAG_COLOR, VOL_TAG_LABEL, liftE1RMSeries, SPORTS_LIBRARY, sportKcal,
   sportMuscleImpact, stepGoal, uid, detectPRs, detectSetPR, recapFor, TEMPLATES,
-  MOBILITY_ROUTINES
+  MOBILITY_ROUTINES, minToLabel
 } from "../utils/vitaeCalc.js";
 
 const HAPTIC_PATTERNS = { tap: 14, light: 10, select: 8, success: [30, 50, 30], complete: [30, 50, 50], strong: 40, error: [100, 50, 100] };
@@ -1134,6 +1134,32 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
           )}
         </div>
       )}
+
+      {/* ── GYM WINDOW — best 90-min training window from energy curve ── */}
+      {sleepInfo?.gym && !moveInfo?.trainedToday && (() => {
+        const g = sleepInfo.gym;
+        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        if (nowMin >= g.end) return null; // window already passed
+        const isNow = nowMin >= g.start && nowMin < g.end;
+        return (
+          <div className="sprig-pop" style={{
+            display: "flex", alignItems: "center", gap: 9,
+            background: isNow ? TRAIN_CLR + "18" : C.bg2,
+            border: `1px solid ${isNow ? TRAIN_CLR + "44" : C.line}`,
+            borderRadius: 12, padding: "9px 13px", marginTop: 8, marginBottom: 2,
+          }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>{isNow ? "🔥" : "⚡"}</span>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: isNow ? TRAIN_CLR : C.ink }}>
+                {isNow ? "Peak energy right now" : `Best window: ${minToLabel(g.start)} – ${minToLabel(g.end)}`}
+              </span>
+              <span style={{ fontSize: 11, color: C.muted, marginLeft: 7 }}>
+                {isNow ? "Great time to train" : "based on your energy curve"}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={{ display: "flex", gap: 9 }}>
         <button className="sprig-tap" onClick={() => onStart()} style={{ ...btn(C.lime, "#0A1F12"), flex: 1, padding: "17px 0", fontSize: 16, fontWeight: 700, boxShadow: `0 6px 18px ${C.lime}33` }}>
