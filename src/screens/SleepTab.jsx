@@ -1270,6 +1270,25 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
             </div>
           )}
 
+          {/* A1b. Recovery Readiness — training recommendation driven by sleep */}
+          {recoveryRec && (() => {
+            const lvlMeta = {
+              hard:   { color: C.greenSoft,  bg: C.greenSoft + "18", border: C.greenSoft + "44", emoji: "💪", label: "High readiness" },
+              normal: { color: "#38BDF8",     bg: "#38BDF818",        border: "#38BDF844",        emoji: "👍", label: "Good to train" },
+              light:  { color: C.amber,       bg: C.amber + "18",     border: C.amber + "44",     emoji: "⚡", label: "Go light today" },
+              rest:   { color: C.coral,       bg: C.coral + "18",     border: C.coral + "44",     emoji: "🛑", label: "Rest day" },
+            }[recoveryRec.level] || { color: C.muted, bg: C.bg2, border: C.line, emoji: "💤", label: "Recovery" };
+            return (
+              <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 10, background: lvlMeta.bg, borderRadius: 14, padding: "10px 14px", border: `1px solid ${lvlMeta.border}`, boxShadow: C.shadow }}>
+                <span style={{ fontSize: 15, flexShrink: 0, lineHeight: 1 }}>{lvlMeta.emoji}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: lvlMeta.color, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>{lvlMeta.label}</div>
+                  <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.4 }}>{recoveryRec.text}</div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* A2. Tonight's bedtime chip */}
           {alarm?.enabled && (() => {
             const wMin = hmToMin(alarm.latest || "07:00");
