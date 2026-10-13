@@ -712,6 +712,55 @@ function TodayTab({
         </div>
       )}
 
+      {/* ══ 4c3. RECOVERY WEEK WARNING — deload nudge ════════════════ */}
+      {recoveryInfo?.recoveryWeek && (
+        <div className="sprig-pop" style={{ background: C.amber + "10", border: `1px solid ${C.amber}44`, borderRadius: 14, padding: "10px 14px", marginTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+            <span style={{ fontSize: 14 }}>🔄</span>
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4 }}>Deload week recommended</span>
+          </div>
+          {recoveryInfo.rwReasons?.length > 0 && (
+            <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45, marginBottom: 4 }}>
+              {recoveryInfo.rwReasons.join(" · ")}
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45 }}>Reduce training volume by 40–50% this week and prioritise sleep and food.</div>
+        </div>
+      )}
+
+      {/* ══ 4c4. ACTIVE RECOVERY SUGGESTION ══════════════════════════ */}
+      {recoveryInfo?.suggestActiveRecovery && !recoveryInfo?.recoveryWeek && (
+        <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 9, background: RECOV_CLR + "0D", border: `1px solid ${RECOV_CLR}33`, borderRadius: 14, padding: "10px 14px", marginTop: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: RECOV_CLR + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Activity size={14} color={RECOV_CLR} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, color: RECOV_CLR, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Active recovery day</div>
+            <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.4 }}>Skip lifting — a walk or easy mobility session will help you bounce back faster.</div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ 4c5. RECOVERY CHECKLIST — daily recovery to-dos ══════════ */}
+      {recoveryInfo?.checklist?.length > 0 && (
+        <div style={{ background: C.card, borderRadius: 14, padding: "10px 14px", marginTop: 8, border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Recovery checklist</div>
+          {recoveryInfo.checklist.map((item, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, ...(i > 0 ? { marginTop: 7 } : {}) }}>
+              <div style={{
+                width: 18, height: 18, borderRadius: 6, flexShrink: 0,
+                background: item.done ? C.green + "22" : C.bg2,
+                border: `1.5px solid ${item.done ? C.greenSoft : C.line}`,
+                display: "grid", placeItems: "center",
+              }}>
+                {item.done && <Check size={10} color={C.greenSoft} strokeWidth={2.5} />}
+              </div>
+              <span style={{ fontSize: 12, color: item.done ? C.muted : C.inkSoft, lineHeight: 1.4, textDecoration: item.done ? "line-through" : "none" }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ══ 4d. CALORIE TREND — weight-rate vs goal nudge ════════════ */}
       {tp.nutrition !== false && moveInfo?.calorieTrend && (() => {
         const ct = moveInfo.calorieTrend;
