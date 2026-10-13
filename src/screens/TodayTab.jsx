@@ -839,6 +839,19 @@ function TodayTab({
               }} />
             </div>
           )}
+          {/* Smart hydration note — context-aware (e.g. "You trained today — aim for 400ml more") */}
+          {moveInfo?.hydration?.note && waterMl > 0 && waterMl < waterGoal && (
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7, lineHeight: 1.4 }}>
+              {moveInfo.hydration.note}
+            </div>
+          )}
+          {/* Electrolytes warning — shown when sweat loss is high */}
+          {nutriInfo?.needsElectrolytes && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+              <span style={{ fontSize: 12, lineHeight: 1 }}>⚡</span>
+              <span style={{ fontSize: 11.5, color: C.amber, lineHeight: 1.4 }}>Add electrolytes — you've sweated a lot today.</span>
+            </div>
+          )}
         </div>
       )}
 
