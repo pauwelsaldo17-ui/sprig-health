@@ -212,6 +212,65 @@ function ProjectionCard({ t, adjTarget }) {
   );
 }
 
+// ── SECTION C2: Nutrition Coach Card ─────────────────────────────────────────
+// Surfaces nutriInfo.coach (goal-aligned cal/protein/weight-rate lines) and
+// nutriInfo.missing (top deficient nutrients with food suggestions). Both are
+// computed by vitaeCalc in App.jsx and passed via nutriInfo — no new props needed.
+function NutritionCoachCard({ coach, missing, t }) {
+  const lines = coach?.lines || [];
+  // Only show missing-nutrients section once there's meaningful food logged
+  const calLogged = t?.calories || 0;
+  const activeMissing = calLogged >= 200 ? (missing || []) : [];
+  if (lines.length === 0 && activeMissing.length === 0) return null;
+
+  return (
+    <div className="sprig-pop" style={{
+      background: C.card, borderRadius: 16,
+      padding: "13px 15px",
+      border: `1.5px solid ${NUTR_CLR}22`,
+      boxShadow: C.shadow,
+      marginTop: 10, marginBottom: 2,
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: lines.length > 0 ? 10 : 8 }}>
+        <Sparkles size={13} color={NUTR_CLR} />
+        <span style={{ fontSize: 11, fontWeight: 800, color: NUTR_CLR, textTransform: "uppercase", letterSpacing: 0.5 }}>Coach</span>
+      </div>
+
+      {/* Goal-aligned coaching lines */}
+      {lines.map((line, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: i < lines.length - 1 ? 7 : 0 }}>
+          <span style={{ fontSize: 13.5, flexShrink: 0, marginTop: -1 }}>{line.tone === "good" ? "✅" : "💡"}</span>
+          <span style={{ fontSize: 13, color: line.tone === "good" ? C.greenSoft : C.inkSoft, lineHeight: 1.45, flex: 1 }}>{line.text}</span>
+        </div>
+      ))}
+
+      {/* Missing nutrients */}
+      {activeMissing.length > 0 && (
+        <>
+          {lines.length > 0 && <div style={{ height: 1, background: C.line, margin: "11px 0 10px" }} />}
+          <div style={{ fontSize: 10.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Still needed today</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {activeMissing.map((m) => (
+              <div key={m.key} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                {/* mini progress bar */}
+                <div style={{ width: 38, height: 4, borderRadius: 99, background: C.bg2, overflow: "hidden", flexShrink: 0 }}>
+                  <div style={{ width: `${Math.min(100, m.pct)}%`, height: "100%", borderRadius: 99,
+                    background: m.pct < 40 ? C.coral : m.pct < 65 ? C.amber : NUTR_CLR }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, minWidth: 58 }}>{m.label} <span style={{ fontWeight: 500, color: C.muted }}>{m.pct}%</span></span>
+                {m.food && (
+                  <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.3, flex: 1 }}>Try: {m.food}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── SECTION D: Swipeable Food Entry Row ───────────────────────────────────────
 function FoodEntryRow({ entry, onRemove, isToday: isT, flashId }) {
   const [tx, setTx]   = useState(0);
@@ -1086,6 +1145,11 @@ function NutritionTab({
 
           {/* SECTION C: Projection */}
           {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
+
+          {/* SECTION C2: Nutrition Coach — goal-aligned coaching + gap nutrients */}
+          {isViewingToday && (nutriInfo?.coach?.lines?.length > 0 || (nutriInfo?.missing?.length > 0 && viewT.calories >= 200)) && (
+            <NutritionCoachCard coach={nutriInfo.coach} missing={nutriInfo.missing} t={viewT} />
+          )}
 
           {/* SECTION D: Unified food log */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "22px 2px 10px" }}>
