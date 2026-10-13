@@ -761,6 +761,19 @@ function TodayTab({
         </div>
       )}
 
+      {/* ══ 4c6. TRAINING GUIDE — how to approach today's workout ════ */}
+      {tp.training !== false && recoveryInfo?.trainingAdj && (
+        <div className="sprig-pop" style={{ display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${RECOV_CLR}22`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: RECOV_CLR + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
+            <Dumbbell size={13} color={RECOV_CLR} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, color: RECOV_CLR, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 3 }}>Training guide</div>
+            <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{recoveryInfo.trainingAdj}</div>
+          </div>
+        </div>
+      )}
+
       {/* ══ 4d. CALORIE TREND — weight-rate vs goal nudge ════════════ */}
       {tp.nutrition !== false && moveInfo?.calorieTrend && (() => {
         const ct = moveInfo.calorieTrend;
