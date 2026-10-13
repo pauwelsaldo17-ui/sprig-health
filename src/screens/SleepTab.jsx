@@ -1163,7 +1163,7 @@ function SleepSoundsCard() {
 
 // ─── Main SleepTab ────────────────────────────────────────────────────────────
 function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec }) {
-  const { debtMin, lastSleep, rec, need } = sleepInfo;
+  const { debtMin, lastSleep, rec, need, breakdown } = sleepInfo;
 
   // Local state for morning routine and wind-down
   const [routine, setRoutine] = useState(() => lsGet("sprig_routine_v1", DEFAULT_ROUTINE));
@@ -1245,6 +1245,30 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
 
           {/* A. Sleep Score Card */}
           <SleepScoreCard log={lastSleep} allLogs={sleepLogs} need={need} />
+
+          {/* A1. Sleep Insight — why the score + what to do tonight */}
+          {lastSleep && (breakdown?.mainReason || breakdown?.fix) && (
+            <div className="sprig-pop" style={{ background: C.card, borderRadius: 14, padding: "12px 14px", border: `1px solid ${SLEEP_CLR}22`, boxShadow: C.shadow }}>
+              {breakdown.mainReason && (
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: breakdown.fix ? 9 : 0 }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.3 }}>📉</span>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: SLEEP_CLR, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Why your score</div>
+                    <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>Last night: {breakdown.mainReason}.</div>
+                  </div>
+                </div>
+              )}
+              {breakdown.fix && (
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.3 }}>💡</span>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Tonight</div>
+                    <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.45, fontWeight: 500 }}>{breakdown.fix}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* A2. Tonight's bedtime chip */}
           {alarm?.enabled && (() => {
