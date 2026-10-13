@@ -803,6 +803,29 @@ function TodayTab({
         );
       })()}
 
+      {/* ══ 4e. PROGRESS BOTTLENECK — why you're not progressing ════════ */}
+      {moveInfo?.diagnosis?.enough && moveInfo.diagnosis.bottleneck && (
+        <div className="sprig-pop" style={{ background: C.card, border: `1px solid ${C.amber}33`, borderRadius: 16, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+            <div style={{ width: 26, height: 26, borderRadius: 8, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Zap size={12} color={C.amber} />
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.5 }}>Main bottleneck</div>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 5, lineHeight: 1.3 }}>{moveInfo.diagnosis.bottleneck.title}</div>
+          <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 6 }}>{moveInfo.diagnosis.bottleneck.detail}</div>
+          <div style={{ background: C.amber + "10", border: `1px solid ${C.amber}33`, borderRadius: 10, padding: "7px 11px" }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: C.amber }}>Fix: </span>
+            <span style={{ fontSize: 11.5, color: C.inkSoft }}>{moveInfo.diagnosis.bottleneck.fix}</span>
+          </div>
+          {moveInfo.diagnosis.good?.length > 0 && (
+            <div style={{ fontSize: 11, color: C.greenSoft, marginTop: 7, fontWeight: 600 }}>
+              ✓ {moveInfo.diagnosis.good.join(" · ")}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ══ 4a. TONIGHT PLAN CARD (evening, 20:00+) ════════════════════ */}
       {tp.sleep !== false && moveInfo?.tonight && (() => {
         const h = new Date().getHours();
