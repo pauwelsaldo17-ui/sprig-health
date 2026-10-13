@@ -964,68 +964,101 @@ function SuppPickerSheet({ open, onClose, supps = [], onSuppDirect }) {
 }
 
 // ── Food Quality Score ────────────────────────────────────────────────────────
-function FoodQualityScore({ entries = [], targets = {} }) {
+function FoodQualityScore({ entries = [], targets = {}, dietQ }) {
+  // Use vitaeCalc dietQ when available (fiber density + protein fraction + micros + alcohol)
+  // Fall back to local heuristic when dietQ isn't passed or has no data
   const totals = dayTotals(entries);
 
-  if (totals.calories < 500) return (
+  // Determine score source
+  let score, grade, gradeColor, whyText, advice, components, noData;
+
+  if (dietQ && !dietQ.noData && dietQ.score != null) {
+    // ── vitaeCalc path (more accurate) ──
+    score = dietQ.score;
+    grade = score >= 90 ? "A+" : score >= 80 ? "A" : score >= 70 ? "B" : score >= 60 ? "C" : score >= 50 ? "D" : "F";
+    gradeColor = score >= 80 ? C.greenSoft : score >= 60 ? C.amber : C.coral;
+    whyText = dietQ.whyText || null;
+    advice = dietQ.advice || [];
+    components = null; // vitaeCalc gives us whyText instead of sub-chips
+    noData = false;
+  } else {
+    // ── local heuristic fallback ──
+    if (totals.calories < 500) {
+      noData = true;
+    } else {
+      noData = false;
+      const names = entries.map((e) => (e.name || "").toLowerCase()).join(" ");
+      const fiber = totals.fiber || 0;
+      const fiberScore = fiber >= 25 ? 20 : fiber >= 15 ? 15 : fiber >= 8 ? 10 : 0;
+      const proteinPct = (targets.protein || 0) > 0 ? ((totals.protein || 0) / targets.protein) * 100 : 0;
+      const proteinScore = proteinPct >= 100 ? 20 : proteinPct >= 80 ? 15 : proteinPct >= 60 ? 8 : 0;
+      const hasSugarKw = /juice|cola|candy|chocolate|cake|cookie|ice cream|sugar/.test(names);
+      const sugarScore = hasSugarKw ? 10 : 20;
+      const totalSodiumMg = entries.reduce((s, e) => s + ((e.micros?.sodium_pct || 0) * 23 * (e.mult || 1)), 0);
+      let sodiumScore;
+      if (totalSodiumMg > 0) {
+        sodiumScore = totalSodiumMg <= 1500 ? 20 : totalSodiumMg <= 2300 ? 12 : 0;
+      } else {
+        const hasSodiumKw = /pizza|fries|chips|fast food|takeaway|processed/.test(names);
+        sodiumScore = hasSodiumKw ? 10 : 20;
+      }
+      const foodCount = entries.length;
+      const varietyScore = foodCount >= 6 ? 20 : foodCount >= 4 ? 15 : foodCount >= 2 ? 8 : 0;
+      score = fiberScore + proteinScore + sugarScore + sodiumScore + varietyScore;
+      grade = score >= 90 ? "A+" : score >= 80 ? "A" : score >= 70 ? "B" : score >= 60 ? "C" : score >= 50 ? "D" : "F";
+      gradeColor = score >= 80 ? C.greenSoft : score >= 60 ? C.amber : C.coral;
+      whyText = null;
+      advice = [];
+      components = [
+        { label: "Fiber",   ok: fiberScore >= 15 },
+        { label: "Protein", ok: proteinScore >= 15 },
+        { label: "Sugar",   ok: sugarScore >= 15 },
+        { label: "Sodium",  ok: sodiumScore >= 15 },
+        { label: "Variety", ok: varietyScore >= 15 },
+      ];
+    }
+  }
+
+  if (noData) return (
     <div style={{ background: C.card, borderRadius: 16, padding: "12px 16px", border: `1px solid ${C.line}`, boxShadow: C.shadow, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 14, fontWeight: 700, color: C.ink }}>Food Quality</div>
       <div style={{ fontSize: 12, color: C.muted }}>Log ≥500 kcal to see your score</div>
     </div>
   );
 
-  const names = entries.map((e) => (e.name || "").toLowerCase()).join(" ");
-
-  const fiber = totals.fiber || 0;
-  const fiberScore = fiber >= 25 ? 20 : fiber >= 15 ? 15 : fiber >= 8 ? 10 : 0;
-
-  const proteinPct = (targets.protein || 0) > 0 ? ((totals.protein || 0) / targets.protein) * 100 : 0;
-  const proteinScore = proteinPct >= 100 ? 20 : proteinPct >= 80 ? 15 : proteinPct >= 60 ? 8 : 0;
-
-  const hasSugarKw = /juice|cola|candy|chocolate|cake|cookie|ice cream|sugar/.test(names);
-  const sugarScore = hasSugarKw ? 10 : 20;
-
-  const totalSodiumMg = entries.reduce((s, e) => s + ((e.micros?.sodium_pct || 0) * 23 * (e.mult || 1)), 0);
-  let sodiumScore;
-  if (totalSodiumMg > 0) {
-    sodiumScore = totalSodiumMg <= 1500 ? 20 : totalSodiumMg <= 2300 ? 12 : 0;
-  } else {
-    const hasSodiumKw = /pizza|fries|chips|fast food|takeaway|processed/.test(names);
-    sodiumScore = hasSodiumKw ? 10 : 20;
-  }
-
-  const foodCount = entries.length;
-  const varietyScore = foodCount >= 6 ? 20 : foodCount >= 4 ? 15 : foodCount >= 2 ? 8 : 0;
-
-  const total = fiberScore + proteinScore + sugarScore + sodiumScore + varietyScore;
-  const grade = total >= 90 ? "A+" : total >= 80 ? "A" : total >= 70 ? "B" : total >= 60 ? "C" : total >= 50 ? "D" : "F";
-  const gradeColor = total >= 80 ? C.greenSoft : total >= 60 ? C.amber : C.coral;
-
-  const components = [
-    { label: "Fiber",   ok: fiberScore >= 15 },
-    { label: "Protein", ok: proteinScore >= 15 },
-    { label: "Sugar",   ok: sugarScore >= 15 },
-    { label: "Sodium",  ok: sodiumScore >= 15 },
-    { label: "Variety", ok: varietyScore >= 15 },
-  ];
-
   return (
     <div style={{ background: C.card, borderRadius: 16, padding: "14px 16px", border: `1px solid ${C.line}`, boxShadow: C.shadow, marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 700, color: C.ink }}>Food Quality</div>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 26, fontWeight: 700, color: gradeColor, marginLeft: "auto" }}>{grade}</div>
-        <div style={{ fontSize: 12.5, color: C.muted }}>{total}<span style={{ fontSize: 10 }}>/100</span></div>
+        <div style={{ fontSize: 12.5, color: C.muted }}>{score}<span style={{ fontSize: 10 }}>/100</span></div>
       </div>
       <div style={{ height: 6, background: C.bg2, borderRadius: 99, marginBottom: 10, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${total}%`, background: gradeColor, borderRadius: 99 }} />
+        <div style={{ height: "100%", width: `${score}%`, background: gradeColor, borderRadius: 99 }} />
       </div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-        {components.map((comp) => (
-          <div key={comp.label} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: comp.ok ? C.green + "18" : C.coral + "18", color: comp.ok ? C.greenSoft : C.coral, display: "flex", alignItems: "center", gap: 3 }}>
-            <span>{comp.ok ? "✓" : "⚠"}</span><span>{comp.label}</span>
-          </div>
-        ))}
-      </div>
+      {/* vitaeCalc: show why-text and actionable advice */}
+      {whyText && (
+        <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45, marginBottom: advice.length > 0 ? 8 : 0 }}>{whyText}</div>
+      )}
+      {advice.length > 0 && (
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {advice.map((tip, i) => (
+            <div key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: C.amber + "18", color: C.amber, display: "flex", alignItems: "center", gap: 3 }}>
+              <span>↑</span><span>{tip}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* local fallback: show sub-score chips */}
+      {components && (
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {components.map((comp) => (
+            <div key={comp.label} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: comp.ok ? C.green + "18" : C.coral + "18", color: comp.ok ? C.greenSoft : C.coral, display: "flex", alignItems: "center", gap: 3 }}>
+              <span>{comp.ok ? "✓" : "⚠"}</span><span>{comp.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1148,8 +1181,8 @@ function NutritionTab({
           {/* SECTION B: Macro bars */}
           <MacroProgressBars t={viewT} targets={targets} />
 
-          {/* SECTION B2: Food Quality Score */}
-          <FoodQualityScore entries={viewEntries} targets={targets} />
+          {/* SECTION B2: Food Quality Score — uses vitaeCalc dietQ when available */}
+          <FoodQualityScore entries={viewEntries} targets={targets} dietQ={isViewingToday ? nutriInfo?.dietQ : undefined} />
 
           {/* SECTION C: Projection */}
           {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
