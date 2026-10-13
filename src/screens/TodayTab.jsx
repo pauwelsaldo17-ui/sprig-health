@@ -496,6 +496,29 @@ function TodayTab({
             </div>
           );
         })()}
+
+        {/* ── Secondary actions — compact supporting nudges ── */}
+        {actions.length > 1 && (
+          <div style={{ marginTop: 7, display: "flex", flexDirection: "column", gap: 4 }}>
+            {actions.slice(1, 3).map((a, i) => {
+              const navFn2 = { train: onGoTrain, food: onGoNutrition, protein: onGoNutrition, sleep: onGoSleep, walk: onGoTrain, pain: onGoHealth }[a.icon];
+              const iconEl = ACTION_ICON[a.icon];
+              return navFn2 ? (
+                <button key={i} className="sprig-tap" onClick={() => { navFn2(); buzz("tap"); }}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.055)", borderRadius: 10, padding: "7px 11px", display: "flex", alignItems: "center", gap: 8, border: "none", cursor: "pointer", textAlign: "left" }}>
+                  {iconEl && <span style={{ flexShrink: 0, opacity: 0.5, display: "flex", color: "rgba(255,255,255,0.7)" }}>{iconEl}</span>}
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)", lineHeight: 1.4, flex: 1 }}>{a.text}</span>
+                  <ChevronRight size={12} color="rgba(255,255,255,0.25)" style={{ flexShrink: 0 }} />
+                </button>
+              ) : (
+                <div key={i} style={{ background: "rgba(255,255,255,0.055)", borderRadius: 10, padding: "7px 11px", display: "flex", alignItems: "center", gap: 8 }}>
+                  {iconEl && <span style={{ flexShrink: 0, opacity: 0.5, display: "flex", color: "rgba(255,255,255,0.7)" }}>{iconEl}</span>}
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.60)", lineHeight: 1.4 }}>{a.text}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ══ 2. SCORE CHIPS ═══════════════════════════════════════ */}
