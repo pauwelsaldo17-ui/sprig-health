@@ -916,6 +916,13 @@ function TodayTab({
                 style={{ ...btn(C.bg2, C.inkSoft), padding: "9px 12px", fontSize: 12 }}>✕</button>
             </div>
           )}
+          {/* Sedentary note — appears when sitting time is logged */}
+          {moveInfo?.sedentary && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 9, borderTop: `1px solid ${C.line}`, paddingTop: 9 }}>
+              <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>🪑</span>
+              <span style={{ fontSize: 11.5, color: moveInfo.sedentary.color, lineHeight: 1.4 }}>{moveInfo.sedentary.text}</span>
+            </div>
+          )}
         </div>
       )}
 
