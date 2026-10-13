@@ -398,7 +398,7 @@ function TodayTab({
   onToast, loggedDays = 0, onGoSettings, onQuickSleep,
 }) {
   const { lastSleep }                         = sleepInfo;
-  const { daily, subScores, healthScore, actions, weightSeries: wSeries = [] } = dailyInfo;
+  const { daily, subScores, healthScore, funcHealth, actions, weightSeries: wSeries = [] } = dailyInfo;
   const [stepsEditing, setStepsEditing]       = useState(false);
   const [stepsInput,   setStepsInput]         = useState("");
   const [quickSleepDone, setQuickSleepDone]   = useState(false);
@@ -550,6 +550,14 @@ function TodayTab({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* ══ 2b. HEALTH SCORE REASONS — what's holding the score back ══ */}
+      {funcHealth?.enough && funcHealth.reasons?.length > 0 && healthScore != null && healthScore < 80 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, paddingLeft: 2 }}>
+          <span style={{ fontSize: 11, color: C.muted, lineHeight: 1 }}>Focus on:</span>
+          <span style={{ fontSize: 11, color: C.inkSoft, lineHeight: 1 }}>{funcHealth.reasons.join(" · ")}</span>
         </div>
       )}
 
