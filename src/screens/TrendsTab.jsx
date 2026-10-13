@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity, BarChart3, Coffee, Dumbbell, Flame, Moon, Sparkles, Trophy, User, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Coffee, Dumbbell, Flame, Moon, Sparkles, Trophy, User, TrendingUp } from "lucide-react";
 import { C } from "../theme.js";
 import { durLabel } from "../utils/vitaeCalc.js";
 import { Legend, EmptyState } from "../components/ui.jsx";
@@ -27,7 +27,7 @@ function ReportLine({ emoji, label, text, color }) {
   );
 }
 
-function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced, report, profile, achievements, timeline, onGoToday }) {
+function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced, report, profile, achievements, timeline, plateaus, patterns, onGoToday }) {
   const days = history.slice(-7);
   const maxC = Math.max(targets.calories, ...days.map((d) => d.calories), 1);
   const avg = days.length ? Math.round(days.reduce((a, d) => a + d.calories, 0) / days.length) : 0;
@@ -171,6 +171,48 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* PLATEAUS & PATTERNS — what's holding progress back */}
+      {((plateaus?.length > 0) || (patterns?.length > 0)) && (
+        <div style={{ background: C.card, borderRadius: 20, padding: 18, boxShadow: C.shadow, border: `1px solid ${C.amber}33`, marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <AlertTriangle size={16} color={C.amber} />
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.ink }}>What's holding you back</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {(plateaus || []).map((p, i) => {
+              const icon = p.kind === "weight" ? "⚖️" : p.kind === "strength" ? "💪" : "🌙";
+              return (
+                <div key={i} style={{ background: C.bg2, borderRadius: 14, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 16 }}>{icon}</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>{p.title}</span>
+                  </div>
+                  {p.reasons?.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {p.reasons.slice(0, 3).map((r, j) => (
+                        <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                          <span style={{ fontSize: 10, color: C.amber, fontWeight: 800, flexShrink: 0, marginTop: 2 }}>·</span>
+                          <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.4 }}>{r}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {(patterns || []).map((p, i) => {
+              const icon = p.kind === "alcohol_sleep" ? "🍷" : p.kind === "steps_mood" ? "🚶" : p.kind === "pain_exercise" ? "⚠️" : "💡";
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, background: C.bg2, borderRadius: 14, padding: "12px 14px" }}>
+                  <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1.3 }}>{icon}</span>
+                  <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>{p.text}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
