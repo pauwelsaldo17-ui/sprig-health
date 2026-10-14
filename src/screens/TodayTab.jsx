@@ -2619,74 +2619,77 @@ function TodayTab({
       })()}
 
       {/* ══ 5. WATER STRIP ═══════════════════════════════════════ */}
-      {tp.water !== false && (
-        <div style={{
-          background: C.card, borderRadius: 18,
-          border: `1px solid ${C.line}`, marginTop: 8,
-          padding: "12px 14px", boxShadow: C.shadow,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: waterMl > 0 ? 9 : 0 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 9, background: WATER_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <Droplets size={15} color={WATER_CLR} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4 }}>Water</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>
-                {dtWaterSrc === "quick_log" && waterMl === 0
-                  ? "Goal hit · Quick logged"
-                  : `${(waterMl / 1000).toFixed(1)}L / ${(waterGoal / 1000).toFixed(1)}L`}
+      {tp.water !== false && (() => {
+        const waterGoalHit = waterMl >= waterGoal || dtWaterSrc === "quick_log";
+        const PER_GLASS    = 250;
+        const totalGlasses = Math.min(10, Math.round(waterGoal / PER_GLASS));
+        const doneGlasses  = Math.min(totalGlasses, Math.floor(waterMl / PER_GLASS));
+        const remaining    = Math.max(0, totalGlasses - doneGlasses);
+        return (
+          <div style={{
+            background: C.card, borderRadius: 18,
+            border: `1px solid ${waterGoalHit ? WATER_CLR + "44" : C.line}`, marginTop: 8,
+            padding: "12px 14px", boxShadow: C.shadow,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: (waterMl > 0 || waterGoalHit) ? 9 : 0 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: WATER_CLR + (waterGoalHit ? "28" : "1A"), display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <Droplets size={15} color={WATER_CLR} />
               </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4 }}>Water</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: waterGoalHit ? WATER_CLR : C.ink }}>
+                  {waterGoalHit
+                    ? (dtWaterSrc === "quick_log" && waterMl === 0 ? "Goal hit · Quick logged" : `${(waterMl / 1000).toFixed(1)}L — hydrated ✓`)
+                    : `${(waterMl / 1000).toFixed(1)}L / ${(waterGoal / 1000).toFixed(1)}L`}
+                </div>
+              </div>
+              {/* Buttons: hide when goal is already hit; show small +more otherwise */}
+              {waterGoalHit ? (
+                <button className="sprig-tap"
+                  onClick={() => { onDaily({ water: waterMl + 250 }); buzz("light"); if (onToast) onToast("Added 250ml ✓"); }}
+                  style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 11px", fontSize: 11, fontWeight: 700, color: C.inkSoft, cursor: "pointer", fontFamily: "DM Sans", flexShrink: 0 }}>
+                  +more
+                </button>
+              ) : (
+                <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                  <button className="sprig-tap"
+                    onClick={() => { onDaily({ water: waterMl + 250 }); buzz("light"); if (onToast) onToast("Added 250ml water ✓"); }}
+                    style={{ background: WATER_CLR + "1A", border: `1px solid ${WATER_CLR}33`, borderRadius: 9, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: WATER_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
+                    +250
+                  </button>
+                  <button className="sprig-tap"
+                    onClick={() => { onDaily({ water: waterMl + 500 }); buzz("light"); if (onToast) onToast("Added 500ml water ✓"); }}
+                    style={{ background: WATER_CLR + "28", border: `1px solid ${WATER_CLR}55`, borderRadius: 9, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: WATER_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
+                    +500
+                  </button>
+                </div>
+              )}
             </div>
-            <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-              <button className="sprig-tap"
-                onClick={() => {
-                  onDaily({ water: waterMl + 250 });
-                  buzz("light");
-                  if (onToast) onToast("Added 250ml water ✓");
-                }}
-                style={{
-                  background: WATER_CLR + "1A", border: `1px solid ${WATER_CLR}33`,
-                  borderRadius: 9, padding: "8px 10px",
-                  fontSize: 12, fontWeight: 700, color: WATER_CLR,
-                  cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap",
-                }}>
-                +250
-              </button>
-              <button className="sprig-tap"
-                onClick={() => {
-                  onDaily({ water: waterMl + 500 });
-                  buzz("light");
-                  if (onToast) onToast("Added 500ml water ✓");
-                }}
-                style={{
-                  background: WATER_CLR + "28", border: `1px solid ${WATER_CLR}55`,
-                  borderRadius: 9, padding: "8px 10px",
-                  fontSize: 12, fontWeight: 700, color: WATER_CLR,
-                  cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap",
-                }}>
-                +500
-              </button>
-            </div>
-          </div>
-          {waterMl > 0 && (
-            <div style={{ height: 5, background: C.bg2, borderRadius: 9 }}>
-              <div style={{
-                height: "100%", borderRadius: 9,
-                background: waterMl >= waterGoal ? WATER_CLR : WATER_CLR + "AA",
-                width: `${Math.min(100, Math.round(waterMl / waterGoal * 100))}%`,
-                transition: "width .4s",
-              }} />
-            </div>
-          )}
-          {/* Glass counter — shows progress as fillable glasses so users don't have to do mental math */}
-          {waterGoal > 0 && (() => {
-            const PER_GLASS = 250;
-            const totalGlasses = Math.min(10, Math.round(waterGoal / PER_GLASS));
-            const doneGlasses  = Math.min(totalGlasses, Math.floor(waterMl / PER_GLASS));
-            const remaining    = Math.max(0, totalGlasses - doneGlasses);
-            const goalHit      = waterMl >= waterGoal || dtWaterSrc === "quick_log";
-            return (
-              <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8 }}>
+            {/* Progress bar */}
+            {waterMl > 0 && !waterGoalHit && (
+              <div style={{ height: 5, background: C.bg2, borderRadius: 9, marginBottom: 8 }}>
+                <div style={{
+                  height: "100%", borderRadius: 9, background: WATER_CLR + "AA",
+                  width: `${Math.min(100, Math.round(waterMl / waterGoal * 100))}%`,
+                  transition: "width .4s",
+                }} />
+              </div>
+            )}
+            {/* Goal achieved celebration row */}
+            {waterGoalHit && (
+              <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 8, background: WATER_CLR + "12", border: `1px solid ${WATER_CLR}33`, borderRadius: 10, padding: "8px 11px", marginBottom: 0 }}>
+                <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>💧</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: WATER_CLR }}>Hydration goal reached!</div>
+                  <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 1 }}>
+                    {totalGlasses} glass{totalGlasses !== 1 ? "es" : ""} · {(waterMl / 1000).toFixed(1)}L today
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Glass counter — only shown when not yet at goal */}
+            {waterGoal > 0 && !waterGoalHit && (
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                 <div style={{ display: "flex", gap: 3, flex: 1, flexWrap: "wrap" }}>
                   {Array.from({ length: totalGlasses }).map((_, i) => (
                     <div key={i} style={{
@@ -2697,27 +2700,27 @@ function TodayTab({
                     }} />
                   ))}
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: goalHit ? WATER_CLR : C.muted, flexShrink: 0 }}>
-                  {goalHit ? "Hydrated! 💧" : `${remaining} glass${remaining !== 1 ? "es" : ""} to go`}
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, flexShrink: 0 }}>
+                  {remaining} glass{remaining !== 1 ? "es" : ""} to go
                 </span>
               </div>
-            );
-          })()}
-          {/* Smart hydration note — context-aware (e.g. "You trained today — aim for 400ml more") */}
-          {moveInfo?.hydration?.note && waterMl > 0 && waterMl < waterGoal && (
-            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7, lineHeight: 1.4 }}>
-              {moveInfo.hydration.note}
-            </div>
-          )}
-          {/* Electrolytes warning — shown when sweat loss is high */}
-          {nutriInfo?.needsElectrolytes && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-              <span style={{ fontSize: 12, lineHeight: 1 }}>⚡</span>
-              <span style={{ fontSize: 11.5, color: C.amber, lineHeight: 1.4 }}>Add electrolytes — you've sweated a lot today.</span>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+            {/* Smart hydration note */}
+            {moveInfo?.hydration?.note && waterMl > 0 && !waterGoalHit && (
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7, lineHeight: 1.4 }}>
+                {moveInfo.hydration.note}
+              </div>
+            )}
+            {/* Electrolytes warning */}
+            {nutriInfo?.needsElectrolytes && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                <span style={{ fontSize: 12, lineHeight: 1 }}>⚡</span>
+                <span style={{ fontSize: 11.5, color: C.amber, lineHeight: 1.4 }}>Add electrolytes — you've sweated a lot today.</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ══ 6. STEPS STRIP ═══════════════════════════════════════ */}
       {tp.movement !== false && dtMoveSrc !== "quick_log" && (
