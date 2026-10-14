@@ -915,10 +915,10 @@ function TodayTab({
         );
       })()}
 
-      {/* ══ 3d. BEST ACTIONS — what to do today (from bestActions()) ═══════════════ */}
-      {dailyInfo?.actions?.length > 0 && (
+      {/* ══ 3d. BEST ACTIONS — overflow actions beyond hero's first 4 ═══════════════ */}
+      {(dailyInfo?.actions?.length || 0) > 4 && (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-          {dailyInfo.actions.map((a, i) => {
+          {dailyInfo.actions.slice(4).map((a, i) => {
             const iconMap = {
               rest: "😴", pain: "⚠️", done: "✅", train: "💪",
               protein: "🥩", food: "🍽️", walk: "🚶", water: "💧",
@@ -1305,30 +1305,48 @@ function TodayTab({
         </div>
       )}
 
-      {/* ══ 4c1b. BEDTIME WINDOW — afternoon nudge showing target bedtime ════ */}
+      {/* ══ 4c1b. BEDTIME WINDOW — shows 3pm→2am; countdown when within 90 min ════ */}
       {tp.sleep !== false && sleepInfo.rec?.recBed != null && (() => {
         const h = new Date().getHours();
-        if (h < 15 || h >= 20) return null;
+        if (h >= 3 && h < 15) return null;            // hide 3am→3pm, show 3pm→2:59am
         const rec = sleepInfo.rec;
-        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        const nowMin = h * 60 + new Date().getMinutes();
+        const bedMin  = ((rec.recBed         % 1440) + 1440) % 1440;
         const cafCutMin = ((rec.caffeineCutoff % 1440) + 1440) % 1440;
         const cafInFuture = ((cafCutMin - nowMin + 1440) % 1440) < 720;
+        const minsToBed   = ((bedMin - nowMin + 1440) % 1440);
+        const imminent    = minsToBed <= 90;           // within 90 min of bedtime
         const bedStr = minToTimeStr(rec.recBed);
         const cafStr = minToTimeStr(rec.caffeineCutoff);
+        const clr = imminent ? C.coral : SLEEP_CLR;
+        const countdownLabel = minsToBed < 60
+          ? `${minsToBed}m`
+          : `${Math.floor(minsToBed / 60)}h ${minsToBed % 60}m`;
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: SLEEP_CLR + "0D", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8 }}>
-            <Moon size={14} color={SLEEP_CLR} style={{ flexShrink: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: clr + "0D", border: `1px solid ${clr}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8 }}>
+            <Moon size={14} color={clr} style={{ flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.4 }}>
-                Target bedtime tonight: <strong style={{ color: SLEEP_CLR }}>{bedStr}</strong>
-                {rec.payDown > 0 && ` (inc. ${Math.round(rec.payDown)}min debt paydown)`}
-              </span>
+              {imminent ? (
+                <span style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.4 }}>
+                  <strong style={{ color: clr }}>Bed in {countdownLabel}</strong> — wind down now
+                </span>
+              ) : (
+                <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.4 }}>
+                  Target bedtime tonight: <strong style={{ color: SLEEP_CLR }}>{bedStr}</strong>
+                  {rec.payDown > 0 && ` (inc. ${Math.round(rec.payDown)}min debt paydown)`}
+                </span>
+              )}
               {cafInFuture && (
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
                   Last caffeine by {cafStr} for best sleep
                 </div>
               )}
             </div>
+            {imminent && (
+              <span style={{ fontSize: 10, fontWeight: 800, color: clr, background: clr + "18", borderRadius: 5, padding: "3px 7px", flexShrink: 0, whiteSpace: "nowrap" }}>
+                {bedStr}
+              </span>
+            )}
           </div>
         );
       })()}
