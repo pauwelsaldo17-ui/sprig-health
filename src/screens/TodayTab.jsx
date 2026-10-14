@@ -543,7 +543,9 @@ function TodayTab({
     // Sleep: at least 6h logged
     lastSleep?.durationMin ? lastSleep.durationMin >= 360 : (dtSleepSrc ? true : null),
   ].filter(v => v !== null);          // only evaluate goals with data
-  const perfectDay = perfectDayGoals.length >= 3 && perfectDayGoals.every(Boolean);
+  const goalHitCount = perfectDayGoals.filter(Boolean).length;
+  const goalTotal    = perfectDayGoals.length;
+  const perfectDay   = goalTotal >= 3 && goalHitCount === goalTotal;
 
   /* ── render ───────────────────────────────────────────────────── */
   return (
@@ -630,11 +632,17 @@ function TodayTab({
                 {loggedDays >= 30 ? "🔥" : "🌿"} {loggedDays} days logged
               </span>
             )}
-            {/* Perfect day badge — all active goals hit */}
-            {perfectDay && (
-              <span className="sprig-pop" style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: "rgba(79,195,127,0.30)", padding: "3px 11px", borderRadius: 99, letterSpacing: .3, display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid rgba(79,195,127,0.35)" }}>
-                🌟 Perfect day!
-              </span>
+            {/* Dynamic goals badge — shows progress, turns into 🌟 when all hit */}
+            {goalTotal >= 2 && goalHitCount > 0 && (
+              perfectDay ? (
+                <span className="sprig-pop" style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: "rgba(79,195,127,0.30)", padding: "3px 11px", borderRadius: 99, letterSpacing: .3, display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid rgba(79,195,127,0.35)" }}>
+                  🌟 Perfect day!
+                </span>
+              ) : (
+                <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.70)", background: "rgba(255,255,255,.10)", padding: "3px 11px", borderRadius: 99, letterSpacing: .3, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  ✓ {goalHitCount}/{goalTotal} goals
+                </span>
+              )
             )}
           </div>
         )}
@@ -1181,12 +1189,12 @@ function TodayTab({
                 : `${Math.round(t.protein || 0)}g protein`)
               : null}
             sub2={
-              t.calories > adjTarget
+              adjTarget > 0 && t.calories > adjTarget
                 ? "Over goal"
-                : t.calories > 0 && adjTarget > 0 && adjTarget - t.calories > 0
-                  ? `${adjTarget - t.calories} kcal left`
-                  : t.calories > 0 && adjTarget > 0 && t.calories >= adjTarget * 0.85
-                    ? "Calorie goal hit! ✓"
+                : adjTarget > 0 && t.calories >= adjTarget * 0.85
+                  ? "Calorie goal hit! ✓"
+                  : adjTarget > 0 && t.calories > 0
+                    ? `${Math.round(adjTarget - t.calories)} kcal left`
                     : null
             }
             pct={calPct}
