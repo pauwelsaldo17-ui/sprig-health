@@ -270,6 +270,21 @@ function ProgressDiag({ moveInfo }) {
                 ✓ {diag.good.join(" · ")}
               </div>
             )}
+            {/* ── Secondary bottlenecks ── */}
+            {diag.others?.length > 0 && (
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}` }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Also look at</div>
+                {diag.others.map((o, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: i > 0 ? 7 : 0 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.amber, flexShrink: 0, marginTop: 5 }} />
+                    <div>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>{o.title}</div>
+                      <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2, lineHeight: 1.4 }}>{o.fix}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         ) : (
           <>
