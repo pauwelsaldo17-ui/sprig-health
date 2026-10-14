@@ -7,7 +7,7 @@ import { C } from "../theme.js";
 import {
   stepGoal, ACTIVITY_SOURCES, durLabel, scoreVerdict, uid, todayStr, MUSCLES, RISK_TAG, BLOOD_MARKERS,
   ALCOHOL_LEVELS, alcoholLevel, interactionFlags, volumeStatus, VOL_TAG_COLOR,
-  weightStats, weightVerdict, mealScore,
+  weightStats, weightVerdict, mealScore, photoReminder,
 } from "../utils/vitaeCalc.js";
 import {
   btn, Btn, Ring, Badge, TodayWinsCard, ScoreDonut, ACTION_ICON,
@@ -450,6 +450,7 @@ function TodayTab({
   onToast, loggedDays = 0, onGoSettings, onQuickSleep,
   patterns = [], plateaus = [], timeline = null,
   weekReport = null,
+  photoLog = [],
 }) {
   const { lastSleep }                         = sleepInfo;
   const { daily, subScores, healthScore, funcHealth, actions, weightSeries: wSeries = [] } = dailyInfo;
@@ -2703,6 +2704,36 @@ function TodayTab({
                 7-day avg: {ws.avg7}{unit}
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* ══ 6.4. PROGRESS PHOTO NUDGE — reminds every 14 days ══════ */}
+      {tp.body !== false && onGoBody && (() => {
+        const nudge = photoReminder(photoLog);
+        if (!nudge.due) return null;
+        return (
+          <div className="sprig-pop" style={{
+            display: "flex", alignItems: "center", gap: 10,
+            background: C.coral + "08", border: `1px solid ${C.coral}25`,
+            borderRadius: 14, padding: "10px 14px", marginTop: 8,
+          }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>📸</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: C.coral, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>
+                Progress photos
+              </div>
+              <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.4 }}>
+                {nudge.text}
+              </div>
+            </div>
+            <button onClick={onGoBody} style={{
+              border: "none", cursor: "pointer", flexShrink: 0,
+              background: C.coral + "18", color: C.coral,
+              fontSize: 10.5, fontWeight: 800, borderRadius: 8, padding: "5px 10px",
+            }}>
+              Log →
+            </button>
           </div>
         );
       })()}
