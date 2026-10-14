@@ -2985,9 +2985,19 @@ function TodayTab({
         if (tp.mind !== false && mind?.focusMin >= 60) stats.push({ label: `${Math.round(mind.focusMin / 60)}h focus`, icon: "🎯" });
         if (tp.sleep !== false && sleep?.bedConsistency != null) {
           const bc = sleep.bedConsistency;
-          const bcIcon = bc <= 20 ? "⏰" : bc <= 45 ? "⏰" : "⏰";
           const bcColor = bc <= 20 ? C.greenSoft : bc <= 45 ? C.amber : C.coral;
-          stats.push({ label: `Bedtime ±${bc}min`, icon: bcIcon, color: bcColor });
+          stats.push({ label: `Bedtime ±${bc}min`, icon: "⏰", color: bcColor });
+        }
+        if (tp.sleep !== false && sleep?.avgScore != null) {
+          const sc = sleep.avgScore;
+          const scColor = sc >= 75 ? C.greenSoft : sc >= 55 ? C.amber : C.coral;
+          stats.push({ label: `Sleep ${sc}/100`, icon: "💤", color: scColor });
+        }
+        if (tp.nutrition !== false && nutrition?.avgCal != null) {
+          stats.push({ label: `${nutrition.avgCal} kcal/day`, icon: "🍽️" });
+        }
+        if (weekReport.pain?.count > 0) {
+          stats.push({ label: `Pain logged ${weekReport.pain.count}×`, icon: "🩹", color: C.coral });
         }
         const topMuscles = training?.topMuscles?.slice(0, 4) || [];
         return (
