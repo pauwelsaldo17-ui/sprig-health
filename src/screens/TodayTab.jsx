@@ -7,7 +7,7 @@ import { C } from "../theme.js";
 import {
   stepGoal, ACTIVITY_SOURCES, durLabel, scoreVerdict, uid, todayStr, MUSCLES, RISK_TAG, BLOOD_MARKERS,
   ALCOHOL_LEVELS, alcoholLevel, interactionFlags, volumeStatus, VOL_TAG_COLOR,
-  weightStats, weightVerdict,
+  weightStats, weightVerdict, mealScore,
 } from "../utils/vitaeCalc.js";
 import {
   btn, Btn, Ring, Badge, TodayWinsCard, ScoreDonut, ACTION_ICON,
@@ -1752,6 +1752,81 @@ function TodayTab({
           </div>
         </div>
       )}
+
+      {/* ══ 4d3b. MEAL QUALITY — per-food nutritional density scores ════ */}
+      {tp.nutrition !== false && entries?.length > 0 && t.calories > 80 && (() => {
+        const scored = entries
+          .filter(e => (e.calories || 0) > 10)
+          .map(e => {
+            const s = mealScore(e, targets);
+            if (!s) return null;
+            return { name: e.name || e.label || "Food", score: s.score, note: s.note, calories: (e.calories || 0) * (e.mult || 1) };
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.score - a.score);   // best first so user sees wins on top
+        if (scored.length < 2) return null;      // need at least 2 to be informative
+
+        const avgScore = Math.round(scored.reduce((s, e) => s + e.score, 0) / scored.length);
+        const avgClr   = avgScore >= 65 ? C.greenSoft : avgScore >= 40 ? C.amber : C.coral;
+        const show     = scored.slice(0, 5);     // max 5 entries
+
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 14, lineHeight: 1 }}>🥗</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: NUTR_CLR, textTransform: "uppercase", letterSpacing: 0.5 }}>Food quality</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ fontSize: 9.5, color: C.muted }}>avg</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: avgClr, fontFamily: "Fraunces, serif" }}>{avgScore}</span>
+              </div>
+            </div>
+
+            {/* Entry rows */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {show.map((item, i) => {
+                const clr = item.score >= 65 ? C.greenSoft : item.score >= 40 ? C.amber : C.coral;
+                const nameShort = item.name.length > 22 ? item.name.slice(0, 21) + "…" : item.name;
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {/* Score bar */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginBottom: 3 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: C.ink, lineHeight: 1.2, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {nameShort}
+                        </span>
+                        <span style={{ fontSize: 10, color: C.muted, flexShrink: 0 }}>{Math.round(item.calories)} kcal</span>
+                      </div>
+                      <div style={{ height: 4, background: C.line, borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ width: `${item.score}%`, height: "100%", background: clr, borderRadius: 2, transition: "width 0.5s ease" }} />
+                      </div>
+                      {item.note && (
+                        <div style={{ fontSize: 10, color: C.muted, marginTop: 2, lineHeight: 1.3 }}>{item.note}</div>
+                      )}
+                    </div>
+                    {/* Score badge */}
+                    <div style={{
+                      minWidth: 32, height: 32, borderRadius: 9,
+                      background: clr + "18", border: `1px solid ${clr}33`,
+                      display: "grid", placeItems: "center", flexShrink: 0,
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: clr, fontFamily: "Fraunces, serif" }}>{item.score}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {scored.length > 5 && (
+              <div style={{ fontSize: 10, color: C.muted, textAlign: "center", marginTop: 8 }}>
+                + {scored.length - 5} more items
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ══ 4e. PROGRESS BOTTLENECK — why you're not progressing ════════ */}
       {moveInfo?.diagnosis?.enough && moveInfo.diagnosis.bottleneck && (
