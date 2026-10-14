@@ -1791,6 +1791,47 @@ function TodayTab({
         );
       })()}
 
+      {/* ══ 4c9. RECENT PRs — last 3 personal records from detectPRs() ══ */}
+      {tp.training !== false && trainInfo?.recentPRs?.length > 0 && (() => {
+        const prs = trainInfo.recentPRs;
+        const now = Date.now();
+        const ageLabel = (ts) => {
+          const days = Math.floor((now - ts) / 86400000);
+          if (days === 0) return "today";
+          if (days === 1) return "yesterday";
+          if (days < 7) return `${days}d ago`;
+          if (days < 30) return `${Math.floor(days / 7)}w ago`;
+          return `${Math.floor(days / 30)}mo ago`;
+        };
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 9 }}>
+              🎖️ Recent PRs
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {prs.map((pr, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, lineHeight: 1 }}>🏋️</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {pr.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.3, marginTop: 1 }}>
+                      {pr.w}kg × {pr.reps} rep{pr.reps !== 1 ? "s" : ""} · 1RM ~{pr.e1}kg
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: C.amber, background: C.amber + "18", borderRadius: 5, padding: "2px 6px", flexShrink: 0 }}>
+                    {ageLabel(pr.ts)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ══ 4d0. WORKOUT CALORIE BOOST — strength training added to target ══ */}
       {tp.nutrition !== false && tp.training !== false && moveInfo?.workoutAdj?.kcal > 0 && (
         <div style={{

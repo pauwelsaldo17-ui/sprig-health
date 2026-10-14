@@ -3571,6 +3571,8 @@ function SprigApp() {
   const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily };
   // Strength ranking — relative e1RM percentile vs same-sex population at avg bodyweight
   trainInfo.ranking = workouts.length >= 2 ? ranking(workouts, profile, 'relative') : null;
+  // Recent personal records (all-time PRs most-recent first, capped at 3)
+  trainInfo.recentPRs = workouts.length >= 2 ? detectPRs(workouts).slice(0, 3) : [];
 
   // pain state — derived from structured logs (fallback to daily check-in)
   const painSum = painSummary(painLogs);
