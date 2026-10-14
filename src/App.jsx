@@ -3791,6 +3791,7 @@ function SprigApp() {
   const timeline = goalTimeline({ profile, weightSeries, workouts, targets });
   const plateaus = plateauDetection({ workouts, weightSeries, sleepLogs, history, targets, sleepInfo });
   const patterns = patternDetection({ sleepLogs, dailyHistory, workouts, painLogs, history });
+  const measureStats = measurementStats(measureSeries);
 
   if (!ready) {
     return <div style={{ background: C.bg, minHeight: 520, display: "grid", placeItems: "center" }}>
@@ -3891,6 +3892,7 @@ function SprigApp() {
             photoLog={photoLog}
             safetyInfo={safetyInfo}
             achievements={achievements}
+            measureStats={measureStats}
           />
         )}
         {tab === "nutrition" && (

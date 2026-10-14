@@ -453,6 +453,7 @@ function TodayTab({
   photoLog = [],
   safetyInfo = null,
   achievements = [],
+  measureStats = null,
 }) {
   const { lastSleep }                         = sleepInfo;
   const { daily, subScores, healthScore, funcHealth, actions, weightSeries: wSeries = [] } = dailyInfo;
@@ -2786,6 +2787,55 @@ function TodayTab({
             }}>
               Log →
             </button>
+          </div>
+        );
+      })()}
+
+      {/* ══ 6.45. BODY MEASUREMENTS CHANGE — measurementStats() ══════════ */}
+      {tp.body !== false && measureStats && (() => {
+        const MEASURE_LABEL = { waist: "Waist", chest: "Chest", shoulders: "Shoulders", arms: "Arms", thighs: "Thighs", calves: "Calves", neck: "Neck" };
+        const entries = Object.entries(measureStats).filter(([, v]) => v?.current != null);
+        if (!entries.length) return null;
+        const withChange = entries.filter(([, v]) => v.change != null && Math.abs(v.change) >= 0.5);
+        const shown = withChange.length ? withChange.slice(0, 4) : entries.slice(0, 4);
+        return (
+          <div className="sprig-pop" style={{
+            background: C.card, border: `1px solid ${C.line}`,
+            borderRadius: 16, padding: "11px 14px", marginTop: 8, boxShadow: C.shadow,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                📏 Body measurements
+              </div>
+              {onGoBody && (
+                <button onClick={onGoBody} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: C.muted, padding: 0 }}>
+                  Update →
+                </button>
+              )}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px 10px" }}>
+              {shown.map(([k, v]) => {
+                const delta = v.change;
+                const isGood = delta !== null && ((k === "waist" || k === "thighs" || k === "neck") ? delta < 0 : delta > 0);
+                const isBad  = delta !== null && ((k === "waist" || k === "thighs" || k === "neck") ? delta > 0 : delta < 0);
+                const deltaColor = isGood ? C.greenSoft : isBad ? C.coral : C.muted;
+                return (
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 9.5, color: C.muted, marginBottom: 1 }}>{MEASURE_LABEL[k] || k}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, lineHeight: 1 }}>
+                        {v.current}<span style={{ fontSize: 10, fontWeight: 600, color: C.muted }}>cm</span>
+                        {delta !== null && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: deltaColor, marginLeft: 5 }}>
+                            {delta > 0 ? "+" : ""}{delta}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })()}
