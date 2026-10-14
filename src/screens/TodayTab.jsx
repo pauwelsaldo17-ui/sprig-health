@@ -882,6 +882,102 @@ function TodayTab({
         )}
       </div>
 
+      {/* ══ 4c0_ec. ENERGY CURVE — full-day sparkline from wake to bed ════ */}
+      {sleepInfo?.curve?.length > 5 && (() => {
+        const curve = sleepInfo.curve;
+        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        const minX = curve[0].min;
+        const maxX = curve[curve.length - 1].min;
+        const span = maxX - minX || 1;
+        const W = 300, H = 52, PAD = 2;
+
+        // Build SVG path
+        const toX = (m) => PAD + ((m - minX) / span) * (W - PAD * 2);
+        const toY = (e) => H - PAD - (e / 100) * (H - PAD * 2);
+
+        const points = curve.map(p => ({ x: toX(p.min), y: toY(p.e), e: p.e }));
+        const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+        const areaD = `${pathD} L${points[points.length-1].x.toFixed(1)},${H} L${points[0].x.toFixed(1)},${H} Z`;
+
+        // Now marker
+        const nowClamped = Math.min(Math.max(nowMin, minX), maxX);
+        const nowX = toX(nowClamped);
+        const isPast = nowMin > maxX;
+        // Find nearest curve point for current energy
+        const nearest = curve.reduce((best, p) => Math.abs(p.min - nowMin) < Math.abs(best.min - nowMin) ? p : best, curve[0]);
+        const nowE = nearest.e;
+        const nowClr = nowE >= 65 ? C.greenSoft : nowE >= 40 ? C.amber : C.coral;
+
+        // Wake time label
+        const wakeH = Math.floor((minX % 1440) / 60);
+        const wakeM = minX % 60;
+        const wakeStr = `${wakeH}:${String(wakeM).padStart(2, "0")}`;
+        const bedH = Math.floor((maxX % 1440) / 60);
+        const bedM = maxX % 60;
+        const bedStr = `${bedH}:${String(bedM).padStart(2, "0")}`;
+
+        const nowHour = Math.floor((nowClamped % 1440) / 60);
+        const nowMn = nowClamped % 60;
+        const nowStr = `${nowHour}:${String(nowMn).padStart(2, "0")}`;
+
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${nowClr}22`, marginTop: 8, padding: "11px 13px", boxShadow: C.shadow }}>
+            {/* Header row */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 13, lineHeight: 1 }}>⚡</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: nowClr, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Energy today
+                </span>
+              </div>
+              {!isPast && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: nowClr, animation: "pulse 1.8s ease-in-out infinite" }} />
+                  <span style={{ fontSize: 11.5, fontWeight: 800, color: nowClr, fontFamily: "Fraunces, serif" }}>{nowE}</span>
+                  <span style={{ fontSize: 9.5, color: C.muted, marginLeft: 1 }}>now</span>
+                </div>
+              )}
+            </div>
+
+            {/* SVG Sparkline */}
+            <div style={{ position: "relative", width: "100%", overflow: "hidden" }}>
+              <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block", overflow: "visible" }} preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="ecFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={nowClr} stopOpacity="0.22" />
+                    <stop offset="100%" stopColor={nowClr} stopOpacity="0.02" />
+                  </linearGradient>
+                </defs>
+                {/* Area fill */}
+                <path d={areaD} fill="url(#ecFill)" />
+                {/* Line */}
+                <path d={pathD} fill="none" stroke={nowClr} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+                {/* Past shade overlay */}
+                {!isPast && (
+                  <rect x={0} y={0} width={nowX} height={H} fill={C.line || "#E0E0E0"} opacity="0.18" />
+                )}
+                {/* Now marker line */}
+                {!isPast && (
+                  <>
+                    <line x1={nowX} y1={0} x2={nowX} y2={H} stroke={nowClr} strokeWidth="1.2" strokeDasharray="3 2" opacity="0.7" />
+                    <circle cx={nowX} cy={toY(nowE)} r="3.2" fill={nowClr} stroke={C.card} strokeWidth="1.5" />
+                  </>
+                )}
+              </svg>
+            </div>
+
+            {/* Time labels */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+              <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 600 }}>🌅 {wakeStr}</span>
+              {!isPast && (
+                <span style={{ fontSize: 9.5, color: nowClr, fontWeight: 700 }}>{nowStr}</span>
+              )}
+              <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 600 }}>🌙 {bedStr}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ══ 4c0b. SLEEP STAGES — deep / REM / light breakdown ═════════════ */}
       {tp.sleep !== false && lastSleep?.stages && (lastSleep.stages.deep || lastSleep.stages.rem) && (() => {
         const st = lastSleep.stages;
