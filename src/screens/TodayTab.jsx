@@ -790,6 +790,36 @@ function TodayTab({
         );
       })()}
 
+      {/* ══ 3d. BEST ACTIONS — what to do today (from bestActions()) ═══════════════ */}
+      {dailyInfo?.actions?.length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+          {dailyInfo.actions.map((a, i) => {
+            const iconMap = {
+              rest: "😴", pain: "⚠️", done: "✅", train: "💪",
+              protein: "🥩", food: "🍽️", walk: "🚶", water: "💧",
+              sleep: "🌙", log: "📝",
+            };
+            const clrMap = {
+              rest: RECOV_CLR, pain: C.coral, done: C.greenSoft, train: C.greenSoft,
+              protein: NUTR_CLR, food: NUTR_CLR, walk: C.greenSoft, water: WATER_CLR,
+              sleep: SLEEP_CLR, log: C.muted,
+            };
+            const ic  = iconMap[a.icon] || "⚡";
+            const clr = clrMap[a.icon] || C.muted;
+            return (
+              <div key={i} className="sprig-pop" style={{
+                display: "flex", alignItems: "flex-start", gap: 10,
+                background: clr + "0B", border: `1px solid ${clr}28`,
+                borderRadius: 14, padding: "10px 13px",
+              }}>
+                <span style={{ fontSize: 15, lineHeight: 1.25, flexShrink: 0, marginTop: 1 }}>{ic}</span>
+                <span style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, flex: 1 }}>{a.text}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* ══ 4. BENTO 2 × 2 ═══════════════════════════════════════ */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
 
