@@ -1484,6 +1484,46 @@ function TodayTab({
         );
       })()}
 
+      {/* ══ 4d2b. NUTRITION FUNCTIONS — 7 body domains powered by today's food ══ */}
+      {tp.nutrition !== false && t.calories > 100 && scores?.some(s => s.score > 0) && (() => {
+        const sorted = [...scores].sort((a, b) => b.score - a.score);
+        const top = sorted[0];
+        const gap = sorted[sorted.length - 1];
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: NUTR_CLR, textTransform: "uppercase", letterSpacing: 0.5 }}>Body functions</div>
+              <span style={{ fontSize: 9.5, color: C.muted }}>powered by today's food</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {scores.map(s => {
+                const clr = s.score >= 70 ? C.greenSoft : s.score >= 40 ? C.amber : C.coral;
+                return (
+                  <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 14, width: 20, textAlign: "center", flexShrink: 0 }}>{s.emoji}</span>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: C.inkSoft, width: 90, flexShrink: 0 }}>{s.label}</div>
+                    <div style={{ flex: 1, height: 5, background: C.line, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${s.score}%`, height: "100%", background: clr, borderRadius: 3, transition: "width 0.6s ease" }} />
+                    </div>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: clr, width: 28, textAlign: "right", flexShrink: 0 }}>{s.score}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}`, display: "flex", gap: 8 }}>
+              <div style={{ flex: 1, background: C.greenSoft + "10", borderRadius: 10, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9.5, fontWeight: 800, color: C.greenSoft, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 }}>Top fuel</div>
+                <div style={{ fontSize: 11, color: C.inkSoft }}>{top.emoji} {top.label} · {top.score}</div>
+              </div>
+              <div style={{ flex: 1, background: C.coral + "10", borderRadius: 10, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9.5, fontWeight: 800, color: C.coral, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 }}>Needs fuel</div>
+                <div style={{ fontSize: 11, color: C.inkSoft }}>{gap.emoji} {gap.label} · {gap.score}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ══ 4d3. MISSING NUTRIENTS — lowest tracked nutrients today ════════ */}
       {tp.nutrition !== false && t.calories > 100 && nutriInfo?.missing?.length > 0 && (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
