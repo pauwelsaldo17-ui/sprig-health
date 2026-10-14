@@ -3750,6 +3750,19 @@ function SprigApp() {
   moveInfo.trainedToday = trainedToday; // needed by computeAutoHabitToday workout autoType
   // Auto-habit completion (needs moveInfo)
   const autoToday = computeAutoHabitToday(habits2, { nutriInfo, moveInfo, sleepInfo, daily, targets, supps, takenIds, quickLog, tp: trackingPrefs });
+  // Best current streak across active habits — shown as 🔥 in habits strip
+  const habitStreakBest = (() => {
+    const active = (habits2 || []).filter((h) => !h.archived);
+    if (!active.length) return null;
+    let best = null;
+    for (const h of active) {
+      const streak = computeHabitStreak(h, habitCompletions, date);
+      if (streak >= 3 && (!best || streak > best.streak)) {
+        best = { habitId: h.id, habitName: h.name, streak };
+      }
+    }
+    return best;
+  })();
   // (recoveryInfo computed above, before bestActions — canonical single source of truth)
   const mindInfo = {
     checkin: daily.checkin || {}, habits: habitsTodayState, consistency,
@@ -3757,6 +3770,7 @@ function SprigApp() {
     hiddenDefaults: (habitConfig?.hidden || []).map((id) => DEFAULT_HABITS.find((h) => h.id === id)).filter(Boolean),
     // V2
     habits2, habitCompletions, habitStatusMap, consistencyV2, autoToday,
+    habitStreakBest,
   };
   // overwrite nutriInfo.waterGoal to use the smart-hydration goal so it's consistent everywhere
   nutriInfo.waterGoal = hydration.goal;

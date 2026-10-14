@@ -730,7 +730,7 @@ function TodayTab({
 
       {/* ══ 3b. HABIT PROGRESS STRIP ════════════════════════════ */}
       {onGoMind && mindInfo && (() => {
-        const { habits2 = [], habitStatusMap = {}, autoToday = {}, consistencyV2, focusMinutesToday = 0, focusWeek = [] } = mindInfo;
+        const { habits2 = [], habitStatusMap = {}, autoToday = {}, consistencyV2, focusMinutesToday = 0, focusWeek = [], habitStreakBest = null } = mindInfo;
         const weekFocusMin = focusWeek.reduce((a, f) => a + (f.minutes || 0), 0);
         const active     = habits2.filter(h => !h.archived);
         const dailyH     = active.filter(h => !h.frequency || h.frequency === "daily");
@@ -775,6 +775,11 @@ function TodayTab({
               {weekFocusMin >= 60 && focusMinutesToday < 10 && (
                 <span style={{ fontSize: 9.5, fontWeight: 700, color: RECOV_CLR }}>
                   📅 {Math.round(weekFocusMin / 60 * 10) / 10}h focus/wk
+                </span>
+              )}
+              {habitStreakBest && (
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: C.amber }}>
+                  🔥 {habitStreakBest.streak}d streak
                 </span>
               )}
             </div>
