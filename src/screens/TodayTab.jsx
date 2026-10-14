@@ -1035,6 +1035,13 @@ function TodayTab({
             </div>
           );
         }
+        /* nav map for each domain key */
+        const domainNav = {
+          sleep:      onGoSleep,
+          nutrition:  onGoNutrition,
+          movement:   onGoTrain,
+          training:   onGoTrain,
+        };
         return (
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginTop: 8, marginBottom: -2 }}>
             {done.length > 0 && (
@@ -1056,29 +1063,59 @@ function TodayTab({
                 {done.length > 0 ? "Partial:" : "In progress:"}
               </span>
             )}
-            {partial.map(d => (
-              <span key={d.k} style={{
-                fontSize: 10, fontWeight: 700, color: C.amber,
-                background: C.amber + "10", border: `1px solid ${C.amber}33`,
-                borderRadius: 7, padding: "3px 8px", lineHeight: 1,
-              }}>
-                {d.icon} {d.label}
-              </span>
-            ))}
+            {partial.map(d => {
+              const navFn = domainNav[d.k];
+              return navFn ? (
+                <button key={d.k} className="sprig-tap"
+                  onClick={() => { navFn(); buzz("tap"); }}
+                  style={{
+                    fontSize: 10, fontWeight: 700, color: C.amber,
+                    background: C.amber + "10", border: `1px solid ${C.amber}44`,
+                    borderRadius: 7, padding: "3px 8px", lineHeight: 1,
+                    cursor: "pointer", fontFamily: "DM Sans",
+                    display: "inline-flex", alignItems: "center", gap: 3,
+                  }}>
+                  {d.icon} {d.label} <ChevronRight size={9} color={C.amber} />
+                </button>
+              ) : (
+                <span key={d.k} style={{
+                  fontSize: 10, fontWeight: 700, color: C.amber,
+                  background: C.amber + "10", border: `1px solid ${C.amber}33`,
+                  borderRadius: 7, padding: "3px 8px", lineHeight: 1,
+                }}>
+                  {d.icon} {d.label}
+                </span>
+              );
+            })}
             {unlogged.length > 0 && (
               <span style={{ fontSize: 9, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0, lineHeight: 1.6, marginLeft: (done.length > 0 || partial.length > 0) ? 2 : 0 }}>
-                Still:
+                Log:
               </span>
             )}
-            {unlogged.map(d => (
-              <span key={d.k} style={{
-                fontSize: 10, fontWeight: 600, color: C.muted,
-                background: C.muted + "0A", border: `1px dashed ${C.muted}44`,
-                borderRadius: 7, padding: "3px 8px", lineHeight: 1,
-              }}>
-                {d.icon} {d.label}
-              </span>
-            ))}
+            {unlogged.map(d => {
+              const navFn = domainNav[d.k];
+              return navFn ? (
+                <button key={d.k} className="sprig-tap"
+                  onClick={() => { navFn(); buzz("tap"); }}
+                  style={{
+                    fontSize: 10, fontWeight: 700, color: C.inkSoft,
+                    background: C.card, border: `1px dashed ${C.amber}66`,
+                    borderRadius: 7, padding: "3px 8px", lineHeight: 1,
+                    cursor: "pointer", fontFamily: "DM Sans",
+                    display: "inline-flex", alignItems: "center", gap: 3,
+                  }}>
+                  {d.icon} {d.label} <ChevronRight size={9} color={C.amber} />
+                </button>
+              ) : (
+                <span key={d.k} style={{
+                  fontSize: 10, fontWeight: 600, color: C.muted,
+                  background: C.muted + "0A", border: `1px dashed ${C.muted}44`,
+                  borderRadius: 7, padding: "3px 8px", lineHeight: 1,
+                }}>
+                  {d.icon} {d.label}
+                </span>
+              );
+            })}
           </div>
         );
       })()}
