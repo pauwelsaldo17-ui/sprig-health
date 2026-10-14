@@ -3011,6 +3011,45 @@ function TodayTab({
         if (weekReport.pain?.count > 0) {
           stats.push({ label: `Pain logged ${weekReport.pain.count}×`, icon: "🩹", color: C.coral });
         }
+        // Protein avg — crucial for muscle building / fat loss
+        if (tp.nutrition !== false && nutrition?.avgProt != null) {
+          stats.push({ label: `${nutrition.avgProt}g protein/day`, icon: "🥩" });
+        }
+        // Water avg
+        if (tp.nutrition !== false && nutrition?.avgWater != null && nutrition.avgWater > 0) {
+          const liters = (nutrition.avgWater / 1000).toFixed(1);
+          stats.push({ label: `${liters}L water/day`, icon: "💧" });
+        }
+        // Total sets (training volume)
+        if (tp.training !== false && training?.totalSets > 0) {
+          stats.push({ label: `${training.totalSets} sets`, icon: "📊" });
+        }
+        // Weekly PRs — highlight chip if any
+        if (tp.training !== false && training?.prs?.length > 0) {
+          const prCount = training.prs.length;
+          stats.push({ label: `${prCount} new PR${prCount > 1 ? "s" : ""}!`, icon: "🏆", color: C.greenSoft });
+        }
+        // High-stress days
+        if (tp.mind !== false && mind?.stressHigh >= 2) {
+          const stressColor = mind.stressHigh >= 4 ? C.coral : C.amber;
+          stats.push({ label: `${mind.stressHigh} high-stress days`, icon: "😤", color: stressColor });
+        }
+        // Habit consistency this week
+        if (tp.mind !== false && mind?.consistency != null) {
+          const cPct = Math.round(mind.consistency);
+          const cColor = cPct >= 80 ? C.greenSoft : cPct >= 55 ? C.amber : C.coral;
+          stats.push({ label: `${cPct}% habits`, icon: "✅", color: cColor });
+        }
+        // Weight trend vs goal
+        if (weekReport.weight?.rate != null) {
+          const wr = weekReport.weight.rate;
+          const goal = profile?.goal || "maintain";
+          const isGoodRate = (goal === "gain" && wr >= 0.08 && wr <= 0.4) || (goal === "lose" && wr <= -0.1 && wr >= -0.6) || (goal === "maintain" && Math.abs(wr) <= 0.2);
+          const isBadRate = (goal === "gain" && wr < 0) || (goal === "lose" && wr >= 0) || (goal === "maintain" && Math.abs(wr) > 0.4);
+          const wColor = isGoodRate ? C.greenSoft : isBadRate ? C.coral : C.amber;
+          const sign = wr > 0 ? "+" : "";
+          stats.push({ label: `${sign}${wr} kg/wk`, icon: "⚖️", color: wColor });
+        }
         const topMuscles = training?.topMuscles?.slice(0, 4) || [];
         return (
           <div className="sprig-pop" style={{
