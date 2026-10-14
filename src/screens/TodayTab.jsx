@@ -1146,7 +1146,9 @@ function TodayTab({
             }
             sub={
               sleepDur
-                ? `Score ${Math.round(subScores.sleep || 0)}`
+                ? (subScores.sleep >= 80
+                    ? `Great sleep · ${Math.round(subScores.sleep)}`
+                    : `Score ${Math.round(subScores.sleep || 0)}`)
                 : dtSleepSrc === "quick_log"
                   ? "Quick logged"
                   : null
@@ -1173,13 +1175,19 @@ function TodayTab({
                   ? "Logged"
                   : "—"
             }
-            sub={t.calories > 0 ? `${Math.round(t.protein || 0)}g protein` : null}
+            sub={t.calories > 0
+              ? (targets.protein > 0 && (t.protein || 0) >= targets.protein * 0.9
+                ? `Protein ✓ ${Math.round(t.protein || 0)}g`
+                : `${Math.round(t.protein || 0)}g protein`)
+              : null}
             sub2={
               t.calories > adjTarget
                 ? "Over goal"
-                : t.calories > 0 && adjTarget > 0
-                  ? `${adjTarget - t.calories} left`
-                  : null
+                : t.calories > 0 && adjTarget > 0 && adjTarget - t.calories > 0
+                  ? `${adjTarget - t.calories} kcal left`
+                  : t.calories > 0 && adjTarget > 0 && t.calories >= adjTarget * 0.85
+                    ? "Calorie goal hit! ✓"
+                    : null
             }
             pct={calPct}
             onTap={onGoNutrition}
@@ -1211,7 +1219,7 @@ function TodayTab({
                   ? "Workout logged ✓"
                   : null
             }
-            sub2={null}
+            sub2={steps >= sGoal && sGoal > 0 ? "Step goal hit! 🏆" : null}
             pct={movePct}
             onTap={onGoTrain}
             cta={!dtMoveSrc && !dtTrainSrc && steps === 0 ? "Log workout" : null}
