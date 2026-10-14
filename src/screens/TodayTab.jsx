@@ -742,48 +742,78 @@ function TodayTab({
         const consPct    = consistencyV2?.pct;
         const consLabel  = consistencyV2?.label;
         const consClr    = consPct == null ? C.muted : consPct >= 85 ? C.greenSoft : consPct >= 65 ? C.amber : C.coral;
+        // weakest habit from full consistency history — surfaces the one most worth focusing on
+        const details    = consistencyV2?.details || [];
+        const weakest    = !allDone ? (details
+          .filter(d => d.rate !== null && d.rate < 0.6 && d.total >= 3)
+          .sort((a, b) => a.rate - b.rate)[0] || null) : null;
+        const MAX_CHIPS  = 5;
         return (
           <button className="sprig-tap" onClick={() => { onGoMind(); buzz("tap"); }}
             style={{
               width: "100%", background: C.card, border: `1px solid ${allDone ? C.greenSoft + "55" : C.line}`,
-              borderRadius: 12, padding: "8px 13px", display: "flex", alignItems: "center", gap: 9,
+              borderRadius: 12, padding: "9px 13px", display: "flex", flexDirection: "column", gap: 5,
               marginTop: 8, cursor: "pointer", textAlign: "left",
             }}>
-            {/* completion dots */}
-            <div style={{ display: "flex", gap: 4, flex: 1, flexWrap: "wrap", alignItems: "center" }}>
-              {dueToday.slice(0, 9).map((h) => {
-                const done = (habitStatusMap[h.id] || {}).isComplete || isAutoMet(h);
-                return <div key={h.id} style={{ width: 9, height: 9, borderRadius: "50%", background: done ? C.greenSoft : C.line + "AA", flexShrink: 0 }} />;
-              })}
-              {dueToday.length > 9 && <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 600 }}>+{dueToday.length - 9}</span>}
+            {/* top row: named habit chips + count col + chevron */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%" }}>
+              {/* named chips — user knows exactly which habits are done vs pending */}
+              <div style={{ display: "flex", gap: 4, flex: 1, flexWrap: "wrap", alignItems: "center" }}>
+                {dueToday.slice(0, MAX_CHIPS).map((h) => {
+                  const done = (habitStatusMap[h.id] || {}).isComplete || isAutoMet(h);
+                  const chipName = h.name.length > 12 ? h.name.slice(0, 11) + "…" : h.name;
+                  return (
+                    <span key={h.id} style={{
+                      fontSize: 9.5, fontWeight: 700, lineHeight: 1.5, flexShrink: 0,
+                      color: done ? C.greenSoft : C.muted,
+                      background: done ? C.greenSoft + "18" : C.line + "55",
+                      border: `1px solid ${done ? C.greenSoft + "44" : C.line + "88"}`,
+                      borderRadius: 6, padding: "2px 7px",
+                    }}>
+                      {done ? "✓ " : ""}{chipName}
+                    </span>
+                  );
+                })}
+                {dueToday.length > MAX_CHIPS && (
+                  <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 600, flexShrink: 0 }}>
+                    +{dueToday.length - MAX_CHIPS} more
+                  </span>
+                )}
+              </div>
+              {/* count + consistency summary */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: 1 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: allDone ? C.greenSoft : C.inkSoft }}>
+                  {doneCount}/{dueToday.length}
+                </span>
+                {consLabel && consPct != null && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: consClr }}>
+                    {consPct}% avg
+                  </span>
+                )}
+                {focusMinutesToday >= 10 && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: RECOV_CLR }}>
+                    🎯 {focusMinutesToday}m
+                  </span>
+                )}
+                {weekFocusMin >= 60 && focusMinutesToday < 10 && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: RECOV_CLR }}>
+                    📅 {Math.round(weekFocusMin / 60 * 10) / 10}h/wk
+                  </span>
+                )}
+                {habitStreakBest && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: C.amber }}>
+                    🔥 {habitStreakBest.streak}d
+                  </span>
+                )}
+              </div>
+              <ChevronRight size={12} color={allDone ? C.greenSoft : C.muted} style={{ flexShrink: 0 }} />
             </div>
-            {/* count + consistency */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: 1 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: allDone ? C.greenSoft : C.inkSoft }}>
-                {doneCount}/{dueToday.length} habits
-              </span>
-              {consLabel && consPct != null && (
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: consClr }}>
-                  {consLabel} · {consPct}%
-                </span>
-              )}
-              {focusMinutesToday >= 10 && (
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: RECOV_CLR }}>
-                  🎯 {focusMinutesToday}min focus
-                </span>
-              )}
-              {weekFocusMin >= 60 && focusMinutesToday < 10 && (
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: RECOV_CLR }}>
-                  📅 {Math.round(weekFocusMin / 60 * 10) / 10}h focus/wk
-                </span>
-              )}
-              {habitStreakBest && (
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: C.amber }}>
-                  🔥 {habitStreakBest.streak}d streak
-                </span>
-              )}
-            </div>
-            <ChevronRight size={12} color={allDone ? C.greenSoft : C.muted} style={{ flexShrink: 0 }} />
+            {/* weakest habit nudge — tells the user exactly what to prioritise */}
+            {weakest && (
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: weakest.rate < 0.4 ? C.coral : C.amber, paddingLeft: 1 }}>
+                📉 Struggling: {weakest.habit.name} ({Math.round(weakest.rate * 100)}% lately) — tap to work on it
+              </div>
+            )}
           </button>
         );
       })()}
