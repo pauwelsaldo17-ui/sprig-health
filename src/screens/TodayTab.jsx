@@ -673,11 +673,12 @@ function TodayTab({
           {scoreChips.map((ch) => {
             const v   = Math.round(ch.v);
             const clr = v >= 70 ? ch.color : v >= 45 ? C.amber : C.coral;
+            const grade = v >= 85 ? "Great" : v >= 70 ? "Good" : v >= 50 ? "Fair" : "Low";
             const navFn = { Sleep: onGoSleep, Nutrition: onGoNutrition, Movement: onGoTrain, Recovery: onGoHealth || onGoBody }[ch.label];
             return (
               <button key={ch.label} className="sprig-tap" onClick={() => navFn?.()}
                 style={{
-                  background: C.card, borderRadius: 14, padding: "9px 6px 7px",
+                  background: C.card, borderRadius: 14, padding: "9px 6px 8px",
                   textAlign: "center", border: `1px solid ${C.line}`,
                   cursor: navFn ? "pointer" : "default",
                   fontFamily: "DM Sans", width: "100%",
@@ -685,10 +686,17 @@ function TodayTab({
                 <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: clr, lineHeight: 1 }}>
                   {v}
                 </div>
-                <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: .4, textTransform: "uppercase", marginTop: 3, marginBottom: 5 }}>
+                <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: .4, textTransform: "uppercase", marginTop: 3 }}>
                   {ch.label}
                 </div>
-                <div style={{ height: 2, borderRadius: 99, background: clr, width: "38%", margin: "0 auto", opacity: 0.55 }} />
+                {/* grade label */}
+                <div style={{ fontSize: 8.5, fontWeight: 800, color: clr, marginTop: 3, marginBottom: 4, lineHeight: 1 }}>
+                  {grade}
+                </div>
+                {/* proportional progress bar — replaces static 38% decoration */}
+                <div style={{ height: 3, borderRadius: 99, background: clr + "22", width: "88%", margin: "0 auto", overflow: "hidden" }}>
+                  <div style={{ width: `${Math.max(4, v)}%`, height: "100%", background: clr, borderRadius: 99, transition: "width .7s cubic-bezier(.34,1.56,.64,1)" }} />
+                </div>
               </button>
             );
           })}
@@ -703,6 +711,10 @@ function TodayTab({
               <span style={{ fontSize: 11, color: C.muted, lineHeight: 1, flexShrink: 0 }}>Focus on:</span>
               <span style={{ fontSize: 11, color: C.inkSoft, lineHeight: 1, flex: 1 }}>{funcHealth.reasons.join(" · ")}</span>
             </>
+          ) : healthScore >= 80 ? (
+            <span style={{ fontSize: 11, color: C.greenSoft, lineHeight: 1, flex: 1, fontWeight: 600 }}>
+              {healthScore >= 90 ? "🌟 Outstanding day" : "✓ Everything looks great"}
+            </span>
           ) : (
             <span style={{ flex: 1 }} />
           )}
