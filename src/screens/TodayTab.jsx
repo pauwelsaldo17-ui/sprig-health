@@ -448,7 +448,7 @@ function TodayTab({
   wins, onKudos, onViewAllWins,
   recoveryInfo, quickLog, tp = {}, dt = null,
   onToast, loggedDays = 0, onGoSettings, onQuickSleep,
-  patterns = [], plateaus = [],
+  patterns = [], plateaus = [], timeline = null,
 }) {
   const { lastSleep }                         = sleepInfo;
   const { daily, subScores, healthScore, funcHealth, actions, weightSeries: wSeries = [] } = dailyInfo;
@@ -846,6 +846,62 @@ function TodayTab({
           ))}
         </div>
       )}
+
+      {/* ══ 3f. GOAL TIMELINE — weight goal + strength progress (goalTimeline) ══════ */}
+      {timeline && (timeline.weight || timeline.strength?.length > 0) && (() => {
+        const w = timeline.weight;
+        const str = (timeline.strength || []).slice(0, 2);
+        const wClr = w?.color || C.greenSoft;
+        return (
+          <div className="sprig-pop" style={{
+            background: C.card, border: `1px solid ${C.line}`,
+            borderRadius: 16, padding: "11px 14px", marginTop: 8,
+            boxShadow: C.shadow,
+          }}>
+            {/* header */}
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 7 }}>
+              🎯 Goal progress
+            </div>
+            {/* weight goal row */}
+            {w && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: str.length ? 7 : 0 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.2 }}>
+                    {w.kgLeft > 0 ? `${w.kgLeft} kg to go` : w.kgLeft < 0 ? `${Math.abs(w.kgLeft)} kg past target` : "Target reached!"}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                    {w.rate > 0 ? "+" : ""}{w.rate} kg/wk
+                    {w.weeksAtPace ? ` · ~${w.weeksAtPace}w at this pace` : ""}
+                  </div>
+                </div>
+                <div style={{
+                  fontSize: 10, fontWeight: 800, color: wClr,
+                  background: wClr + "18", borderRadius: 8, padding: "3px 9px",
+                  flexShrink: 0,
+                }}>
+                  {w.status}
+                </div>
+              </div>
+            )}
+            {/* strength gains row */}
+            {str.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {str.map((s) => (
+                  <div key={s.name} style={{
+                    background: C.bg2, borderRadius: 9, padding: "5px 10px", flex: "1 1 auto",
+                  }}>
+                    <div style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>{s.name.replace("Barbell ", "")}</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft, marginTop: 1 }}>
+                      {s.perMonth > 0 ? "+" : ""}{s.perMonth} kg/mo
+                    </div>
+                    <div style={{ fontSize: 9.5, color: C.muted }}>e1RM {s.e1} kg</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ══ 4. BENTO 2 × 2 ═══════════════════════════════════════ */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
