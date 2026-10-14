@@ -3882,6 +3882,7 @@ function SprigApp() {
             recoveryInfo={recoveryInfo} dt={dailyTruth} onToast={showToast}
             wins={(profile?.showWins === false) ? null : (wins[date] || [])} onKudos={(id) => kudoWin(id, date)} onViewAllWins={() => setWinsOpen(true)}
             loggedDays={loggedDays} onGoSettings={() => setTab("settings")}
+            patterns={patterns} plateaus={plateaus}
           />
         )}
         {tab === "nutrition" && (

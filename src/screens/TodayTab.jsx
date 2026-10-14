@@ -448,6 +448,7 @@ function TodayTab({
   wins, onKudos, onViewAllWins,
   recoveryInfo, quickLog, tp = {}, dt = null,
   onToast, loggedDays = 0, onGoSettings, onQuickSleep,
+  patterns = [], plateaus = [],
 }) {
   const { lastSleep }                         = sleepInfo;
   const { daily, subScores, healthScore, funcHealth, actions, weightSeries: wSeries = [] } = dailyInfo;
@@ -817,6 +818,32 @@ function TodayTab({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ══ 3e. PLATEAU ALERTS — weight / strength / sleep stalls (plateauDetection) ═══ */}
+      {plateaus?.length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+          {plateaus.map((p, i) => (
+            <div key={i} className="sprig-pop" style={{
+              background: C.amber + "0B", border: `1px solid ${C.amber}30`,
+              borderRadius: 14, padding: "10px 13px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: 13, lineHeight: 1 }}>📊</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                  Plateau detected
+                </span>
+              </div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.inkSoft, marginBottom: 4 }}>{p.title}</div>
+              {p.reasons?.slice(0, 2).map((r, j) => (
+                <div key={j} style={{ display: "flex", gap: 5, marginTop: 3 }}>
+                  <span style={{ fontSize: 10, color: C.amber, flexShrink: 0, marginTop: 1 }}>·</span>
+                  <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.4 }}>{r}</span>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       )}
 
@@ -2631,6 +2658,28 @@ function TodayTab({
       {wins && (
         <div style={{ marginTop: 12 }}>
           <TodayWinsCard wins={wins} onKudos={onKudos} onViewAll={onViewAllWins} />
+        </div>
+      )}
+
+      {/* ══ 8b. PATTERN INSIGHTS — behavioral correlations (patternDetection) ══ */}
+      {patterns?.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, paddingLeft: 2 }}>
+            💡 Your patterns
+          </div>
+          {patterns.map((p, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "flex-start", gap: 8,
+              background: C.card, border: `1px solid ${C.line}`,
+              borderRadius: 12, padding: "9px 12px",
+              marginBottom: i < patterns.length - 1 ? 6 : 0,
+            }}>
+              <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>
+                {p.kind === "alcohol_sleep" ? "🍷" : p.kind === "steps_mood" ? "🚶" : p.kind === "pain_exercise" ? "⚠️" : "🔍"}
+              </span>
+              <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5 }}>{p.text}</span>
+            </div>
+          ))}
         </div>
       )}
 
