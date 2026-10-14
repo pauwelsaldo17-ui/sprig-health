@@ -401,11 +401,45 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
   const ci = checkin || {};
   const allDone = CI_ROWS.every(({ key }) => ci[key]);
   if (allDone) {
+    /* ── emoji maps for compact display ── */
+    const moodEmoji   = { bad: "😔", okay: "😐", good: "😊" };
+    const energyEmoji = { low: "🪫", normal: "⚡", high: "🔥" };
+    const stressEmoji = { low: "😌", medium: "😤", high: "😰" };
+    /* ── contextual response based on combination ── */
+    const m = ci.mood, e = ci.energy, s = ci.stress;
+    let insight = null;
+    if (m === "good" && e === "high" && s === "low")    insight = { text: "Peak state — great time to tackle something big.", icon: "⚡", clr: C.greenSoft };
+    else if (m === "good" && s === "low")               insight = { text: "Great headspace today! Keep the momentum going.", icon: "🌟", clr: C.greenSoft };
+    else if (m === "bad" && s === "high")               insight = { text: "Tough combo. A short walk or 5-min breathing break genuinely helps.", icon: "💆", clr: C.coral };
+    else if (m === "bad" && e === "low")                insight = { text: "Rest and recovery mode — be kind to yourself today.", icon: "🛌", clr: C.amber };
+    else if (e === "high" && s === "high")              insight = { text: "Wired but stressed — channel it into a workout if you can.", icon: "😤", clr: C.amber };
+    else if (e === "low" && s === "low" && m !== "bad") insight = { text: "Low energy today — hydrate, eat something good, rest if needed.", icon: "🌿", clr: C.muted };
+    else if (s === "high")                              insight = { text: "High stress — even 10 minutes of movement or breathing helps.", icon: "😤", clr: C.amber };
+    else if (m === "okay" && e === "normal")            insight = { text: "Steady day — keep the routine going.", icon: "📊", clr: C.muted };
     return (
-      <div style={{ background: MIND_CLR + "12", border: `1px solid ${MIND_CLR}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 14 }}>✅</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: MIND_CLR }}>Check-in done —</span>
-        <span style={{ fontSize: 11.5, color: C.muted }}>Mood: <b>{ci.mood}</b> · Energy: <b>{ci.energy}</b> · Stress: <b>{ci.stress}</b></span>
+      <div style={{ background: MIND_CLR + "0D", border: `1px solid ${MIND_CLR}2A`, borderRadius: 14, padding: "10px 13px", marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: insight ? 6 : 0 }}>
+          <span style={{ fontSize: 14 }}>✅</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: MIND_CLR, letterSpacing: 0.3 }}>Check-in done</span>
+          <div style={{ display: "flex", gap: 5, marginLeft: "auto" }}>
+            {[
+              { emoji: moodEmoji[m], label: m },
+              { emoji: energyEmoji[e], label: e },
+              { emoji: stressEmoji[s], label: s },
+            ].map(({ emoji, label }) => (
+              <span key={label} style={{ fontSize: 11, background: C.bg2, borderRadius: 6, padding: "2px 7px", display: "flex", alignItems: "center", gap: 3 }}>
+                <span style={{ fontSize: 13 }}>{emoji}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: C.inkSoft, textTransform: "capitalize" }}>{label}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+        {insight && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, background: insight.clr + "0C", borderRadius: 9, padding: "6px 9px" }}>
+            <span style={{ fontSize: 13, lineHeight: 1.4, flexShrink: 0 }}>{insight.icon}</span>
+            <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{insight.text}</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -2949,12 +2983,13 @@ function TodayTab({
 
       {/* ══ 6.5. SUPPLEMENT STRIP ════════════════════════════════════ */}
       {supps && supps.length > 0 && (() => {
-        const taken = supps.filter(s => takenIds.includes(s.id));
+        const taken    = supps.filter(s => takenIds.includes(s.id));
         const allTaken = taken.length === supps.length;
         const SUPP_CLR = "#52C878";
         return (
           <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${allTaken ? SUPP_CLR + "44" : C.line}`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Header row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: allTaken ? SUPP_CLR + "28" : SUPP_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
                 <Pill size={15} color={SUPP_CLR} />
               </div>
@@ -2964,14 +2999,38 @@ function TodayTab({
                   {allTaken ? "All taken today ✓" : `${taken.length} / ${supps.length} taken`}
                 </div>
               </div>
-              {!allTaken ? (
-                <button className="sprig-tap" onClick={() => { supps.forEach(s => { if (!takenIds.includes(s.id)) onToggleSupp?.(s.id); }); buzz("light"); if (onToast) onToast(`All ${supps.length} supplements logged ✓`); }}
+              {!allTaken && (
+                <button className="sprig-tap"
+                  onClick={() => { supps.forEach(s => { if (!takenIds.includes(s.id)) onToggleSupp?.(s.id); }); buzz("light"); if (onToast) onToast(`All ${supps.length} supplements logged ✓`); }}
                   style={{ background: SUPP_CLR + "18", border: `1px solid ${SUPP_CLR}44`, borderRadius: 9, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: SUPP_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap", flexShrink: 0 }}>
                   Log all
                 </button>
-              ) : (
-                <Check size={16} color={SUPP_CLR} />
               )}
+            </div>
+            {/* Individual supplement chips — tap to toggle each one */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {supps.map((s) => {
+                const isTaken = takenIds.includes(s.id);
+                const chipName = (s.name || "").length > 14 ? (s.name || "").slice(0, 13) + "…" : (s.name || "Supplement");
+                const doseLabel = s.dose ? ` ${s.dose}${s.unit || ""}` : "";
+                return (
+                  <button key={s.id} className="sprig-tap"
+                    onClick={() => { onToggleSupp?.(s.id); buzz(isTaken ? "tap" : "light"); if (onToast && !isTaken) onToast(`${s.name} ✓`); }}
+                    style={{
+                      background: isTaken ? SUPP_CLR + "1A" : C.bg2,
+                      border: `1.5px solid ${isTaken ? SUPP_CLR + "55" : C.line}`,
+                      borderRadius: 10, padding: "6px 11px",
+                      display: "flex", alignItems: "center", gap: 5,
+                      cursor: "pointer", fontFamily: "DM Sans",
+                      transition: "background .15s, border-color .15s",
+                    }}>
+                    <span style={{ fontSize: 12, lineHeight: 1 }}>{isTaken ? "✅" : "⬜"}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: isTaken ? SUPP_CLR : C.inkSoft }}>
+                      {chipName}{doseLabel && <span style={{ fontWeight: 500, color: C.muted }}>{doseLabel}</span>}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         );
