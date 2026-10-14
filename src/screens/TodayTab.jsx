@@ -1882,6 +1882,22 @@ function TodayTab({
         </div>
       )}
 
+      {/* ══ 4e2. PROGRESS ON TRACK — no bottleneck found, positive summary ═══ */}
+      {moveInfo?.diagnosis?.enough && !moveInfo.diagnosis.bottleneck && moveInfo.diagnosis.summary && (
+        <div className="sprig-pop" style={{ background: C.greenSoft + "0D", border: `1px solid ${C.greenSoft}2A`, borderRadius: 16, padding: "10px 14px", marginTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: moveInfo.diagnosis.good?.length ? 4 : 0 }}>
+            <span style={{ fontSize: 14, lineHeight: 1 }}>✅</span>
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.greenSoft, textTransform: "uppercase", letterSpacing: 0.4 }}>Progress on track</div>
+          </div>
+          <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>{moveInfo.diagnosis.summary}</div>
+          {moveInfo.diagnosis.good?.length > 0 && (
+            <div style={{ fontSize: 11, color: C.greenSoft, marginTop: 5, fontWeight: 600 }}>
+              ✓ {moveInfo.diagnosis.good.join(" · ")}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ══ 4f. HEALTH RADAR — elevated / high risk categories ════════ */}
       {healthInfo?.radar?.length > 0 && (() => {
         const alerts = healthInfo.radar.filter(c => c.tag === "elevated" || c.tag === "high");
