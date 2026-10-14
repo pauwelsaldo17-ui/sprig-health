@@ -2983,6 +2983,13 @@ function TodayTab({
           stats.push({ label: moodLabel, icon: moodEmoji });
         }
         if (tp.mind !== false && mind?.focusMin >= 60) stats.push({ label: `${Math.round(mind.focusMin / 60)}h focus`, icon: "🎯" });
+        if (tp.sleep !== false && sleep?.bedConsistency != null) {
+          const bc = sleep.bedConsistency;
+          const bcIcon = bc <= 20 ? "⏰" : bc <= 45 ? "⏰" : "⏰";
+          const bcColor = bc <= 20 ? C.greenSoft : bc <= 45 ? C.amber : C.coral;
+          stats.push({ label: `Bedtime ±${bc}min`, icon: bcIcon, color: bcColor });
+        }
+        const topMuscles = training?.topMuscles?.slice(0, 4) || [];
         return (
           <div className="sprig-pop" style={{
             background: C.card, border: `1px solid ${C.line}`,
@@ -2993,12 +3000,23 @@ function TodayTab({
             </div>
             {/* Stats chips row */}
             {stats.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: topMuscles.length ? 7 : 10 }}>
                 {stats.map((s, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, background: C.bg2, borderRadius: 8, padding: "3px 9px" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, background: s.color ? s.color + "15" : C.bg2, borderRadius: 8, padding: "3px 9px" }}>
                     <span style={{ fontSize: 11, lineHeight: 1 }}>{s.icon}</span>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.inkSoft }}>{s.label}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: s.color || C.inkSoft }}>{s.label}</span>
                   </div>
+                ))}
+              </div>
+            )}
+            {/* Top muscles trained this week */}
+            {topMuscles.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 700 }}>Trained:</span>
+                {topMuscles.map((m, i) => (
+                  <span key={i} style={{ fontSize: 9.5, color: C.inkSoft, fontWeight: 600 }}>
+                    {m.name}{i < topMuscles.length - 1 ? " ·" : ""}
+                  </span>
                 ))}
               </div>
             )}
