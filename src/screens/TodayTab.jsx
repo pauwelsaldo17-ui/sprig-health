@@ -1974,6 +1974,23 @@ function TodayTab({
         );
       })()}
 
+      {/* ══ 4d1b. PROTEIN REMAINING NUDGE — shown when under 90% of protein goal ══ */}
+      {tp.nutrition !== false && t.calories > 100 && (targets.protein || 0) > 0 && (t.protein || 0) < targets.protein * 0.9 && (() => {
+        const needed  = Math.round(targets.protein - (t.protein || 0));
+        const pctHit  = Math.round((t.protein || 0) / targets.protein * 100);
+        const clr     = pctHit < 50 ? C.coral : C.amber;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 9, background: clr + "0E", border: `1px solid ${clr}28`, borderRadius: 12, padding: "8px 12px", marginTop: 8 }}>
+            <span style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}>💪</span>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: clr }}>{needed}g protein still needed</span>
+              <span style={{ fontSize: 11, color: C.inkSoft }}> · {Math.round(t.protein || 0)}g / {targets.protein}g today</span>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 800, color: clr, background: clr + "18", borderRadius: 5, padding: "3px 7px", flexShrink: 0 }}>{pctHit}%</span>
+          </div>
+        );
+      })()}
+
       {/* ══ 4d2. NUTRITION COACH — calorie/protein vs goal + diet quality ══ */}
       {tp.nutrition !== false && t.calories > 100 && nutriInfo?.coach?.lines?.length > 0 && (() => {
         const warns = nutriInfo.coach.lines.filter(l => l.tone === "warn");
@@ -2645,16 +2662,34 @@ function TodayTab({
             </div>
           )}
           {!stepsEditing ? (
-            <div style={{ display: "flex", gap: 6 }}>
-              <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 1000 }); buzz("light"); }}
-                style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+1K</button>
-              <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 2000 }); buzz("light"); }}
-                style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+2K</button>
-              <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 5000 }); buzz("light"); }}
-                style={{ ...btn(C.bg2, C.greenSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+5K</button>
-              <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); }}
-                style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>Set</button>
-            </div>
+            steps >= sGoal ? (
+              /* ── Goal achieved — celebrate, hide clutter buttons ── */
+              <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 10, background: C.greenSoft + "12", border: `1px solid ${C.greenSoft}33`, borderRadius: 12, padding: "10px 13px" }}>
+                <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>🏆</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft }}>Step goal crushed!</div>
+                  <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 1 }}>
+                    {steps.toLocaleString()} steps{moveInfo?.movement?.kcal > 0 ? ` · ~${moveInfo.movement.kcal} kcal burned` : ""}
+                  </div>
+                </div>
+                <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); }}
+                  style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 11px", fontSize: 11, fontWeight: 700, color: C.inkSoft, cursor: "pointer", fontFamily: "DM Sans", flexShrink: 0 }}>
+                  Edit
+                </button>
+              </div>
+            ) : (
+              /* ── Still working toward goal — show add buttons ── */
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 1000 }); buzz("light"); }}
+                  style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+1K</button>
+                <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 2000 }); buzz("light"); }}
+                  style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+2K</button>
+                <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 5000 }); buzz("light"); }}
+                  style={{ ...btn(C.bg2, C.greenSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+5K</button>
+                <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); }}
+                  style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>Set</button>
+              </div>
+            )
           ) : (
             <div style={{ display: "flex", gap: 6 }}>
               <input
