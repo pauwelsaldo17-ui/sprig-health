@@ -2910,11 +2910,22 @@ function TodayTab({
         </div>
       )}
 
-      {/* ══ 8c. WEEKLY WRAP — week's top win + one priority for next 7 days ══ */}
-      {weekReport?.hasData && (weekReport.win || weekReport.nextWeek) && (() => {
+      {/* ══ 8c. WEEKLY WRAP — stats strip + top win + priority for next 7 days ══ */}
+      {weekReport?.hasData && (() => {
         const dayOfWeek = new Date().getDay(); // 0=Sun, show from Wednesday onward
         const enoughWeek = dayOfWeek >= 3 || dayOfWeek === 0; // Wed-Sat or Sunday
         if (!enoughWeek) return null;
+        if (!weekReport.win && !weekReport.nextWeek) return null;
+        const { training, sleep, nutrition } = weekReport;
+        // Build stats strip: only show what we actually have data for
+        const stats = [];
+        if (tp.training !== false && training?.count > 0) stats.push({ label: `${training.count} workout${training.count !== 1 ? "s" : ""}`, icon: "🏋️" });
+        if (tp.sleep !== false && sleep?.avgMin) {
+          const h = Math.floor(sleep.avgMin / 60), m = Math.round(sleep.avgMin % 60);
+          stats.push({ label: `${h}h${m > 0 ? m + "m" : ""} sleep avg`, icon: "🌙" });
+        }
+        if (tp.nutrition !== false && nutrition?.proteinHitDays > 0) stats.push({ label: `Protein ${nutrition.proteinHitDays}/${nutrition.foodDays || 7}d`, icon: "💪" });
+        if (tp.nutrition !== false && nutrition?.avgSteps > 0) stats.push({ label: `${Math.round((nutrition.avgSteps || 0) / 100) * 100} steps/day`, icon: "👟" });
         return (
           <div className="sprig-pop" style={{
             background: C.card, border: `1px solid ${C.line}`,
@@ -2923,6 +2934,17 @@ function TodayTab({
             <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>
               📅 This week
             </div>
+            {/* Stats chips row */}
+            {stats.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                {stats.map((s, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, background: C.bg2, borderRadius: 8, padding: "3px 9px" }}>
+                    <span style={{ fontSize: 11, lineHeight: 1 }}>{s.icon}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.inkSoft }}>{s.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {weekReport.win && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: weekReport.nextWeek ? 8 : 0 }}>
                 <div style={{ width: 22, height: 22, borderRadius: 6, background: C.greenSoft + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
@@ -2935,7 +2957,7 @@ function TodayTab({
               </div>
             )}
             {weekReport.nextWeek && (
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, paddingTop: weekReport.win ? 8 : 0, borderTop: weekReport.win ? `1px solid ${C.line}` : "none" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, paddingTop: (weekReport.win || stats.length > 0) ? 8 : 0, borderTop: (weekReport.win || stats.length > 0) ? `1px solid ${C.line}` : "none" }}>
                 <div style={{ width: 22, height: 22, borderRadius: 6, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
                   <span style={{ fontSize: 11, lineHeight: 1 }}>🎯</span>
                 </div>
