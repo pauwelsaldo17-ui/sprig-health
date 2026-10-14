@@ -1354,17 +1354,38 @@ function TodayTab({
         );
       })()}
 
-      {/* ══ 4c7. SPORT ADVICE — context-specific tips for the user's sport ════ */}
-      {moveInfo?.sport?.length > 0 && (
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
-          {moveInfo.sport.map((tip, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.card, border: `1px solid ${C.amber}22`, borderRadius: 12, padding: "8px 12px", boxShadow: C.shadow }}>
-              <Zap size={12} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} />
-              <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{tip}</span>
+      {/* ══ 4c7. SPORT COACHING — context-specific coaching for football/fight/running ════ */}
+      {tp.training !== false && trainInfo?.sportAdvice?.length > 0 && (() => {
+        const SPORT_CLR = C.coral;
+        const sport = profile?.sport || profile?.focus || "";
+        const sportIcon = sport === "football" ? "⚽" : sport === "fight" ? "🥊" : sport === "running" ? "🏃" : "🎯";
+        const sportLabel = sport === "football" ? "Football" : sport === "fight" ? "Combat sports" : sport === "running" ? "Running" : "Sport";
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, border: `1px solid ${SPORT_CLR}28`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: trainInfo.sportAdvice.length > 1 ? 8 : 0 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: SPORT_CLR + "1A", display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
+                {sportIcon}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>{sportLabel} coach</div>
+                {trainInfo.sportAdvice.length === 1 && (
+                  <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45, marginTop: 1 }}>{trainInfo.sportAdvice[0]}</div>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+            {trainInfo.sportAdvice.length > 1 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {trainInfo.sportAdvice.map((tip, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 11, color: SPORT_CLR, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>→</span>
+                    <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{tip}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ══ 4d0. WORKOUT CALORIE BOOST — strength training added to target ══ */}
       {tp.nutrition !== false && tp.training !== false && moveInfo?.workoutAdj?.kcal > 0 && (
@@ -1765,39 +1786,6 @@ function TodayTab({
                 </button>
               ))}
             </div>
-          </div>
-        );
-      })()}
-
-      {/* ══ 4b2. SPORT ADVICE — contextual coaching for football/fight/running ════ */}
-      {tp.training !== false && trainInfo?.sportAdvice?.length > 0 && (() => {
-        const SPORT_CLR = C.coral;
-        const sport = profile?.sport || profile?.focus || "";
-        const sportIcon = sport === "football" ? "⚽" : sport === "fight" ? "🥊" : sport === "running" ? "🏃" : "🎯";
-        const sportLabel = sport === "football" ? "Football" : sport === "fight" ? "Combat sports" : sport === "running" ? "Running" : "Sport";
-        return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, border: `1px solid ${SPORT_CLR}28`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: trainInfo.sportAdvice.length > 1 ? 8 : 0 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 9, background: SPORT_CLR + "1A", display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
-                {sportIcon}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>{sportLabel} coach</div>
-                {trainInfo.sportAdvice.length === 1 && (
-                  <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45, marginTop: 1 }}>{trainInfo.sportAdvice[0]}</div>
-                )}
-              </div>
-            </div>
-            {trainInfo.sportAdvice.length > 1 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {trainInfo.sportAdvice.map((tip, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 11, color: SPORT_CLR, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>→</span>
-                    <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{tip}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         );
       })()}
