@@ -1287,19 +1287,35 @@ function TodayTab({
             {tired.map(m => {
               const remainH = trainInfo?.recovery?.[m.k]?.remaining || 0;
               const readyIn = remainH > 0 && remainH < 72 ? `~${Math.round(remainH)}h` : null;
+              // sourceLabel: "from football", "workout + sport", "Quick Log" — never shown before
+              const src = m.sourceLabel
+                ? m.sourceLabel
+                : m.quickLogged ? "Quick Log" : null;
+              const srcIcon = m.sportSource && !m.sportStacked ? "⚽" : m.sportStacked ? "🏋️⚽" : m.quickLogged ? "⚡" : null;
               return (
                 <div key={m.k} style={{
                   flex: "0 0 auto", background: m.color + "14",
                   border: `1px solid ${m.color}33`, borderRadius: 9, padding: "4px 10px",
                 }}>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: m.color, textTransform: "uppercase", letterSpacing: 0.4 }}>
-                    {m.name}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: m.color, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                      {m.name}
+                    </div>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: m.color, opacity: 0.65, marginLeft: "auto" }}>
+                      {m.fatigue}%
+                    </div>
                   </div>
                   <div style={{ fontSize: 10.5, fontWeight: 600, color: m.color, marginTop: 1 }}>
                     {m.status}
                   </div>
+                  {src && (
+                    <div style={{ fontSize: 8, color: C.muted, marginTop: 2, fontWeight: 700, display: "flex", alignItems: "center", gap: 2 }}>
+                      {srcIcon && <span>{srcIcon}</span>}
+                      <span style={{ textTransform: "capitalize" }}>{src}</span>
+                    </div>
+                  )}
                   {readyIn && (
-                    <div style={{ fontSize: 8.5, color: C.muted, marginTop: 1, fontWeight: 600 }}>
+                    <div style={{ fontSize: 8.5, color: C.muted, marginTop: src ? 1 : 1, fontWeight: 600 }}>
                       ready in {readyIn}
                     </div>
                   )}
@@ -1957,6 +1973,7 @@ function TodayTab({
       {tp.training !== false && trainInfo?.volume && (() => {
         const MUSCLE_LABEL = Object.fromEntries(MUSCLES);
         const MAJOR = ["chest", "back", "shoulders", "quads", "hamstrings", "glutes", "biceps", "triceps"];
+        const MINOR = ["abs", "traps", "forearms", "calves", "lower_back"];
         const vol = trainInfo.volume;
         const totalSets = MAJOR.reduce((s, k) => s + (vol[k] || 0), 0);
         if (totalSets === 0) return null;
@@ -1965,6 +1982,10 @@ function TodayTab({
           .sort((a, b) => b.sets - a.sets);
         const neglected = items.filter(m => m.sets === 0);
         const VOL_BADGE = { none: "—", low: "↓ low", under: "↓", good: "✓", high: "↑ high", over: "↑↑ too much" };
+        const minorItems = MINOR
+          .map(k => ({ key: k, label: MUSCLE_LABEL[k] || k.replace("_", " "), sets: vol[k] || 0 }))
+          .filter(m => m.sets > 0)
+          .sort((a, b) => b.sets - a.sets);
         return (
           <div style={{ marginTop: 8 }}>
             <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, alignItems: "center" }}>
@@ -1994,6 +2015,26 @@ function TodayTab({
                 );
               })}
             </div>
+            {minorItems.length > 0 && (
+              <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, marginTop: 5, alignItems: "center" }}>
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0, opacity: 0.6 }}>
+                  Accessory
+                </span>
+                {minorItems.map(m => (
+                  <div key={m.key} style={{
+                    flex: "0 0 auto", background: C.muted + "10",
+                    border: `1px solid ${C.muted}28`, borderRadius: 8, padding: "3px 9px", textAlign: "center", opacity: 0.85,
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.inkSoft, lineHeight: 1.15 }}>
+                      {m.sets}
+                    </div>
+                    <div style={{ fontSize: 8.5, color: C.muted, fontWeight: 600, marginTop: 1 }}>
+                      {m.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             {neglected.length >= 2 && (
               <div style={{ fontSize: 10.5, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>
                 ⚡ Not hit this week: {neglected.map(m => m.label).join(" · ")}
