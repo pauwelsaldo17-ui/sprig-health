@@ -3010,6 +3010,11 @@ function TodayTab({
           const scColor = sc >= 75 ? C.greenSoft : sc >= 55 ? C.amber : C.coral;
           stats.push({ label: `Sleep ${sc}/100`, icon: "💤", color: scColor });
         }
+        // Sleep nights tracked — shows tracking completeness (e.g. "5/7 nights")
+        if (tp.sleep !== false && sleep?.nights != null && sleep.nights > 0 && sleep.nights < 7) {
+          const nColor = sleep.nights >= 5 ? C.greenSoft : sleep.nights >= 3 ? C.amber : C.coral;
+          stats.push({ label: `${sleep.nights}/7 nights tracked`, icon: "📋", color: nColor });
+        }
         if (tp.nutrition !== false && nutrition?.avgCal != null) {
           stats.push({ label: `${nutrition.avgCal} kcal/day`, icon: "🍽️" });
         }
