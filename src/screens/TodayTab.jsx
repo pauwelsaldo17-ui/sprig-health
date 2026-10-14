@@ -782,10 +782,57 @@ function TodayTab({
           .filter(d => d.rate !== null && d.rate < 0.6 && d.total >= 3)
           .sort((a, b) => a.rate - b.rate)[0] || null) : null;
         const MAX_CHIPS  = 5;
+        if (allDone) {
+          /* ── ALL HABITS DONE — celebration layout ── */
+          return (
+            <button className="sprig-tap sprig-pop" onClick={() => { onGoMind(); buzz("tap"); }}
+              style={{
+                width: "100%", background: C.card, border: `1px solid ${C.greenSoft}55`,
+                borderRadius: 12, padding: "10px 13px", display: "flex", flexDirection: "column", gap: 6,
+                marginTop: 8, cursor: "pointer", textAlign: "left",
+              }}>
+              {/* celebration header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>🎯</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft }}>
+                    All {dueToday.length} habit{dueToday.length !== 1 ? "s" : ""} done today!
+                  </div>
+                  {consPct != null && (
+                    <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>
+                      {consPct}% consistency{habitStreakBest ? ` · 🔥 ${habitStreakBest.streak}d streak` : ""}
+                    </div>
+                  )}
+                </div>
+                <ChevronRight size={12} color={C.greenSoft} style={{ flexShrink: 0 }} />
+              </div>
+              {/* compact done-chip row */}
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {dueToday.slice(0, MAX_CHIPS).map((h) => {
+                  const chipName = h.name.length > 14 ? h.name.slice(0, 13) + "…" : h.name;
+                  return (
+                    <span key={h.id} style={{
+                      fontSize: 9.5, fontWeight: 700, lineHeight: 1.5, flexShrink: 0,
+                      color: C.greenSoft, background: C.greenSoft + "14",
+                      border: `1px solid ${C.greenSoft}33`, borderRadius: 6, padding: "2px 7px",
+                    }}>
+                      ✓ {chipName}
+                    </span>
+                  );
+                })}
+                {dueToday.length > MAX_CHIPS && (
+                  <span style={{ fontSize: 9.5, color: C.greenSoft, fontWeight: 600, flexShrink: 0 }}>
+                    +{dueToday.length - MAX_CHIPS} more ✓
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        }
         return (
           <button className="sprig-tap" onClick={() => { onGoMind(); buzz("tap"); }}
             style={{
-              width: "100%", background: C.card, border: `1px solid ${allDone ? C.greenSoft + "55" : C.line}`,
+              width: "100%", background: C.card, border: `1px solid ${C.line}`,
               borderRadius: 12, padding: "9px 13px", display: "flex", flexDirection: "column", gap: 5,
               marginTop: 8, cursor: "pointer", textAlign: "left",
             }}>
@@ -816,7 +863,7 @@ function TodayTab({
               </div>
               {/* count + consistency summary */}
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: 1 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: allDone ? C.greenSoft : C.inkSoft }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: C.inkSoft }}>
                   {doneCount}/{dueToday.length}
                 </span>
                 {consLabel && consPct != null && (
@@ -840,7 +887,7 @@ function TodayTab({
                   </span>
                 )}
               </div>
-              <ChevronRight size={12} color={allDone ? C.greenSoft : C.muted} style={{ flexShrink: 0 }} />
+              <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />
             </div>
             {/* weakest habit nudge — tells the user exactly what to prioritise */}
             {weakest && (
