@@ -2025,6 +2025,46 @@ function TodayTab({
         );
       })()}
 
+      {/* ══ 4d1c. MACRO SNAPSHOT — compact full macro picture at a glance ══ */}
+      {tp.nutrition !== false && t.calories > 50 && (t.carbs > 0 || t.fat > 0 || t.fiber > 0) && (() => {
+        const macros = [
+          { key: "cal",     label: "Cal",     value: Math.round(t.calories || 0), target: targets.calories || 0, unit: "kcal", clr: NUTR_CLR    },
+          { key: "protein", label: "Protein", value: Math.round(t.protein  || 0), target: targets.protein  || 0, unit: "g",    clr: C.coral     },
+          { key: "carbs",   label: "Carbs",   value: Math.round(t.carbs    || 0), target: 0,                     unit: "g",    clr: C.amber     },
+          { key: "fat",     label: "Fat",     value: Math.round(t.fat      || 0), target: 0,                     unit: "g",    clr: C.muted     },
+          { key: "fiber",   label: "Fiber",   value: Math.round(t.fiber    || 0), target: targets.fiber    || 0, unit: "g",    clr: C.greenSoft },
+        ];
+        return (
+          <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${NUTR_CLR}22`, padding: "11px 13px", marginTop: 8, boxShadow: C.shadow }}>
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 9 }}>Macros today</div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {macros.map(({ key, label, value, target, unit, clr }) => {
+                const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : -1;
+                const overGoal = target > 0 && value > target;
+                const barClr = overGoal ? C.coral : clr;
+                return (
+                  <div key={key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.3, whiteSpace: "nowrap" }}>{label}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: overGoal ? C.coral : clr, lineHeight: 1.1 }}>{value}</div>
+                    <div style={{ fontSize: 8.5, color: C.muted, lineHeight: 1 }}>
+                      {target > 0 ? `/ ${target}` : unit}
+                    </div>
+                    {target > 0 && (
+                      <>
+                        <div style={{ width: "100%", height: 3, background: clr + "22", borderRadius: 99, marginTop: 3, overflow: "hidden" }}>
+                          <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: barClr, borderRadius: 99, transition: "width .6s cubic-bezier(.34,1.56,.64,1)" }} />
+                        </div>
+                        <div style={{ fontSize: 8.5, fontWeight: 700, color: overGoal ? C.coral : (pct >= 90 ? C.greenSoft : C.muted) }}>{pct}%</div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ══ 4d2. NUTRITION COACH — calorie/protein vs goal + diet quality ══ */}
       {tp.nutrition !== false && t.calories > 100 && nutriInfo?.coach?.lines?.length > 0 && (() => {
         const warns = nutriInfo.coach.lines.filter(l => l.tone === "warn");
