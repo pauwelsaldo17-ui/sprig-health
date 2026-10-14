@@ -1354,6 +1354,114 @@ function TodayTab({
         );
       })()}
 
+      {/* ══ 4c6c. SPORT SESSION SUMMARY — what you did today (sport source, no gym) ════ */}
+      {tp.training !== false && dt?.training?.source === "sport" && dt?.training?.sportSessions?.length > 0 && (() => {
+        const sessions = dt.training.sportSessions;
+        const totalKcal = sessions.reduce((sum, s) => sum + (s.estimatedCalories || 0), 0);
+        const totalMin  = sessions.reduce((sum, s) => sum + (s.durationMin || 0), 0);
+        const SPORT_SESS_CLR = "#6C8EF5";  // indigo-blue for sport activity
+
+        function sportEmoji(name = "") {
+          const n = name.toLowerCase();
+          if (n.includes("football") || n.includes("soccer")) return "⚽";
+          if (n.includes("fight") || n.includes("box") || n.includes("mma") || n.includes("kick") || n.includes("muay")) return "🥊";
+          if (n.includes("run") || n.includes("jog")) return "🏃";
+          if (n.includes("cycl") || n.includes("bike")) return "🚴";
+          if (n.includes("swim")) return "🏊";
+          if (n.includes("basket")) return "🏀";
+          if (n.includes("tennis")) return "🎾";
+          if (n.includes("volley")) return "🏐";
+          if (n.includes("gym") || n.includes("lift") || n.includes("weight")) return "🏋️";
+          if (n.includes("yoga") || n.includes("stretch")) return "🧘";
+          if (n.includes("hike") || n.includes("walk")) return "🥾";
+          return "🎯";
+        }
+
+        function intensityStyle(intensity = "") {
+          const iv = intensity.toLowerCase();
+          if (iv === "hard" || iv === "high") return { clr: C.coral,     label: "Hard" };
+          if (iv === "moderate" || iv === "medium") return { clr: C.amber, label: "Moderate" };
+          return { clr: C.greenSoft, label: "Easy" };
+        }
+
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, border: `1px solid ${SPORT_SESS_CLR}28`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: SPORT_SESS_CLR + "1A", display: "grid", placeItems: "center", fontSize: 15, flexShrink: 0 }}>
+                  🏅
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: SPORT_SESS_CLR, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    Sport activity
+                  </div>
+                  <div style={{ fontSize: 9.5, color: C.muted, marginTop: 0.5 }}>
+                    {sessions.length === 1 ? "1 session today" : `${sessions.length} sessions today`}
+                  </div>
+                </div>
+              </div>
+              {totalMin > 0 && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: SPORT_SESS_CLR, background: SPORT_SESS_CLR + "14", borderRadius: 8, padding: "3px 9px" }}>
+                  {totalMin >= 60 ? `${Math.floor(totalMin / 60)}h${totalMin % 60 > 0 ? ` ${totalMin % 60}m` : ""}` : `${totalMin}m`}
+                </div>
+              )}
+            </div>
+
+            {/* Session rows */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {sessions.map((sess, i) => {
+                const ist = intensityStyle(sess.intensity);
+                const emoji = sportEmoji(sess.sportName);
+                const dur = sess.durationMin || 0;
+                const kcal = sess.estimatedCalories || 0;
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg2 || "#F7F7FA", borderRadius: 10, padding: "7px 10px" }}>
+                    <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{emoji}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.2, textTransform: "capitalize" }}>
+                        {sess.sportName || "Activity"}
+                      </div>
+                      {dur > 0 && (
+                        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1.5 }}>
+                          {dur >= 60 ? `${Math.floor(dur / 60)}h${dur % 60 > 0 ? ` ${dur % 60}m` : ""}` : `${dur} min`}
+                          {kcal > 0 ? ` · ~${kcal} kcal` : ""}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{
+                      fontSize: 9.5, fontWeight: 800, color: ist.clr,
+                      background: ist.clr + "18", border: `1px solid ${ist.clr}30`,
+                      borderRadius: 6, padding: "2px 7px", letterSpacing: 0.2, flexShrink: 0,
+                    }}>
+                      {ist.label}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Totals footer — only when multiple sessions or have kcal data */}
+            {(totalKcal > 0 || sessions.length > 1) && (
+              <div style={{ marginTop: 9, paddingTop: 8, borderTop: `1px solid ${C.line}`, display: "flex", gap: 8 }}>
+                {totalKcal > 0 && (
+                  <div style={{ flex: 1, background: C.coral + "0D", borderRadius: 9, padding: "5px 10px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: C.coral, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 1 }}>Kcal burned</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: C.coral, fontFamily: "Fraunces, serif" }}>~{totalKcal}</div>
+                  </div>
+                )}
+                {dt.training.sportLoad && (
+                  <div style={{ flex: 1, background: SPORT_SESS_CLR + "0D", borderRadius: 9, padding: "5px 10px", textAlign: "center" }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: SPORT_SESS_CLR, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 1 }}>Load</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: SPORT_SESS_CLR, fontFamily: "Fraunces, serif", textTransform: "capitalize" }}>{dt.training.sportLoad}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ══ 4c7. SPORT COACHING — context-specific coaching for football/fight/running ════ */}
       {tp.training !== false && trainInfo?.sportAdvice?.length > 0 && (() => {
         const SPORT_CLR = C.coral;
