@@ -110,23 +110,50 @@ function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty
 }
 
 /* ─── QuickAction button ─────────────────────────────────────────── */
-function QA({ icon, label, color, onClick }) {
+function QA({ icon, label, color, onClick, done = false, partial = false, val }) {
+  const dotClr = done ? C.greenSoft : C.amber;
   return (
     <button className="sprig-tap" onClick={onClick}
       style={{
-        flex: 1, background: color + "18", border: `1px solid ${color}33`,
+        flex: 1,
+        background: done ? color + "22" : color + "18",
+        border: `1px solid ${done ? color + "55" : partial ? color + "44" : color + "33"}`,
         borderRadius: 18, padding: "13px 6px",
         display: "flex", flexDirection: "column",
-        alignItems: "center", gap: 6,
+        alignItems: "center", gap: done ? 3 : 6,
         cursor: "pointer", fontFamily: "DM Sans",
+        position: "relative",
+        transition: "background .2s, border-color .2s",
       }}>
+      {/* ── status dot — top-right corner ── */}
+      {(done || partial) && (
+        <div style={{
+          position: "absolute", top: 7, right: 8,
+          width: 8, height: 8, borderRadius: "50%",
+          background: dotClr,
+          boxShadow: `0 0 5px ${dotClr}88`,
+        }} />
+      )}
       <div style={{
         width: 34, height: 34, borderRadius: 11,
-        background: color + "28", display: "grid", placeItems: "center",
+        background: done ? color + "38" : color + "28",
+        display: "grid", placeItems: "center",
+        transition: "background .2s",
       }}>
         {icon}
       </div>
-      <span style={{ fontSize: 11.5, fontWeight: 700, color: C.ink }}>{label}</span>
+      <span style={{
+        fontSize: 11.5, fontWeight: 700,
+        color: done ? color : C.ink,
+        transition: "color .2s",
+      }}>{label}</span>
+      {val && (
+        <span style={{
+          fontSize: 9, fontWeight: 700, color: done ? color + "CC" : C.muted,
+          lineHeight: 1, marginTop: -2, maxWidth: "90%",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{val}</span>
+      )}
     </button>
   );
 }
@@ -547,6 +574,24 @@ function TodayTab({
   const goalTotal    = perfectDayGoals.length;
   const perfectDay   = goalTotal >= 3 && goalHitCount === goalTotal;
 
+  /* ── habit completion summary for QA badge ───────────────────── */
+  const habitQA = (() => {
+    if (!mindInfo || !onGoMind) return { done: false, partial: false, val: undefined };
+    const { habits2 = [], habitStatusMap = {}, autoToday = {} } = mindInfo;
+    const dueToday = habits2
+      .filter(h => !h.archived && (!h.frequency || h.frequency === "daily"))
+      .filter(h => (habitStatusMap[h.id] || {}).isDue !== false);
+    if (!dueToday.length) return { done: false, partial: false, val: undefined };
+    const isAutoMet = (h) => !!(h.autoType && autoToday[h.id]?.met);
+    const doneCount = dueToday.filter(h => (habitStatusMap[h.id] || {}).isComplete || isAutoMet(h)).length;
+    const allDone = doneCount >= dueToday.length;
+    return {
+      done:    allDone,
+      partial: !allDone && doneCount > 0,
+      val:     `${doneCount}/${dueToday.length}`,
+    };
+  })();
+
   /* ── render ───────────────────────────────────────────────────── */
   return (
     <div className="sprig-rise">
@@ -792,16 +837,30 @@ function TodayTab({
       {/* ══ 3. QUICK ACTIONS ═════════════════════════════════════ */}
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         {tp.nutrition !== false && (
-          <QA icon={<Flame size={17} color={NUTR_CLR} />} label="Food" color={NUTR_CLR} onClick={onGoNutrition} />
+          <QA icon={<Flame size={17} color={NUTR_CLR} />} label="Food" color={NUTR_CLR} onClick={onGoNutrition}
+            done={!!dtNutrSrc && t.calories > 100}
+            partial={!!dtNutrSrc && t.calories <= 100}
+            val={t.calories > 100 ? `${Math.round(t.calories).toLocaleString()} kcal` : undefined}
+          />
         )}
         {(tp.movement !== false || tp.training !== false) && (
-          <QA icon={<Dumbbell size={17} color={C.greenSoft} />} label="Train" color={C.greenSoft} onClick={onGoTrain} />
+          <QA icon={<Dumbbell size={17} color={C.greenSoft} />} label="Train" color={C.greenSoft} onClick={onGoTrain}
+            done={!!dtTrainSrc}
+            val={steps > 0 ? `${steps.toLocaleString()} steps` : undefined}
+          />
         )}
         {tp.sleep !== false && (
-          <QA icon={<Moon size={17} color={SLEEP_CLR} />} label="Sleep" color={SLEEP_CLR} onClick={onGoSleep} />
+          <QA icon={<Moon size={17} color={SLEEP_CLR} />} label="Sleep" color={SLEEP_CLR} onClick={onGoSleep}
+            done={!!dtSleepSrc}
+            val={sleepDur || (dtSleepSrc ? "Logged" : undefined)}
+          />
         )}
         {onGoMind && (
-          <QA icon={<Heart size={17} color={RECOV_CLR} />} label="Habits" color={RECOV_CLR} onClick={onGoMind} />
+          <QA icon={<Heart size={17} color={RECOV_CLR} />} label="Habits" color={RECOV_CLR} onClick={onGoMind}
+            done={habitQA.done}
+            partial={habitQA.partial}
+            val={habitQA.val}
+          />
         )}
       </div>
 
