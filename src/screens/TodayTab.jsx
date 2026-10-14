@@ -530,6 +530,21 @@ function TodayTab({
 
   const allLogged = dtNutrSrc === "exact" && !!dtSleepSrc && !!dtTrainSrc;
 
+  /* ── "perfect day" check — all active goals hit ────────────────── */
+  const perfectDayGoals = [
+    // Calories: within ±15% of adjusted target
+    adjTarget > 0 && t.calories > 0 && t.calories >= adjTarget * 0.85 && t.calories <= adjTarget * 1.15,
+    // Protein: ≥90% of goal (only if goal set)
+    (targets.protein || 0) > 0 ? (t.protein || 0) >= targets.protein * 0.9 : null,
+    // Water: ≥90% of goal
+    waterGoal > 0 ? (waterMl >= waterGoal * 0.9 || dtWaterSrc === "quick_log") : null,
+    // Steps: ≥90% of step goal
+    sGoal > 0 ? steps >= sGoal * 0.9 : null,
+    // Sleep: at least 6h logged
+    lastSleep?.durationMin ? lastSleep.durationMin >= 360 : (dtSleepSrc ? true : null),
+  ].filter(v => v !== null);          // only evaluate goals with data
+  const perfectDay = perfectDayGoals.length >= 3 && perfectDayGoals.every(Boolean);
+
   /* ── render ───────────────────────────────────────────────────── */
   return (
     <div className="sprig-rise">
@@ -608,11 +623,19 @@ function TodayTab({
         </div>
 
         {/* ── logged-days badge ── */}
-        {loggedDays >= 3 && (
-          <div style={{ display: "flex", marginBottom: 10 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.65)", background: "rgba(255,255,255,.1)", padding: "3px 11px", borderRadius: 99, letterSpacing: .3, display: "inline-flex", alignItems: "center", gap: 5 }}>
-              {loggedDays >= 30 ? "🔥" : "🌿"} {loggedDays} days logged
-            </span>
+        {(loggedDays >= 3 || perfectDay) && (
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
+            {loggedDays >= 3 && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.65)", background: "rgba(255,255,255,.1)", padding: "3px 11px", borderRadius: 99, letterSpacing: .3, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                {loggedDays >= 30 ? "🔥" : "🌿"} {loggedDays} days logged
+              </span>
+            )}
+            {/* Perfect day badge — all active goals hit */}
+            {perfectDay && (
+              <span className="sprig-pop" style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: "rgba(79,195,127,0.30)", padding: "3px 11px", borderRadius: 99, letterSpacing: .3, display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid rgba(79,195,127,0.35)" }}>
+                🌟 Perfect day!
+              </span>
+            )}
           </div>
         )}
 
