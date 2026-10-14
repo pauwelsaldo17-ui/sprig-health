@@ -3889,6 +3889,7 @@ function SprigApp() {
             patterns={patterns} plateaus={plateaus} timeline={timeline}
             weekReport={report}
             photoLog={photoLog}
+            safetyInfo={safetyInfo}
           />
         )}
         {tab === "nutrition" && (

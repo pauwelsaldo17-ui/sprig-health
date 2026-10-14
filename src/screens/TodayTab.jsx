@@ -451,6 +451,7 @@ function TodayTab({
   patterns = [], plateaus = [], timeline = null,
   weekReport = null,
   photoLog = [],
+  safetyInfo = null,
 }) {
   const { lastSleep }                         = sleepInfo;
   const { daily, subScores, healthScore, funcHealth, actions, weightSeries: wSeries = [] } = dailyInfo;
@@ -496,6 +497,56 @@ function TodayTab({
   /* ── render ───────────────────────────────────────────────────── */
   return (
     <div className="sprig-rise">
+
+      {/* ══ 0. CRITICAL HEALTH ALERTS — redFlags + bp crisis (safetyInfo) ══ */}
+      {safetyInfo?.urgent && (() => {
+        if (safetyInfo.hasCrisis) {
+          return (
+            <div style={{
+              background: "#C0392B18", border: "1.5px solid #C0392B55",
+              borderRadius: 14, padding: "12px 14px", marginBottom: 10,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#C0392B", marginBottom: 5 }}>
+                ⚠️ We noticed something in your health notes
+              </div>
+              <div style={{ fontSize: 12, color: "#C0392B", lineHeight: 1.55, marginBottom: 8 }}>
+                If you're having thoughts of harming yourself, please reach out — you don't have to face this alone.
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <a href="tel:988" style={{ fontSize: 11, fontWeight: 800, color: "#fff", background: "#C0392B", borderRadius: 8, padding: "5px 12px", textDecoration: "none" }}>
+                  Call 988 (Lifeline)
+                </a>
+                <a href="sms:741741" style={{ fontSize: 11, fontWeight: 800, color: "#C0392B", background: "#C0392B18", borderRadius: 8, padding: "5px 12px", textDecoration: "none" }}>
+                  Text HOME to 741741
+                </a>
+              </div>
+            </div>
+          );
+        }
+        const allFlags = [
+          ...(safetyInfo.redFlags || []).map(f => f.text),
+          ...(safetyInfo.bpFlag ? [safetyInfo.bpFlag.text] : []),
+        ];
+        if (!allFlags.length) return null;
+        return (
+          <div style={{
+            background: "#E0714A10", border: "1px solid #E0714A44",
+            borderRadius: 14, padding: "10px 14px", marginBottom: 10,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#E0714A", marginBottom: 4 }}>
+              ⚠️ Health check — logged from your notes
+            </div>
+            {allFlags.map((t, i) => (
+              <div key={i} style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5 }}>
+                • {t}
+              </div>
+            ))}
+            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
+              If these are ongoing symptoms, please speak with a healthcare professional.
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ 1. HERO ══════════════════════════════════════════════ */}
       <div style={{
