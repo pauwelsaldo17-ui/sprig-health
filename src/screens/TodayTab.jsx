@@ -1743,6 +1743,53 @@ function TodayTab({
         );
       })()}
 
+      {/* ══ 4c8. STRENGTH RANKING — relative strength vs same-sex population (ranking()) ═══ */}
+      {tp.training !== false && trainInfo?.ranking && (() => {
+        const PRIMARY = [
+          { key: "chest",      label: "Bench",    icon: "🏋️" },
+          { key: "quads",      label: "Squat",    icon: "🦵" },
+          { key: "hamstrings", label: "Deadlift", icon: "💪" },
+        ];
+        const tiles = PRIMARY.map(p => {
+          const r = trainInfo.ranking[p.key];
+          return r?.hasData ? { ...p, ...r } : null;
+        }).filter(Boolean);
+        if (tiles.length === 0) return null;
+        return (
+          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 9 }}>
+              🏆 Strength level
+            </div>
+            <div style={{ display: "flex", gap: 7 }}>
+              {tiles.map(tile => {
+                const clr = tile.tier.color;
+                const topPct = Math.round(100 - tile.pct);
+                return (
+                  <div key={tile.key} style={{ flex: 1, background: clr + "10", border: `1px solid ${clr}30`, borderRadius: 11, padding: "8px 9px", minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, lineHeight: 1 }}>{tile.icon}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, lineHeight: 1 }}>{tile.label}</span>
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, fontFamily: "Fraunces, serif", lineHeight: 1.1 }}>
+                      {tile.e1}<span style={{ fontSize: 9, fontWeight: 600, color: C.muted, marginLeft: 1 }}>kg</span>
+                    </div>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 3, background: clr + "22", borderRadius: 5, padding: "2px 6px", marginTop: 4 }}>
+                      <span style={{ fontSize: 9.5, fontWeight: 800, color: clr }}>{tile.tier.name}</span>
+                    </div>
+                    <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3, fontWeight: 600 }}>
+                      Top {topPct}%{tile.estimated ? " ~" : ""}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 8, lineHeight: 1.4, textAlign: "center" }}>
+              Relative to bodyweight · same-sex population
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ══ 4d0. WORKOUT CALORIE BOOST — strength training added to target ══ */}
       {tp.nutrition !== false && tp.training !== false && moveInfo?.workoutAdj?.kcal > 0 && (
         <div style={{

@@ -3569,6 +3569,8 @@ function SprigApp() {
   const freshMuscles = MUSCLES.filter(([k]) => (recovery[k]?.fatigue ?? 0) < 30 && recovery[k]?.hasData !== false && !recovery[k]?.trackingOff).map(([, n]) => n);
   const deload = deloadAdvice(workouts, debtMin, recovery);
   const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily };
+  // Strength ranking — relative e1RM percentile vs same-sex population at avg bodyweight
+  trainInfo.ranking = workouts.length >= 2 ? ranking(workouts, profile, 'relative') : null;
 
   // pain state — derived from structured logs (fallback to daily check-in)
   const painSum = painSummary(painLogs);
