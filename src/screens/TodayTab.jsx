@@ -7,6 +7,7 @@ import { C } from "../theme.js";
 import {
   stepGoal, ACTIVITY_SOURCES, durLabel, scoreVerdict, uid, todayStr, MUSCLES, RISK_TAG, BLOOD_MARKERS,
   ALCOHOL_LEVELS, alcoholLevel, interactionFlags, volumeStatus, VOL_TAG_COLOR,
+  weightStats, weightVerdict,
 } from "../utils/vitaeCalc.js";
 import {
   btn, Btn, Ring, Badge, TodayWinsCard, ScoreDonut, ACTION_ICON,
@@ -703,9 +704,9 @@ function TodayTab({
         );
       })()}
 
-      {/* ══ 3c. DAY DOMAIN PROGRESS — which areas are fully logged today ════ */}
+      {/* ══ 3c. DAY DOMAIN PROGRESS — done / partial / still-to-log chips ════ */}
       {dt?.overall && (() => {
-        const { completedAreas = [], partialAreas = [] } = dt.overall;
+        const { completedAreas = [], partialAreas = [], missingButEnabled: missingKeys = [] } = dt.overall;
         const DOMAIN_META = [
           { k: "sleep",       icon: "🌙", label: "Sleep",    enabled: tp.sleep !== false },
           { k: "nutrition",   icon: "🥗", label: "Food",     enabled: tp.nutrition !== false },
@@ -714,8 +715,9 @@ function TodayTab({
           { k: "training",    icon: "💪", label: "Training", enabled: tp.training !== false },
           { k: "supplements", icon: "💊", label: "Supps",    enabled: tp.supplements !== false },
         ];
-        const done    = DOMAIN_META.filter(d => d.enabled && completedAreas.includes(d.k));
-        const partial = DOMAIN_META.filter(d => d.enabled && partialAreas.includes(d.k));
+        const done     = DOMAIN_META.filter(d => d.enabled && completedAreas.includes(d.k));
+        const partial  = DOMAIN_META.filter(d => d.enabled && partialAreas.includes(d.k));
+        const unlogged = DOMAIN_META.filter(d => d.enabled && missingKeys.includes(d.k)).slice(0, 3);
         if (!done.length && !partial.length) return null;
         return (
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginTop: 8, marginBottom: -2 }}>
@@ -742,6 +744,20 @@ function TodayTab({
               <span key={d.k} style={{
                 fontSize: 10, fontWeight: 700, color: C.amber,
                 background: C.amber + "10", border: `1px solid ${C.amber}33`,
+                borderRadius: 7, padding: "3px 8px", lineHeight: 1,
+              }}>
+                {d.icon} {d.label}
+              </span>
+            ))}
+            {unlogged.length > 0 && (
+              <span style={{ fontSize: 9, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0, lineHeight: 1.6, marginLeft: (done.length > 0 || partial.length > 0) ? 2 : 0 }}>
+                Still:
+              </span>
+            )}
+            {unlogged.map(d => (
+              <span key={d.k} style={{
+                fontSize: 10, fontWeight: 600, color: C.muted,
+                background: C.muted + "0A", border: `1px dashed ${C.muted}44`,
                 borderRadius: 7, padding: "3px 8px", lineHeight: 1,
               }}>
                 {d.icon} {d.label}
@@ -2008,6 +2024,62 @@ function TodayTab({
               <button className="sprig-tap" onClick={() => { setWeightEditing(false); setWeightInput(""); }}
                 style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 700, color: C.inkSoft, cursor: "pointer", fontFamily: "DM Sans" }}>✕</button>
             </div>
+          </div>
+        );
+      })()}
+
+      {/* ══ 6.3. WEIGHT TREND INSIGHT — only when enough data exists ════ */}
+      {tp.body !== false && wSeries.length >= 3 && (() => {
+        const WEIGHT_CLR = "#4FC3F7";
+        const unit = profile?.unit || "kg";
+        const goal = profile?.goal || "maintain";
+        const ws = weightStats(wSeries);
+        const verdict = weightVerdict(ws, goal);
+        if (!ws.current) return null;
+        const tagClr = verdict.tag === "good" ? C.greenSoft
+          : verdict.tag === "fast" ? C.coral
+          : verdict.tag === "slow" ? C.amber
+          : C.inkSoft;
+        const tagIcon = verdict.tag === "good" ? "✓" : verdict.tag === "fast" ? "↑↑" : verdict.tag === "slow" ? "→" : "~";
+        return (
+          <div className="sprig-pop" style={{
+            background: C.card, borderRadius: 18,
+            border: `1px solid ${tagClr}28`,
+            marginTop: 8, padding: "12px 14px", boxShadow: C.shadow,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: WEIGHT_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <TrendingUp size={14} color={WEIGHT_CLR} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Weight trend</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span style={{ fontSize: 16, fontWeight: 800, fontFamily: "Fraunces", color: C.ink }}>
+                    {ws.current}{unit}
+                  </span>
+                  {ws.rate != null && (
+                    <span style={{ fontSize: 11, color: C.muted }}>
+                      {ws.rate > 0 ? "+" : ""}{ws.rate} kg/wk
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span style={{
+                fontSize: 10, fontWeight: 800, color: tagClr,
+                background: tagClr + "18", border: `1px solid ${tagClr}33`,
+                borderRadius: 7, padding: "3px 9px", flexShrink: 0,
+              }}>
+                {tagIcon} {verdict.tag === "good" ? "On track" : verdict.tag === "fast" ? "Too fast" : verdict.tag === "slow" ? "Too slow" : "Stable"}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>
+              {verdict.text}
+            </div>
+            {ws.avg7 != null && ws.avg7 !== ws.current && (
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                7-day avg: {ws.avg7}{unit}
+              </div>
+            )}
           </div>
         );
       })()}
