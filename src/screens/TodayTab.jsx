@@ -914,6 +914,25 @@ function TodayTab({
         const partial  = DOMAIN_META.filter(d => d.enabled && partialAreas.includes(d.k));
         const unlogged = DOMAIN_META.filter(d => d.enabled && missingKeys.includes(d.k)).slice(0, 3);
         if (!done.length && !partial.length) return null;
+        /* ── All-domains celebration — show when nothing is missing or partial ── */
+        const allDomainsLogged = unlogged.length === 0 && partial.length === 0 && done.length >= 2;
+        if (allDomainsLogged) {
+          return (
+            <div className="sprig-pop" style={{
+              display: "flex", alignItems: "center", gap: 10,
+              background: C.greenSoft + "0F", border: `1px solid ${C.greenSoft}44`,
+              borderRadius: 14, padding: "10px 13px", marginTop: 8,
+            }}>
+              <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>🎉</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft }}>All logged today!</div>
+                <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 1 }}>
+                  {done.map(d => `${d.icon} ${d.label}`).join(" · ")}
+                </div>
+              </div>
+            </div>
+          );
+        }
         return (
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginTop: 8, marginBottom: -2 }}>
             {done.length > 0 && (
@@ -3115,6 +3134,22 @@ function TodayTab({
                 </button>
               )}
             </div>
+            {/* Celebration card when all taken */}
+            {allTaken && (
+              <div className="sprig-pop" style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: SUPP_CLR + "12", border: `1px solid ${SUPP_CLR}33`,
+                borderRadius: 10, padding: "8px 11px", marginBottom: 8,
+              }}>
+                <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>💊</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: SUPP_CLR }}>Daily stack complete!</div>
+                  <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {supps.map(s => s.name).join(" · ")}
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Individual supplement chips — tap to toggle each one */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {supps.map((s) => {
