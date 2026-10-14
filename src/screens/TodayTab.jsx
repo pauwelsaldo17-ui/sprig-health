@@ -2569,6 +2569,31 @@ function TodayTab({
               }} />
             </div>
           )}
+          {/* Glass counter — shows progress as fillable glasses so users don't have to do mental math */}
+          {waterGoal > 0 && (() => {
+            const PER_GLASS = 250;
+            const totalGlasses = Math.min(10, Math.round(waterGoal / PER_GLASS));
+            const doneGlasses  = Math.min(totalGlasses, Math.floor(waterMl / PER_GLASS));
+            const remaining    = Math.max(0, totalGlasses - doneGlasses);
+            const goalHit      = waterMl >= waterGoal || dtWaterSrc === "quick_log";
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 3, flex: 1, flexWrap: "wrap" }}>
+                  {Array.from({ length: totalGlasses }).map((_, i) => (
+                    <div key={i} style={{
+                      width: 13, height: 17, borderRadius: 3, flexShrink: 0,
+                      background: i < doneGlasses ? WATER_CLR : WATER_CLR + "22",
+                      border: `1.5px solid ${i < doneGlasses ? WATER_CLR + "99" : WATER_CLR + "28"}`,
+                      transition: "background .3s, border-color .3s",
+                    }} />
+                  ))}
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: goalHit ? WATER_CLR : C.muted, flexShrink: 0 }}>
+                  {goalHit ? "Hydrated! 💧" : `${remaining} glass${remaining !== 1 ? "es" : ""} to go`}
+                </span>
+              </div>
+            );
+          })()}
           {/* Smart hydration note — context-aware (e.g. "You trained today — aim for 400ml more") */}
           {moveInfo?.hydration?.note && waterMl > 0 && waterMl < waterGoal && (
             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7, lineHeight: 1.4 }}>
