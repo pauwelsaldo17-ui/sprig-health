@@ -1978,6 +1978,18 @@ function TodayTab({
               {dq?.whyText && !dq.noData && (
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 4, lineHeight: 1.4 }}>{dq.whyText}</div>
               )}
+              {dq?.advice?.length > 0 && !dq.noData && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                  {dq.advice.slice(0, 3).map((tip, i) => (
+                    <span key={i} style={{
+                      fontSize: 9.5, fontWeight: 700, color: NUTR_CLR,
+                      background: NUTR_CLR + "12", borderRadius: 5, padding: "2px 7px",
+                    }}>
+                      + {tip}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
