@@ -191,17 +191,22 @@ function MealShortcutsCard({ shortcuts, onLog }) {
   );
 }
 
-function NextWorkoutCard({ suggestion, splitLabel, splitReason, onStart }) {
+function NextWorkoutCard({ suggestion, splitLabel, splitReason, splitRoutine, onStart }) {
   // At least one of suggestion or splitLabel must be present
   if (!suggestion && !splitLabel) return null;
   const title = suggestion?.suggested || splitLabel;
   const subtitle = splitLabel && suggestion?.suggested && splitLabel !== suggestion.suggested
     ? splitLabel : null;
+  const confidence = suggestion?.confidence;
+  const hasRoutine = !!splitRoutine?.name;
+  const exCount = splitRoutine?.exercises?.length || 0;
+  // Card border glows green if a saved routine matches
+  const borderColor = hasRoutine ? C.green + "60" : C.line;
   return (
     <button className="sprig-tap" onClick={onStart}
       style={{
         width: "100%", textAlign: "left", background: C.card,
-        border: `1px solid ${C.line}`, cursor: "pointer", borderRadius: 16,
+        border: `1px solid ${borderColor}`, cursor: "pointer", borderRadius: 16,
         padding: "13px 15px", boxShadow: C.shadow, marginTop: 8,
         display: "flex", alignItems: "center", gap: 12,
       }}>
@@ -209,7 +214,14 @@ function NextWorkoutCard({ suggestion, splitLabel, splitReason, onStart }) {
         <Dumbbell size={18} color={C.green} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: .4, textTransform: "uppercase", marginBottom: 2 }}>Suggested today</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+          <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: .4, textTransform: "uppercase" }}>Suggested today</div>
+          {confidence != null && (
+            <div style={{ fontSize: 9, color: C.muted, fontWeight: 600, opacity: 0.7 }}>
+              ⟳ {Math.round(confidence * 100)}% pattern
+            </div>
+          )}
+        </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{title}</div>
         {subtitle && (
           <div style={{ fontSize: 11, fontWeight: 600, color: C.green, marginTop: 1 }}>{subtitle}</div>
@@ -225,6 +237,17 @@ function NextWorkoutCard({ suggestion, splitLabel, splitReason, onStart }) {
           }}>
             <span style={{ fontSize: 9, marginTop: 1, flexShrink: 0 }}>💪</span>
             <span style={{ fontSize: 10.5, color: C.inkSoft, lineHeight: 1.4 }}>{splitReason}</span>
+          </div>
+        )}
+        {hasRoutine && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 5, marginTop: 6,
+            background: C.green + "14", borderRadius: 7, padding: "4px 8px",
+          }}>
+            <span style={{ fontSize: 10, flexShrink: 0 }}>📋</span>
+            <span style={{ fontSize: 10.5, color: C.green, fontWeight: 700, lineHeight: 1.3 }}>
+              "{splitRoutine.name}" ready{exCount > 0 ? ` · ${exCount} exercises` : ""} — tap to load
+            </span>
           </div>
         )}
       </div>
@@ -2098,7 +2121,8 @@ function TodayTab({
           suggestion={moveInfo?.nextWorkout || null}
           splitLabel={trainInfo?.suggestion?.label || null}
           splitReason={trainInfo?.suggestion?.reason || null}
-          onStart={() => { onStartWorkout?.(); buzz("tap"); }}
+          splitRoutine={trainInfo?.suggestion?.routine || null}
+          onStart={() => { onStartWorkout?.(trainInfo?.suggestion?.routine || null); buzz("tap"); }}
         />
       )}
 
