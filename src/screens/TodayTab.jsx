@@ -452,6 +452,7 @@ function TodayTab({
   weekReport = null,
   photoLog = [],
   safetyInfo = null,
+  achievements = [],
 }) {
   const { lastSleep }                         = sleepInfo;
   const { daily, subScores, healthScore, funcHealth, actions, weightSeries: wSeries = [] } = dailyInfo;
@@ -2916,7 +2917,7 @@ function TodayTab({
         const enoughWeek = dayOfWeek >= 3 || dayOfWeek === 0; // Wed-Sat or Sunday
         if (!enoughWeek) return null;
         if (!weekReport.win && !weekReport.nextWeek) return null;
-        const { training, sleep, nutrition } = weekReport;
+        const { training, sleep, nutrition, mind } = weekReport;
         // Build stats strip: only show what we actually have data for
         const stats = [];
         if (tp.training !== false && training?.count > 0) stats.push({ label: `${training.count} workout${training.count !== 1 ? "s" : ""}`, icon: "🏋️" });
@@ -2926,6 +2927,12 @@ function TodayTab({
         }
         if (tp.nutrition !== false && nutrition?.proteinHitDays > 0) stats.push({ label: `Protein ${nutrition.proteinHitDays}/${nutrition.foodDays || 7}d`, icon: "💪" });
         if (tp.nutrition !== false && nutrition?.avgSteps > 0) stats.push({ label: `${Math.round((nutrition.avgSteps || 0) / 100) * 100} steps/day`, icon: "👟" });
+        if (tp.mind !== false && mind?.avgMood != null) {
+          const moodEmoji = mind.avgMood >= 2.5 ? "😊" : mind.avgMood >= 1.8 ? "😐" : "😔";
+          const moodLabel = mind.avgMood >= 2.5 ? "Good mood" : mind.avgMood >= 1.8 ? "Mixed mood" : "Low mood";
+          stats.push({ label: moodLabel, icon: moodEmoji });
+        }
+        if (tp.mind !== false && mind?.focusMin >= 60) stats.push({ label: `${Math.round(mind.focusMin / 60)}h focus`, icon: "🎯" });
         return (
           <div className="sprig-pop" style={{
             background: C.card, border: `1px solid ${C.line}`,
@@ -2957,16 +2964,70 @@ function TodayTab({
               </div>
             )}
             {weekReport.nextWeek && (
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, paddingTop: (weekReport.win || stats.length > 0) ? 8 : 0, borderTop: (weekReport.win || stats.length > 0) ? `1px solid ${C.line}` : "none" }}>
-                <div style={{ width: 22, height: 22, borderRadius: 6, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
-                  <span style={{ fontSize: 11, lineHeight: 1 }}>🎯</span>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 9.5, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Next 7 days</div>
-                  <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{weekReport.nextWeek}</div>
+              <div style={{ paddingTop: (weekReport.win || stats.length > 0) ? 8 : 0, borderTop: (weekReport.win || stats.length > 0) ? `1px solid ${C.line}` : "none" }}>
+                {weekReport.bottleneck && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: C.coral + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
+                      <span style={{ fontSize: 11, lineHeight: 1 }}>⚡</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 9.5, fontWeight: 800, color: C.coral, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Top issue</div>
+                      <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.4 }}>{weekReport.bottleneck}</div>
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 6, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
+                    <span style={{ fontSize: 11, lineHeight: 1 }}>🎯</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Next 7 days</div>
+                    <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{weekReport.nextWeek}</div>
+                  </div>
                 </div>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* ══ 8d. ACHIEVEMENTS — recent milestones from detectAchievements() ══ */}
+      {achievements?.length > 0 && (() => {
+        // Show most-recently unlocked achievements (last 7 days get highlighted, rest shown dimmer)
+        const now = Date.now();
+        const weekMs = 7 * 864e5;
+        const recent = achievements.filter((a) => a.ts && (now - a.ts) < weekMs);
+        // Always show at least 3 total; prioritize recent ones first
+        const older = achievements.filter((a) => !a.ts || (now - a.ts) >= weekMs);
+        const shown = [...recent, ...older].slice(0, 4);
+        if (!shown.length) return null;
+        return (
+          <div className="sprig-pop" style={{
+            background: C.card, border: `1px solid ${C.line}`,
+            borderRadius: 16, padding: "12px 14px", marginTop: 12, boxShadow: C.shadow,
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 9 }}>
+              🏅 Milestones
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {shown.map((a, i) => {
+                const isNew = a.ts && (now - a.ts) < weekMs;
+                return (
+                  <div key={i} style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    background: isNew ? C.greenSoft + "15" : C.bg2,
+                    border: isNew ? `1px solid ${C.greenSoft}30` : `1px solid transparent`,
+                    borderRadius: 10, padding: "5px 10px",
+                  }}>
+                    <span style={{ fontSize: 14, lineHeight: 1 }}>{a.icon}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: isNew ? C.greenSoft : C.inkSoft, lineHeight: 1.2 }}>{a.title}</div>
+                      {isNew && <div style={{ fontSize: 9.5, color: C.greenSoft, fontWeight: 700 }}>NEW</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })()}

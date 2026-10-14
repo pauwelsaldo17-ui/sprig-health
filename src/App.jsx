@@ -3890,6 +3890,7 @@ function SprigApp() {
             weekReport={report}
             photoLog={photoLog}
             safetyInfo={safetyInfo}
+            achievements={achievements}
           />
         )}
         {tab === "nutrition" && (
