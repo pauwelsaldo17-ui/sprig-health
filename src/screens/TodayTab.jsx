@@ -1348,7 +1348,13 @@ function TodayTab({
               steps > 0 && dtMoveSrc !== "quick_log"
                 ? dtTrainSrc === "exact" && moveInfo?.workoutAdj?.kcal > 0
                   ? `${movePct}% steps · +${moveInfo.workoutAdj.kcal} kcal`
-                  : `${movePct}% · goal ${sGoal.toLocaleString()}`
+                  : steps >= sGoal && sGoal > 0
+                    ? moveInfo?.movement?.kcal > 0
+                      ? `~${moveInfo.movement.kcal} kcal burned`
+                      : steps > sGoal
+                        ? `+${(steps - sGoal).toLocaleString()} over goal`
+                        : "Goal complete"
+                    : `${movePct}% · goal ${sGoal.toLocaleString()}`
                 : dtTrainSrc === "exact" && steps === 0
                   ? moveInfo?.workoutAdj?.kcal > 0
                     ? `+${moveInfo.workoutAdj.kcal} kcal burned`
