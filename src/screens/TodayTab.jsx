@@ -1148,14 +1148,35 @@ function TodayTab({
             };
             const ic  = iconMap[a.icon] || "⚡";
             const clr = clrMap[a.icon] || C.muted;
-            return (
+            const navFn = {
+              train: onGoTrain, food: onGoNutrition, protein: onGoNutrition,
+              sleep: onGoSleep, walk: onGoTrain, pain: onGoHealth,
+              rest: onGoHealth || onGoBody, log: onGoNutrition,
+            }[a.icon];
+            const inner = (
+              <>
+                <span style={{ fontSize: 15, lineHeight: 1.25, flexShrink: 0, marginTop: 1 }}>{ic}</span>
+                <span style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, flex: 1 }}>{a.text}</span>
+                {navFn && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0, marginTop: 3 }} />}
+              </>
+            );
+            return navFn ? (
+              <button key={i} className="sprig-tap sprig-pop" onClick={() => { navFn(); buzz("tap"); }}
+                style={{
+                  display: "flex", alignItems: "flex-start", gap: 10,
+                  background: clr + "0B", border: `1px solid ${clr}28`,
+                  borderRadius: 14, padding: "10px 13px",
+                  cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", width: "100%",
+                }}>
+                {inner}
+              </button>
+            ) : (
               <div key={i} className="sprig-pop" style={{
                 display: "flex", alignItems: "flex-start", gap: 10,
                 background: clr + "0B", border: `1px solid ${clr}28`,
                 borderRadius: 14, padding: "10px 13px",
               }}>
-                <span style={{ fontSize: 15, lineHeight: 1.25, flexShrink: 0, marginTop: 1 }}>{ic}</span>
-                <span style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5, flex: 1 }}>{a.text}</span>
+                {inner}
               </div>
             );
           })}
