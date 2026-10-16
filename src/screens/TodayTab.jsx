@@ -1067,15 +1067,30 @@ function TodayTab({
                 ✓ Done:
               </span>
             )}
-            {done.map(d => (
-              <span key={d.k} style={{
-                fontSize: 10, fontWeight: 700, color: C.greenSoft,
-                background: C.greenSoft + "14", border: `1px solid ${C.greenSoft}33`,
-                borderRadius: 7, padding: "3px 8px", lineHeight: 1,
-              }}>
-                {d.icon} {d.label}
-              </span>
-            ))}
+            {done.map(d => {
+              const navFn = domainNav[d.k];
+              return navFn ? (
+                <button key={d.k} className="sprig-tap"
+                  onClick={() => { navFn(); buzz("tap"); }}
+                  style={{
+                    fontSize: 10, fontWeight: 700, color: C.greenSoft,
+                    background: C.greenSoft + "14", border: `1px solid ${C.greenSoft}33`,
+                    borderRadius: 7, padding: "3px 8px", lineHeight: 1,
+                    cursor: "pointer", fontFamily: "DM Sans",
+                    display: "inline-flex", alignItems: "center", gap: 3,
+                  }}>
+                  {d.icon} {d.label}
+                </button>
+              ) : (
+                <span key={d.k} style={{
+                  fontSize: 10, fontWeight: 700, color: C.greenSoft,
+                  background: C.greenSoft + "14", border: `1px solid ${C.greenSoft}33`,
+                  borderRadius: 7, padding: "3px 8px", lineHeight: 1,
+                }}>
+                  {d.icon} {d.label}
+                </span>
+              );
+            })}
             {partial.length > 0 && (
               <span style={{ fontSize: 9, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0, lineHeight: 1.6, marginLeft: done.length > 0 ? 2 : 0 }}>
                 {done.length > 0 ? "Partial:" : "In progress:"}
