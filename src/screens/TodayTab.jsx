@@ -1303,7 +1303,7 @@ function TodayTab({
               ? (targets.protein > 0 && (t.protein || 0) >= targets.protein * 0.9
                 ? `Protein ✓ ${Math.round(t.protein || 0)}g`
                 : targets.protein > 0
-                  ? `${Math.round(t.protein || 0)}g protein`
+                  ? `${Math.round(t.protein || 0)} / ${targets.protein}g protein`
                   : adjTarget > 0
                     ? `${Math.round(t.calories / adjTarget * 100)}% of goal`
                     : null)
