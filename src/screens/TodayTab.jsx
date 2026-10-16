@@ -2532,11 +2532,12 @@ function TodayTab({
           })
           .filter(Boolean)
           .sort((a, b) => b.score - a.score);   // best first so user sees wins on top
-        if (scored.length < 2) return null;      // need at least 2 to be informative
+        if (!scored.length) return null;
 
         const avgScore = Math.round(scored.reduce((s, e) => s + e.score, 0) / scored.length);
         const avgClr   = avgScore >= 65 ? C.greenSoft : avgScore >= 40 ? C.amber : C.coral;
         const show     = scored.slice(0, 5);     // max 5 entries
+        const avgLabel = scored.length === 1 ? "score" : "avg";
 
         return (
           <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
@@ -2547,7 +2548,7 @@ function TodayTab({
                 <span style={{ fontSize: 10, fontWeight: 800, color: NUTR_CLR, textTransform: "uppercase", letterSpacing: 0.5 }}>Food quality</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ fontSize: 9.5, color: C.muted }}>avg</span>
+                <span style={{ fontSize: 9.5, color: C.muted }}>{avgLabel}</span>
                 <span style={{ fontSize: 12, fontWeight: 800, color: avgClr, fontFamily: "Fraunces, serif" }}>{avgScore}</span>
               </div>
             </div>
