@@ -1258,7 +1258,13 @@ function TodayTab({
                   ? "Quick logged"
                   : null
             }
-            sub2={!dtSleepSrc ? "Not logged yet" : null}
+            sub2={
+              !dtSleepSrc
+                ? "Not logged yet"
+                : (lastSleep?.bedtime && lastSleep?.waketime)
+                  ? `${minToTimeStr(new Date(lastSleep.bedtime).getHours() * 60 + new Date(lastSleep.bedtime).getMinutes())} → ${minToTimeStr(new Date(lastSleep.waketime).getHours() * 60 + new Date(lastSleep.waketime).getMinutes())}`
+                  : null
+            }
             pct={sleepPct}
             onTap={onGoSleep}
             cta={!dtSleepSrc ? "Log tonight's sleep" : null}
