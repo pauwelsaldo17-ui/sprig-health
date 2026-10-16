@@ -847,7 +847,11 @@ function TodayTab({
         {(tp.movement !== false || tp.training !== false) && (
           <QA icon={<Dumbbell size={17} color={C.greenSoft} />} label="Train" color={C.greenSoft} onClick={onGoTrain}
             done={!!dtTrainSrc}
-            val={steps > 0 ? `${steps.toLocaleString()} steps` : undefined}
+            val={steps > 0
+              ? `${steps.toLocaleString()} steps`
+              : dtTrainSrc === "exact" && moveInfo?.workoutAdj?.totalMin > 0
+                ? `${moveInfo.workoutAdj.totalMin}min`
+                : undefined}
           />
         )}
         {tp.sleep !== false && (
@@ -1299,7 +1303,7 @@ function TodayTab({
               : null}
             sub2={
               adjTarget > 0 && t.calories > adjTarget
-                ? "Over goal"
+                ? `+${Math.round(t.calories - adjTarget)} kcal over`
                 : adjTarget > 0 && t.calories >= adjTarget * 0.85
                   ? "Calorie goal hit! ✓"
                   : adjTarget > 0 && t.calories > 0
