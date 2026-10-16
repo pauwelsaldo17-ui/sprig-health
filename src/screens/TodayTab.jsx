@@ -857,7 +857,7 @@ function TodayTab({
         {tp.sleep !== false && (
           <QA icon={<Moon size={17} color={SLEEP_CLR} />} label="Sleep" color={SLEEP_CLR} onClick={onGoSleep}
             done={!!dtSleepSrc}
-            val={sleepDur || (dtSleepSrc ? "Logged" : undefined)}
+            val={sleepDur || (dtSleepSrc && subScores?.sleep != null ? `${Math.round(subScores.sleep)} pts` : dtSleepSrc ? "Logged" : undefined)}
           />
         )}
         {onGoMind && (
