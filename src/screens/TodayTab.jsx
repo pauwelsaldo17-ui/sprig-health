@@ -1327,7 +1327,9 @@ function TodayTab({
               steps > 0 && dtMoveSrc !== "quick_log"
                 ? `${movePct}% · goal ${sGoal.toLocaleString()}`
                 : dtTrainSrc === "exact" && steps === 0
-                  ? "Workout logged ✓"
+                  ? moveInfo?.workoutAdj?.kcal > 0
+                    ? `+${moveInfo.workoutAdj.kcal} kcal burned`
+                    : "Workout logged ✓"
                   : null
             }
             sub2={
@@ -1335,7 +1337,9 @@ function TodayTab({
                 ? "Step goal hit! 🏆"
                 : sGoal > 0 && steps > 0 && (sGoal - steps) <= 3000
                   ? `${(sGoal - steps).toLocaleString()} steps to goal`
-                  : null
+                  : dtTrainSrc === "exact" && moveInfo?.workoutAdj?.totalMin > 0
+                    ? `${moveInfo.workoutAdj.totalMin}min${moveInfo.workoutAdj.intensity ? ` · ${moveInfo.workoutAdj.intensity}` : ""}`
+                    : null
             }
             pct={movePct}
             onTap={onGoTrain}
