@@ -798,7 +798,7 @@ function TodayTab({
               {healthScore >= 90 ? "🌟 Outstanding day" : "✓ Everything looks great"}
             </span>
           ) : (
-            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 11, color: C.muted, lineHeight: 1, flex: 1 }}>Keep logging to improve</span>
           )}
           <span style={{
             fontSize: 9, fontWeight: 800, letterSpacing: 0.4, textTransform: "uppercase", lineHeight: 1,
