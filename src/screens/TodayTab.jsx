@@ -1306,7 +1306,9 @@ function TodayTab({
                   ? `${Math.round(t.protein || 0)} / ${targets.protein}g protein`
                   : adjTarget > 0
                     ? `${Math.round(t.calories / adjTarget * 100)}% of goal`
-                    : null)
+                    : (t.protein || 0) > 0
+                      ? `${Math.round(t.protein)}g protein`
+                      : null)
               : dtNutrSrc === "quick_log"
                 ? "Quick logged"
                 : null}
@@ -1319,7 +1321,9 @@ function TodayTab({
                     ? `${Math.round(adjTarget - t.calories)} kcal left`
                     : adjTarget > 0 && t.calories === 0
                       ? `Goal: ${adjTarget.toLocaleString()} kcal`
-                      : null
+                      : targets.fiber > 0 && (t.fiber || 0) > 0
+                        ? `${Math.round(t.fiber)} / ${targets.fiber}g fiber`
+                        : null
             }
             pct={calPct}
             onTap={onGoNutrition}
