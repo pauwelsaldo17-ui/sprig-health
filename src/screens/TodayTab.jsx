@@ -1329,7 +1329,9 @@ function TodayTab({
             }
             sub={
               steps > 0 && dtMoveSrc !== "quick_log"
-                ? `${movePct}% · goal ${sGoal.toLocaleString()}`
+                ? dtTrainSrc === "exact" && moveInfo?.workoutAdj?.kcal > 0
+                  ? `${movePct}% steps · +${moveInfo.workoutAdj.kcal} kcal`
+                  : `${movePct}% · goal ${sGoal.toLocaleString()}`
                 : dtTrainSrc === "exact" && steps === 0
                   ? moveInfo?.workoutAdj?.kcal > 0
                     ? `+${moveInfo.workoutAdj.kcal} kcal burned`
@@ -1368,7 +1370,9 @@ function TodayTab({
                   ? "Peak condition"
                   : recovScore != null && (trainInfo?.readyMuscles?.length > 0 || trainInfo?.freshMuscles?.length > 0)
                     ? `${(trainInfo?.readyMuscles || trainInfo?.freshMuscles || []).length} muscles ready`
-                    : null
+                    : recovScore != null && recoveryInfo?.bestAction
+                      ? recoveryInfo.bestAction
+                      : null
             }
             extra={(() => {
               if (recovScore == null || recovScore < 55) return null;
