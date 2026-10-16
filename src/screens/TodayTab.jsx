@@ -1420,7 +1420,9 @@ function TodayTab({
                   ? `${(sGoal - steps).toLocaleString()} steps to goal`
                   : dtTrainSrc === "exact" && moveInfo?.workoutAdj?.totalMin > 0
                     ? `${moveInfo.workoutAdj.totalMin}min${moveInfo.workoutAdj.intensity ? ` · ${moveInfo.workoutAdj.intensity}` : ""}`
-                    : null
+                    : steps > 0 && moveInfo?.movement?.kcal > 0
+                      ? `~${moveInfo.movement.kcal} kcal from steps`
+                      : null
             }
             pct={movePct}
             onTap={onGoTrain}
