@@ -750,7 +750,12 @@ function TodayTab({
           {scoreChips.map((ch) => {
             const v   = Math.round(ch.v);
             const clr = v >= 70 ? ch.color : v >= 45 ? C.amber : C.coral;
-            const grade = v >= 85 ? "Great" : v >= 70 ? "Good" : v >= 50 ? "Fair" : "Low";
+            const grade = ({
+              Sleep:     v >= 85 ? "Restful"  : v >= 70 ? "Good"   : v >= 50 ? "Light"  : "Poor",
+              Nutrition: v >= 85 ? "On track"  : v >= 70 ? "Good"   : v >= 50 ? "Fair"   : "Low",
+              Movement:  v >= 85 ? "Active"    : v >= 70 ? "Good"   : v >= 50 ? "Fair"   : "Low",
+              Recovery:  v >= 85 ? "Peak"      : v >= 70 ? "Rested" : v >= 50 ? "Fair"   : "Tired",
+            })[ch.label] ?? (v >= 85 ? "Great" : v >= 70 ? "Good" : v >= 50 ? "Fair" : "Low");
             const navFn = { Sleep: onGoSleep, Nutrition: onGoNutrition, Movement: onGoTrain, Recovery: onGoHealth || onGoBody }[ch.label];
             return (
               <button key={ch.label} className="sprig-tap" onClick={() => navFn?.()}
