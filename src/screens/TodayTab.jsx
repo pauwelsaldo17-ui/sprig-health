@@ -791,7 +791,7 @@ function TodayTab({
           {funcHealth.reasons?.length > 0 && healthScore < 80 ? (
             <>
               <span style={{ fontSize: 11, color: C.muted, lineHeight: 1, flexShrink: 0 }}>Focus on:</span>
-              <span style={{ fontSize: 11, color: C.inkSoft, lineHeight: 1, flex: 1 }}>{funcHealth.reasons.join(" · ")}</span>
+              <span style={{ fontSize: 11, color: C.inkSoft, lineHeight: 1.4, flex: 1 }}>{funcHealth.reasons.slice(0, 3).join(" · ")}</span>
             </>
           ) : healthScore >= 80 ? (
             <span style={{ fontSize: 11, color: C.greenSoft, lineHeight: 1, flex: 1, fontWeight: 600 }}>
