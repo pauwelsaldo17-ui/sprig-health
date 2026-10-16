@@ -1919,7 +1919,11 @@ function TodayTab({
           <div style={{ marginTop: 8, display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2 }}>
             {tired.map(m => {
               const remainH = trainInfo?.recovery?.[m.k]?.remaining || 0;
-              const readyIn = remainH > 0 && remainH < 72 ? `~${Math.round(remainH)}h` : null;
+              const readyIn = remainH > 0 && remainH < 72
+                ? `~${Math.round(remainH)}h`
+                : remainH >= 72
+                  ? `~${Math.round(remainH / 24)}d`
+                  : null;
               // sourceLabel: "from football", "workout + sport", "Quick Log" — never shown before
               const src = m.sourceLabel
                 ? m.sourceLabel
