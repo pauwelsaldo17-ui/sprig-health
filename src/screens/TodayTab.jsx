@@ -2935,7 +2935,7 @@ function TodayTab({
             border: `1px solid ${waterGoalHit ? WATER_CLR + "44" : C.line}`, marginTop: 8,
             padding: "12px 14px", boxShadow: C.shadow,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: (waterMl > 0 || waterGoalHit) ? 9 : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: (waterMl > 0 || waterGoalHit) ? 9 : waterGoal > 0 ? 6 : 0 }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: WATER_CLR + (waterGoalHit ? "28" : "1A"), display: "grid", placeItems: "center", flexShrink: 0 }}>
                 <Droplets size={15} color={WATER_CLR} />
               </div>
@@ -2944,7 +2944,9 @@ function TodayTab({
                 <div style={{ fontSize: 13, fontWeight: 600, color: waterGoalHit ? WATER_CLR : C.ink }}>
                   {waterGoalHit
                     ? (dtWaterSrc === "quick_log" && waterMl === 0 ? "Goal hit · Quick logged" : `${(waterMl / 1000).toFixed(1)}L — hydrated ✓`)
-                    : `${(waterMl / 1000).toFixed(1)}L / ${(waterGoal / 1000).toFixed(1)}L`}
+                    : waterMl === 0
+                      ? `Goal: ${(waterGoal / 1000).toFixed(1)}L today`
+                      : `${(waterMl / 1000).toFixed(1)}L / ${(waterGoal / 1000).toFixed(1)}L`}
                 </div>
               </div>
               {/* Buttons: hide when goal is already hit; show small +more otherwise */}
