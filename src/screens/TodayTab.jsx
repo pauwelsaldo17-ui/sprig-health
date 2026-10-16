@@ -2461,6 +2461,9 @@ function TodayTab({
         const sorted = [...scores].sort((a, b) => b.score - a.score);
         const top = sorted[0];
         const gap = sorted[sorted.length - 1];
+        const topClr  = top.score >= 65 ? C.greenSoft : top.score >= 40 ? C.amber : C.coral;
+        const gapClr  = gap.score < 40 ? C.coral : gap.score < 65 ? C.amber : C.greenSoft;
+        const gapLabel = gap.score < 40 ? "Critical gap" : gap.score < 65 ? "Needs fuel" : "All on track";
         return (
           <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -2483,12 +2486,12 @@ function TodayTab({
               })}
             </div>
             <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}`, display: "flex", gap: 8 }}>
-              <div style={{ flex: 1, background: C.greenSoft + "10", borderRadius: 10, padding: "6px 10px" }}>
-                <div style={{ fontSize: 9.5, fontWeight: 800, color: C.greenSoft, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 }}>Top fuel</div>
+              <div style={{ flex: 1, background: topClr + "10", borderRadius: 10, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9.5, fontWeight: 800, color: topClr, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 }}>Top fuel</div>
                 <div style={{ fontSize: 11, color: C.inkSoft }}>{top.emoji} {top.label} · {top.score}</div>
               </div>
-              <div style={{ flex: 1, background: C.coral + "10", borderRadius: 10, padding: "6px 10px" }}>
-                <div style={{ fontSize: 9.5, fontWeight: 800, color: C.coral, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 }}>Needs fuel</div>
+              <div style={{ flex: 1, background: gapClr + "10", borderRadius: 10, padding: "6px 10px" }}>
+                <div style={{ fontSize: 9.5, fontWeight: 800, color: gapClr, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 }}>{gapLabel}</div>
                 <div style={{ fontSize: 11, color: C.inkSoft }}>{gap.emoji} {gap.label} · {gap.score}</div>
               </div>
             </div>
