@@ -850,8 +850,8 @@ function TodayTab({
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         {tp.nutrition !== false && (
           <QA icon={<Flame size={17} color={NUTR_CLR} />} label="Food" color={NUTR_CLR} onClick={onGoNutrition}
-            done={!!dtNutrSrc && t.calories > 100}
-            partial={!!dtNutrSrc && t.calories <= 100}
+            done={!!dtNutrSrc && (t.calories > 100 || dtNutrSrc === "quick_log")}
+            partial={!!dtNutrSrc && t.calories <= 100 && dtNutrSrc !== "quick_log"}
             val={t.calories > 0 ? `${Math.round(t.calories).toLocaleString()} kcal` : dtNutrSrc ? "Logged" : undefined}
           />
         )}
