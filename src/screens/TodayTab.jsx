@@ -1307,7 +1307,9 @@ function TodayTab({
                   : adjTarget > 0
                     ? `${Math.round(t.calories / adjTarget * 100)}% of goal`
                     : null)
-              : null}
+              : dtNutrSrc === "quick_log"
+                ? "Quick logged"
+                : null}
             sub2={
               adjTarget > 0 && t.calories > adjTarget
                 ? `+${Math.round(t.calories - adjTarget)} kcal over`
