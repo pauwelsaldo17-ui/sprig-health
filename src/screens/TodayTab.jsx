@@ -1268,7 +1268,7 @@ function TodayTab({
                       ? `Fair sleep · ${Math.round(subScores.sleep)}`
                       : `Poor sleep · ${Math.round(subScores.sleep || 0)}`)
                 : dtSleepSrc === "quick_log"
-                  ? "Quick logged"
+                  ? (subScores?.sleep != null ? `Quick logged · ${Math.round(subScores.sleep)}` : "Quick logged")
                   : null
             }
             sub2={
