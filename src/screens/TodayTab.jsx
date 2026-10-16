@@ -2990,7 +2990,9 @@ function TodayTab({
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 11.5, fontWeight: 800, color: WATER_CLR }}>Hydration goal reached!</div>
                   <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 1 }}>
-                    {totalGlasses} glass{totalGlasses !== 1 ? "es" : ""} · {(waterMl / 1000).toFixed(1)}L today
+                    {dtWaterSrc === "quick_log" && waterMl === 0
+                      ? "Quick logged ✓"
+                      : `${totalGlasses} glass${totalGlasses !== 1 ? "es" : ""} · ${(waterMl / 1000).toFixed(1)}L today`}
                   </div>
                 </div>
               </div>
