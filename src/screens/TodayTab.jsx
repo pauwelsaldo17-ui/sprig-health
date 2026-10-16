@@ -2997,7 +2997,7 @@ function TodayTab({
 
       {/* ══ 5. WATER STRIP ═══════════════════════════════════════ */}
       {tp.water !== false && (() => {
-        const waterGoalHit = waterMl >= waterGoal || dtWaterSrc === "quick_log";
+        const waterGoalHit = (waterGoal > 0 && waterMl >= waterGoal) || dtWaterSrc === "quick_log";
         const PER_GLASS    = 250;
         const totalGlasses = Math.min(10, Math.round(waterGoal / PER_GLASS));
         const doneGlasses  = Math.min(totalGlasses, Math.floor(waterMl / PER_GLASS));
@@ -3018,8 +3018,12 @@ function TodayTab({
                   {waterGoalHit
                     ? (dtWaterSrc === "quick_log" && waterMl === 0 ? "Goal hit · Quick logged" : `${(waterMl / 1000).toFixed(1)}L — hydrated ✓`)
                     : waterMl === 0
-                      ? `Goal: ${(waterGoal / 1000).toFixed(1)}L today`
-                      : `${(waterMl / 1000).toFixed(1)}L / ${(waterGoal / 1000).toFixed(1)}L`}
+                      ? waterGoal > 0
+                        ? `Goal: ${(waterGoal / 1000).toFixed(1)}L today`
+                        : "Log water today"
+                      : waterGoal > 0
+                        ? `${(waterMl / 1000).toFixed(1)}L / ${(waterGoal / 1000).toFixed(1)}L`
+                        : `${(waterMl / 1000).toFixed(1)}L today`}
                 </div>
               </div>
               {/* Buttons: hide when goal is already hit; show small +more otherwise */}
@@ -3045,7 +3049,7 @@ function TodayTab({
               )}
             </div>
             {/* Progress bar */}
-            {waterMl > 0 && !waterGoalHit && (
+            {waterMl > 0 && !waterGoalHit && waterGoal > 0 && (
               <div style={{ height: 5, background: C.bg2, borderRadius: 9, marginBottom: 8 }}>
                 <div style={{
                   height: "100%", borderRadius: 9, background: WATER_CLR + "AA",
@@ -3063,7 +3067,9 @@ function TodayTab({
                   <div style={{ fontSize: 10.5, color: C.inkSoft, marginTop: 1 }}>
                     {dtWaterSrc === "quick_log" && waterMl === 0
                       ? "Quick logged ✓"
-                      : `${totalGlasses} glass${totalGlasses !== 1 ? "es" : ""} · ${(waterMl / 1000).toFixed(1)}L today`}
+                      : totalGlasses > 0
+                        ? `${totalGlasses} glass${totalGlasses !== 1 ? "es" : ""} · ${(waterMl / 1000).toFixed(1)}L today`
+                        : `${(waterMl / 1000).toFixed(1)}L today`}
                   </div>
                 </div>
               </div>
