@@ -82,7 +82,7 @@ function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty
         }}>
           {icon}
         </div>
-        {pct !== undefined && <MiniArc pct={pct} color={color} size={36} strokeWidth={3.5} />}
+        {pct != null && <MiniArc pct={pct} color={color} size={36} strokeWidth={3.5} />}
       </div>
       {/* body */}
       <div style={{ flex: 1 }}>
