@@ -444,6 +444,12 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
     else if (e === "low" && s === "low" && m !== "bad") insight = { text: "Low energy today — hydrate, eat something good, rest if needed.", icon: "🌿", clr: C.muted };
     else if (s === "high")                              insight = { text: "High stress — even 10 minutes of movement or breathing helps.", icon: "😤", clr: C.amber };
     else if (m === "okay" && e === "normal")            insight = { text: "Steady day — keep the routine going.", icon: "📊", clr: C.muted };
+    else if (m === "good" && e === "low")               insight = { text: "Good mindset despite low energy — light movement can help.", icon: "🌿", clr: C.greenSoft };
+    else if (m === "bad" && e === "high")               insight = { text: "High energy, low mood — a workout might actually help shift it.", icon: "💪", clr: C.amber };
+    else if (m === "okay" && e === "high")              insight = { text: "Good energy today — put it to use!", icon: "🔥", clr: C.greenSoft };
+    else if (m === "good")                              insight = { text: "Great mindset today — keep that momentum.", icon: "🌟", clr: C.greenSoft };
+    else if (m === "bad")                               insight = { text: "Difficult day — take it one step at a time.", icon: "🛌", clr: C.amber };
+    else                                                insight = { text: "Consistency is what builds results — keep going.", icon: "📊", clr: C.muted };
     return (
       <div style={{ background: MIND_CLR + "0D", border: `1px solid ${MIND_CLR}2A`, borderRadius: 14, padding: "10px 13px", marginTop: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: insight ? 6 : 0 }}>
