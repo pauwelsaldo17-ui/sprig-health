@@ -1342,7 +1342,9 @@ function TodayTab({
                     : "Workout logged ✓"
                   : dtMoveSrc === "quick_log" && steps === 0
                     ? "Activity logged"
-                    : null
+                    : steps > 0
+                      ? `${movePct}% · goal ${sGoal.toLocaleString()}`
+                      : null
             }
             sub2={
               steps >= sGoal && sGoal > 0
@@ -1368,7 +1370,13 @@ function TodayTab({
             color={RECOV_CLR}
             label="Recovery"
             main={recovScore != null ? String(recovScore) : "—"}
-            sub={recovScore != null ? scoreVerdict(recovScore) : null}
+            sub={recovScore != null
+              ? (recovScore >= 85 ? "Excellent recovery"
+                : recovScore >= 70 ? "Well rested"
+                : recovScore >= 55 ? "Moderate recovery"
+                : recovScore >= 40 ? "Under-recovered"
+                : "Rest needed")
+              : null}
             sub2={
               recovScore != null && recovScore < 50
                 ? "Rest recommended"
