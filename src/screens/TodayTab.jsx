@@ -1411,7 +1411,11 @@ function TodayTab({
                     ? `${(trainInfo?.readyMuscles || trainInfo?.freshMuscles || []).length} muscles ready`
                     : recovScore != null && recoveryInfo?.bestAction
                       ? recoveryInfo.bestAction
-                      : null
+                      : recovScore != null && recoveryInfo?.label
+                        ? recoveryInfo.label
+                        : recovScore != null
+                          ? recovScore >= 65 ? "Light training OK" : "Ease into today"
+                          : null
             }
             extra={(() => {
               if (recovScore == null || recovScore < 55) return null;
