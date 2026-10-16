@@ -1340,7 +1340,7 @@ function TodayTab({
                 ? "Active"
                 : steps > 0
                   ? steps.toLocaleString()
-                  : dtTrainSrc === "exact"
+                  : dtTrainSrc
                     ? "Trained"
                     : "—"
             }
@@ -1359,6 +1359,8 @@ function TodayTab({
                   ? moveInfo?.workoutAdj?.kcal > 0
                     ? `+${moveInfo.workoutAdj.kcal} kcal burned`
                     : "Workout logged ✓"
+                  : dtTrainSrc === "quick_log" && steps === 0
+                    ? "Quick trained ✓"
                   : dtMoveSrc === "quick_log" && steps === 0
                     ? "Activity logged"
                     : steps > 0
@@ -1378,7 +1380,7 @@ function TodayTab({
             onTap={onGoTrain}
             cta={!dtMoveSrc && !dtTrainSrc && steps === 0 ? "Log workout" : null}
             empty={!dtMoveSrc && !dtTrainSrc && steps === 0}
-            active={!!(dtMoveSrc || steps > 0 || dtTrainSrc === "exact")}
+            active={!!(dtMoveSrc || steps > 0 || dtTrainSrc)}
           />
         )}
 
