@@ -1382,16 +1382,16 @@ function TodayTab({
             color={C.greenSoft}
             label="Movement"
             main={
-              dtMoveSrc === "quick_log"
-                ? "Active"
-                : steps > 0
-                  ? steps.toLocaleString()
+              steps > 0
+                ? steps.toLocaleString()
+                : dtMoveSrc === "quick_log"
+                  ? "Active"
                   : dtTrainSrc
                     ? "Trained"
                     : "—"
             }
             sub={
-              steps > 0 && dtMoveSrc !== "quick_log"
+              steps > 0
                 ? dtTrainSrc === "exact" && moveInfo?.workoutAdj?.kcal > 0
                   ? `${movePct}% steps · +${moveInfo.workoutAdj.kcal} kcal`
                   : steps >= sGoal && sGoal > 0
@@ -1400,17 +1400,17 @@ function TodayTab({
                       : steps > sGoal
                         ? `+${(steps - sGoal).toLocaleString()} over goal`
                         : "Goal complete"
-                    : `${movePct}% · goal ${sGoal.toLocaleString()}`
-                : dtTrainSrc === "exact" && steps === 0
+                    : dtMoveSrc === "quick_log"
+                      ? `Active · ${movePct}% of goal`
+                      : `${movePct}% · goal ${sGoal.toLocaleString()}`
+                : dtTrainSrc === "exact"
                   ? moveInfo?.workoutAdj?.kcal > 0
                     ? `+${moveInfo.workoutAdj.kcal} kcal burned`
                     : "Workout logged ✓"
-                  : dtTrainSrc === "quick_log" && steps === 0
+                  : dtTrainSrc === "quick_log"
                     ? "Quick trained ✓"
-                  : dtMoveSrc === "quick_log" && steps === 0
-                    ? "Activity logged"
-                    : steps > 0
-                      ? `${movePct}% · goal ${sGoal.toLocaleString()}`
+                    : dtMoveSrc === "quick_log"
+                      ? "Activity logged"
                       : null
             }
             sub2={
