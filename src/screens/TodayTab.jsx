@@ -1253,7 +1253,9 @@ function TodayTab({
               sleepDur
                 ? (subScores.sleep >= 80
                     ? `Great sleep · ${Math.round(subScores.sleep)}`
-                    : `Score ${Math.round(subScores.sleep || 0)}`)
+                    : subScores.sleep >= 60
+                      ? `Fair sleep · ${Math.round(subScores.sleep)}`
+                      : `Poor sleep · ${Math.round(subScores.sleep || 0)}`)
                 : dtSleepSrc === "quick_log"
                   ? "Quick logged"
                   : null
@@ -1298,7 +1300,9 @@ function TodayTab({
                   ? "Calorie goal hit! ✓"
                   : adjTarget > 0 && t.calories > 0
                     ? `${Math.round(adjTarget - t.calories)} kcal left`
-                    : null
+                    : adjTarget > 0 && t.calories === 0
+                      ? `Goal: ${adjTarget.toLocaleString()} kcal`
+                      : null
             }
             pct={calPct}
             onTap={onGoNutrition}
