@@ -1430,6 +1430,7 @@ function TodayTab({
             })()}
             pct={recovScore}
             onTap={onGoHealth || onGoBody}
+            cta={recovScore == null ? "Log sleep + training" : null}
             empty={recovScore == null}
             active={recovScore != null}
           />
