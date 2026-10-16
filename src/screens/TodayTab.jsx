@@ -846,7 +846,7 @@ function TodayTab({
           <QA icon={<Flame size={17} color={NUTR_CLR} />} label="Food" color={NUTR_CLR} onClick={onGoNutrition}
             done={!!dtNutrSrc && t.calories > 100}
             partial={!!dtNutrSrc && t.calories <= 100}
-            val={t.calories > 100 ? `${Math.round(t.calories).toLocaleString()} kcal` : undefined}
+            val={t.calories > 0 ? `${Math.round(t.calories).toLocaleString()} kcal` : dtNutrSrc ? "Logged" : undefined}
           />
         )}
         {(tp.movement !== false || tp.training !== false) && (
@@ -856,7 +856,9 @@ function TodayTab({
               ? `${steps.toLocaleString()} steps`
               : dtTrainSrc === "exact" && moveInfo?.workoutAdj?.totalMin > 0
                 ? `${moveInfo.workoutAdj.totalMin}min`
-                : undefined}
+                : dtTrainSrc
+                  ? "Logged"
+                  : undefined}
           />
         )}
         {tp.sleep !== false && (
