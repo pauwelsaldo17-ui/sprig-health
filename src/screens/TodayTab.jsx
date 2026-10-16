@@ -2288,34 +2288,48 @@ function TodayTab({
 
       {/* ══ 4d1c. MACRO SNAPSHOT — compact full macro picture at a glance ══ */}
       {tp.nutrition !== false && t.calories > 50 && (t.carbs > 0 || t.fat > 0 || t.fiber > 0) && (() => {
+        // Estimate carb/fat targets from calorie goal when not explicitly set
+        // Remaining calories after protein → 65% carbs / 35% fat (standard balanced split)
+        const estCarbTarget = (() => {
+          if (!(targets.calories > 0)) return 0;
+          const protCal = (targets.protein || 0) * 4;
+          const rem = Math.max(0, targets.calories - protCal);
+          return rem > 0 ? Math.round(rem * 0.65 / 4) : 0;
+        })();
+        const estFatTarget = (() => {
+          if (!(targets.calories > 0)) return 0;
+          const protCal = (targets.protein || 0) * 4;
+          const rem = Math.max(0, targets.calories - protCal);
+          return rem > 0 ? Math.round(rem * 0.35 / 9) : 0;
+        })();
         const macros = [
-          { key: "cal",     label: "Cal",     value: Math.round(t.calories || 0), target: targets.calories || 0, unit: "kcal", clr: NUTR_CLR    },
-          { key: "protein", label: "Protein", value: Math.round(t.protein  || 0), target: targets.protein  || 0, unit: "g",    clr: C.coral     },
-          { key: "carbs",   label: "Carbs",   value: Math.round(t.carbs    || 0), target: 0,                     unit: "g",    clr: C.amber     },
-          { key: "fat",     label: "Fat",     value: Math.round(t.fat      || 0), target: 0,                     unit: "g",    clr: C.muted     },
-          { key: "fiber",   label: "Fiber",   value: Math.round(t.fiber    || 0), target: targets.fiber    || 0, unit: "g",    clr: C.greenSoft },
+          { key: "cal",     label: "Cal",     value: Math.round(t.calories || 0), target: targets.calories || 0, unit: "kcal", clr: NUTR_CLR,    est: false },
+          { key: "protein", label: "Protein", value: Math.round(t.protein  || 0), target: targets.protein  || 0, unit: "g",    clr: C.coral,     est: false },
+          { key: "carbs",   label: "Carbs",   value: Math.round(t.carbs    || 0), target: estCarbTarget,          unit: "g",    clr: C.amber,     est: estCarbTarget > 0 },
+          { key: "fat",     label: "Fat",     value: Math.round(t.fat      || 0), target: estFatTarget,           unit: "g",    clr: C.muted,     est: estFatTarget > 0  },
+          { key: "fiber",   label: "Fiber",   value: Math.round(t.fiber    || 0), target: targets.fiber    || 0, unit: "g",    clr: C.greenSoft, est: false },
         ];
         return (
           <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${NUTR_CLR}22`, padding: "11px 13px", marginTop: 8, boxShadow: C.shadow }}>
             <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 9 }}>Macros today</div>
             <div style={{ display: "flex", gap: 4 }}>
-              {macros.map(({ key, label, value, target, unit, clr }) => {
+              {macros.map(({ key, label, value, target, unit, clr, est }) => {
                 const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : -1;
-                const overGoal = target > 0 && value > target;
+                const overGoal = target > 0 && value > target * 1.15; // 15% grace on estimated targets
                 const barClr = overGoal ? C.coral : clr;
                 return (
                   <div key={key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.3, whiteSpace: "nowrap" }}>{label}</div>
                     <div style={{ fontSize: 13.5, fontWeight: 800, color: overGoal ? C.coral : clr, lineHeight: 1.1 }}>{value}</div>
                     <div style={{ fontSize: 8.5, color: C.muted, lineHeight: 1 }}>
-                      {target > 0 ? `/ ${target}` : unit}
+                      {target > 0 ? `${est ? "~" : "/ "}${target}` : unit}
                     </div>
                     {target > 0 && (
                       <>
                         <div style={{ width: "100%", height: 3, background: clr + "22", borderRadius: 99, marginTop: 3, overflow: "hidden" }}>
                           <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: barClr, borderRadius: 99, transition: "width .6s cubic-bezier(.34,1.56,.64,1)" }} />
                         </div>
-                        <div style={{ fontSize: 8.5, fontWeight: 700, color: overGoal ? C.coral : (pct >= 90 ? C.greenSoft : C.muted) }}>{pct}%</div>
+                        <div style={{ fontSize: 8.5, fontWeight: 700, color: overGoal ? C.coral : (pct >= 85 ? C.greenSoft : C.muted) }}>{pct}%</div>
                       </>
                     )}
                   </div>
