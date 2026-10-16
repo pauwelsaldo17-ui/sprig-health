@@ -1330,7 +1330,13 @@ function TodayTab({
                   ? "Workout logged ✓"
                   : null
             }
-            sub2={steps >= sGoal && sGoal > 0 ? "Step goal hit! 🏆" : null}
+            sub2={
+              steps >= sGoal && sGoal > 0
+                ? "Step goal hit! 🏆"
+                : sGoal > 0 && steps > 0 && (sGoal - steps) <= 3000
+                  ? `${(sGoal - steps).toLocaleString()} steps to goal`
+                  : null
+            }
             pct={movePct}
             onTap={onGoTrain}
             cta={!dtMoveSrc && !dtTrainSrc && steps === 0 ? "Log workout" : null}
