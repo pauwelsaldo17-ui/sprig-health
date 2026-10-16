@@ -696,7 +696,7 @@ function TodayTab({
         {/* AI insight — tappable, navigates to relevant tab */}
         {actions.length > 0 && (() => {
           const icon = actions[0].icon;
-          const navFn = { train: onGoTrain, food: onGoNutrition, protein: onGoNutrition, sleep: onGoSleep, walk: onGoTrain, pain: onGoHealth }[icon];
+          const navFn = { train: onGoTrain, food: onGoNutrition, protein: onGoNutrition, sleep: onGoSleep, walk: onGoTrain, pain: onGoHealth, rest: onGoHealth || onGoBody, log: onGoNutrition }[icon];
           return navFn ? (
             <button className="sprig-tap" onClick={() => { navFn(); buzz("tap"); }}
               style={{ width: "100%", background: "rgba(255,255,255,0.09)", borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "flex-start", gap: 9, border: "none", cursor: "pointer", textAlign: "left" }}>
@@ -720,7 +720,7 @@ function TodayTab({
         {actions.length > 1 && (
           <div style={{ marginTop: 7, display: "flex", flexDirection: "column", gap: 4 }}>
             {actions.slice(1, 4).map((a, i) => {
-              const navFn2 = { train: onGoTrain, food: onGoNutrition, protein: onGoNutrition, sleep: onGoSleep, walk: onGoTrain, pain: onGoHealth }[a.icon];
+              const navFn2 = { train: onGoTrain, food: onGoNutrition, protein: onGoNutrition, sleep: onGoSleep, walk: onGoTrain, pain: onGoHealth, rest: onGoHealth || onGoBody, log: onGoNutrition }[a.icon];
               const iconEl = ACTION_ICON[a.icon];
               return navFn2 ? (
                 <button key={i} className="sprig-tap" onClick={() => { navFn2(); buzz("tap"); }}
