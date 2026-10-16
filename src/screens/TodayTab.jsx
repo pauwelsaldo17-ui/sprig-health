@@ -63,7 +63,7 @@ function MiniArc({ pct = 0, color = C.greenSoft, size = 38, strokeWidth = 4 }) {
 }
 
 /* ─── BentoCard ──────────────────────────────────────────────────── */
-function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty, active }) {
+function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty, active, extra }) {
   return (
     <button className="sprig-tap" onClick={onTap}
       style={{
@@ -98,6 +98,7 @@ function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty
         </div>
         {sub  && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3, lineHeight: 1.3 }}>{sub}</div>}
         {sub2 && <div style={{ fontSize: 11.5, color, fontWeight: 600, marginTop: 2 }}>{sub2}</div>}
+        {extra}
       </div>
       {/* cta */}
       {cta && (
@@ -1274,7 +1275,7 @@ function TodayTab({
             label="Nutrition"
             main={
               t.calories > 0
-                ? `${t.calories} kcal`
+                ? `${Math.round(t.calories).toLocaleString()} kcal`
                 : dtNutrSrc === "quick_log"
                   ? "Logged"
                   : "—"
@@ -1345,8 +1346,37 @@ function TodayTab({
                 ? "Rest recommended"
                 : recovScore != null && recovScore >= 80
                   ? "Peak condition"
-                  : null
+                  : recovScore != null && (trainInfo?.readyMuscles?.length > 0 || trainInfo?.freshMuscles?.length > 0)
+                    ? `${(trainInfo?.readyMuscles || trainInfo?.freshMuscles || []).length} muscles ready`
+                    : null
             }
+            extra={(() => {
+              if (recovScore == null || recovScore < 55) return null;
+              const muscles = trainInfo?.readyMuscles?.length > 0
+                ? trainInfo.readyMuscles
+                : trainInfo?.freshMuscles?.length > 0
+                  ? trainInfo.freshMuscles
+                  : null;
+              if (!muscles?.length) return null;
+              return (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                  {muscles.slice(0, 3).map(name => (
+                    <span key={name} style={{
+                      fontSize: 9, fontWeight: 700, color: RECOV_CLR,
+                      background: RECOV_CLR + "18", border: `1px solid ${RECOV_CLR}30`,
+                      borderRadius: 4, padding: "2px 6px", lineHeight: 1.5,
+                    }}>
+                      {name}
+                    </span>
+                  ))}
+                  {muscles.length > 3 && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, padding: "2px 2px", lineHeight: 1.5 }}>
+                      +{muscles.length - 3}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             pct={recovScore}
             onTap={onGoHealth || onGoBody}
             empty={recovScore == null}
