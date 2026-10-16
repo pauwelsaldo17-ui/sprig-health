@@ -1304,11 +1304,13 @@ function TodayTab({
             }
             sub={
               sleepDur
-                ? (subScores.sleep >= 80
-                    ? `Great sleep · ${Math.round(subScores.sleep)}`
-                    : subScores.sleep >= 60
-                      ? `Fair sleep · ${Math.round(subScores.sleep)}`
-                      : `Poor sleep · ${Math.round(subScores.sleep || 0)}`)
+                ? subScores.sleep != null
+                  ? (subScores.sleep >= 80
+                      ? `Great sleep · ${Math.round(subScores.sleep)}`
+                      : subScores.sleep >= 60
+                        ? `Fair sleep · ${Math.round(subScores.sleep)}`
+                        : `Poor sleep · ${Math.round(subScores.sleep)}`)
+                  : "Duration logged"
                 : dtSleepSrc === "quick_log"
                   ? (subScores?.sleep != null ? `Quick logged · ${Math.round(subScores.sleep)}` : "Quick logged")
                   : null
