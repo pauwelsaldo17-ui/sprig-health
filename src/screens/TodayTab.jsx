@@ -3035,7 +3035,7 @@ function TodayTab({
           border: `1px solid ${C.line}`, marginTop: 8,
           padding: "12px 14px", boxShadow: C.shadow,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: (steps > 0 || stepsEditing) ? 9 : 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: (steps > 0 || stepsEditing) ? 9 : 6 }}>
             <div style={{ width: 30, height: 30, borderRadius: 9, background: C.green + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
               <Activity size={15} color={C.greenSoft} />
             </div>
@@ -3045,7 +3045,7 @@ function TodayTab({
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>
                   {steps > 0
                     ? `${steps.toLocaleString()} / ${sGoal.toLocaleString()}`
-                    : `0 / ${sGoal.toLocaleString()}`}
+                    : `Goal: ${sGoal.toLocaleString()} steps`}
                 </span>
                 {steps > 0 && moveInfo?.movement?.kcal > 0 && (
                   <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>~{moveInfo.movement.kcal} kcal</span>
