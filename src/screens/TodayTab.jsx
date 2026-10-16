@@ -1291,7 +1291,11 @@ function TodayTab({
             sub={t.calories > 0
               ? (targets.protein > 0 && (t.protein || 0) >= targets.protein * 0.9
                 ? `Protein ✓ ${Math.round(t.protein || 0)}g`
-                : `${Math.round(t.protein || 0)}g protein`)
+                : targets.protein > 0
+                  ? `${Math.round(t.protein || 0)}g protein`
+                  : adjTarget > 0
+                    ? `${Math.round(t.calories / adjTarget * 100)}% of goal`
+                    : null)
               : null}
             sub2={
               adjTarget > 0 && t.calories > adjTarget
@@ -1336,7 +1340,9 @@ function TodayTab({
                   ? moveInfo?.workoutAdj?.kcal > 0
                     ? `+${moveInfo.workoutAdj.kcal} kcal burned`
                     : "Workout logged ✓"
-                  : null
+                  : dtMoveSrc === "quick_log" && steps === 0
+                    ? "Activity logged"
+                    : null
             }
             sub2={
               steps >= sGoal && sGoal > 0
