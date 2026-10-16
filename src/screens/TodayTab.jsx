@@ -3768,6 +3768,11 @@ function TodayTab({
                 );
               })}
             </div>
+            {achievements.length > 4 && (
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 6, textAlign: "center" }}>
+                +{achievements.length - 4} more milestone{achievements.length - 4 !== 1 ? "s" : ""}
+              </div>
+            )}
           </div>
         );
       })()}
