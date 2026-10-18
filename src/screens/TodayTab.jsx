@@ -2409,14 +2409,18 @@ function TodayTab({
         const pctHit  = Math.round((t.protein || 0) / targets.protein * 100);
         const clr     = pctHit < 50 ? C.coral : C.amber;
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 9, background: clr + "0E", border: `1px solid ${clr}28`, borderRadius: 12, padding: "8px 12px", marginTop: 8 }}>
+          <button className="sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: clr + "0E", border: `1px solid ${clr}28`, borderRadius: 12, padding: "8px 12px", marginTop: 8, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
             <span style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}>💪</span>
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: clr }}>{needed}g protein still needed</span>
               <span style={{ fontSize: 11, color: C.inkSoft }}> · {Math.round(t.protein || 0)}g / {targets.protein}g today</span>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 800, color: clr, background: clr + "18", borderRadius: 5, padding: "3px 7px", flexShrink: 0 }}>{pctHit}%</span>
-          </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: clr, background: clr + "18", borderRadius: 5, padding: "3px 7px" }}>{pctHit}%</span>
+              <ChevronRight size={12} color={clr} />
+            </div>
+          </button>
         );
       })()}
 
