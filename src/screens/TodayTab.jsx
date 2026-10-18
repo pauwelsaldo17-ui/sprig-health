@@ -2890,14 +2890,28 @@ function TodayTab({
               </div>
             )}
             {neglected.length >= 2 && (
-              <div style={{ fontSize: 10.5, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>
-                ⚡ Not hit this week: {neglected.map(m => m.label).join(" · ")}
-              </div>
+              onGoTrain ? (
+                <button className="sprig-tap" onClick={() => { onGoTrain(); buzz("tap"); }}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", marginTop: 4, display: "flex", alignItems: "center", gap: 3 }}>
+                  <span style={{ fontSize: 10.5, color: C.amber, lineHeight: 1.4 }}>⚡ Not hit this week: {neglected.map(m => m.label).join(" · ")}</span>
+                  <ChevronRight size={10} color={C.amber} style={{ flexShrink: 0 }} />
+                </button>
+              ) : (
+                <div style={{ fontSize: 10.5, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>
+                  ⚡ Not hit this week: {neglected.map(m => m.label).join(" · ")}
+                </div>
+              )
             )}
             {(() => {
               const over = items.filter(m => volumeStatus(m.sets, m.key).tag === "over");
               if (!over.length) return null;
-              return (
+              return onGoTrain ? (
+                <button className="sprig-tap" onClick={() => { onGoTrain(); buzz("tap"); }}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", marginTop: 3, display: "flex", alignItems: "center", gap: 3 }}>
+                  <span style={{ fontSize: 10.5, color: C.coral, lineHeight: 1.4 }}>⚠ Too many sets: {over.map(m => m.label).join(" · ")} — trim junk volume</span>
+                  <ChevronRight size={10} color={C.coral} style={{ flexShrink: 0 }} />
+                </button>
+              ) : (
                 <div style={{ fontSize: 10.5, color: C.coral, marginTop: 3, lineHeight: 1.4 }}>
                   ⚠ Too many sets: {over.map(m => m.label).join(" · ")} — trim junk volume
                 </div>
@@ -2917,6 +2931,12 @@ function TodayTab({
                     {name}
                   </span>
                 ))}
+                {onStartWorkout && (
+                  <button className="sprig-tap" onClick={() => { onStartWorkout(); buzz("medium"); }}
+                    style={{ marginLeft: "auto", background: C.greenSoft + "18", border: `1px solid ${C.greenSoft}33`, borderRadius: 7, padding: "3px 10px", fontSize: 10, fontWeight: 800, color: C.greenSoft, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                    Train <ChevronRight size={9} color={C.greenSoft} />
+                  </button>
+                )}
               </div>
             )}
           </div>
