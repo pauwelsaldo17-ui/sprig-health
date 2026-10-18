@@ -3173,8 +3173,17 @@ function TodayTab({
                   style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+1K</button>
                 <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 2000 }); buzz("light"); }}
                   style={{ ...btn(C.bg2, C.green), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+2K</button>
-                <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 5000 }); buzz("light"); }}
-                  style={{ ...btn(C.bg2, C.greenSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+5K</button>
+                {sGoal - steps > 0 && sGoal - steps <= 3000 ? (
+                  /* ── "Hit goal" shortcut — replaces +5K when within reach ── */
+                  <button className="sprig-tap"
+                    onClick={() => { onDaily({ steps: sGoal }); buzz("success"); if (onToast) onToast("Step goal hit! 🏆"); }}
+                    style={{ ...btn(C.greenSoft + "22", C.greenSoft), flex: 2, padding: "9px 0", fontSize: 12, fontWeight: 800, border: `1px solid ${C.greenSoft}44` }}>
+                    🏆 +{(sGoal - steps).toLocaleString()}
+                  </button>
+                ) : (
+                  <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 5000 }); buzz("light"); }}
+                    style={{ ...btn(C.bg2, C.greenSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+5K</button>
+                )}
                 <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); }}
                   style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>Set</button>
               </div>
