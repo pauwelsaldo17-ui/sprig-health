@@ -1773,13 +1773,16 @@ function TodayTab({
         const info = ALCOHOL_LEVELS[level];
         const clr = info.color;
         return (
-          <div className="sprig-pop" style={{
-            display: "flex", alignItems: "flex-start", gap: 9,
-            background: clr + "0E", border: `1px solid ${clr}2A`,
-            borderRadius: 14, padding: "9px 13px", marginTop: 8,
-          }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "flex-start", gap: 9,
+              background: clr + "0E", border: `1px solid ${clr}2A`,
+              borderRadius: 14, padding: "9px 13px", marginTop: 8,
+              cursor: onGoSleep ? "pointer" : "default",
+              fontFamily: "DM Sans", textAlign: "left",
+            }}>
             <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.5 }}>🍺</span>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                 <span style={{ fontSize: 10, fontWeight: 800, color: clr, textTransform: "uppercase", letterSpacing: 0.4 }}>
                   {info.label} drinking tonight
@@ -1790,7 +1793,8 @@ function TodayTab({
               </div>
               <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{info.next}</div>
             </div>
-          </div>
+            {onGoSleep && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0, marginTop: 2 }} />}
+          </button>
         );
       })()}
 
