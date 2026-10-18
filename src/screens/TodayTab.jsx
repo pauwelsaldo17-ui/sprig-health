@@ -551,7 +551,9 @@ function TodayTab({
   const sleepDur  = lastSleep?.durationMin ? durLabel(lastSleep.durationMin) : null;
   const sleepPct  = lastSleep?.durationMin
     ? Math.min(100, Math.round(lastSleep.durationMin / (8 * 60) * 100))
-    : Math.min(100, subScores.sleep || 0);
+    : subScores.sleep != null
+      ? Math.min(100, subScores.sleep)
+      : null;
 
   const calPct    = adjTarget > 0 ? Math.min(120, Math.round((t.calories || 0) / adjTarget * 100)) : null;
   const movePct   = sGoal > 0 ? Math.min(100, Math.round(steps / sGoal * 100)) : 0;
