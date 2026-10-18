@@ -1275,38 +1275,68 @@ function TodayTab({
             </div>
             {/* weight goal row */}
             {w && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: str.length ? 7 : 0 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.2 }}>
-                    {w.kgLeft > 0 ? `${w.kgLeft} kg to go` : w.kgLeft < 0 ? `${Math.abs(w.kgLeft)} kg past target` : "Target reached!"}
+              onGoBody ? (
+                <button className="sprig-tap" onClick={() => { onGoBody(); buzz("tap"); }}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, marginBottom: str.length ? 7 : 0, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.2 }}>
+                      {w.kgLeft > 0 ? `${w.kgLeft} kg to go` : w.kgLeft < 0 ? `${Math.abs(w.kgLeft)} kg past target` : "Target reached!"}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                      {w.rate > 0 ? "+" : ""}{w.rate} kg/wk
+                      {w.weeksAtPace ? ` · ~${w.weeksAtPace}w at this pace` : ""}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                    {w.rate > 0 ? "+" : ""}{w.rate} kg/wk
-                    {w.weeksAtPace ? ` · ~${w.weeksAtPace}w at this pace` : ""}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: wClr, background: wClr + "18", borderRadius: 8, padding: "3px 9px" }}>
+                      {w.status}
+                    </div>
+                    <ChevronRight size={11} color={C.muted} />
+                  </div>
+                </button>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: str.length ? 7 : 0 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.2 }}>
+                      {w.kgLeft > 0 ? `${w.kgLeft} kg to go` : w.kgLeft < 0 ? `${Math.abs(w.kgLeft)} kg past target` : "Target reached!"}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                      {w.rate > 0 ? "+" : ""}{w.rate} kg/wk
+                      {w.weeksAtPace ? ` · ~${w.weeksAtPace}w at this pace` : ""}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: wClr, background: wClr + "18", borderRadius: 8, padding: "3px 9px", flexShrink: 0 }}>
+                    {w.status}
                   </div>
                 </div>
-                <div style={{
-                  fontSize: 10, fontWeight: 800, color: wClr,
-                  background: wClr + "18", borderRadius: 8, padding: "3px 9px",
-                  flexShrink: 0,
-                }}>
-                  {w.status}
-                </div>
-              </div>
+              )
             )}
             {/* strength gains row */}
             {str.length > 0 && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {str.map((s) => (
-                  <div key={s.name} style={{
-                    background: C.bg2, borderRadius: 9, padding: "5px 10px", flex: "1 1 auto",
-                  }}>
-                    <div style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>{s.name.replace("Barbell ", "")}</div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft, marginTop: 1 }}>
-                      {s.perMonth > 0 ? "+" : ""}{s.perMonth} kg/mo
+                  onGoTrain ? (
+                    <button key={s.name} className="sprig-tap" onClick={() => { onGoTrain(); buzz("tap"); }}
+                      style={{ background: C.bg2, borderRadius: 9, padding: "5px 10px", flex: "1 1 auto", border: "none", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+                      <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        {s.name.replace("Barbell ", "")} <ChevronRight size={9} color={C.muted} />
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft, marginTop: 1 }}>
+                        {s.perMonth > 0 ? "+" : ""}{s.perMonth} kg/mo
+                      </div>
+                      <div style={{ fontSize: 9.5, color: C.muted }}>e1RM {s.e1} kg</div>
+                    </button>
+                  ) : (
+                    <div key={s.name} style={{
+                      background: C.bg2, borderRadius: 9, padding: "5px 10px", flex: "1 1 auto",
+                    }}>
+                      <div style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>{s.name.replace("Barbell ", "")}</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft, marginTop: 1 }}>
+                        {s.perMonth > 0 ? "+" : ""}{s.perMonth} kg/mo
+                      </div>
+                      <div style={{ fontSize: 9.5, color: C.muted }}>e1RM {s.e1} kg</div>
                     </div>
-                    <div style={{ fontSize: 9.5, color: C.muted }}>e1RM {s.e1} kg</div>
-                  </div>
+                  )
                 ))}
               </div>
             )}
