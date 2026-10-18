@@ -65,7 +65,7 @@ function MiniArc({ pct = 0, color = C.greenSoft, size = 38, strokeWidth = 4 }) {
 /* ─── BentoCard ──────────────────────────────────────────────────── */
 function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty, active, extra }) {
   return (
-    <button className="sprig-tap" onClick={onTap}
+    <button className="sprig-tap" onClick={() => { onTap?.(); buzz("tap"); }}
       style={{
         background: active ? color + "0F" : C.card,
         border: `1px solid ${active ? color + "33" : C.line}`,
@@ -114,7 +114,7 @@ function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty
 function QA({ icon, label, color, onClick, done = false, partial = false, val }) {
   const dotClr = done ? C.greenSoft : C.amber;
   return (
-    <button className="sprig-tap" onClick={onClick}
+    <button className="sprig-tap" onClick={() => { onClick?.(); buzz("tap"); }}
       style={{
         flex: 1,
         background: done ? color + "22" : color + "18",
@@ -792,7 +792,7 @@ function TodayTab({
             })[ch.label] ?? (v >= 85 ? "Great" : v >= 70 ? "Good" : v >= 50 ? "Fair" : "Low");
             const navFn = { Sleep: onGoSleep, Nutrition: onGoNutrition, Movement: onGoTrain, Recovery: onGoHealth || onGoBody }[ch.label];
             return (
-              <button key={ch.label} className="sprig-tap" onClick={() => navFn?.()}
+              <button key={ch.label} className="sprig-tap" onClick={() => { navFn?.(); buzz("tap"); }}
                 style={{
                   background: C.card, borderRadius: 14, padding: "9px 6px 8px",
                   textAlign: "center", border: `1px solid ${C.line}`,
@@ -3616,10 +3616,10 @@ function TodayTab({
                 {nudge.text}
               </div>
             </div>
-            <button onClick={onGoBody} style={{
+            <button className="sprig-tap" onClick={() => { onGoBody?.(); buzz("tap"); }} style={{
               border: "none", cursor: "pointer", flexShrink: 0,
               background: C.coral + "18", color: C.coral,
-              fontSize: 10.5, fontWeight: 800, borderRadius: 8, padding: "5px 10px",
+              fontSize: 10.5, fontWeight: 800, borderRadius: 8, padding: "5px 10px", fontFamily: "DM Sans",
             }}>
               Log →
             </button>
@@ -3644,7 +3644,7 @@ function TodayTab({
                 📏 Body measurements
               </div>
               {onGoBody && (
-                <button onClick={onGoBody} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: C.muted, padding: 0 }}>
+                <button className="sprig-tap" onClick={() => { onGoBody?.(); buzz("tap"); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: C.muted, padding: 0, fontFamily: "DM Sans" }}>
                   Update →
                 </button>
               )}
@@ -3862,68 +3862,68 @@ function TodayTab({
         const { training, sleep, nutrition, mind } = weekReport;
         // Build stats strip: only show what we actually have data for
         const stats = [];
-        if (tp.training !== false && training?.count > 0) stats.push({ label: `${training.count} workout${training.count !== 1 ? "s" : ""}`, icon: "🏋️" });
+        if (tp.training !== false && training?.count > 0) stats.push({ label: `${training.count} workout${training.count !== 1 ? "s" : ""}`, icon: "🏋️", nav: onGoTrain });
         if (tp.sleep !== false && sleep?.avgMin) {
           const h = Math.floor(sleep.avgMin / 60), m = Math.round(sleep.avgMin % 60);
-          stats.push({ label: `${h}h${m > 0 ? m + "m" : ""} sleep avg`, icon: "🌙" });
+          stats.push({ label: `${h}h${m > 0 ? m + "m" : ""} sleep avg`, icon: "🌙", nav: onGoSleep });
         }
-        if (tp.nutrition !== false && nutrition?.proteinHitDays > 0) stats.push({ label: `Protein ${nutrition.proteinHitDays}/${nutrition.foodDays || 7}d`, icon: "💪" });
-        if (tp.nutrition !== false && nutrition?.avgSteps > 0) stats.push({ label: `${Math.round((nutrition.avgSteps || 0) / 100) * 100} steps/day`, icon: "👟" });
+        if (tp.nutrition !== false && nutrition?.proteinHitDays > 0) stats.push({ label: `Protein ${nutrition.proteinHitDays}/${nutrition.foodDays || 7}d`, icon: "💪", nav: onGoNutrition });
+        if (tp.nutrition !== false && nutrition?.avgSteps > 0) stats.push({ label: `${Math.round((nutrition.avgSteps || 0) / 100) * 100} steps/day`, icon: "👟", nav: onGoTrain });
         if (tp.mind !== false && mind?.avgMood != null) {
           const moodEmoji = mind.avgMood >= 2.5 ? "😊" : mind.avgMood >= 1.8 ? "😐" : "😔";
           const moodLabel = mind.avgMood >= 2.5 ? "Good mood" : mind.avgMood >= 1.8 ? "Mixed mood" : "Low mood";
-          stats.push({ label: moodLabel, icon: moodEmoji });
+          stats.push({ label: moodLabel, icon: moodEmoji, nav: onGoMind });
         }
-        if (tp.mind !== false && mind?.focusMin >= 60) stats.push({ label: `${Math.round(mind.focusMin / 60)}h focus`, icon: "🎯" });
+        if (tp.mind !== false && mind?.focusMin >= 60) stats.push({ label: `${Math.round(mind.focusMin / 60)}h focus`, icon: "🎯", nav: onGoMind });
         if (tp.sleep !== false && sleep?.bedConsistency != null) {
           const bc = sleep.bedConsistency;
           const bcColor = bc <= 20 ? C.greenSoft : bc <= 45 ? C.amber : C.coral;
-          stats.push({ label: `Bedtime ±${bc}min`, icon: "⏰", color: bcColor });
+          stats.push({ label: `Bedtime ±${bc}min`, icon: "⏰", color: bcColor, nav: onGoSleep });
         }
         if (tp.sleep !== false && sleep?.avgScore != null) {
           const sc = sleep.avgScore;
           const scColor = sc >= 75 ? C.greenSoft : sc >= 55 ? C.amber : C.coral;
-          stats.push({ label: `Sleep ${sc}/100`, icon: "💤", color: scColor });
+          stats.push({ label: `Sleep ${sc}/100`, icon: "💤", color: scColor, nav: onGoSleep });
         }
         // Sleep nights tracked — shows tracking completeness (e.g. "5/7 nights")
         if (tp.sleep !== false && sleep?.nights != null && sleep.nights > 0 && sleep.nights < 7) {
           const nColor = sleep.nights >= 5 ? C.greenSoft : sleep.nights >= 3 ? C.amber : C.coral;
-          stats.push({ label: `${sleep.nights}/7 nights tracked`, icon: "📋", color: nColor });
+          stats.push({ label: `${sleep.nights}/7 nights tracked`, icon: "📋", color: nColor, nav: onGoSleep });
         }
         if (tp.nutrition !== false && nutrition?.avgCal != null) {
-          stats.push({ label: `${nutrition.avgCal} kcal/day`, icon: "🍽️" });
+          stats.push({ label: `${nutrition.avgCal} kcal/day`, icon: "🍽️", nav: onGoNutrition });
         }
         if (weekReport.pain?.count > 0) {
-          stats.push({ label: `Pain logged ${weekReport.pain.count}×`, icon: "🩹", color: C.coral });
+          stats.push({ label: `Pain logged ${weekReport.pain.count}×`, icon: "🩹", color: C.coral, nav: onGoHealth });
         }
         // Protein avg — crucial for muscle building / fat loss
         if (tp.nutrition !== false && nutrition?.avgProt != null) {
-          stats.push({ label: `${nutrition.avgProt}g protein/day`, icon: "🥩" });
+          stats.push({ label: `${nutrition.avgProt}g protein/day`, icon: "🥩", nav: onGoNutrition });
         }
         // Water avg
         if (tp.nutrition !== false && nutrition?.avgWater != null && nutrition.avgWater > 0) {
           const liters = (nutrition.avgWater / 1000).toFixed(1);
-          stats.push({ label: `${liters}L water/day`, icon: "💧" });
+          stats.push({ label: `${liters}L water/day`, icon: "💧", nav: onGoNutrition });
         }
         // Total sets (training volume)
         if (tp.training !== false && training?.totalSets > 0) {
-          stats.push({ label: `${training.totalSets} sets`, icon: "📊" });
+          stats.push({ label: `${training.totalSets} sets`, icon: "📊", nav: onGoTrain });
         }
         // Weekly PRs — highlight chip if any
         if (tp.training !== false && training?.prs?.length > 0) {
           const prCount = training.prs.length;
-          stats.push({ label: `${prCount} new PR${prCount > 1 ? "s" : ""}!`, icon: "🏆", color: C.greenSoft });
+          stats.push({ label: `${prCount} new PR${prCount > 1 ? "s" : ""}!`, icon: "🏆", color: C.greenSoft, nav: onGoTrain });
         }
         // High-stress days
         if (tp.mind !== false && mind?.stressHigh >= 2) {
           const stressColor = mind.stressHigh >= 4 ? C.coral : C.amber;
-          stats.push({ label: `${mind.stressHigh} high-stress days`, icon: "😤", color: stressColor });
+          stats.push({ label: `${mind.stressHigh} high-stress days`, icon: "😤", color: stressColor, nav: onGoMind });
         }
         // Habit consistency this week
         if (tp.mind !== false && mind?.consistency != null) {
           const cPct = Math.round(mind.consistency);
           const cColor = cPct >= 80 ? C.greenSoft : cPct >= 55 ? C.amber : C.coral;
-          stats.push({ label: `${cPct}% habits`, icon: "✅", color: cColor });
+          stats.push({ label: `${cPct}% habits`, icon: "✅", color: cColor, nav: onGoMind });
         }
         // Weight trend vs goal
         if (weekReport.weight?.rate != null) {
@@ -3933,7 +3933,7 @@ function TodayTab({
           const isBadRate = (goal === "gain" && wr < 0) || (goal === "lose" && wr >= 0) || (goal === "maintain" && Math.abs(wr) > 0.4);
           const wColor = isGoodRate ? C.greenSoft : isBadRate ? C.coral : C.amber;
           const sign = wr > 0 ? "+" : "";
-          stats.push({ label: `${sign}${wr} kg/wk`, icon: "⚖️", color: wColor });
+          stats.push({ label: `${sign}${wr} kg/wk`, icon: "⚖️", color: wColor, nav: onGoBody });
         }
         const topMuscles = training?.topMuscles?.slice(0, 4) || [];
         return (
@@ -3948,10 +3948,13 @@ function TodayTab({
             {stats.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: topMuscles.length ? 7 : 10 }}>
                 {stats.map((s, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, background: s.color ? s.color + "15" : C.bg2, borderRadius: 8, padding: "3px 9px" }}>
+                  <button key={i} className="sprig-tap" onClick={() => { s.nav?.(); buzz("tap"); }}
+                    style={{ display: "flex", alignItems: "center", gap: 4, background: s.color ? s.color + "15" : C.bg2, borderRadius: 8, padding: "3px 9px",
+                      cursor: s.nav ? "pointer" : "default", fontFamily: "DM Sans",
+                    }}>
                     <span style={{ fontSize: 11, lineHeight: 1 }}>{s.icon}</span>
                     <span style={{ fontSize: 10.5, fontWeight: 700, color: s.color || C.inkSoft }}>{s.label}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
