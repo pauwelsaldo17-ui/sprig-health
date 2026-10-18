@@ -855,11 +855,14 @@ function TodayTab({
               .filter(c => c.score != null)
               .map((cat) => {
                 const clr = cat.score >= 70 ? (CAT_CLR[cat.key] ?? C.muted) : cat.score >= 45 ? C.amber : C.coral;
+                const navFn = { sleep: onGoSleep, nutrition: onGoNutrition, movement: onGoTrain, mind: onGoMind, markers: onGoHealth }[cat.key];
                 return (
-                  <div key={cat.key} style={{
-                    flex: "0 0 auto", background: C.card, border: `1px solid ${C.line}`,
-                    borderRadius: 10, padding: "5px 9px 6px", textAlign: "center", minWidth: 50,
-                  }}>
+                  <button key={cat.key} className="sprig-tap" onClick={() => { navFn?.(); buzz("tap"); }}
+                    style={{
+                      flex: "0 0 auto", background: C.card, border: `1px solid ${C.line}`,
+                      borderRadius: 10, padding: "5px 9px 6px", textAlign: "center", minWidth: 50,
+                      cursor: navFn ? "pointer" : "default", fontFamily: "DM Sans",
+                    }}>
                     <div style={{ fontSize: 14, fontFamily: "Fraunces, serif", fontWeight: 700, color: clr, lineHeight: 1 }}>
                       {Math.round(cat.score)}
                     </div>
@@ -867,7 +870,7 @@ function TodayTab({
                       {CAT_LBL[cat.key] ?? cat.key}
                     </div>
                     <div style={{ height: 2, borderRadius: 99, background: clr, width: `${Math.max(15, cat.score)}%`, margin: "3px auto 0", opacity: 0.45 }} />
-                  </div>
+                  </button>
                 );
               });
           })()}
@@ -1066,11 +1069,13 @@ function TodayTab({
         const allDomainsLogged = unlogged.length === 0 && partial.length === 0 && done.length >= 2;
         if (allDomainsLogged) {
           return (
-            <div className="sprig-pop" style={{
-              display: "flex", alignItems: "center", gap: 10,
-              background: C.greenSoft + "0F", border: `1px solid ${C.greenSoft}44`,
-              borderRadius: 14, padding: "10px 13px", marginTop: 8,
-            }}>
+            <button className="sprig-pop sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 10,
+                background: C.greenSoft + "0F", border: `1px solid ${C.greenSoft}44`,
+                borderRadius: 14, padding: "10px 13px", marginTop: 8,
+                cursor: onGoHealth ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+              }}>
               <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>🎉</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft }}>All logged today!</div>
@@ -1078,7 +1083,8 @@ function TodayTab({
                   {done.map(d => `${d.icon} ${d.label}`).join(" · ")}
                 </div>
               </div>
-            </div>
+              {onGoHealth && <ChevronRight size={13} color={C.greenSoft} style={{ flexShrink: 0 }} />}
+            </button>
           );
         }
         /* nav map for each domain key */
@@ -1235,26 +1241,36 @@ function TodayTab({
       {/* ══ 3e. PLATEAU ALERTS — weight / strength / sleep stalls (plateauDetection) ═══ */}
       {plateaus?.length > 0 && (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-          {plateaus.map((p, i) => (
-            <div key={i} className="sprig-pop" style={{
-              background: C.amber + "0B", border: `1px solid ${C.amber}30`,
-              borderRadius: 14, padding: "10px 13px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <span style={{ fontSize: 13, lineHeight: 1 }}>📊</span>
-                <span style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4 }}>
-                  Plateau detected
-                </span>
-              </div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.inkSoft, marginBottom: 4 }}>{p.title}</div>
-              {p.reasons?.slice(0, 2).map((r, j) => (
-                <div key={j} style={{ display: "flex", gap: 5, marginTop: 3 }}>
-                  <span style={{ fontSize: 10, color: C.amber, flexShrink: 0, marginTop: 1 }}>·</span>
-                  <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.4 }}>{r}</span>
+          {plateaus.map((p, i) => {
+            const navFn = p.kind === "weight" ? onGoBody
+              : p.kind === "strength" ? onGoTrain
+              : p.kind === "sleep" ? onGoSleep
+              : onGoHealth;
+            return (
+              <button key={i} className="sprig-pop sprig-tap" onClick={() => { navFn?.(); buzz("tap"); }}
+                style={{
+                  width: "100%", display: "flex", flexDirection: "column",
+                  background: C.amber + "0B", border: `1px solid ${C.amber}30`,
+                  borderRadius: 14, padding: "10px 13px",
+                  cursor: navFn ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, lineHeight: 1 }}>📊</span>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                    Plateau detected
+                  </span>
+                  {navFn && <ChevronRight size={11} color={C.amber} style={{ marginLeft: "auto" }} />}
                 </div>
-              ))}
-            </div>
-          ))}
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.inkSoft, marginBottom: 4 }}>{p.title}</div>
+                {p.reasons?.slice(0, 2).map((r, j) => (
+                  <div key={j} style={{ display: "flex", gap: 5, marginTop: 3 }}>
+                    <span style={{ fontSize: 10, color: C.amber, flexShrink: 0, marginTop: 1 }}>·</span>
+                    <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.4 }}>{r}</span>
+                  </div>
+                ))}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -1596,7 +1612,8 @@ function TodayTab({
         const nowStr = `${nowHour}:${String(nowMn).padStart(2, "0")}`;
 
         return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${nowClr}22`, marginTop: 8, padding: "11px 13px", boxShadow: C.shadow }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoEnergy?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, borderRadius: 16, border: `1px solid ${nowClr}22`, marginTop: 8, padding: "11px 13px", boxShadow: C.shadow, cursor: onGoEnergy ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
             {/* Header row */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1605,13 +1622,16 @@ function TodayTab({
                   Energy today
                 </span>
               </div>
-              {!isPast && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: nowClr, animation: "pulse 1.8s ease-in-out infinite" }} />
-                  <span style={{ fontSize: 11.5, fontWeight: 800, color: nowClr, fontFamily: "Fraunces, serif" }}>{nowE}</span>
-                  <span style={{ fontSize: 9.5, color: C.muted, marginLeft: 1 }}>now</span>
-                </div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                {!isPast && (
+                  <>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: nowClr, animation: "pulse 1.8s ease-in-out infinite" }} />
+                    <span style={{ fontSize: 11.5, fontWeight: 800, color: nowClr, fontFamily: "Fraunces, serif" }}>{nowE}</span>
+                    <span style={{ fontSize: 9.5, color: C.muted, marginLeft: 1 }}>now</span>
+                  </>
+                )}
+                {onGoEnergy && <ChevronRight size={12} color={C.muted} style={{ marginLeft: isPast ? 0 : 4 }} />}
+              </div>
             </div>
 
             {/* SVG Sparkline */}
@@ -1649,7 +1669,7 @@ function TodayTab({
               )}
               <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 600 }}>🌙 {bedStr}</span>
             </div>
-          </div>
+          </button>
         );
       })()}
 
@@ -1664,7 +1684,8 @@ function TodayTab({
         ].filter(s => st[s.key] > 0);
         if (!slots.length) return null;
         return (
-          <div style={{ display: "flex", gap: 5, marginTop: 8 }}>
+          <button className="sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
+            style={{ width: "100%", display: "flex", gap: 5, marginTop: 8, cursor: onGoSleep ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left", background: "none", border: "none", padding: 0 }}>
             {slots.map(({ key, label, color, icon }) => {
               const mins = st[key];
               const h = Math.floor(mins / 60), m = mins % 60;
@@ -1687,7 +1708,7 @@ function TodayTab({
                 </div>
               );
             })}
-          </div>
+          </button>
         );
       })()}
 
@@ -1712,14 +1733,16 @@ function TodayTab({
 
       {/* ══ 4c1. SLEEP DEBT BANNER — daytime nudge when debt is significant ══ */}
       {tp.sleep !== false && (sleepInfo.debtMin || 0) > 60 && new Date().getHours() < 20 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 9, background: SLEEP_CLR + "0D", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8 }}>
+        <button className="sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: SLEEP_CLR + "0D", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8, cursor: onGoSleep ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
           <Moon size={14} color={SLEEP_CLR} style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.4, flex: 1 }}>
             {(sleepInfo.debtMin || 0) > 180
               ? `Carrying ~${Math.round((sleepInfo.debtMin / 60) * 10) / 10}h sleep debt — affects energy, mood and recovery.`
               : `~${Math.round((sleepInfo.debtMin / 60) * 10) / 10}h sleep debt building up — an earlier bedtime tonight will help.`}
           </span>
-        </div>
+          {onGoSleep && <ChevronRight size={12} color={SLEEP_CLR} style={{ flexShrink: 0 }} />}
+        </button>
       )}
 
       {/* ══ 4c1b. BEDTIME WINDOW — shows 3pm→2am; countdown when within 90 min ════ */}
@@ -1740,7 +1763,8 @@ function TodayTab({
           ? `${minsToBed}m`
           : `${Math.floor(minsToBed / 60)}h ${minsToBed % 60}m`;
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: clr + "0D", border: `1px solid ${clr}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8 }}>
+          <button className="sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: clr + "0D", border: `1px solid ${clr}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8, cursor: onGoSleep ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
             <Moon size={14} color={clr} style={{ flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               {imminent ? (
@@ -1759,12 +1783,14 @@ function TodayTab({
                 </div>
               )}
             </div>
-            {imminent && (
+            {imminent ? (
               <span style={{ fontSize: 10, fontWeight: 800, color: clr, background: clr + "18", borderRadius: 5, padding: "3px 7px", flexShrink: 0, whiteSpace: "nowrap" }}>
                 {bedStr}
               </span>
+            ) : (
+              onGoSleep && <ChevronRight size={12} color={SLEEP_CLR} style={{ flexShrink: 0 }} />
             )}
-          </div>
+          </button>
         );
       })()}
 
@@ -1982,8 +2008,16 @@ function TodayTab({
 
       {/* ══ 4c5. RECOVERY CHECKLIST — daily recovery to-dos ══════════ */}
       {recoveryInfo?.checklist?.length > 0 && (
-        <div style={{ background: C.card, borderRadius: 14, padding: "10px 14px", marginTop: 8, border: `1px solid ${C.line}`, boxShadow: C.shadow }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Recovery checklist</div>
+        <button className="sprig-pop sprig-tap" onClick={() => { (onGoTrain || onGoHealth)?.(); buzz("tap"); }}
+          style={{
+            width: "100%", background: C.card, borderRadius: 14, padding: "10px 14px", marginTop: 8,
+            border: `1px solid ${C.line}`, boxShadow: C.shadow,
+            cursor: (onGoTrain || onGoHealth) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+          }}>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, flex: 1 }}>Recovery checklist</div>
+            {(onGoTrain || onGoHealth) && <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />}
+          </div>
           {recoveryInfo.checklist.map((item, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, ...(i > 0 ? { marginTop: 7 } : {}) }}>
               <div style={{
@@ -1997,7 +2031,7 @@ function TodayTab({
               <span style={{ fontSize: 12, color: item.done ? C.muted : C.inkSoft, lineHeight: 1.4, textDecoration: item.done ? "line-through" : "none" }}>{item.label}</span>
             </div>
           ))}
-        </div>
+        </button>
       )}
 
       {/* ══ 4c5b. MUSCLE FATIGUE STATUS ═════════════════════════════ */}
@@ -2023,10 +2057,12 @@ function TodayTab({
                 : m.quickLogged ? "Quick Log" : null;
               const srcIcon = m.sportSource && !m.sportStacked ? "⚽" : m.sportStacked ? "🏋️⚽" : m.quickLogged ? "⚡" : null;
               return (
-                <div key={m.k} style={{
-                  flex: "0 0 auto", background: m.color + "14",
-                  border: `1px solid ${m.color}33`, borderRadius: 9, padding: "4px 10px",
-                }}>
+                <button key={m.k} className="sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+                  style={{
+                    flex: "0 0 auto", background: m.color + "14",
+                    border: `1px solid ${m.color}33`, borderRadius: 9, padding: "4px 10px",
+                    cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                  }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <div style={{ fontSize: 9, fontWeight: 800, color: m.color, textTransform: "uppercase", letterSpacing: 0.4 }}>
                       {m.name}
@@ -2049,7 +2085,7 @@ function TodayTab({
                       ready in {readyIn}
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
@@ -2093,7 +2129,11 @@ function TodayTab({
           ].map(r => {
             const clr = r.val >= 70 ? C.greenSoft : r.val >= 50 ? C.amber : C.coral;
             return (
-              <div key={r.label} style={{ flex: 1, background: clr + "10", border: `1px solid ${clr}28`, borderRadius: 10, padding: "7px 10px" }}>
+              <button key={r.label} className="sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+                style={{
+                  flex: 1, background: clr + "10", border: `1px solid ${clr}28`, borderRadius: 10, padding: "7px 10px",
+                  cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                }}>
                 <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 3 }}>
                   {r.label}
                 </div>
@@ -2101,7 +2141,7 @@ function TodayTab({
                   <span style={{ fontSize: 15, fontFamily: "Fraunces, serif", fontWeight: 700, color: clr, lineHeight: 1 }}>{r.val}</span>
                   <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 500 }}>/100</span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -2229,7 +2269,8 @@ function TodayTab({
         }
 
         return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, border: `1px solid ${SPORT_SESS_CLR}28`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, borderRadius: 18, border: `1px solid ${SPORT_SESS_CLR}28`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow, cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -2245,11 +2286,14 @@ function TodayTab({
                   </div>
                 </div>
               </div>
-              {totalMin > 0 && (
-                <div style={{ fontSize: 11, fontWeight: 700, color: SPORT_SESS_CLR, background: SPORT_SESS_CLR + "14", borderRadius: 8, padding: "3px 9px" }}>
-                  {totalMin >= 60 ? `${Math.floor(totalMin / 60)}h${totalMin % 60 > 0 ? ` ${totalMin % 60}m` : ""}` : `${totalMin}m`}
-                </div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {totalMin > 0 && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: SPORT_SESS_CLR, background: SPORT_SESS_CLR + "14", borderRadius: 8, padding: "3px 9px" }}>
+                    {totalMin >= 60 ? `${Math.floor(totalMin / 60)}h${totalMin % 60 > 0 ? ` ${totalMin % 60}m` : ""}` : `${totalMin}m`}
+                  </div>
+                )}
+                {onGoTrain && <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />}
+              </div>
             </div>
 
             {/* Session rows */}
@@ -2302,7 +2346,7 @@ function TodayTab({
                 )}
               </div>
             )}
-          </div>
+          </button>
         );
       })()}
 
@@ -2313,7 +2357,8 @@ function TodayTab({
         const sportIcon = sport === "football" ? "⚽" : sport === "fight" ? "🥊" : sport === "running" ? "🏃" : "🎯";
         const sportLabel = sport === "football" ? "Football" : sport === "fight" ? "Combat sports" : sport === "running" ? "Running" : "Sport";
         return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 18, border: `1px solid ${SPORT_CLR}28`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, borderRadius: 18, border: `1px solid ${SPORT_CLR}28`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow, cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: trainInfo.sportAdvice.length > 1 ? 8 : 0 }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: SPORT_CLR + "1A", display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
                 {sportIcon}
@@ -2324,6 +2369,7 @@ function TodayTab({
                   <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45, marginTop: 1 }}>{trainInfo.sportAdvice[0]}</div>
                 )}
               </div>
+              {onGoTrain && <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />}
             </div>
             {trainInfo.sportAdvice.length > 1 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2335,7 +2381,7 @@ function TodayTab({
                 ))}
               </div>
             )}
-          </div>
+          </button>
         );
       })()}
 
@@ -2352,9 +2398,13 @@ function TodayTab({
         }).filter(Boolean);
         if (tiles.length === 0) return null;
         return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 9 }}>
-              🏆 Strength level
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow, cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 9 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, flex: 1 }}>
+                🏆 Strength level
+              </div>
+              {onGoTrain && <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />}
             </div>
             <div style={{ display: "flex", gap: 7 }}>
               {tiles.map(tile => {
@@ -2382,7 +2432,7 @@ function TodayTab({
             <div style={{ fontSize: 10, color: C.muted, marginTop: 8, lineHeight: 1.4, textAlign: "center" }}>
               Relative to bodyweight · same-sex population
             </div>
-          </div>
+          </button>
         );
       })()}
 
@@ -2399,9 +2449,13 @@ function TodayTab({
           return `${Math.floor(days / 30)}mo ago`;
         };
         return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 9 }}>
-              🎖️ Recent PRs
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow, cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 9 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, flex: 1 }}>
+                🎖️ Recent PRs
+              </div>
+              {onGoTrain && <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               {prs.map((pr, i) => (
@@ -2423,17 +2477,19 @@ function TodayTab({
                 </div>
               ))}
             </div>
-          </div>
+          </button>
         );
       })()}
 
       {/* ══ 4d0. WORKOUT CALORIE BOOST — strength training added to target ══ */}
       {tp.nutrition !== false && tp.training !== false && moveInfo?.workoutAdj?.kcal > 0 && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8,
-          background: C.greenSoft + "0D", border: `1px solid ${C.greenSoft}2A`,
-          borderRadius: 12, padding: "7px 13px", marginTop: 8,
-        }}>
+        <button className="sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 8,
+            background: C.greenSoft + "0D", border: `1px solid ${C.greenSoft}2A`,
+            borderRadius: 12, padding: "7px 13px", marginTop: 8,
+            cursor: onGoNutrition ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+          }}>
           <Dumbbell size={12} color={C.greenSoft} style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 11.5, color: C.inkSoft, flex: 1, lineHeight: 1.4 }}>
             Workout added{" "}
@@ -2443,7 +2499,8 @@ function TodayTab({
               <span style={{ color: C.muted }}>{" "}· {moveInfo.workoutAdj.totalMin}min · {moveInfo.workoutAdj.intensity} intensity</span>
             )}
           </span>
-        </div>
+          {onGoNutrition && <ChevronRight size={12} color={C.greenSoft} style={{ flexShrink: 0 }} />}
+        </button>
       )}
 
       {/* ══ 4d. CALORIE TREND — weight-rate vs goal nudge ════════════ */}
@@ -2529,8 +2586,12 @@ function TodayTab({
           { key: "fiber",   label: "Fiber",   value: Math.round(t.fiber    || 0), target: targets.fiber    || 0, unit: "g",    clr: C.greenSoft, est: false },
         ];
         return (
-          <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${NUTR_CLR}22`, padding: "11px 13px", marginTop: 8, boxShadow: C.shadow }}>
-            <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 9 }}>Macros today</div>
+          <button className="sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, borderRadius: 14, border: `1px solid ${NUTR_CLR}22`, padding: "11px 13px", marginTop: 8, boxShadow: C.shadow, cursor: onGoNutrition ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 9 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>Macros today</div>
+              {onGoNutrition && <ChevronRight size={11} color={C.muted} style={{ flexShrink: 0 }} />}
+            </div>
             <div style={{ display: "flex", gap: 4 }}>
               {macros.map(({ key, label, value, target, unit, clr, est }) => {
                 const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : -1;
@@ -2555,7 +2616,7 @@ function TodayTab({
                 );
               })}
             </div>
-          </div>
+          </button>
         );
       })()}
 
@@ -2571,7 +2632,8 @@ function TodayTab({
         const dqScore = (!dq?.noData && dq?.score != null) ? dq.score : null;
         const dqClr = dqScore == null ? null : dqScore >= 70 ? C.greenSoft : dqScore >= 50 ? C.amber : C.coral;
         return (
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${accentClr}33`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
+            style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${accentClr}33`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow, cursor: onGoNutrition ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
             <div style={{ width: 26, height: 26, borderRadius: 8, background: accentClr + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
               <Flame size={12} color={accentClr} />
             </div>
@@ -2580,14 +2642,17 @@ function TodayTab({
                 <div style={{ fontSize: 10, fontWeight: 800, color: accentClr, textTransform: "uppercase", letterSpacing: 0.4 }}>
                   {hasWarn ? "Nutrition check" : "Nutrition on track"}
                 </div>
-                {dqScore != null && (
-                  <span style={{
-                    marginLeft: "auto", fontSize: 9.5, fontWeight: 800, color: dqClr,
-                    background: dqClr + "18", borderRadius: 5, padding: "2px 7px", flexShrink: 0,
-                  }}>
-                    Quality {dqScore}
-                  </span>
-                )}
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                  {dqScore != null && (
+                    <span style={{
+                      fontSize: 9.5, fontWeight: 800, color: dqClr,
+                      background: dqClr + "18", borderRadius: 5, padding: "2px 7px",
+                    }}>
+                      Quality {dqScore}
+                    </span>
+                  )}
+                  {onGoNutrition && <ChevronRight size={11} color={C.muted} />}
+                </div>
               </div>
               {allLines.map((line, i) => (
                 <div key={i} style={{ fontSize: 12, color: line.tone === "warn" ? NUTR_CLR : C.inkSoft, lineHeight: 1.45, marginTop: i > 0 ? 3 : 0 }}>
@@ -2611,7 +2676,7 @@ function TodayTab({
                 </div>
               )}
             </div>
-          </div>
+          </button>
         );
       })()}
 
@@ -2624,10 +2689,14 @@ function TodayTab({
         const gapClr  = gap.score < 40 ? C.coral : gap.score < 65 ? C.amber : C.greenSoft;
         const gapLabel = gap.score < 40 ? "Critical gap" : gap.score < 65 ? "Needs fuel" : "All on track";
         return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: NUTR_CLR, textTransform: "uppercase", letterSpacing: 0.5 }}>Body functions</div>
-              <span style={{ fontSize: 9.5, color: C.muted }}>powered by today's food</span>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow, cursor: onGoNutrition ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: NUTR_CLR, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>Body functions</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ fontSize: 9.5, color: C.muted }}>powered by today's food</span>
+                {onGoNutrition && <ChevronRight size={11} color={C.muted} />}
+              </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               {scores.map(s => {
@@ -2654,7 +2723,7 @@ function TodayTab({
                 <div style={{ fontSize: 11, color: C.inkSoft }}>{gap.emoji} {gap.label} · {gap.score}</div>
               </div>
             </div>
-          </div>
+          </button>
         );
       })()}
 
@@ -2667,7 +2736,18 @@ function TodayTab({
               const clr = n.pct < 40 ? C.coral : C.amber;
               // show first 3 food sources truncated
               const foods = n.food ? n.food.split(",").slice(0, 3).map(f => f.trim()).join(", ") : null;
-              return (
+              return onGoNutrition ? (
+                <button key={n.key} className="sprig-tap" onClick={() => { onGoNutrition(); buzz("tap"); }}
+                  style={{ flex: "0 0 auto", background: clr + "10", border: `1px solid ${clr}33`, borderRadius: 10, padding: "6px 10px", minWidth: 90, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: foods ? 2 : 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: clr }}>{n.label}</span>
+                    <span style={{ fontSize: 10, color: C.muted, fontWeight: 500 }}>{n.pct}%</span>
+                  </div>
+                  {foods && (
+                    <div style={{ fontSize: 9.5, color: C.muted, lineHeight: 1.3 }}>try: {foods}</div>
+                  )}
+                </button>
+              ) : (
                 <div key={n.key} style={{ flex: "0 0 auto", background: clr + "10", border: `1px solid ${clr}33`, borderRadius: 10, padding: "6px 10px", minWidth: 90 }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: foods ? 2 : 0 }}>
                     <span style={{ fontSize: 11, fontWeight: 800, color: clr }}>{n.label}</span>
@@ -2702,7 +2782,8 @@ function TodayTab({
         const avgLabel = scored.length === 1 ? "score" : "avg";
 
         return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow, cursor: onGoNutrition ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -2712,6 +2793,7 @@ function TodayTab({
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <span style={{ fontSize: 9.5, color: C.muted }}>{avgLabel}</span>
                 <span style={{ fontSize: 12, fontWeight: 800, color: avgClr, fontFamily: "Fraunces, serif" }}>{avgScore}</span>
+                {onGoNutrition && <ChevronRight size={11} color={C.muted} />}
               </div>
             </div>
 
@@ -2755,7 +2837,7 @@ function TodayTab({
                 + {scored.length - 5} more items
               </div>
             )}
-          </div>
+          </button>
         );
       })()}
 
@@ -2822,16 +2904,17 @@ function TodayTab({
         const alerts = healthInfo.radar.filter(c => c.tag === "elevated" || c.tag === "high");
         if (!alerts.length) return null;
         return (
-          <div style={{ marginTop: 8, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}
-            onClick={() => { onGoHealth?.(); buzz("tap"); }}>
+          <div style={{ marginTop: 8, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
             {alerts.map(cat => {
               const rt = RISK_TAG[cat.tag] || RISK_TAG.moderate;
               return (
-                <div key={cat.key} style={{
-                  flex: "0 0 auto", background: rt.color + "12",
-                  border: `1px solid ${rt.color}33`, borderRadius: 10, padding: "6px 11px",
-                  cursor: onGoHealth ? "pointer" : "default",
-                }}>
+                <button key={cat.key} className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+                  style={{
+                    flex: "0 0 auto", background: rt.color + "12",
+                    border: `1px solid ${rt.color}33`, borderRadius: 10, padding: "6px 11px",
+                    cursor: onGoHealth ? "pointer" : "default",
+                    fontFamily: "DM Sans", textAlign: "left",
+                  }}>
                   <div style={{ fontSize: 9, fontWeight: 800, color: rt.color, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
                     {rt.label}
                   </div>
@@ -2841,7 +2924,7 @@ function TodayTab({
                   <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2, maxWidth: 130, lineHeight: 1.35 }}>
                     {cat.text}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -2878,14 +2961,15 @@ function TodayTab({
         bloodChips.slice(0, 3).forEach(c => chips.push(c));
         if (!chips.length) return null;
         return (
-          <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", paddingBottom: 2 }}
-            onClick={() => { onGoHealth?.(); buzz("tap"); }}>
+          <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", paddingBottom: 2 }}>
             {chips.map(c => (
-              <div key={c.label} style={{
-                flex: "0 0 auto", background: c.clr + "12",
-                border: `1px solid ${c.clr}2A`, borderRadius: 10, padding: "7px 12px",
-                cursor: onGoHealth ? "pointer" : "default",
-              }}>
+              <button key={c.label} className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+                style={{
+                  flex: "0 0 auto", background: c.clr + "12",
+                  border: `1px solid ${c.clr}2A`, borderRadius: 10, padding: "7px 12px",
+                  cursor: onGoHealth ? "pointer" : "default",
+                  fontFamily: "DM Sans", textAlign: "left",
+                }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 2 }}>
                   <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.3 }}>
                     {c.label}
@@ -2898,7 +2982,7 @@ function TodayTab({
                   <span style={{ fontSize: 15, fontFamily: "Fraunces, serif", fontWeight: 700, color: c.clr }}>{c.val}</span>
                   <span style={{ fontSize: 10, color: C.muted }}>{c.unit}</span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         );
@@ -2931,10 +3015,12 @@ function TodayTab({
                 const vs = volumeStatus(m.sets, m.key);
                 const clr = VOL_TAG_COLOR(vs.tag);
                 return (
-                  <div key={m.key} style={{
-                    flex: "0 0 auto", background: clr + "14",
-                    border: `1px solid ${clr}33`, borderRadius: 8, padding: "3px 9px", textAlign: "center",
-                  }}>
+                  <button key={m.key} className="sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+                    style={{
+                      flex: "0 0 auto", background: clr + "14",
+                      border: `1px solid ${clr}33`, borderRadius: 8, padding: "3px 9px", textAlign: "center",
+                      cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans",
+                    }}>
                     <div style={{ fontSize: 11, fontWeight: 800, color: clr, lineHeight: 1.15 }}>
                       {m.sets > 0 ? m.sets : "—"}
                     </div>
@@ -2946,7 +3032,7 @@ function TodayTab({
                         {VOL_BADGE[vs.tag]}
                       </div>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -2956,17 +3042,19 @@ function TodayTab({
                   Accessory
                 </span>
                 {minorItems.map(m => (
-                  <div key={m.key} style={{
-                    flex: "0 0 auto", background: C.muted + "10",
-                    border: `1px solid ${C.muted}28`, borderRadius: 8, padding: "3px 9px", textAlign: "center", opacity: 0.85,
-                  }}>
+                  <button key={m.key} className="sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+                    style={{
+                      flex: "0 0 auto", background: C.muted + "10",
+                      border: `1px solid ${C.muted}28`, borderRadius: 8, padding: "3px 9px", textAlign: "center", opacity: 0.85,
+                      cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans",
+                    }}>
                     <div style={{ fontSize: 11, fontWeight: 800, color: C.inkSoft, lineHeight: 1.15 }}>
                       {m.sets}
                     </div>
                     <div style={{ fontSize: 8.5, color: C.muted, fontWeight: 600, marginTop: 1 }}>
                       {m.label}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -3004,13 +3092,15 @@ function TodayTab({
                   Ready now:
                 </span>
                 {trainInfo.readyMuscles.map(name => (
-                  <span key={name} style={{
-                    fontSize: 10, fontWeight: 700, color: C.greenSoft,
-                    background: C.greenSoft + "18", border: `1px solid ${C.greenSoft}30`,
-                    borderRadius: 5, padding: "2px 8px",
-                  }}>
+                  <button key={name} className="sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+                    style={{
+                      fontSize: 10, fontWeight: 700, color: C.greenSoft,
+                      background: C.greenSoft + "18", border: `1px solid ${C.greenSoft}30`,
+                      borderRadius: 5, padding: "2px 8px",
+                      cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans",
+                    }}>
                     {name}
-                  </span>
+                  </button>
                 ))}
                 {onStartWorkout && (
                   <button className="sprig-tap" onClick={() => { onStartWorkout(); buzz("medium"); }}
@@ -3462,11 +3552,13 @@ function TodayTab({
           : C.inkSoft;
         const tagIcon = verdict.tag === "good" ? "✓" : verdict.tag === "fast" ? "↑↑" : verdict.tag === "slow" ? "→" : "~";
         return (
-          <div className="sprig-pop" style={{
-            background: C.card, borderRadius: 18,
-            border: `1px solid ${tagClr}28`,
-            marginTop: 8, padding: "12px 14px", boxShadow: C.shadow,
-          }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoBody?.(); buzz("tap"); }}
+            style={{
+              width: "100%", background: C.card, borderRadius: 18,
+              border: `1px solid ${tagClr}28`,
+              marginTop: 8, padding: "12px 14px", boxShadow: C.shadow,
+              cursor: onGoBody ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+            }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: WEIGHT_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
                 <TrendingUp size={14} color={WEIGHT_CLR} />
@@ -3491,6 +3583,7 @@ function TodayTab({
               }}>
                 {tagIcon} {verdict.tag === "good" ? "On track" : verdict.tag === "fast" ? "Too fast" : verdict.tag === "slow" ? "Too slow" : "Stable"}
               </span>
+              {onGoBody && <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />}
             </div>
             <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>
               {verdict.text}
@@ -3500,7 +3593,7 @@ function TodayTab({
                 7-day avg: {ws.avg7}{unit}
               </div>
             )}
-          </div>
+          </button>
         );
       })()}
 
@@ -3611,11 +3704,13 @@ function TodayTab({
             </div>
             {/* Celebration card when all taken */}
             {allTaken && (
-              <div className="sprig-pop" style={{
-                display: "flex", alignItems: "center", gap: 8,
-                background: SUPP_CLR + "12", border: `1px solid ${SUPP_CLR}33`,
-                borderRadius: 10, padding: "8px 11px", marginBottom: 8,
-              }}>
+              <button className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 8,
+                  background: SUPP_CLR + "12", border: `1px solid ${SUPP_CLR}33`,
+                  borderRadius: 10, padding: "8px 11px", marginBottom: 8,
+                  cursor: onGoHealth ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                }}>
                 <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>💊</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 11.5, fontWeight: 800, color: SUPP_CLR }}>Daily stack complete!</div>
@@ -3623,7 +3718,8 @@ function TodayTab({
                     {supps.map(s => s.name).join(" · ")}
                   </div>
                 </div>
-              </div>
+                {onGoHealth && <ChevronRight size={11} color={SUPP_CLR} style={{ flexShrink: 0 }} />}
+              </button>
             )}
             {/* Individual supplement chips — tap to toggle each one */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -3660,22 +3756,25 @@ function TodayTab({
         const flags = interactionFlags({ supps, daily });
         if (!flags.length) return null;
         return (
-          <div className="sprig-pop" style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 8 }}>
             {flags.map((note, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "flex-start", gap: 9,
-                background: C.amber + "0E", border: `1px solid ${C.amber}30`,
-                borderRadius: 13, padding: "9px 12px",
-                marginTop: i > 0 ? 6 : 0,
-              }}>
+              <button key={i} className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "flex-start", gap: 9,
+                  background: C.amber + "0E", border: `1px solid ${C.amber}30`,
+                  borderRadius: 13, padding: "9px 12px",
+                  marginTop: i > 0 ? 6 : 0,
+                  cursor: onGoHealth ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                }}>
                 <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1.5 }}>⚠️</span>
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>
                     Combination alert
                   </div>
                   <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{note}</div>
                 </div>
-              </div>
+                {onGoHealth && <ChevronRight size={11} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} />}
+              </button>
             ))}
           </div>
         );
