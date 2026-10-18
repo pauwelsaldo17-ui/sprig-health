@@ -8,6 +8,11 @@ export const scrollIntoViewOnFocus = (e) => {
   try { setTimeout(() => { e.target && e.target.scrollIntoView && e.target.scrollIntoView({ block: "center", behavior: "smooth" }); }, 250); } catch (_) {}
 };
 
+const HAPTIC_PATTERNS = { tap: [12], light: [8], success: [10, 60, 20], medium: [18] };
+function buzz(kind = "tap") {
+  try { navigator?.vibrate?.(HAPTIC_PATTERNS[kind] || [12]); } catch (_) {}
+}
+
 export function Portal({ children }) {
   if (typeof document === "undefined" || !document.body) return null;
   return createPortal(children, document.body);
@@ -276,7 +281,7 @@ export function winIconFor(source) {
 
 export function KudosButton({ kudoed, onKudos }) {
   return (
-    <button className="sprig-tap" onClick={kudoed ? undefined : onKudos} disabled={kudoed} aria-label={kudoed ? "Kudoed" : "Give kudos"}
+    <button className="sprig-tap" onClick={kudoed ? undefined : () => { onKudos?.(); buzz("success"); }} disabled={kudoed} aria-label={kudoed ? "Kudoed" : "Give kudos"}
       style={{ display: "inline-flex", alignItems: "center", gap: 5, border: `1px solid ${kudoed ? C.lime : C.line}`, cursor: kudoed ? "default" : "pointer",
         background: kudoed ? C.lime + "1f" : "transparent", color: kudoed ? C.lime : C.muted, borderRadius: 99, padding: "5px 11px", fontSize: 11.5, fontWeight: 700, fontFamily: "DM Sans", flexShrink: 0 }}>
       {kudoed ? <Check size={13} /> : <Award size={13} />} {kudoed ? "Kudoed" : "Kudos"}
@@ -319,7 +324,7 @@ export function TodayWinsCard({ wins, onKudos, onViewAll }) {
             {list.slice(0, 3).map((w) => <WinRow key={w.id} win={w} onKudos={onKudos} compact />)}
           </div>
           {list.length > 3 && (
-            <button className="sprig-tap" onClick={onViewAll} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.lime, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", padding: "6px 0 0" }}>
+            <button className="sprig-tap" onClick={() => { onViewAll?.(); buzz("tap"); }} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.lime, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans", padding: "6px 0 0" }}>
               View all {list.length} wins →
             </button>
           )}
@@ -344,8 +349,8 @@ export function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }
   if (compact) {
     const readinessLabel = ri.score >= 80 ? "Fully recovered" : ri.score >= 65 ? "Mostly recovered" : ri.score >= 45 ? "Partly recovered" : "Under-recovered";
     return (
-      <div className="sprig-tap" onClick={() => { if (onGoTrain) onGoTrain(); }}
-        style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "15px 16px", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 14, cursor: onGoTrain ? "pointer" : "default" }}>
+      <button className="sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+        style={{ width: "100%", textAlign: "left", background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "15px 16px", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 14, cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans" }}>
         <div style={{ position: "relative", width: 60, height: 60, flexShrink: 0 }}>
           <svg width="60" height="60" viewBox="0 0 60 60" style={{ transform: "rotate(-90deg)" }}>
             <circle cx="30" cy="30" r="24" fill="none" stroke={C.bg2} strokeWidth="5.5" />
@@ -369,7 +374,7 @@ export function PerfectRecoveryCard({ recoveryInfo, compact = false, onGoTrain }
           {ri.bestAction && <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 5, fontWeight: 600 }}>{ri.bestAction}</div>}
         </div>
         {onGoTrain && <ChevronRight size={16} color={C.muted} style={{ flexShrink: 0 }} />}
-      </div>
+      </button>
     );
   }
 
