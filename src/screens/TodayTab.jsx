@@ -553,7 +553,7 @@ function TodayTab({
     ? Math.min(100, Math.round(lastSleep.durationMin / (8 * 60) * 100))
     : Math.min(100, subScores.sleep || 0);
 
-  const calPct    = adjTarget > 0 ? Math.min(120, Math.round((t.calories || 0) / adjTarget * 100)) : 0;
+  const calPct    = adjTarget > 0 ? Math.min(120, Math.round((t.calories || 0) / adjTarget * 100)) : null;
   const movePct   = sGoal > 0 ? Math.min(100, Math.round(steps / sGoal * 100)) : 0;
   const recovScore = subScores.training != null ? Math.round(subScores.training) : null;
 
