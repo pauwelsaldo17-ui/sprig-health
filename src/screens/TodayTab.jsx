@@ -3721,19 +3721,28 @@ function TodayTab({
           <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, paddingLeft: 2 }}>
             💡 Your patterns
           </div>
-          {patterns.map((p, i) => (
-            <div key={i} style={{
-              display: "flex", alignItems: "flex-start", gap: 8,
-              background: C.card, border: `1px solid ${C.line}`,
-              borderRadius: 12, padding: "9px 12px",
-              marginBottom: i < patterns.length - 1 ? 6 : 0,
-            }}>
-              <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>
-                {p.kind === "alcohol_sleep" ? "🍷" : p.kind === "steps_mood" ? "🚶" : p.kind === "pain_exercise" ? "⚠️" : "🔍"}
-              </span>
-              <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5 }}>{p.text}</span>
-            </div>
-          ))}
+          {patterns.map((p, i) => {
+            const patternNav = p.kind === "alcohol_sleep" ? onGoSleep
+              : p.kind === "steps_mood" ? onGoMind
+              : p.kind === "pain_exercise" ? (onGoHealth || onGoBody)
+              : onGoHealth;
+            return (
+              <button key={i} className="sprig-tap" onClick={() => { patternNav?.(); buzz("tap"); }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "flex-start", gap: 8,
+                  background: C.card, border: `1px solid ${C.line}`,
+                  borderRadius: 12, padding: "9px 12px",
+                  marginBottom: i < patterns.length - 1 ? 6 : 0,
+                  cursor: patternNav ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                }}>
+                <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>
+                  {p.kind === "alcohol_sleep" ? "🍷" : p.kind === "steps_mood" ? "🚶" : p.kind === "pain_exercise" ? "⚠️" : "🔍"}
+                </span>
+                <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5, flex: 1 }}>{p.text}</span>
+                {patternNav && <ChevronRight size={11} color={C.muted} style={{ flexShrink: 0, marginTop: 3 }} />}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -3884,6 +3893,12 @@ function TodayTab({
                   </div>
                 </div>
               </div>
+            )}
+            {onGoHealth && (
+              <button className="sprig-tap" onClick={() => { onGoHealth(); buzz("tap"); }}
+                style={{ marginTop: 10, width: "100%", background: C.amber + "14", border: `1px solid ${C.amber}33`, borderRadius: 9, padding: "7px 0", fontSize: 11, fontWeight: 700, color: C.amber, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                Plan this week <ChevronRight size={11} color={C.amber} />
+              </button>
             )}
           </div>
         );
