@@ -2972,11 +2972,14 @@ function TodayTab({
         const quality  = gym.avg >= 75 ? "Peak energy" : gym.avg >= 55 ? "Good window" : "Best available";
         const qualityClr = gym.avg >= 75 ? C.greenSoft : gym.avg >= 55 ? C.amber : C.muted;
         return (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 10,
-            background: C.greenSoft + "0D", border: `1px solid ${C.greenSoft}2A`,
-            borderRadius: 14, padding: "9px 14px", marginTop: 8,
-          }}>
+          <button className="sprig-tap" onClick={() => { (onGoTrain || onStartWorkout)?.(); buzz("tap"); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              background: C.greenSoft + "0D", border: `1px solid ${C.greenSoft}2A`,
+              borderRadius: 14, padding: "9px 14px", marginTop: 8,
+              cursor: (onGoTrain || onStartWorkout) ? "pointer" : "default",
+              fontFamily: "DM Sans", textAlign: "left",
+            }}>
             <Zap size={14} color={C.greenSoft} style={{ flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: qualityClr, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 1 }}>
@@ -2986,7 +2989,13 @@ function TodayTab({
                 <strong style={{ color: C.ink }}>{startStr} – {endStr}</strong> · energy score {gym.avg}
               </div>
             </div>
-          </div>
+            {(onGoTrain || onStartWorkout) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 3, background: C.greenSoft + "18", border: `1px solid ${C.greenSoft}33`, borderRadius: 7, padding: "4px 9px", flexShrink: 0 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: C.greenSoft }}>Train</span>
+                <ChevronRight size={9} color={C.greenSoft} />
+              </div>
+            )}
+          </button>
         );
       })()}
 
