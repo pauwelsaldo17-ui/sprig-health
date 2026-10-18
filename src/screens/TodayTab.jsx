@@ -2373,19 +2373,23 @@ function TodayTab({
       {tp.nutrition !== false && moveInfo?.calorieTrend && (() => {
         const ct = moveInfo.calorieTrend;
         if (ct.onTrack) return (
-          <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 9, background: C.card, borderRadius: 14, padding: "10px 14px", border: `1px solid ${C.green}33`, marginTop: 8, boxShadow: C.shadow }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: C.card, borderRadius: 14, padding: "10px 14px", border: `1px solid ${C.green}33`, marginTop: 8, boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: C.green + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
               <TrendingUp size={14} color={C.greenSoft} />
             </div>
             <span style={{ fontSize: 12.5, color: C.inkSoft, flex: 1, lineHeight: 1.4 }}>{ct.message}</span>
-          </div>
+            <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0 }} />
+          </button>
         );
         return (
-          <div className="sprig-pop" style={{ background: C.card, borderRadius: 14, padding: "12px 14px", border: `1px solid ${C.amber}33`, marginTop: 8, boxShadow: C.shadow }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }} style={{ width: "100%", background: C.card, borderRadius: 14, padding: "12px 14px", border: `1px solid ${C.amber}33`, marginTop: 8, boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
             <div style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
               <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1.2 }}>⚖️</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 3 }}>Weight trend</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4 }}>Weight trend</div>
+                  <ChevronRight size={12} color={C.muted} />
+                </div>
                 <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>{ct.rationale}</div>
                 {ct.suggestedTarget > 0 && (
                   <div style={{ fontSize: 12, color: C.ink, fontWeight: 700, marginTop: 6, background: C.bg2, borderRadius: 8, padding: "5px 9px", display: "inline-block" }}>
@@ -2399,7 +2403,7 @@ function TodayTab({
                 )}
               </div>
             </div>
-          </div>
+          </button>
         );
       })()}
 
