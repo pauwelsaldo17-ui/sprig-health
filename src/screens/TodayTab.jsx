@@ -291,21 +291,24 @@ function TonightPlanCard({ plan }) {
     { icon: "📵", label: "Screens off",   value: plan.blueCutoff },
     { icon: "🛏️", label: "Bed by",        value: plan.targetBed },
     { icon: "⏰", label: "Wake",           value: plan.targetWake },
-  ];
+  ].filter(({ value }) => value != null && value !== "");
+  if (!items.length && !(plan.debtMin > 30)) return null;
   return (
     <div style={{ background: C.card, borderRadius: 16, padding: "13px 15px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
         <Moon size={14} color={SLEEP_CLR} />
         <div style={{ flex: 1, fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>Tonight's plan</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {items.map(({ icon, label, value }) => (
-          <div key={label} style={{ background: C.bg, borderRadius: 9, padding: "8px 10px" }}>
-            <div style={{ fontSize: 9.5, color: C.muted, fontWeight: 700, letterSpacing: .3, textTransform: "uppercase" }}>{icon} {label}</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginTop: 2 }}>{value}</div>
-          </div>
-        ))}
-      </div>
+      {items.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {items.map(({ icon, label, value }) => (
+            <div key={label} style={{ background: C.bg, borderRadius: 9, padding: "8px 10px" }}>
+              <div style={{ fontSize: 9.5, color: C.muted, fontWeight: 700, letterSpacing: .3, textTransform: "uppercase" }}>{icon} {label}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginTop: 2 }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      )}
       {plan.debtMin > 30 && (
         <div style={{ fontSize: 11, color: SLEEP_CLR, marginTop: 7, lineHeight: 1.5 }}>
           You're carrying ~{Math.round(plan.debtMin / 60 * 10) / 10}h sleep debt. Early night beats sleeping in.
