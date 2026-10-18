@@ -3047,11 +3047,20 @@ function TodayTab({
                     style={{ background: WATER_CLR + "1A", border: `1px solid ${WATER_CLR}33`, borderRadius: 9, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: WATER_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
                     +250
                   </button>
-                  <button className="sprig-tap"
-                    onClick={() => { onDaily({ water: waterMl + 500 }); buzz("light"); if (onToast) onToast("Added 500ml water ✓"); }}
-                    style={{ background: WATER_CLR + "28", border: `1px solid ${WATER_CLR}55`, borderRadius: 9, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: WATER_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
-                    +500
-                  </button>
+                  {waterGoal - waterMl <= 750 ? (
+                    /* ── "Hit goal" shortcut — replaces +500 when within 750ml ── */
+                    <button className="sprig-tap"
+                      onClick={() => { onDaily({ water: waterGoal }); buzz("success"); if (onToast) onToast("Hydration goal hit! 💧"); }}
+                      style={{ background: WATER_CLR + "28", border: `1px solid ${WATER_CLR}55`, borderRadius: 9, padding: "8px 10px", fontSize: 11, fontWeight: 800, color: WATER_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
+                      💧 +{waterGoal - waterMl}ml
+                    </button>
+                  ) : (
+                    <button className="sprig-tap"
+                      onClick={() => { onDaily({ water: waterMl + 500 }); buzz("light"); if (onToast) onToast("Added 500ml water ✓"); }}
+                      style={{ background: WATER_CLR + "28", border: `1px solid ${WATER_CLR}55`, borderRadius: 9, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: WATER_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap" }}>
+                      +500
+                    </button>
+                  )}
                 </div>
               )}
             </div>
