@@ -1672,12 +1672,12 @@ function TodayTab({
         const rec = sleepInfo.rec;
         const nowMin = h * 60 + new Date().getMinutes();
         const bedMin  = ((rec.recBed         % 1440) + 1440) % 1440;
-        const cafCutMin = ((rec.caffeineCutoff % 1440) + 1440) % 1440;
-        const cafInFuture = ((cafCutMin - nowMin + 1440) % 1440) < 720;
+        const cafCutMin = rec.caffeineCutoff != null ? ((rec.caffeineCutoff % 1440) + 1440) % 1440 : null;
+        const cafInFuture = cafCutMin != null && ((cafCutMin - nowMin + 1440) % 1440) < 720;
         const minsToBed   = ((bedMin - nowMin + 1440) % 1440);
         const imminent    = minsToBed <= 90;           // within 90 min of bedtime
         const bedStr = minToTimeStr(rec.recBed);
-        const cafStr = minToTimeStr(rec.caffeineCutoff);
+        const cafStr = cafCutMin != null ? minToTimeStr(rec.caffeineCutoff) : null;
         const clr = imminent ? C.coral : SLEEP_CLR;
         const countdownLabel = minsToBed < 60
           ? `${minsToBed}m`
