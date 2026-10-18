@@ -1799,32 +1799,39 @@ function TodayTab({
       })()}
 
       {/* ══ 4c2. RECOVERY LIMITERS — why the recovery score is below peak ════ */}
-      {recoveryInfo?.limiters?.length > 0 && (recoveryInfo.score ?? 100) < 80 && (
-        <div style={{ background: RECOV_CLR + "0E", border: `1px solid ${RECOV_CLR}2A`, borderRadius: 14, padding: "10px 14px", marginTop: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: RECOV_CLR, textTransform: "uppercase", letterSpacing: 0.4 }}>Affecting recovery</span>
-            {recoveryInfo.confidence && (() => {
-              const confClr = recoveryInfo.confidence === "High" ? C.greenSoft : recoveryInfo.confidence === "Medium" ? C.amber : C.muted;
-              return (
-                <span style={{ fontSize: 9, fontWeight: 700, color: confClr, background: confClr + "18", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.3, textTransform: "uppercase" }}>
-                  {recoveryInfo.confidence} confidence
-                </span>
-              );
-            })()}
-            {recoveryInfo.bestAction && (
-              <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, color: recoveryInfo.score >= 70 ? C.greenSoft : recoveryInfo.score >= 45 ? C.amber : C.coral }}>
-                → {recoveryInfo.bestAction}
-              </span>
-            )}
-          </div>
-          {recoveryInfo.limiters.map((l, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, ...(i > 0 ? { marginTop: 4 } : {}) }}>
-              <span style={{ fontSize: 11, color: RECOV_CLR, flexShrink: 0, lineHeight: 1.45, fontWeight: 700 }}>·</span>
-              <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{l}</span>
+      {recoveryInfo?.limiters?.length > 0 && (recoveryInfo.score ?? 100) < 80 && (() => {
+        const recNavFn = onGoHealth || onGoBody;
+        return (
+          <button className="sprig-tap" onClick={() => { recNavFn?.(); buzz("tap"); }}
+            style={{ width: "100%", background: RECOV_CLR + "0E", border: `1px solid ${RECOV_CLR}2A`, borderRadius: 14, padding: "10px 14px", marginTop: 8, cursor: recNavFn ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: RECOV_CLR, textTransform: "uppercase", letterSpacing: 0.4 }}>Affecting recovery</span>
+              {recoveryInfo.confidence && (() => {
+                const confClr = recoveryInfo.confidence === "High" ? C.greenSoft : recoveryInfo.confidence === "Medium" ? C.amber : C.muted;
+                return (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: confClr, background: confClr + "18", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                    {recoveryInfo.confidence} confidence
+                  </span>
+                );
+              })()}
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+                {recoveryInfo.bestAction && (
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: recoveryInfo.score >= 70 ? C.greenSoft : recoveryInfo.score >= 45 ? C.amber : C.coral }}>
+                    → {recoveryInfo.bestAction}
+                  </span>
+                )}
+                {recNavFn && <ChevronRight size={11} color={C.muted} />}
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+            {recoveryInfo.limiters.map((l, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, ...(i > 0 ? { marginTop: 4 } : {}) }}>
+                <span style={{ fontSize: 11, color: RECOV_CLR, flexShrink: 0, lineHeight: 1.45, fontWeight: 700 }}>·</span>
+                <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{l}</span>
+              </div>
+            ))}
+          </button>
+        );
+      })()}
 
       {/* ══ 4c2b. RECOVERY HELPERS — what's going right (shown when score is high) ════ */}
       {recoveryInfo?.helpers?.length > 0 && (recoveryInfo.score ?? 0) >= 80 && (
