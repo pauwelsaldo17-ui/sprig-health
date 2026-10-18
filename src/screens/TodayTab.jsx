@@ -3802,8 +3802,16 @@ function TodayTab({
             background: C.card, border: `1px solid ${C.line}`,
             borderRadius: 16, padding: "12px 14px", marginTop: 12, boxShadow: C.shadow,
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 9 }}>
-              🏅 Milestones
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                🏅 Milestones
+              </div>
+              {onViewAllWins && achievements.length > 0 && (
+                <button className="sprig-tap" onClick={() => { onViewAllWins(); buzz("tap"); }}
+                  style={{ background: "none", border: "none", fontSize: 10, fontWeight: 700, color: C.greenSoft, cursor: "pointer", fontFamily: "DM Sans", padding: "2px 0", display: "flex", alignItems: "center", gap: 2 }}>
+                  View all <ChevronRight size={10} color={C.greenSoft} />
+                </button>
+              )}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
               {shown.map((a, i) => {
@@ -3825,9 +3833,17 @@ function TodayTab({
               })}
             </div>
             {achievements.length > 4 && (
-              <div style={{ fontSize: 10, color: C.muted, marginTop: 6, textAlign: "center" }}>
-                +{achievements.length - 4} more milestone{achievements.length - 4 !== 1 ? "s" : ""}
-              </div>
+              onViewAllWins ? (
+                <button className="sprig-tap" onClick={() => { onViewAllWins(); buzz("tap"); }}
+                  style={{ width: "100%", marginTop: 8, background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "6px 0", fontSize: 10.5, fontWeight: 700, color: C.inkSoft, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                  +{achievements.length - 4} more milestone{achievements.length - 4 !== 1 ? "s" : ""}
+                  <ChevronRight size={10} color={C.inkSoft} />
+                </button>
+              ) : (
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 6, textAlign: "center" }}>
+                  +{achievements.length - 4} more milestone{achievements.length - 4 !== 1 ? "s" : ""}
+                </div>
+              )
             )}
           </div>
         );
