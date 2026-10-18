@@ -170,7 +170,7 @@ function MealShortcutsCard({ shortcuts, onLog }) {
   const slotLabel = { breakfast: "breakfast", lunch: "lunch", dinner: "dinner" }[currentSlot];
   if (!hasYesterday && !slotSugg.length && !frequent.length) return null;
   const Pill = ({ entry, sub }) => (
-    <button className="sprig-tap" onClick={() => onLog(entry)}
+    <button className="sprig-tap" onClick={() => { onLog(entry); buzz("light"); }}
       style={{
         background: C.bg, border: `1px solid ${C.line}`, cursor: "pointer",
         borderRadius: 9, padding: "8px 11px",
@@ -193,7 +193,7 @@ function MealShortcutsCard({ shortcuts, onLog }) {
       {hasYesterday && (
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: .4, textTransform: "uppercase", marginBottom: 4 }}>Same as yesterday</div>
-          <button className="sprig-tap" onClick={() => sameAsYesterday.forEach(onLog)}
+          <button className="sprig-tap" onClick={() => { sameAsYesterday.forEach(onLog); buzz("success"); }}
             style={{ width: "100%", background: C.greenSoft + "22", border: `1px solid ${C.greenSoft}55`, cursor: "pointer", borderRadius: 9, padding: "8px 11px", fontSize: 12, fontWeight: 600, color: C.green, fontFamily: "DM Sans" }}>
             Log all {sameAsYesterday.length} meals from yesterday
           </button>
@@ -363,7 +363,7 @@ function CalorieTrendCard({ rec, onAdjust }) {
       </div>
       {onAdjust && (
         <div style={{ marginTop: 9 }}>
-          <button className="sprig-tap" onClick={() => onAdjust(rec.suggestedTarget)}
+          <button className="sprig-tap" onClick={() => { onAdjust(rec.suggestedTarget); buzz("success"); }}
             style={{ ...btn(C.green, "#fff"), width: "100%", padding: "9px 0", fontSize: 12 }}>
             Apply suggestion
           </button>
@@ -388,7 +388,7 @@ export function ActivitySourcesSection({ profile, onSetSource }) {
           const sel = current === s.id;
           return (
             <button key={s.id} className="sprig-tap" disabled={!s.active}
-              onClick={() => s.active && onSetSource(s.id)}
+              onClick={() => { if (s.active) { onSetSource(s.id); buzz("tap"); } }}
               style={{
                 background: sel ? C.green + "15" : C.bg,
                 border: `1px solid ${sel ? C.green : C.line}`,
@@ -3795,14 +3795,14 @@ function TodayTab({
           <Zap size={13} color={C.greenSoft} />
           <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, flex: 1 }}>Quick logged today</span>
           {onQuickLog && (
-            <button className="sprig-tap" onClick={onQuickLog}
+            <button className="sprig-tap" onClick={() => { onQuickLog?.(); buzz("tap"); }}
               style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: C.greenSoft, fontFamily: "DM Sans", fontWeight: 600 }}>
               Edit →
             </button>
           )}
         </div>
       ) : onQuickLog && !allLogged ? (
-        <button className="sprig-tap" onClick={onQuickLog}
+        <button className="sprig-tap" onClick={() => { onQuickLog?.(); buzz("tap"); }}
           style={{
             ...btn(C.lime, "#0A1F12"), width: "100%",
             padding: "15px 16px", fontSize: 14, fontWeight: 700,
@@ -4092,7 +4092,7 @@ function TodayTab({
               You've logged {loggedDays} days — unlock deeper analytics and extra tracking panels.
             </div>
           </div>
-          <button className="sprig-tap" onClick={onGoSettings}
+          <button className="sprig-tap" onClick={() => { onGoSettings?.(); buzz("tap"); }}
             style={{ background: C.green + "18", border: `1px solid ${C.green}44`, borderRadius: 9, padding: "7px 13px", fontSize: 11.5, fontWeight: 700, color: C.green, cursor: "pointer", fontFamily: "DM Sans", flexShrink: 0 }}>
             Explore
           </button>
