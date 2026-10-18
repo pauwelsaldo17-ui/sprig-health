@@ -1693,7 +1693,8 @@ function TodayTab({
 
       {/* ══ 4c0. SLEEP SCORE BREAKDOWN — why last night was low + one fix ════ */}
       {tp.sleep !== false && sleepInfo.breakdown?.fix && sleepInfo.lastSleep && new Date().getHours() < 15 && (
-        <div className="sprig-pop" style={{ display: "flex", alignItems: "flex-start", gap: 9, background: SLEEP_CLR + "0C", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "10px 13px", marginTop: 8 }}>
+        <button className="sprig-pop sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
+          style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: SLEEP_CLR + "0C", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "10px 13px", marginTop: 8, cursor: onGoSleep ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
           <Moon size={14} color={SLEEP_CLR} style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ flex: 1 }}>
             {sleepInfo.breakdown.mainReason && (
@@ -1705,7 +1706,8 @@ function TodayTab({
               {sleepInfo.breakdown.fix}
             </div>
           </div>
-        </div>
+          {onGoSleep && <ChevronRight size={12} color={SLEEP_CLR} style={{ flexShrink: 0, marginTop: 2 }} />}
+        </button>
       )}
 
       {/* ══ 4c1. SLEEP DEBT BANNER — daytime nudge when debt is significant ══ */}
@@ -2056,7 +2058,8 @@ function TodayTab({
 
       {/* ══ 4c6. TRAINING GUIDE — how to approach today's workout ════ */}
       {tp.training !== false && (recoveryInfo?.trainingAdj || recoveryInfo?.loadLevel) && (
-        <div className="sprig-pop" style={{ display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${RECOV_CLR}22`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow }}>
+        <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+          style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${RECOV_CLR}22`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow, cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: RECOV_CLR + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
             <Dumbbell size={13} color={RECOV_CLR} />
           </div>
@@ -2077,7 +2080,8 @@ function TodayTab({
               <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{recoveryInfo.trainingAdj}</div>
             )}
           </div>
-        </div>
+          {onGoTrain && <ChevronRight size={12} color={RECOV_CLR} style={{ flexShrink: 0, marginTop: 7 }} />}
+        </button>
       )}
 
       {/* ══ 4c6c. TRAINING READINESS — sleep + body readiness scores ════ */}
@@ -2757,12 +2761,14 @@ function TodayTab({
 
       {/* ══ 4e. PROGRESS BOTTLENECK — why you're not progressing ════════ */}
       {moveInfo?.diagnosis?.enough && moveInfo.diagnosis.bottleneck && (
-        <div className="sprig-pop" style={{ background: C.card, border: `1px solid ${C.amber}33`, borderRadius: 16, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow }}>
+        <button className="sprig-pop sprig-tap" onClick={() => { (onGoHealth || onGoBody)?.(); buzz("tap"); }}
+          style={{ width: "100%", background: C.card, border: `1px solid ${C.amber}33`, borderRadius: 16, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow, cursor: (onGoHealth || onGoBody) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
             <div style={{ width: 26, height: 26, borderRadius: 8, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
               <Zap size={12} color={C.amber} />
             </div>
-            <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.5 }}>Main bottleneck</div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>Main bottleneck</div>
+            {(onGoHealth || onGoBody) && <ChevronRight size={12} color={C.amber} style={{ flexShrink: 0 }} />}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 5, lineHeight: 1.3 }}>{moveInfo.diagnosis.bottleneck.title}</div>
           <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 6 }}>{moveInfo.diagnosis.bottleneck.detail}</div>
@@ -2790,15 +2796,17 @@ function TodayTab({
               ))}
             </div>
           )}
-        </div>
+        </button>
       )}
 
       {/* ══ 4e2. PROGRESS ON TRACK — no bottleneck found, positive summary ═══ */}
       {moveInfo?.diagnosis?.enough && !moveInfo.diagnosis.bottleneck && moveInfo.diagnosis.summary && (
-        <div className="sprig-pop" style={{ background: C.greenSoft + "0D", border: `1px solid ${C.greenSoft}2A`, borderRadius: 16, padding: "10px 14px", marginTop: 8 }}>
+        <button className="sprig-pop sprig-tap" onClick={() => { (onGoHealth || onGoBody)?.(); buzz("tap"); }}
+          style={{ width: "100%", background: C.greenSoft + "0D", border: `1px solid ${C.greenSoft}2A`, borderRadius: 16, padding: "10px 14px", marginTop: 8, cursor: (onGoHealth || onGoBody) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: moveInfo.diagnosis.good?.length ? 4 : 0 }}>
             <span style={{ fontSize: 14, lineHeight: 1 }}>✅</span>
-            <div style={{ fontSize: 10, fontWeight: 800, color: C.greenSoft, textTransform: "uppercase", letterSpacing: 0.4 }}>Progress on track</div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.greenSoft, textTransform: "uppercase", letterSpacing: 0.4, flex: 1 }}>Progress on track</div>
+            {(onGoHealth || onGoBody) && <ChevronRight size={12} color={C.greenSoft} style={{ flexShrink: 0 }} />}
           </div>
           <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>{moveInfo.diagnosis.summary}</div>
           {moveInfo.diagnosis.good?.length > 0 && (
@@ -2806,7 +2814,7 @@ function TodayTab({
               ✓ {moveInfo.diagnosis.good.join(" · ")}
             </div>
           )}
-        </div>
+        </button>
       )}
 
       {/* ══ 4f. HEALTH RADAR — elevated / high risk categories ════════ */}
