@@ -284,7 +284,7 @@ function NextWorkoutCard({ suggestion, splitLabel, splitReason, splitRoutine, on
   );
 }
 
-function TonightPlanCard({ plan }) {
+function TonightPlanCard({ plan, onGoSleep }) {
   if (!plan) return null;
   const items = [
     { icon: "☕", label: "Stop caffeine", value: plan.caffeineCutoff },
@@ -295,10 +295,12 @@ function TonightPlanCard({ plan }) {
   if (!items.length && !(plan.debtMin > 30)) return null;
   return (
     <div style={{ background: C.card, borderRadius: 16, padding: "13px 15px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
+      <button className="sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, marginBottom: 9, background: "none", border: "none", padding: 0, cursor: onGoSleep ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
         <Moon size={14} color={SLEEP_CLR} />
         <div style={{ flex: 1, fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>Tonight's plan</div>
-      </div>
+        {onGoSleep && <ChevronRight size={12} color={C.muted} />}
+      </button>
       {items.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {items.map(({ icon, label, value }) => (
@@ -310,9 +312,19 @@ function TonightPlanCard({ plan }) {
         </div>
       )}
       {plan.debtMin > 30 && (
-        <div style={{ fontSize: 11, color: SLEEP_CLR, marginTop: 7, lineHeight: 1.5 }}>
-          You're carrying ~{Math.round(plan.debtMin / 60 * 10) / 10}h sleep debt. Early night beats sleeping in.
-        </div>
+        onGoSleep ? (
+          <button className="sprig-tap" onClick={() => { onGoSleep(); buzz("tap"); }}
+            style={{ width: "100%", marginTop: 8, background: SLEEP_CLR + "12", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 9, padding: "6px 10px", cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 6, textAlign: "left" }}>
+            <span style={{ fontSize: 11, color: SLEEP_CLR, lineHeight: 1.5, flex: 1 }}>
+              ~{Math.round(plan.debtMin / 60 * 10) / 10}h sleep debt — early night beats sleeping in
+            </span>
+            <ChevronRight size={11} color={SLEEP_CLR} style={{ flexShrink: 0 }} />
+          </button>
+        ) : (
+          <div style={{ fontSize: 11, color: SLEEP_CLR, marginTop: 7, lineHeight: 1.5 }}>
+            You're carrying ~{Math.round(plan.debtMin / 60 * 10) / 10}h sleep debt. Early night beats sleeping in.
+          </div>
+        )
       )}
     </div>
   );
@@ -2947,7 +2959,7 @@ function TodayTab({
       {tp.sleep !== false && moveInfo?.tonight && (() => {
         const h = new Date().getHours();
         if (h < 20) return null;
-        return <TonightPlanCard plan={moveInfo.tonight} />;
+        return <TonightPlanCard plan={moveInfo.tonight} onGoSleep={onGoSleep} />;
       })()}
 
       {/* ══ 4ab. NEXT WORKOUT SUGGESTION (no workout today) ════════════ */}
