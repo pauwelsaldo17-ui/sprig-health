@@ -429,9 +429,10 @@ const CI_ROWS = [
 ];
 
 function DailyCheckinStrip({ checkin, onCheckin }) {
+  const [editing, setEditing] = useState(false);
   const ci = checkin || {};
   const allDone = CI_ROWS.every(({ key }) => ci[key]);
-  if (allDone) {
+  if (allDone && !editing) {
     /* ── emoji maps for compact display ── */
     const moodEmoji   = { bad: "😔", okay: "😐", good: "😊" };
     const energyEmoji = { low: "🪫", normal: "⚡", high: "🔥" };
@@ -458,7 +459,7 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: insight ? 6 : 0 }}>
           <span style={{ fontSize: 14 }}>✅</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: MIND_CLR, letterSpacing: 0.3 }}>Check-in done</span>
-          <div style={{ display: "flex", gap: 5, marginLeft: "auto" }}>
+          <div style={{ display: "flex", gap: 5, marginLeft: "auto", alignItems: "center" }}>
             {[
               { emoji: moodEmoji[m], label: m },
               { emoji: energyEmoji[e], label: e },
@@ -469,6 +470,10 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
                 <span style={{ fontSize: 10, fontWeight: 600, color: C.inkSoft, textTransform: "capitalize" }}>{label}</span>
               </span>
             ))}
+            <button className="sprig-tap" onClick={() => setEditing(true)}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: C.muted, padding: "2px 4px", fontFamily: "DM Sans", flexShrink: 0 }}>
+              Edit
+            </button>
           </div>
         </div>
         {insight && (
@@ -501,6 +506,12 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
           </div>
         </div>
       ))}
+      {editing && (
+        <button className="sprig-tap" onClick={() => setEditing(false)}
+          style={{ width: "100%", marginTop: 4, background: MIND_CLR + "18", border: `1px solid ${MIND_CLR}44`, borderRadius: 10, padding: "8px 0", fontSize: 12, fontWeight: 700, color: MIND_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
+          Save changes ✓
+        </button>
+      )}
     </div>
   );
 }
