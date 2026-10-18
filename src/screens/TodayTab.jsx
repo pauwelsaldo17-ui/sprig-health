@@ -482,7 +482,7 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
                 <span style={{ fontSize: 10, fontWeight: 600, color: C.inkSoft, textTransform: "capitalize" }}>{label}</span>
               </span>
             ))}
-            <button className="sprig-tap" onClick={() => setEditing(true)}
+            <button className="sprig-tap" onClick={() => { setEditing(true); buzz("tap"); }}
               style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: C.muted, padding: "2px 4px", fontFamily: "DM Sans", flexShrink: 0 }}>
               Edit
             </button>
@@ -519,7 +519,7 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
         </div>
       ))}
       {editing && (
-        <button className="sprig-tap" onClick={() => setEditing(false)}
+        <button className="sprig-tap" onClick={() => { setEditing(false); buzz("success"); }}
           style={{ width: "100%", marginTop: 4, background: MIND_CLR + "18", border: `1px solid ${MIND_CLR}44`, borderRadius: 10, padding: "8px 0", fontSize: 12, fontWeight: 700, color: MIND_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
           Save changes ✓
         </button>
@@ -3389,7 +3389,7 @@ function TodayTab({
                     {steps.toLocaleString()} steps{moveInfo?.movement?.kcal > 0 ? ` · ~${moveInfo.movement.kcal} kcal burned` : ""}
                   </div>
                 </div>
-                <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); }}
+                <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); buzz("tap"); }}
                   style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 11px", fontSize: 11, fontWeight: 700, color: C.inkSoft, cursor: "pointer", fontFamily: "DM Sans", flexShrink: 0 }}>
                   Edit
                 </button>
@@ -3412,7 +3412,7 @@ function TodayTab({
                   <button className="sprig-tap" onClick={() => { onDaily({ steps: steps + 5000 }); buzz("light"); }}
                     style={{ ...btn(C.bg2, C.greenSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>+5K</button>
                 )}
-                <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); }}
+                <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); buzz("tap"); }}
                   style={{ ...btn(C.bg2, C.inkSoft), flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700 }}>Set</button>
               </div>
             )
@@ -3481,7 +3481,7 @@ function TodayTab({
                   {lastKg ? `Last: ${lastKg}${unit}` : "Log today's weight"}
                 </div>
               </div>
-              <button className="sprig-tap" onClick={() => setWeightEditing(true)}
+              <button className="sprig-tap" onClick={() => { setWeightEditing(true); buzz("tap"); }}
                 style={{ background: WEIGHT_CLR + "1A", border: `1px solid ${WEIGHT_CLR}33`, borderRadius: 9, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: WEIGHT_CLR, cursor: "pointer", fontFamily: "DM Sans", whiteSpace: "nowrap", flexShrink: 0 }}>
                 {lastKg ? "Other" : "Enter"}
               </button>
@@ -3963,9 +3963,10 @@ function TodayTab({
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 700 }}>Trained:</span>
                 {topMuscles.map((m, i) => (
-                  <span key={i} style={{ fontSize: 9.5, color: C.inkSoft, fontWeight: 600 }}>
-                    {m.name}{i < topMuscles.length - 1 ? " ·" : ""}
-                  </span>
+                  <button key={i} className="sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+                    style={{ background: C.greenSoft + "12", border: `1px solid ${C.greenSoft}28`, borderRadius: 6, padding: "2px 7px", fontSize: 9.5, fontWeight: 700, color: C.greenSoft, cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans" }}>
+                    {m.name}
+                  </button>
                 ))}
               </div>
             )}
@@ -4044,18 +4045,20 @@ function TodayTab({
               {shown.map((a, i) => {
                 const isNew = a.ts && (now - a.ts) < weekMs;
                 return (
-                  <div key={i} style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    background: isNew ? C.greenSoft + "15" : C.bg2,
-                    border: isNew ? `1px solid ${C.greenSoft}30` : `1px solid transparent`,
-                    borderRadius: 10, padding: "5px 10px",
-                  }}>
+                  <button key={i} className="sprig-tap" onClick={() => { onViewAllWins?.(); buzz(isNew ? "success" : "tap"); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      background: isNew ? C.greenSoft + "15" : C.bg2,
+                      border: isNew ? `1px solid ${C.greenSoft}30` : `1px solid transparent`,
+                      borderRadius: 10, padding: "5px 10px",
+                      cursor: onViewAllWins ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                    }}>
                     <span style={{ fontSize: 14, lineHeight: 1 }}>{a.icon}</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: isNew ? C.greenSoft : C.inkSoft, lineHeight: 1.2 }}>{a.title}</div>
                       {isNew && <div style={{ fontSize: 9.5, color: C.greenSoft, fontWeight: 700 }}>NEW</div>}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
