@@ -1875,6 +1875,12 @@ function TodayTab({
             </div>
           )}
           <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45 }}>Reduce training volume by 40–50% this week and prioritise sleep and food.</div>
+          {onGoTrain && (
+            <button className="sprig-tap" onClick={() => { onGoTrain(); buzz("tap"); }}
+              style={{ marginTop: 9, width: "100%", background: C.amber + "18", border: `1px solid ${C.amber}44`, borderRadius: 9, padding: "7px 0", fontSize: 11.5, fontWeight: 700, color: C.amber, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              Adjust training plan <ChevronRight size={12} color={C.amber} />
+            </button>
+          )}
         </div>
       )}
 
@@ -1916,13 +1922,16 @@ function TodayTab({
         const icon  = isRest ? "💤" : isLight ? "🌿" : "💪";
         const title = isRest ? "Rest day recommended" : isLight ? "Light training today" : "High intensity — go hard";
         return (
-          <div className="sprig-pop" style={{
-            display: "flex", alignItems: "flex-start", gap: 10,
-            background: clr + "0E", border: `1px solid ${clr}2A`,
-            borderRadius: 14, padding: "10px 14px", marginTop: 8,
-          }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "flex-start", gap: 10,
+              background: clr + "0E", border: `1px solid ${clr}2A`,
+              borderRadius: 14, padding: "10px 14px", marginTop: 8,
+              cursor: onGoTrain ? "pointer" : "default",
+              fontFamily: "DM Sans", textAlign: "left",
+            }}>
             <span style={{ fontSize: 15, flexShrink: 0, lineHeight: 1.6 }}>{icon}</span>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, color: clr, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 3 }}>
                 {title}
               </div>
@@ -1930,21 +1939,24 @@ function TodayTab({
                 {rec.text}
               </div>
             </div>
-          </div>
+            {onGoTrain && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0, marginTop: 2 }} />}
+          </button>
         );
       })()}
 
       {/* ══ 4c4. ACTIVE RECOVERY SUGGESTION ══════════════════════════ */}
       {recoveryInfo?.suggestActiveRecovery && !recoveryInfo?.recoveryWeek && (
-        <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 9, background: RECOV_CLR + "0D", border: `1px solid ${RECOV_CLR}33`, borderRadius: 14, padding: "10px 14px", marginTop: 8 }}>
+        <button className="sprig-pop sprig-tap" onClick={() => { (onGoTrain || onStartWorkout)?.(); buzz("tap"); }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: RECOV_CLR + "0D", border: `1px solid ${RECOV_CLR}33`, borderRadius: 14, padding: "10px 14px", marginTop: 8, cursor: (onGoTrain || onStartWorkout) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: RECOV_CLR + "22", display: "grid", placeItems: "center", flexShrink: 0 }}>
             <Activity size={14} color={RECOV_CLR} />
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 10.5, fontWeight: 800, color: RECOV_CLR, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Active recovery day</div>
             <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.4 }}>Skip lifting — a walk or easy mobility session will help you bounce back faster.</div>
           </div>
-        </div>
+          {(onGoTrain || onStartWorkout) && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0 }} />}
+        </button>
       )}
 
       {/* ══ 4c5. RECOVERY CHECKLIST — daily recovery to-dos ══════════ */}
