@@ -1834,29 +1834,34 @@ function TodayTab({
       })()}
 
       {/* ══ 4c2b. RECOVERY HELPERS — what's going right (shown when score is high) ════ */}
-      {recoveryInfo?.helpers?.length > 0 && (recoveryInfo.score ?? 0) >= 80 && (
-        <div className="sprig-pop" style={{ background: C.greenSoft + "12", border: `1px solid ${C.greenSoft}2A`, borderRadius: 14, padding: "10px 14px", marginTop: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: C.greenSoft, textTransform: "uppercase", letterSpacing: 0.4 }}>What's working</span>
-            {recoveryInfo.confidence === "High" && (
-              <span style={{ fontSize: 9, fontWeight: 700, color: C.greenSoft, background: C.greenSoft + "18", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.3, textTransform: "uppercase" }}>
-                High confidence
-              </span>
-            )}
-            {recoveryInfo.label && (
-              <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, color: C.greenSoft, background: C.greenSoft + "18", borderRadius: 6, padding: "1px 7px" }}>
-                {recoveryInfo.label}
-              </span>
-            )}
-          </div>
-          {recoveryInfo.helpers.slice(0, 3).map((h, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, ...(i > 0 ? { marginTop: 4 } : {}) }}>
-              <span style={{ fontSize: 11, color: C.greenSoft, flexShrink: 0, lineHeight: 1.45, fontWeight: 700 }}>✓</span>
-              <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{h}</span>
+      {recoveryInfo?.helpers?.length > 0 && (recoveryInfo.score ?? 0) >= 80 && (() => {
+        const helperNavFn = onGoHealth || onGoBody;
+        return (
+          <button className="sprig-pop sprig-tap" onClick={() => { helperNavFn?.(); buzz("tap"); }}
+            style={{ width: "100%", background: C.greenSoft + "12", border: `1px solid ${C.greenSoft}2A`, borderRadius: 14, padding: "10px 14px", marginTop: 8, cursor: helperNavFn ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: C.greenSoft, textTransform: "uppercase", letterSpacing: 0.4 }}>What's working</span>
+              {recoveryInfo.confidence === "High" && (
+                <span style={{ fontSize: 9, fontWeight: 700, color: C.greenSoft, background: C.greenSoft + "18", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                  High confidence
+                </span>
+              )}
+              {recoveryInfo.label && (
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: C.greenSoft, background: C.greenSoft + "18", borderRadius: 6, padding: "1px 7px" }}>
+                  {recoveryInfo.label}
+                </span>
+              )}
+              {helperNavFn && <ChevronRight size={11} color={C.greenSoft} style={{ marginLeft: "auto", flexShrink: 0 }} />}
             </div>
-          ))}
-        </div>
-      )}
+            {recoveryInfo.helpers.slice(0, 3).map((h, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 6, ...(i > 0 ? { marginTop: 4 } : {}) }}>
+                <span style={{ fontSize: 11, color: C.greenSoft, flexShrink: 0, lineHeight: 1.45, fontWeight: 700 }}>✓</span>
+                <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{h}</span>
+              </div>
+            ))}
+          </button>
+        );
+      })()}
 
       {/* ══ 4c3. RECOVERY WEEK WARNING — deload nudge ════════════════ */}
       {recoveryInfo?.recoveryWeek && (
@@ -1897,13 +1902,15 @@ function TodayTab({
 
       {/* ══ 4c3c. SOFT DELOAD HINT — progress stall detected, less severe than full deload card ════ */}
       {tp.training !== false && trainInfo?.deload?.suggest && !recoveryInfo?.recoveryWeek && trainInfo.deload.reasons?.length > 0 && (
-        <div className="sprig-pop" style={{
-          display: "flex", alignItems: "flex-start", gap: 10,
-          background: C.amber + "0A", border: `1px solid ${C.amber}2E`,
-          borderRadius: 14, padding: "10px 14px", marginTop: 8,
-        }}>
+        <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+          style={{
+            width: "100%", display: "flex", alignItems: "flex-start", gap: 10,
+            background: C.amber + "0A", border: `1px solid ${C.amber}2E`,
+            borderRadius: 14, padding: "10px 14px", marginTop: 8,
+            cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+          }}>
           <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.7 }}>📉</span>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 10.5, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 3 }}>
               Deload starting to make sense
             </div>
@@ -1921,7 +1928,8 @@ function TodayTab({
               </div>
             )}
           </div>
-        </div>
+          {onGoTrain && <ChevronRight size={12} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} />}
+        </button>
       )}
 
       {/* ══ 4c3b. RECOVERY RECOMMENDATION — today's intensity guidance ══ */}
