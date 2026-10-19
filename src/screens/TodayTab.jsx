@@ -1893,10 +1893,15 @@ function TodayTab({
 
       {/* ══ 4c3. RECOVERY WEEK WARNING — deload nudge ════════════════ */}
       {recoveryInfo?.recoveryWeek && (
-        <div className="sprig-pop" style={{ background: C.amber + "10", border: `1px solid ${C.amber}44`, borderRadius: 14, padding: "10px 14px", marginTop: 8 }}>
+        <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }} style={{
+          width: "100%", background: C.amber + "10", border: `1px solid ${C.amber}44`,
+          borderRadius: 14, padding: "10px 14px", marginTop: 8,
+          cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+        }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
             <span style={{ fontSize: 14 }}>🔄</span>
             <span style={{ fontSize: 10.5, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4 }}>Deload week recommended</span>
+            {onGoTrain && <ChevronRight size={11} color={C.amber} style={{ marginLeft: "auto", flexShrink: 0 }} />}
           </div>
           {recoveryInfo.rwReasons?.length > 0 && (
             <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45, marginBottom: 4 }}>
@@ -1919,13 +1924,7 @@ function TodayTab({
             </div>
           )}
           <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45 }}>Reduce training volume by 40–50% this week and prioritise sleep and food.</div>
-          {onGoTrain && (
-            <button className="sprig-tap" onClick={() => { onGoTrain(); buzz("tap"); }}
-              style={{ marginTop: 9, width: "100%", background: C.amber + "18", border: `1px solid ${C.amber}44`, borderRadius: 9, padding: "7px 0", fontSize: 11.5, fontWeight: 700, color: C.amber, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-              Adjust training plan <ChevronRight size={12} color={C.amber} />
-            </button>
-          )}
-        </div>
+        </button>
       )}
 
       {/* ══ 4c3c. SOFT DELOAD HINT — progress stall detected, less severe than full deload card ════ */}
@@ -2185,7 +2184,11 @@ function TodayTab({
         const { level, coach } = trainInfo.pain;
         const painClr = level === "serious" ? C.coral : C.amber;
         return (
-          <div className="sprig-pop" style={{ background: painClr + "0E", border: `1px solid ${painClr}44`, borderRadius: 14, padding: "10px 14px", marginTop: 8 }}>
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }} style={{
+            width: "100%", background: painClr + "0E", border: `1px solid ${painClr}44`,
+            borderRadius: 14, padding: "10px 14px", marginTop: 8,
+            cursor: "pointer", fontFamily: "DM Sans", textAlign: "left",
+          }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>{level === "serious" ? "🚨" : "⚠️"}</span>
               <span style={{ fontSize: 10.5, fontWeight: 800, color: painClr, textTransform: "uppercase", letterSpacing: 0.4 }}>
@@ -2196,6 +2199,7 @@ function TodayTab({
                   {trainInfo.pain.locations.slice(0, 2).join(", ")}
                 </span>
               )}
+              {!trainInfo.pain.locations?.length && <ChevronRight size={11} color={painClr} style={{ marginLeft: "auto", flexShrink: 0 }} />}
             </div>
             {coach.lines.slice(0, 3).map((line, i) => (
               <div key={i} style={{ display: "flex", gap: 6, marginTop: i > 0 ? 4 : 0 }}>
@@ -2219,22 +2223,20 @@ function TodayTab({
               </div>
             )}
             {coach.seekHelp && (
-              <button className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
-                style={{
-                  marginTop: 10, width: "100%",
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: painClr + "18", border: `1px solid ${painClr}44`,
-                  borderRadius: 10, padding: "9px 12px", cursor: "pointer",
-                  fontFamily: "DM Sans", textAlign: "left",
-                }}>
+              <div style={{
+                marginTop: 10, width: "100%",
+                display: "flex", alignItems: "center", gap: 8,
+                background: painClr + "18", border: `1px solid ${painClr}44`,
+                borderRadius: 10, padding: "9px 12px",
+              }}>
                 <span style={{ fontSize: 14, flexShrink: 0 }}>🏥</span>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: painClr, flex: 1 }}>
                   See a doctor or physiotherapist
                 </span>
                 <ChevronRight size={13} color={painClr} style={{ flexShrink: 0 }} />
-              </button>
+              </div>
             )}
-          </div>
+          </button>
         );
       })()}
 
