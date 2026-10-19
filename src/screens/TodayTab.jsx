@@ -3787,20 +3787,17 @@ function TodayTab({
 
       {/* ══ 7. QUICK LOG ═════════════════════════════════════════ */}
       {quickLog ? (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8,
+        <button className="sprig-tap" onClick={() => { onQuickLog?.(); buzz("tap"); }} style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 8,
           background: C.bg2, borderRadius: 14,
           padding: "11px 14px", marginTop: 10,
+          cursor: onQuickLog ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+          border: "none",
         }}>
           <Zap size={13} color={C.greenSoft} />
           <span style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, flex: 1 }}>Quick logged today</span>
-          {onQuickLog && (
-            <button className="sprig-tap" onClick={() => { onQuickLog?.(); buzz("tap"); }}
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: C.greenSoft, fontFamily: "DM Sans", fontWeight: 600 }}>
-              Edit →
-            </button>
-          )}
-        </div>
+          {onQuickLog && <ChevronRight size={13} color={C.greenSoft} style={{ flexShrink: 0 }} />}
+        </button>
       ) : onQuickLog && !allLogged ? (
         <button className="sprig-tap" onClick={() => { onQuickLog?.(); buzz("tap"); }}
           style={{
