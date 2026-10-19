@@ -3297,7 +3297,12 @@ function TodayTab({
             )}
             {/* Goal achieved celebration row */}
             {waterGoalHit && (
-              <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 8, background: WATER_CLR + "12", border: `1px solid ${WATER_CLR}33`, borderRadius: 10, padding: "8px 11px", marginBottom: 0 }}>
+              <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }} style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 8,
+                background: WATER_CLR + "12", border: `1px solid ${WATER_CLR}33`,
+                borderRadius: 10, padding: "8px 11px", marginBottom: 0,
+                cursor: onGoNutrition ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+              }}>
                 <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>💧</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 11.5, fontWeight: 800, color: WATER_CLR }}>Hydration goal reached!</div>
@@ -3309,7 +3314,8 @@ function TodayTab({
                         : `${(waterMl / 1000).toFixed(1)}L today`}
                   </div>
                 </div>
-              </div>
+                {onGoNutrition && <ChevronRight size={12} color={WATER_CLR} style={{ flexShrink: 0 }} />}
+              </button>
             )}
             {/* Glass counter — only shown when not yet at goal */}
             {waterGoal > 0 && !waterGoalHit && (
@@ -4081,10 +4087,11 @@ function TodayTab({
 
       {/* ══ 9. ADVANCED MODE NUDGE ═══════════════════════════════ */}
       {!advanced && loggedDays >= 7 && loggedDays < 30 && (
-        <div className="sprig-rise" style={{
-          background: C.card, borderRadius: 18, padding: "14px 16px",
+        <button className="sprig-rise sprig-tap" onClick={() => { onGoSettings?.(); buzz("tap"); }} style={{
+          width: "100%", background: C.card, borderRadius: 18, padding: "14px 16px",
           boxShadow: C.shadow, border: `1px solid ${C.line}`,
           marginTop: 12, display: "flex", alignItems: "center", gap: 12,
+          cursor: onGoSettings ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
         }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "1a", display: "grid", placeItems: "center", flexShrink: 0 }}>
             <Zap size={17} color={C.green} />
@@ -4095,11 +4102,8 @@ function TodayTab({
               You've logged {loggedDays} days — unlock deeper analytics and extra tracking panels.
             </div>
           </div>
-          <button className="sprig-tap" onClick={() => { onGoSettings?.(); buzz("tap"); }}
-            style={{ background: C.green + "18", border: `1px solid ${C.green}44`, borderRadius: 9, padding: "7px 13px", fontSize: 11.5, fontWeight: 700, color: C.green, cursor: "pointer", fontFamily: "DM Sans", flexShrink: 0 }}>
-            Explore
-          </button>
-        </div>
+          {onGoSettings && <ChevronRight size={14} color={C.green} style={{ flexShrink: 0 }} />}
+        </button>
       )}
 
       <div style={{ height: 6 }} />
