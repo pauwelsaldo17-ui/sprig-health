@@ -3602,10 +3602,11 @@ function TodayTab({
         const nudge = photoReminder(photoLog);
         if (!nudge.due) return null;
         return (
-          <div className="sprig-pop" style={{
-            display: "flex", alignItems: "center", gap: 10,
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoBody?.(); buzz("tap"); }} style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 10,
             background: C.coral + "08", border: `1px solid ${C.coral}25`,
             borderRadius: 14, padding: "10px 14px", marginTop: 8,
+            cursor: "pointer", fontFamily: "DM Sans", textAlign: "left",
           }}>
             <span style={{ fontSize: 16, flexShrink: 0 }}>📸</span>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -3616,14 +3617,8 @@ function TodayTab({
                 {nudge.text}
               </div>
             </div>
-            <button className="sprig-tap" onClick={() => { onGoBody?.(); buzz("tap"); }} style={{
-              border: "none", cursor: "pointer", flexShrink: 0,
-              background: C.coral + "18", color: C.coral,
-              fontSize: 10.5, fontWeight: 800, borderRadius: 8, padding: "5px 10px", fontFamily: "DM Sans",
-            }}>
-              Log →
-            </button>
-          </div>
+            <ChevronRight size={13} color={C.coral} style={{ flexShrink: 0 }} />
+          </button>
         );
       })()}
 
@@ -3635,19 +3630,16 @@ function TodayTab({
         const withChange = entries.filter(([, v]) => v.change != null && Math.abs(v.change) >= 0.5);
         const shown = withChange.length ? withChange.slice(0, 4) : entries.slice(0, 4);
         return (
-          <div className="sprig-pop" style={{
-            background: C.card, border: `1px solid ${C.line}`,
+          <button className="sprig-pop sprig-tap" onClick={() => { onGoBody?.(); buzz("tap"); }} style={{
+            width: "100%", background: C.card, border: `1px solid ${C.line}`,
             borderRadius: 16, padding: "11px 14px", marginTop: 8, boxShadow: C.shadow,
+            cursor: onGoBody ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>
                 📏 Body measurements
               </div>
-              {onGoBody && (
-                <button className="sprig-tap" onClick={() => { onGoBody?.(); buzz("tap"); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: C.muted, padding: 0, fontFamily: "DM Sans" }}>
-                  Update →
-                </button>
-              )}
+              {onGoBody && <ChevronRight size={11} color={C.muted} style={{ flexShrink: 0 }} />}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px 10px" }}>
               {shown.map(([k, v]) => {
@@ -3672,7 +3664,7 @@ function TodayTab({
                 );
               })}
             </div>
-          </div>
+          </button>
         );
       })()}
 
@@ -3971,7 +3963,8 @@ function TodayTab({
               </div>
             )}
             {weekReport.win && (
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: weekReport.nextWeek ? 8 : 0 }}>
+              <button className="sprig-tap" onClick={() => { onViewAllWins?.(); buzz("success"); }}
+                style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 8, marginBottom: weekReport.nextWeek ? 8 : 0, textAlign: "left", fontFamily: "DM Sans", background: C.greenSoft + "08", borderRadius: 10, padding: "7px 9px", border: `1px solid ${C.greenSoft}1A`, cursor: onViewAllWins ? "pointer" : "default" }}>
                 <div style={{ width: 22, height: 22, borderRadius: 6, background: C.greenSoft + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
                   <span style={{ fontSize: 11, lineHeight: 1 }}>🏆</span>
                 </div>
@@ -3979,12 +3972,14 @@ function TodayTab({
                   <div style={{ fontSize: 9.5, fontWeight: 800, color: C.greenSoft, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Top win</div>
                   <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{weekReport.win}</div>
                 </div>
-              </div>
+                {onViewAllWins && <ChevronRight size={11} color={C.greenSoft} style={{ flexShrink: 0, marginTop: 5 }} />}
+              </button>
             )}
             {weekReport.nextWeek && (
               <div style={{ paddingTop: (weekReport.win || stats.length > 0) ? 8 : 0, borderTop: (weekReport.win || stats.length > 0) ? `1px solid ${C.line}` : "none" }}>
                 {weekReport.bottleneck && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7 }}>
+                  <button className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+                    style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7, textAlign: "left", fontFamily: "DM Sans", background: C.coral + "08", borderRadius: 10, padding: "7px 9px", border: `1px solid ${C.coral}1A`, cursor: onGoHealth ? "pointer" : "default" }}>
                     <div style={{ width: 22, height: 22, borderRadius: 6, background: C.coral + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
                       <span style={{ fontSize: 11, lineHeight: 1 }}>⚡</span>
                     </div>
@@ -3992,9 +3987,11 @@ function TodayTab({
                       <div style={{ fontSize: 9.5, fontWeight: 800, color: C.coral, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Top issue</div>
                       <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.4 }}>{weekReport.bottleneck}</div>
                     </div>
-                  </div>
+                    {onGoHealth && <ChevronRight size={11} color={C.coral} style={{ flexShrink: 0, marginTop: 5 }} />}
+                  </button>
                 )}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <button className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+                  style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 8, textAlign: "left", fontFamily: "DM Sans", background: C.amber + "08", borderRadius: 10, padding: "7px 9px", border: `1px solid ${C.amber}1A`, cursor: onGoHealth ? "pointer" : "default" }}>
                   <div style={{ width: 22, height: 22, borderRadius: 6, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
                     <span style={{ fontSize: 11, lineHeight: 1 }}>🎯</span>
                   </div>
@@ -4002,7 +3999,8 @@ function TodayTab({
                     <div style={{ fontSize: 9.5, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Next 7 days</div>
                     <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{weekReport.nextWeek}</div>
                   </div>
-                </div>
+                  {onGoHealth && <ChevronRight size={11} color={C.amber} style={{ flexShrink: 0, marginTop: 5 }} />}
+                </button>
               </div>
             )}
             {onGoHealth && (
