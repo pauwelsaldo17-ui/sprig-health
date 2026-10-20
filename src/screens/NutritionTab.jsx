@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   BookMarked, ChevronDown, ChevronLeft, ChevronRight, Check,
-  Coffee, Flame, Pill, Plus, Search, Trash2, X, Zap, TrendingUp,
+  Coffee, Flame, Pill, Plus, RotateCcw, Search, Trash2, X, Zap, TrendingUp,
   Minus, Sparkles, PencilLine, Moon, Target, Droplets
 } from "lucide-react";
 import { C } from "../theme.js";
@@ -1123,6 +1123,17 @@ function NutritionTab({
   // Sorted food log — newest first (consistent with original app ordering)
   const sortedEntries = [...viewEntries].sort((a, b) => (b.time || 0) - (a.time || 0));
 
+  // Yesterday's entries for "Repeat yesterday" shortcut
+  const yesterdayStr = addDays(todayStr(), -1);
+  const yesterdayEntries = (entriesHistory || []).filter((e) => e.date === yesterdayStr);
+  const repeatYesterday = () => {
+    yesterdayEntries.forEach((e) => {
+      const { date: _d, id: _id, time: _t, ...rest } = e;
+      onAddEntry({ ...rest });
+    });
+    buzz("success");
+  };
+
   const handleAddFood = (r) => {
     onAddEntry({ ...r, time: Date.now() });
   };
@@ -1212,6 +1223,22 @@ function NutritionTab({
               onFavorites={() => onSub?.("meals")}
             />
           )}
+          {isViewingToday && sortedEntries.length === 0 && yesterdayEntries.length > 0 && (() => {
+            const yTotal = Math.round(yesterdayEntries.reduce((s, e) => s + (e.calories || 0), 0));
+            return (
+              <button className="sprig-tap sprig-pop" onClick={repeatYesterday}
+                style={{ width: "100%", background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}33`, boxShadow: C.shadow, padding: "13px 15px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", display: "flex", alignItems: "center", gap: 11, marginBottom: 8 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 11, background: NUTR_CLR + "14", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <RotateCcw size={18} color={NUTR_CLR} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Repeat yesterday's meals</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{yesterdayEntries.length} item{yesterdayEntries.length > 1 ? "s" : ""} · {yTotal.toLocaleString()} kcal</div>
+                </div>
+                <ChevronRight size={14} color={NUTR_CLR} style={{ flexShrink: 0 }} />
+              </button>
+            );
+          })()}
           {sortedEntries.length === 0 ? (
             <div style={{ background: C.card, borderRadius: 18, border: `1px solid ${C.line}`, boxShadow: C.shadow, padding: "28px 20px", textAlign: "center" }}>
               <div style={{ fontSize: 13, color: C.muted }}>Nothing logged yet</div>
