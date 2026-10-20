@@ -1851,6 +1851,7 @@ function SprigApp() {
   const [searchQ, setSearchQ] = useState("");
   const [calOpen, setCalOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  const [askQuestion, setAskQuestion] = useState("");
   const [achievementCelebration, setAchievementCelebration] = useState(null); // {icon, title, desc} | null
   const [photoOpen, setPhotoOpen] = useState(false);
   const [progressPhotos, setProgressPhotos] = useState([]);
@@ -3970,7 +3971,7 @@ function SprigApp() {
           onArchiveHabit2={archiveHabit2} onRestoreHabit2={restoreHabit2} onDeleteHabit2={deleteHabit2}
           onUndoCompletion={undoHabitCompletion} onLogFocus={logFocus} tp={trackingPrefs} />}
         {tab === "coach" && <CoachTab coach={coach2} advanced={advanced} moveInfo={moveInfo} timeline={timeline} plateaus={plateaus} patterns={patterns}
-          onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={() => setAskOpen(true)} />}
+          onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={(q) => { setAskOpen(true); if (q) setAskQuestion(q); }} />}
         {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} onGoSettings={() => setTab("settings")} onGoCoach={() => setTab("coach")} trackingPrefs={trackingPrefs} onToggleTracking={(k, v) => persistTrackingPrefs({ ...trackingPrefs, [k]: v })} />}
         {tab === "targets" && <MeTab view="targets" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
@@ -4707,7 +4708,7 @@ function SprigApp() {
             confidence: "estimated",
           } : null,
         };
-        return <AskCoachSheet onClose={() => setAskOpen(false)} context={ctx} online={online} runAnalysis={(q) => askCoach(q, ctx)}
+        return <AskCoachSheet onClose={() => { setAskOpen(false); setAskQuestion(""); }} context={ctx} online={online} runAnalysis={(q) => askCoach(q, ctx)} initialQuestion={askQuestion}
           onSaveNote={async (question, answer) => {
             try {
               const raw = await store.get("sprig_coach_notes_v1");
@@ -5395,7 +5396,7 @@ function CalendarSheet({ onClose, getDayIcons }) {
 }
 
 /* ================= ASK COACH (AI) ================= */
-function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNote }) {
+function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNote, initialQuestion = "" }) {
   const kb = useKeyboardInset();
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -5405,6 +5406,17 @@ function AskCoachSheet({ onClose, context, runAnalysis, online = true, onSaveNot
   const inputRef = useRef(null);
   const hasData = !!(context && (context.today || context.averages14d || context.training || context.sleep || context.profile));
   const hasConversation = messages.length > 0;
+
+  // Auto-fire initial question from context-aware chip tap
+  const initialRef = useRef(initialQuestion);
+  useEffect(() => {
+    if (initialRef.current) {
+      const q0 = initialRef.current;
+      initialRef.current = "";
+      setTimeout(() => ask(q0), 200);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {

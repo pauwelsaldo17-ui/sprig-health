@@ -18,44 +18,64 @@ const MOVE_CLR  = "#52C878";
 const RECOV_CLR = "#4FC3F7";
 
 /* ─── Ask Coach CTA ─────────────────────────────────────────────── */
-function AskCoachCTA({ onAsk }) {
+function AskCoachCTA({ onAsk, coach, plateaus, patterns }) {
   if (!onAsk) return null;
+
+  // Build context-aware quick question chips
+  const chips = [];
+  const recovLevel = coach?.recovery?.level;
+  if (recovLevel === "rest" || recovLevel === "light") {
+    chips.push("Am I recovering well enough to train today?");
+  } else {
+    chips.push("How hard should I train today?");
+  }
+  if (plateaus?.weight) {
+    chips.push("Why has my weight stopped changing?");
+  } else if (plateaus?.strength?.length) {
+    chips.push("Why are my lifts stalling?");
+  } else {
+    chips.push("Am I eating right for my goal?");
+  }
+  chips.push("How can I improve my sleep quality?");
+
   return (
-    <button
-      className="sprig-tap"
-      onClick={onAsk}
-      style={{
-        width: "100%",
-        background: `linear-gradient(135deg, #B5FF47 0%, #7FD93E 100%)`,
-        border: "none",
-        cursor: "pointer",
-        borderRadius: 20,
-        padding: "17px 18px",
-        color: "#0A1F12",
-        display: "flex",
-        alignItems: "center",
-        gap: 13,
-        marginBottom: 14,
-        boxShadow: `0 8px 28px rgba(181,255,71,0.35)`,
-      }}
-    >
-      <div
+    <div style={{ marginBottom: 14 }}>
+      <button
+        className="sprig-tap"
+        onClick={() => onAsk("")}
         style={{
-          width: 42, height: 42, borderRadius: 13,
-          background: "rgba(0,0,0,.10)",
-          display: "grid", placeItems: "center", flexShrink: 0,
+          width: "100%",
+          background: `linear-gradient(135deg, #B5FF47 0%, #7FD93E 100%)`,
+          border: "none",
+          cursor: "pointer",
+          borderRadius: 20,
+          padding: "17px 18px",
+          color: "#0A1F12",
+          display: "flex",
+          alignItems: "center",
+          gap: 13,
+          boxShadow: `0 8px 28px rgba(181,255,71,0.35)`,
         }}
       >
-        <Sparkles size={21} color="#0A1F12" />
-      </div>
-      <div style={{ flex: 1, textAlign: "left" }}>
-        <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -.3 }}>Ask your coach</div>
-        <div style={{ fontSize: 12, opacity: .65, marginTop: 2 }}>
-          Sleep, food, training, recovery — anything
+        <div style={{ width: 42, height: 42, borderRadius: 13, background: "rgba(0,0,0,.10)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <Sparkles size={21} color="#0A1F12" />
         </div>
+        <div style={{ flex: 1, textAlign: "left" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -.3 }}>Ask your coach</div>
+          <div style={{ fontSize: 12, opacity: .65, marginTop: 2 }}>Sleep, food, training, recovery — anything</div>
+        </div>
+        <ChevronRight size={18} color="#0A1F12" />
+      </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+        {chips.map((chip) => (
+          <button key={chip} className="sprig-tap" onClick={() => onAsk(chip)}
+            style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 12, padding: "9px 13px", textAlign: "left", fontFamily: "DM Sans", fontSize: 12.5, color: C.inkSoft, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 13, flexShrink: 0 }}>⚡</span>
+            {chip}
+          </button>
+        ))}
       </div>
-      <ChevronRight size={18} color="#0A1F12" />
-    </button>
+    </div>
   );
 }
 
@@ -677,7 +697,7 @@ function CoachTab({
       </div>
 
       {/* ── Ask Coach CTA */}
-      <AskCoachCTA onAsk={onAsk} />
+      <AskCoachCTA onAsk={onAsk} coach={coach} plateaus={plateaus} patterns={patterns} />
 
       {/* ── Today's Priority */}
       <PriorityAction
