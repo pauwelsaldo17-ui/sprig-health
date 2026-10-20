@@ -12,6 +12,10 @@ import {
 } from "../utils/vitaeCalc.js";
 import { btn, Btn, Legend, SubTabs, EmptyState, Ring } from "../components/ui.jsx";
 
+const _HAPTIC = { tap: 14, light: 10, select: 8, success: [30, 50, 30] };
+function buzz(kind = "tap") {
+  try { navigator.vibrate?.(_HAPTIC[kind] ?? 14); } catch (_) {}
+}
 // ─── Audio ───────────────────────────────────────────────────────────────────
 let _audioCtx = null;
 function getAudioCtx() {
@@ -1511,7 +1515,7 @@ function EnergyCurveCard({ sleepInfo }) {
 }
 
 // ─── EnergyTab (named export — unchanged interface) ───────────────────────────
-function EnergyTab({ sleepInfo, entries, t }) {
+function EnergyTab({ sleepInfo, entries, t, onStart }) {
   const { curve, gym, wakeMin, todayBed, rec, debtMin, mealMarks } = sleepInfo;
   if (!curve.length) return <div style={{ padding: 30, textAlign: "center", color: C.muted }}>Log some sleep to build your energy schedule.</div>;
 
@@ -1542,13 +1546,15 @@ function EnergyTab({ sleepInfo, entries, t }) {
       </div>
       <EnergyCurveCard sleepInfo={sleepInfo} />
       {gym && (
-        <div style={{ background: "linear-gradient(135deg," + C.green + "," + C.greenSoft + ")", borderRadius: 18, padding: 16, color: "#fff", marginTop: 14, display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
+        <button className="sprig-tap" onClick={() => { onStart?.(); buzz("tap"); }}
+          style={{ width: "100%", background: "linear-gradient(135deg," + C.green + "," + C.greenSoft + ")", borderRadius: 18, padding: 16, color: "#fff", marginTop: 14, display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", border: "none", textAlign: "left" }}>
           <div style={{ width: 42, height: 42, borderRadius: 12, background: "rgba(255,255,255,.18)", display: "grid", placeItems: "center", flexShrink: 0 }}><Wind size={21} /></div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11.5, opacity: .85 }}>Best time to train</div>
+            <div style={{ fontSize: 11.5, opacity: .85 }}>Best time to train · tap to start</div>
             <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700 }}>{minToLabel(gym.start)} – {minToLabel(gym.end)}</div>
           </div>
-        </div>
+          <ChevronRight size={14} color="rgba(255,255,255,.5)" style={{ flexShrink: 0 }} />
+        </button>
       )}
       <div style={{ margin: "18px 2px 10px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600 }}>Today's schedule</div>
       <div style={{ position: "relative", paddingLeft: 8 }}>

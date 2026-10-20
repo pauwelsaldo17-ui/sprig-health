@@ -3959,7 +3959,7 @@ function SprigApp() {
             daily={daily} onDaily={persistDaily} recoveryRec={trainInfo.recoveryRec} />
         )}
         {tab === "energy" && (
-          <EnergyTab sleepInfo={sleepInfo} entries={entries} t={t} advanced={advanced} />
+          <EnergyTab sleepInfo={sleepInfo} entries={entries} t={t} advanced={advanced} onStart={() => { startWorkout(); setTab("train"); }} />
         )}
         {tab === "health" && <HealthTab healthInfo={healthInfo} healthReport={healthReport} advanced={advanced} onSave={saveHealth} safety={safetyInfo}
           pain={trainInfo.pain} onAddPain={addPainLog} onUpdatePain={updatePainLog} onRemovePain={removePainLog} />}
