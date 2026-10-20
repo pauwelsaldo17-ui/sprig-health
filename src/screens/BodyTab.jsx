@@ -12,6 +12,11 @@ import { btn, Legend } from "../components/ui.jsx";
 // ── Body domain color (cyan/blue) ─────────────────────────────────────────────
 const BODY_CLR = "#4FC3F7";
 
+const _HAPTIC = { tap: 14, light: 10, success: [30, 50, 30] };
+function buzz(kind = "tap") {
+  try { navigator.vibrate?.(_HAPTIC[kind] ?? 14); } catch (_) {}
+}
+
 function MeasurementForm({ current, onSave, onClose }) {
   const init = {}; MEASURE_KEYS.forEach(([k]) => (init[k] = current[k]?.current != null ? String(current[k].current) : ""));
   const [v, setV] = useState(init);
@@ -344,15 +349,32 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
           </div>
         )}
         {/* ── Quick weigh-in inside hero ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, borderTop: "1px solid rgba(255,255,255,.13)", paddingTop: 12 }}>
-          <input value={weightInput} onChange={(e) => setWeightInput(e.target.value)}
-            inputMode="decimal" placeholder={wStats.current != null ? String(wStats.current) : "0.0"}
-            style={{ flex: 1, background: "rgba(255,255,255,.10)", border: "1px solid rgba(255,255,255,.22)", borderRadius: 9, padding: "8px 10px", color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "DM Sans", outline: "none" }} />
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,.45)", flexShrink: 0 }}>{profile?.unit || "kg"}</span>
-          <button className="sprig-tap" disabled={!weightInput} onClick={() => { onLogWeight(parseFloat(weightInput)); setWeightInput(""); }}
-            style={{ background: weightInput ? C.lime : "rgba(255,255,255,.15)", color: weightInput ? "#0A1F12" : "rgba(255,255,255,.35)", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: weightInput ? "pointer" : "default", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, transition: "background .15s, color .15s" }}>
-            <Check size={14} /> Log
-          </button>
+        <div style={{ marginTop: 12, borderTop: "1px solid rgba(255,255,255,.13)", paddingTop: 12 }}>
+          {wStats.current != null && (() => {
+            const unit = profile?.unit || "kg";
+            const presets = [-1, -0.5, 0, 0.5, 1].map(d => Math.round((wStats.current + d) * 10) / 10);
+            return (
+              <div style={{ display: "flex", gap: 5, marginBottom: 10, overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+                {presets.map((kg) => (
+                  <button key={kg} className="sprig-tap"
+                    onClick={() => { buzz("success"); onLogWeight(kg); }}
+                    style={{ flexShrink: 0, background: kg === wStats.current ? "rgba(255,255,255,.22)" : "rgba(255,255,255,.10)", border: `1px solid ${kg === wStats.current ? "rgba(255,255,255,.4)" : "rgba(255,255,255,.18)"}`, borderRadius: 9, padding: "7px 12px", cursor: "pointer", fontFamily: "DM Sans", fontSize: 12.5, fontWeight: 700, color: "#fff", whiteSpace: "nowrap" }}>
+                    {kg}{unit}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input value={weightInput} onChange={(e) => setWeightInput(e.target.value)}
+              inputMode="decimal" placeholder={wStats.current != null ? "Other…" : "0.0"}
+              style={{ flex: 1, background: "rgba(255,255,255,.10)", border: "1px solid rgba(255,255,255,.22)", borderRadius: 9, padding: "8px 10px", color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: "DM Sans", outline: "none" }} />
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,.45)", flexShrink: 0 }}>{profile?.unit || "kg"}</span>
+            <button className="sprig-tap" disabled={!weightInput} onClick={() => { const v = parseFloat(weightInput); if (Number.isFinite(v) && v > 20 && v < 400) { onLogWeight(v); buzz("success"); } setWeightInput(""); }}
+              style={{ background: weightInput ? C.lime : "rgba(255,255,255,.15)", color: weightInput ? "#0A1F12" : "rgba(255,255,255,.35)", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: weightInput ? "pointer" : "default", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, transition: "background .15s, color .15s" }}>
+              <Check size={14} /> Log
+            </button>
+          </div>
         </div>
       </div>
 
