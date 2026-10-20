@@ -467,7 +467,8 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
     else if (m === "bad")                               insight = { text: "Difficult day — take it one step at a time.", icon: "🛌", clr: C.amber };
     else                                                insight = { text: "Consistency is what builds results — keep going.", icon: "📊", clr: C.muted };
     return (
-      <div style={{ background: MIND_CLR + "0D", border: `1px solid ${MIND_CLR}2A`, borderRadius: 14, padding: "10px 13px", marginTop: 8 }}>
+      <button className="sprig-tap" onClick={() => { setEditing(true); buzz("tap"); }}
+        style={{ width: "100%", background: MIND_CLR + "0D", border: `1px solid ${MIND_CLR}2A`, borderRadius: 14, padding: "10px 13px", marginTop: 8, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: insight ? 6 : 0 }}>
           <span style={{ fontSize: 14 }}>✅</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: MIND_CLR, letterSpacing: 0.3 }}>Check-in done</span>
@@ -482,10 +483,7 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
                 <span style={{ fontSize: 10, fontWeight: 600, color: C.inkSoft, textTransform: "capitalize" }}>{label}</span>
               </span>
             ))}
-            <button className="sprig-tap" onClick={() => { setEditing(true); buzz("tap"); }}
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: C.muted, padding: "2px 4px", fontFamily: "DM Sans", flexShrink: 0 }}>
-              Edit
-            </button>
+            <ChevronRight size={13} color={MIND_CLR} style={{ flexShrink: 0 }} />
           </div>
         </div>
         {insight && (
@@ -494,7 +492,7 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
             <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{insight.text}</span>
           </div>
         )}
-      </div>
+      </button>
     );
   }
   return (
