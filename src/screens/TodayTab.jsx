@@ -3389,7 +3389,12 @@ function TodayTab({
           {!stepsEditing ? (
             steps >= sGoal ? (
               /* ── Goal achieved — celebrate, hide clutter buttons ── */
-              <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 10, background: C.greenSoft + "12", border: `1px solid ${C.greenSoft}33`, borderRadius: 12, padding: "10px 13px" }}>
+              <button className="sprig-pop sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); buzz("tap"); }} style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 10,
+                background: C.greenSoft + "12", border: `1px solid ${C.greenSoft}33`,
+                borderRadius: 12, padding: "10px 13px",
+                cursor: "pointer", fontFamily: "DM Sans", textAlign: "left",
+              }}>
                 <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>🏆</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: C.greenSoft }}>Step goal crushed!</div>
@@ -3397,11 +3402,8 @@ function TodayTab({
                     {steps.toLocaleString()} steps{moveInfo?.movement?.kcal > 0 ? ` · ~${moveInfo.movement.kcal} kcal burned` : ""}
                   </div>
                 </div>
-                <button className="sprig-tap" onClick={() => { setStepsInput(String(steps || "")); setStepsEditing(true); buzz("tap"); }}
-                  style={{ background: C.bg2, border: `1px solid ${C.line}`, borderRadius: 9, padding: "7px 11px", fontSize: 11, fontWeight: 700, color: C.inkSoft, cursor: "pointer", fontFamily: "DM Sans", flexShrink: 0 }}>
-                  Edit
-                </button>
-              </div>
+                <ChevronRight size={13} color={C.greenSoft} style={{ flexShrink: 0 }} />
+              </button>
             ) : (
               /* ── Still working toward goal — show add buttons ── */
               <div style={{ display: "flex", gap: 6 }}>
