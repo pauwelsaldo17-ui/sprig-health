@@ -440,7 +440,7 @@ const CI_ROWS = [
   { key: "stress", label: "Stress", opts: [["low","😌","Low"], ["medium","😤","Medium"], ["high","😰","High"]] },
 ];
 
-function DailyCheckinStrip({ checkin, onCheckin }) {
+function DailyCheckinStrip({ checkin, onCheckin, sleepInfo }) {
   const [editing, setEditing] = useState(false);
   const ci = checkin || {};
   const allDone = CI_ROWS.every(({ key }) => ci[key]);
@@ -497,7 +497,22 @@ function DailyCheckinStrip({ checkin, onCheckin }) {
   }
   return (
     <div style={{ background: C.card, borderRadius: 16, padding: "12px 13px", marginTop: 8, boxShadow: C.shadow, border: `1px solid ${MIND_CLR}33` }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, color: MIND_CLR, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>How are you feeling?</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: MIND_CLR, letterSpacing: 0.5, textTransform: "uppercase" }}>How are you feeling?</div>
+        {sleepInfo?.score != null && !CI_ROWS.every(({ key }) => ci[key]) && (() => {
+          const sc = sleepInfo.score;
+          const debt = sleepInfo.debtMin || 0;
+          const sugEnergy = (sc > 72 && debt < 60) ? "high" : sc >= 50 ? "normal" : "low";
+          const sugMood   = sc > 72 ? "good" : sc >= 45 ? "okay" : "bad";
+          const sugStress = debt > 120 ? "medium" : "low";
+          return (
+            <button className="sprig-tap" onClick={() => { onCheckin({ mood: sugMood, energy: sugEnergy, stress: sugStress }); buzz("success"); }}
+              style={{ background: MIND_CLR + "18", border: `1px solid ${MIND_CLR}44`, borderRadius: 8, padding: "4px 9px", fontSize: 10.5, fontWeight: 700, color: MIND_CLR, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 4 }}>
+              ✨ Smart fill
+            </button>
+          );
+        })()}
+      </div>
       {CI_ROWS.map(({ key, label, opts }) => (
         <div key={key} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
           <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, width: 46, flexShrink: 0 }}>{label}</div>
@@ -3782,7 +3797,7 @@ function TodayTab({
 
       {/* ══ 6.7. DAILY CHECK-IN ══════════════════════════════════ */}
       {tp.mind !== false && onCheckin && (
-        <DailyCheckinStrip checkin={daily.checkin} onCheckin={onCheckin} />
+        <DailyCheckinStrip checkin={daily.checkin} onCheckin={onCheckin} sleepInfo={sleepInfo} />
       )}
 
       {/* ══ 7. QUICK LOG ═════════════════════════════════════════ */}

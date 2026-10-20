@@ -2567,7 +2567,9 @@ function SprigApp() {
     if (warn) { askConfirm(warn, () => writeDaily(patch)); return; }
     return writeDaily(patch);
   }, [daily, date, weightSeries, profile, writeDaily]);
-  const setCheckin = (k, v) => writeDaily({ checkin: { ...daily.checkin, [k]: v } });
+  const setCheckin = (k, v) => typeof k === "object"
+    ? writeDaily({ checkin: { ...daily.checkin, ...k } })
+    : writeDaily({ checkin: { ...daily.checkin, [k]: v } });
 
   // ---- WINS: record (dedupe by type per day) + kudos toggle ----
   const persistWins = useCallback(async (next) => { setWins(next); try { await store.set("sprig_wins_v1", JSON.stringify(next)); } catch (_) {} }, []);
