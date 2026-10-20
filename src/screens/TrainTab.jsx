@@ -1154,11 +1154,12 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         if (nowMin >= g.end) return null; // window already passed
         const isNow = nowMin >= g.start && nowMin < g.end;
         return (
-          <div className="sprig-pop" style={{
-            display: "flex", alignItems: "center", gap: 9,
+          <button className="sprig-pop sprig-tap" onClick={() => { onStart?.(); buzz("tap"); }} style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 9,
             background: isNow ? TRAIN_CLR + "18" : C.bg2,
             border: `1px solid ${isNow ? TRAIN_CLR + "44" : C.line}`,
             borderRadius: 12, padding: "9px 13px", marginTop: 8, marginBottom: 2,
+            cursor: "pointer", fontFamily: "DM Sans", textAlign: "left",
           }}>
             <span style={{ fontSize: 16, flexShrink: 0 }}>{isNow ? "🔥" : "⚡"}</span>
             <div style={{ flex: 1 }}>
@@ -1169,7 +1170,8 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
                 {isNow ? "Great time to train" : "based on your energy curve"}
               </span>
             </div>
-          </div>
+            <ChevronRight size={12} color={isNow ? TRAIN_CLR : C.muted} style={{ flexShrink: 0 }} />
+          </button>
         );
       })()}
 
@@ -1314,7 +1316,8 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
             ? "Most muscles still recovering"
             : "Log a workout to see muscle freshness";
         return (
-          <div style={{ width: "100%", textAlign: "left", marginTop: 14, background: "linear-gradient(148deg, #4A0A1A 0%, #2A0510 100%)", borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow }}>
+          <button className="sprig-tap" onClick={() => { onSub("recovery"); buzz("tap"); }}
+            style={{ width: "100%", textAlign: "left", marginTop: 14, background: "linear-gradient(148deg, #4A0A1A 0%, #2A0510 100%)", borderRadius: 18, padding: 16, color: "#fff", display: "flex", alignItems: "center", gap: 14, boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", border: "none" }}>
             <Ring value={rScore} max={100} size={64} stroke={8} label={rScore} sub="ready" color={rColor} track="rgba(255,255,255,.15)" />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11.5, opacity: .8 }}>Recovery</div>
@@ -1322,17 +1325,20 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
               <div style={{ fontSize: 11.5, opacity: .85, marginTop: 2 }}>{rAction}</div>
               <div style={{ fontSize: 11, opacity: .65, marginTop: 3 }}>{muscleLine}</div>
             </div>
-          </div>
+            <ChevronRight size={14} color="rgba(255,255,255,.5)" style={{ flexShrink: 0 }} />
+          </button>
         );
       })()}
 
       {trainInfo.deload.suggest && (
-        <div style={{ marginTop: 10, background: "#fdeee8", borderRadius: 14, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <button className="sprig-tap" onClick={() => { onSub("recovery"); buzz("tap"); }}
+          style={{ width: "100%", marginTop: 10, background: "#fdeee8", borderRadius: 14, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", border: "none" }}>
           <TrendingDown size={18} color={C.coral} style={{ flexShrink: 0, marginTop: 1 }} />
-          <div style={{ fontSize: 12, color: "#9a3d22", lineHeight: 1.45 }}>
+          <div style={{ fontSize: 12, color: "#9a3d22", lineHeight: 1.45, flex: 1 }}>
             <b>Consider a deload week.</b> {trainInfo.deload.reasons.join(" · ")}. Drop volume ~40% for a week and let everything supercompensate.
           </div>
-        </div>
+          <ChevronRight size={12} color={C.coral} style={{ flexShrink: 0, marginTop: 2 }} />
+        </button>
       )}
 
       {/* ── Compact PR banner (visible in Training tab) */}
