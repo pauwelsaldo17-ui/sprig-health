@@ -2913,14 +2913,19 @@ function TodayTab({
 
       {/* ══ 4e. PROGRESS BOTTLENECK — why you're not progressing ════════ */}
       {moveInfo?.diagnosis?.enough && moveInfo.diagnosis.bottleneck && (
-        <button className="sprig-pop sprig-tap" onClick={() => { (onGoHealth || onGoBody)?.(); buzz("tap"); }}
-          style={{ width: "100%", background: C.card, border: `1px solid ${C.amber}33`, borderRadius: 16, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow, cursor: (onGoHealth || onGoBody) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+        <button className="sprig-pop sprig-tap" onClick={() => {
+          if (onAskCoach) {
+            onAskCoach(`My main progress bottleneck is: ${moveInfo.diagnosis.bottleneck.title}. ${moveInfo.diagnosis.bottleneck.detail} Fix: ${moveInfo.diagnosis.bottleneck.fix}. Give me a specific week-by-week plan to break through this bottleneck.`);
+          } else { (onGoHealth || onGoBody)?.(); }
+          buzz("tap");
+        }}
+          style={{ width: "100%", background: C.card, border: `1px solid ${C.amber}33`, borderRadius: 16, padding: "12px 14px", marginTop: 8, boxShadow: C.shadow, cursor: (onAskCoach || onGoHealth || onGoBody) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
             <div style={{ width: 26, height: 26, borderRadius: 8, background: C.amber + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
               <Zap size={12} color={C.amber} />
             </div>
             <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>Main bottleneck</div>
-            {(onGoHealth || onGoBody) && <ChevronRight size={12} color={C.amber} style={{ flexShrink: 0 }} />}
+            {onAskCoach ? <Sparkles size={12} color={C.amber} style={{ flexShrink: 0 }} /> : (onGoHealth || onGoBody) ? <ChevronRight size={12} color={C.amber} style={{ flexShrink: 0 }} /> : null}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 5, lineHeight: 1.3 }}>{moveInfo.diagnosis.bottleneck.title}</div>
           <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5, marginBottom: 6 }}>{moveInfo.diagnosis.bottleneck.detail}</div>
