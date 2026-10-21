@@ -351,7 +351,7 @@ function ProgressDiag({ moveInfo, onAsk }) {
 }
 
 /* ─── Domain Coach Card ─────────────────────────────────────────── */
-function DomainCard({ icon, color, title, summary, bullets, onOpen, openLabel }) {
+function DomainCard({ icon, color, title, summary, bullets, onOpen, openLabel, onAsk }) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? bullets : bullets?.slice(0, 2);
   return (
@@ -469,6 +469,18 @@ function DomainCard({ icon, color, title, summary, bullets, onOpen, openLabel })
               />
             </button>
           )}
+        </div>
+      )}
+      {onAsk && summary && (
+        <div style={{ borderTop: bullets?.length > 0 ? "none" : `1px solid ${C.line}`, padding: "0 15px 13px" }}>
+          <button className="sprig-tap" onClick={() => { onAsk(`${title}: ${summary} — give me specific, actionable steps I can start today.`); buzz("tap"); }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 7,
+              background: color + "10", border: `1px solid ${color}30`,
+              borderRadius: 9, padding: "7px 11px", cursor: "pointer",
+              fontFamily: "DM Sans", textAlign: "left" }}>
+            <Sparkles size={12} color={color} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color, flex: 1 }}>Dig deeper with coach →</span>
+          </button>
         </div>
       )}
     </div>
@@ -739,6 +751,7 @@ function CoachTab({
           bullets={coach.training.bullets}
           onOpen={onGoTrain}
           openLabel="Open"
+          onAsk={onAsk}
         />
       )}
       {coach?.nutrition && (
@@ -750,6 +763,7 @@ function CoachTab({
           bullets={coach.nutrition.bullets}
           onOpen={onGoMeals}
           openLabel="Log food"
+          onAsk={onAsk}
         />
       )}
       {coach?.recovery && (
@@ -761,6 +775,7 @@ function CoachTab({
           bullets={coach.recovery.bullets}
           onOpen={onGoSleep}
           openLabel="Open"
+          onAsk={onAsk}
         />
       )}
 
