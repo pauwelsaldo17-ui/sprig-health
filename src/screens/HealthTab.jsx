@@ -435,11 +435,22 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
           <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700, color: C.amber, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>
             <Activity size={13} color={C.amber} /> What's hurting
           </div>
-          {hr.hurting.map((item, i) => (
-            <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13, color: C.inkSoft, lineHeight: 1.45, marginTop: i ? 8 : 0 }}>
-              <span style={{ color: C.amber, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↓</span>{item}
-            </div>
-          ))}
+          {hr.hurting.map((item, i) => {
+            const go = routeImprovement(item, { onGoNutrition, onGoSleep, onGoTrain });
+            if (go) return (
+              <button key={i} className="sprig-tap" onClick={() => { go(); buzz("tap"); }}
+                style={{ width: "100%", display: "flex", gap: 9, alignItems: "flex-start", padding: "6px 0", marginTop: i ? 2 : 0, background: "none", border: "none", borderTop: i > 0 ? `1px solid ${C.line}` : "none", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+                <span style={{ color: C.amber, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↓</span>
+                <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{item}</span>
+                <span style={{ fontSize: 14, color: C.amber, flexShrink: 0, alignSelf: "center" }}>→</span>
+              </button>
+            );
+            return (
+              <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13, color: C.inkSoft, lineHeight: 1.45, marginTop: i ? 8 : 0 }}>
+                <span style={{ color: C.amber, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↓</span>{item}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -473,11 +484,22 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
       {(hr.continueDoing?.length ?? 0) > 0 && (
         <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>Continue doing</div>
-          {hr.continueDoing.map((item, i) => (
-            <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13, color: C.inkSoft, lineHeight: 1.45, marginTop: i ? 7 : 0 }}>
-              <span style={{ color: HEALTH_CLR, fontWeight: 700, flexShrink: 0 }}>→</span>{item}
-            </div>
-          ))}
+          {hr.continueDoing.map((item, i) => {
+            const go = routeImprovement(item, { onGoNutrition, onGoSleep, onGoTrain });
+            if (go) return (
+              <button key={i} className="sprig-tap" onClick={() => { go(); buzz("tap"); }}
+                style={{ width: "100%", display: "flex", gap: 9, alignItems: "flex-start", padding: "6px 0", marginTop: i ? 2 : 0, background: "none", border: "none", borderTop: i > 0 ? `1px solid ${C.line}` : "none", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+                <span style={{ color: C.greenSoft, fontWeight: 700, flexShrink: 0 }}>✓</span>
+                <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{item}</span>
+                <span style={{ fontSize: 14, color: C.greenSoft, flexShrink: 0, alignSelf: "center" }}>→</span>
+              </button>
+            );
+            return (
+              <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13, color: C.inkSoft, lineHeight: 1.45, marginTop: i ? 7 : 0 }}>
+                <span style={{ color: HEALTH_CLR, fontWeight: 700, flexShrink: 0 }}>→</span>{item}
+              </div>
+            );
+          })}
         </div>
       )}
 
