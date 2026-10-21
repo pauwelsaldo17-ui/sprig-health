@@ -247,7 +247,7 @@ function CrossDomainInsight({ patterns, advanced, onAsk }) {
 }
 
 /* ─── Progress Diagnostic ───────────────────────────────────────── */
-function ProgressDiag({ moveInfo }) {
+function ProgressDiag({ moveInfo, onAsk }) {
   const diag = moveInfo?.diagnosis;
   if (!diag) return null;
   return (
@@ -315,6 +315,13 @@ function ProgressDiag({ moveInfo }) {
                   </div>
                 ))}
               </div>
+            )}
+            {onAsk && (
+              <button className="sprig-tap" onClick={() => { onAsk(`${diag.bottleneck.title}: ${diag.bottleneck.fix} — give me a specific week-by-week plan.`); buzz("tap"); }}
+                style={{ marginTop: 11, display: "flex", alignItems: "center", gap: 5, background: MOVE_CLR + "12", border: `1px solid ${MOVE_CLR}33`, borderRadius: 9, padding: "6px 11px", cursor: "pointer", fontFamily: "DM Sans", fontSize: 12, fontWeight: 700, color: MOVE_CLR }}>
+                <Sparkles size={12} color={MOVE_CLR} />
+                Ask coach about this →
+              </button>
             )}
           </>
         ) : (
@@ -758,7 +765,7 @@ function CoachTab({
       )}
 
       {/* ── Progress diagnostic */}
-      <ProgressDiag moveInfo={moveInfo} />
+      <ProgressDiag moveInfo={moveInfo} onAsk={onAsk} />
 
       {/* ── Goal timeline */}
       <GoalTimeline timeline={timeline} />
