@@ -25,13 +25,29 @@ dist-ssr
 
 .vercel
 .env*
+!.env.test
 
 # Vite HMR timestamp artifacts
 vite.config.js.timestamp-*.mjs
 
-# Claude Code local config
+# Claude Code local config (agents/ is shared via !.claude/agents/ if desired)
 .claude/
+!.claude/agents/
 
 # Stray shell artifacts
 cd
 npm
+
+# Playwright state and session output
+.playwright/
+.playwright-cli/
+
+# Python patch scripts generated during development
+patch*.py
+
+# Root-level screenshot artifacts from playwright-cli sessions
+/*.png
+
+# Extra dist variants
+dist[0-9]*/
+dist[A-Z]*/
