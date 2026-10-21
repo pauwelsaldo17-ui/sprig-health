@@ -3910,6 +3910,7 @@ function SprigApp() {
             safetyInfo={safetyInfo}
             achievements={achievements}
             measureStats={measureStats}
+            onAskCoach={(q) => { setTab("coach"); setAskOpen(true); if (q) setAskQuestion(q); }}
           />
         )}
         {tab === "nutrition" && (

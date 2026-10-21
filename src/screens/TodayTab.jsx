@@ -565,6 +565,7 @@ function TodayTab({
   onToast, loggedDays = 0, onGoSettings, onQuickSleep,
   patterns = [], plateaus = [], timeline = null,
   weekReport = null,
+  onAskCoach = null,
   photoLog = [],
   safetyInfo = null,
   achievements = [],
@@ -1268,7 +1269,7 @@ function TodayTab({
               : p.kind === "sleep" ? onGoSleep
               : onGoHealth;
             return (
-              <button key={i} className="sprig-pop sprig-tap" onClick={() => { navFn?.(); buzz("tap"); }}
+              <button key={i} className="sprig-pop sprig-tap" onClick={() => { (onAskCoach ? onAskCoach(`I've hit a plateau: ${p.title}. ${(p.reasons || []).slice(0, 2).join(". ")}. What's the most effective strategy to break through it?`) : navFn?.()); buzz("tap"); }}
                 style={{
                   width: "100%", display: "flex", flexDirection: "column",
                   background: C.amber + "0B", border: `1px solid ${C.amber}30`,
@@ -4006,8 +4007,8 @@ function TodayTab({
             {weekReport.nextWeek && (
               <div style={{ paddingTop: (weekReport.win || stats.length > 0) ? 8 : 0, borderTop: (weekReport.win || stats.length > 0) ? `1px solid ${C.line}` : "none" }}>
                 {weekReport.bottleneck && (
-                  <button className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
-                    style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7, textAlign: "left", fontFamily: "DM Sans", background: C.coral + "08", borderRadius: 10, padding: "7px 9px", border: `1px solid ${C.coral}1A`, cursor: onGoHealth ? "pointer" : "default" }}>
+                  <button className="sprig-tap" onClick={() => { (onAskCoach ? onAskCoach(`My top health issue this week: ${weekReport.bottleneck}. What's the most effective fix I can implement starting today?`) : onGoHealth?.()); buzz("tap"); }}
+                    style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 7, textAlign: "left", fontFamily: "DM Sans", background: C.coral + "08", borderRadius: 10, padding: "7px 9px", border: `1px solid ${C.coral}1A`, cursor: "pointer" }}>
                     <div style={{ width: 22, height: 22, borderRadius: 6, background: C.coral + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
                       <span style={{ fontSize: 11, lineHeight: 1 }}>⚡</span>
                     </div>
