@@ -3,7 +3,7 @@ import {
   AlarmClock, ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight,
   Coffee, EyeOff, Mic, MicOff, Moon, MoonStar, Pause, PencilLine,
   Play, Plus, SkipForward, Sun, Trash2,
-  Volume2, Zap, Music, Wind
+  Volume2, Zap, Music, Wind, Sparkles
 } from "lucide-react";
 import { C } from "../theme.js";
 import {
@@ -240,7 +240,7 @@ function SleepScoreCard({ log, allLogs, need, onAskCoach }) {
 }
 
 // ─── Sleep Debt Card ──────────────────────────────────────────────────────────
-function SleepDebtCard({ debtMin, need, logs, onGoAlarm }) {
+function SleepDebtCard({ debtMin, need, logs, onGoAlarm, onAskCoach }) {
   const hasDebt = debtMin >= 30;
   const debtH = Math.floor(debtMin / 60), debtM = debtMin % 60;
   const weekNeed = need * 7;
@@ -289,6 +289,15 @@ function SleepDebtCard({ debtMin, need, logs, onGoAlarm }) {
                 <button className="sprig-tap" onClick={() => { onGoAlarm(); buzz("tap"); }}
                   style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, background: SLEEP_CLR + "18", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: SLEEP_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
                   <AlarmClock size={11} /> Adjust alarm →
+                </button>
+              )}
+              {onAskCoach && (
+                <button className="sprig-tap" onClick={() => {
+                  onAskCoach(`I have ${durLabel(debtMin)} of sleep debt (I've slept ${pct}% of my sleep need over the last 7 days). The suggestion is: ${suggestion}. Is that realistic for my schedule, and what else speeds up recovery from sleep debt?`);
+                  buzz("tap");
+                }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, marginLeft: onGoAlarm ? 6 : 0, background: SLEEP_CLR + "18", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: SLEEP_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
+                  <Sparkles size={11} /> Ask coach
                 </button>
               )}
             </div>
@@ -1303,14 +1312,22 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
               light:  { color: C.amber,       bg: C.amber + "18",     border: C.amber + "44",     emoji: "⚡", label: "Go light today" },
               rest:   { color: C.coral,       bg: C.coral + "18",     border: C.coral + "44",     emoji: "🛑", label: "Rest day" },
             }[recoveryRec.level] || { color: C.muted, bg: C.bg2, border: C.line, emoji: "💤", label: "Recovery" };
+            const askLow = onAskCoach && (recoveryRec.level === "light" || recoveryRec.level === "rest");
+            const Tag = askLow ? "button" : "div";
             return (
-              <div className="sprig-pop" style={{ display: "flex", alignItems: "center", gap: 10, background: lvlMeta.bg, borderRadius: 14, padding: "10px 14px", border: `1px solid ${lvlMeta.border}`, boxShadow: C.shadow }}>
+              <Tag className={askLow ? "sprig-pop sprig-tap" : "sprig-pop"}
+                onClick={askLow ? () => {
+                  onAskCoach(`My sleep-based readiness today is "${lvlMeta.label}": ${recoveryRec.text}${lastSleep?.durationMin ? ` Last night I slept ${durLabel(lastSleep.durationMin)}.` : ""}${debtMin >= 30 ? ` I have ${durLabel(debtMin)} of sleep debt.` : ""} What should my training look like today?`);
+                  buzz("tap");
+                } : undefined}
+                style={{ display: "flex", alignItems: "center", gap: 10, background: lvlMeta.bg, borderRadius: 14, padding: "10px 14px", border: `1px solid ${lvlMeta.border}`, boxShadow: C.shadow, ...(askLow ? { width: "100%", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" } : {}) }}>
                 <span style={{ fontSize: 15, flexShrink: 0, lineHeight: 1 }}>{lvlMeta.emoji}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: lvlMeta.color, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>{lvlMeta.label}</div>
                   <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.4 }}>{recoveryRec.text}</div>
                 </div>
-              </div>
+                {askLow && <Sparkles size={13} color={lvlMeta.color} style={{ flexShrink: 0 }} />}
+              </Tag>
             );
           })()}
 
@@ -1331,7 +1348,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
           })()}
 
           {/* B. Sleep Debt Card */}
-          <SleepDebtCard debtMin={debtMin} need={need} logs={sleepLogs} onGoAlarm={() => onSub?.("alarm")} />
+          <SleepDebtCard debtMin={debtMin} need={need} logs={sleepLogs} onGoAlarm={() => onSub?.("alarm")} onAskCoach={onAskCoach} />
 
           {/* C. Energy Schedule */}
           <div>

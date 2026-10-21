@@ -1115,6 +1115,16 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
                 </div>
               ))}
             </div>
+            {onAskCoach && (
+              <button className="sprig-tap" onClick={() => {
+                const locs = trainInfo.pain.locations?.slice(0, 2).join(" and ");
+                onAskCoach(`I have ${lvl} pain${locs ? ` in my ${locs}` : ""}. Current guidance: ${trainInfo.pain.coach.lines.slice(0, 2).join(" ")} Which exercises can I still do today, and what should I swap or skip?`);
+                buzz("tap");
+              }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 9, background: c + "18", border: `1px solid ${c}44`, borderRadius: 9, padding: "5px 11px", fontSize: 11.5, fontWeight: 700, color: c, cursor: "pointer", fontFamily: "DM Sans" }}>
+                <Sparkles size={12} /> Ask coach what to train
+              </button>
+            )}
             {trainInfo.pain.coach.seekHelp && (
               <div style={{ fontSize: 11, color: c, marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${c}33`, lineHeight: 1.5 }}>
                 ⚕️ Sharp pain, swelling, or pain lasting 2+ weeks → see a doctor or physiotherapist. Vitae isn't medical advice.
@@ -1125,16 +1135,25 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
       })()}
 
       {/* SPORT ADVICE — sport-specific load alerts (football/fight/running) */}
-      {trainInfo.sportAdvice?.length > 0 && (
-        <div style={{ background: TRAIN_CLR + "10", border: `1px solid ${TRAIN_CLR}33`, borderRadius: 14, padding: "10px 14px", marginBottom: 10 }}>
-          {trainInfo.sportAdvice.map((line, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", ...(i > 0 ? { marginTop: 7, paddingTop: 7, borderTop: `1px solid ${TRAIN_CLR}18` } : {}) }}>
-              <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1.3 }}>⚡</span>
-              <span style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>{line}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {trainInfo.sportAdvice?.length > 0 && (() => {
+        const Tag = onAskCoach ? "button" : "div";
+        return (
+          <Tag className={onAskCoach ? "sprig-tap" : undefined}
+            onClick={onAskCoach ? () => {
+              onAskCoach(`My sport load alerts say: ${trainInfo.sportAdvice.slice(0, 3).join(" ")} How should I plan my training and recovery around this for the next few days?`);
+              buzz("tap");
+            } : undefined}
+            style={{ background: TRAIN_CLR + "10", border: `1px solid ${TRAIN_CLR}33`, borderRadius: 14, padding: "10px 14px", marginBottom: 10, ...(onAskCoach ? { width: "100%", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", display: "block" } : {}) }}>
+            {trainInfo.sportAdvice.map((line, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", ...(i > 0 ? { marginTop: 7, paddingTop: 7, borderTop: `1px solid ${TRAIN_CLR}18` } : {}) }}>
+                <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1.3 }}>⚡</span>
+                <span style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{line}</span>
+                {onAskCoach && i === 0 && <Sparkles size={12} color={TRAIN_CLR} style={{ flexShrink: 0, marginTop: 2 }} />}
+              </div>
+            ))}
+          </Tag>
+        );
+      })()}
 
       {/* SUGGESTED WORKOUT */}
       {sug && (
