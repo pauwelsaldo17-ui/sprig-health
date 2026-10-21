@@ -27,7 +27,7 @@ function ReportLine({ emoji, label, text, color }) {
   );
 }
 
-function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced, report, profile, achievements, timeline, plateaus, patterns, onGoToday }) {
+function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced, report, profile, achievements, timeline, plateaus, patterns, onGoToday, onAskCoach }) {
   const days = history.slice(-7);
   const maxC = Math.max(targets.calories, ...days.map((d) => d.calories), 1);
   const avg = days.length ? Math.round(days.reduce((a, d) => a + d.calories, 0) / days.length) : 0;
@@ -225,6 +225,19 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
               );
             })}
           </div>
+          {onAskCoach && (plateaus?.length > 0 || patterns?.length > 0) && (
+            <button className="sprig-tap" onClick={() => {
+              const q = plateaus?.length
+                ? (plateaus[0].kind === "weight" ? "Why has my weight stopped changing and what can I do?" : "Why are my lifts stalling and how do I break through?")
+                : "What patterns are holding back my progress?";
+              onAskCoach(q);
+            }}
+              style={{ width: "100%", marginTop: 12, background: C.amber + "15", border: `1px solid ${C.amber}44`, borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+              <span style={{ fontSize: 14 }}>🤔</span>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, flex: 1 }}>Ask your coach about this</span>
+              <span style={{ fontSize: 13, color: C.amber }}>→</span>
+            </button>
+          )}
         </div>
       )}
 

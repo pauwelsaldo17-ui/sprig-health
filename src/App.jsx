@@ -3946,7 +3946,7 @@ function SprigApp() {
               weightSeries={weightSeries} measureSeries={measureSeries} photoLog={photoLog}
               onLogWeight={(kg) => persistDaily({ weight: kg })} onSaveMeasurement={saveMeasurement} onLogPhotoSet={logPhotoSet}
               onOpenPhotos={() => setPhotoOpen(true)} progressPhotosCount={progressPhotos.length} timeline={timeline} />
-            <TrendsTab history={history} targets={targets} t={t} scores={scores} sleepLogs={sleepLogs} sleepInfo={sleepInfo} advanced={advanced} report={report} profile={profile} achievements={achievements} timeline={timeline} plateaus={plateaus} patterns={patterns} onGoToday={() => setTab("today")} />
+            <TrendsTab history={history} targets={targets} t={t} scores={scores} sleepLogs={sleepLogs} sleepInfo={sleepInfo} advanced={advanced} report={report} profile={profile} achievements={achievements} timeline={timeline} plateaus={plateaus} patterns={patterns} onGoToday={() => setTab("today")} onAskCoach={(q) => { setTab("coach"); setAskOpen(true); if (q) setAskQuestion(q); }} />
           </>
         )}
         {tab === "meals" && (
