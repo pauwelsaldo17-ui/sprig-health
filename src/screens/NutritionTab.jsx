@@ -974,7 +974,7 @@ function SuppPickerSheet({ open, onClose, supps = [], onSuppDirect }) {
 }
 
 // ── Food Quality Score ────────────────────────────────────────────────────────
-function FoodQualityScore({ entries = [], targets = {}, dietQ }) {
+function FoodQualityScore({ entries = [], targets = {}, dietQ, onFoodSearch }) {
   // Use vitaeCalc dietQ when available (fiber density + protein fraction + micros + alcohol)
   // Fall back to local heuristic when dietQ isn't passed or has no data
   const totals = dayTotals(entries);
@@ -1052,21 +1052,40 @@ function FoodQualityScore({ entries = [], targets = {}, dietQ }) {
       )}
       {advice.length > 0 && (
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-          {advice.map((tip, i) => (
-            <div key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: C.amber + "18", color: C.amber, display: "flex", alignItems: "center", gap: 3 }}>
-              <span>↑</span><span>{tip}</span>
-            </div>
-          ))}
+          {advice.map((tip, i) => {
+            const t = tip.toLowerCase();
+            const searchQ = /fibre|fiber/.test(t) ? "high fiber" : /protein/.test(t) ? "protein" : /fruit|veg/.test(t) ? "vegetables" : /carb/.test(t) ? "whole grain" : null;
+            if (searchQ && onFoodSearch) return (
+              <button key={i} className="sprig-tap" onClick={() => onFoodSearch(searchQ)}
+                style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: C.amber + "18", color: C.amber, display: "flex", alignItems: "center", gap: 3, cursor: "pointer", fontFamily: "DM Sans", border: "none" }}>
+                <span>↑</span><span>{tip}</span>
+              </button>
+            );
+            return (
+              <div key={i} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: C.amber + "18", color: C.amber, display: "flex", alignItems: "center", gap: 3 }}>
+                <span>↑</span><span>{tip}</span>
+              </div>
+            );
+          })}
         </div>
       )}
       {/* local fallback: show sub-score chips */}
       {components && (
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-          {components.map((comp) => (
-            <div key={comp.label} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: comp.ok ? C.green + "18" : C.coral + "18", color: comp.ok ? C.greenSoft : C.coral, display: "flex", alignItems: "center", gap: 3 }}>
-              <span>{comp.ok ? "✓" : "⚠"}</span><span>{comp.label}</span>
-            </div>
-          ))}
+          {components.map((comp) => {
+            const searchQ = !comp.ok && onFoodSearch ? ({ Fiber: "high fiber", Protein: "protein", Variety: "vegetables" }[comp.label] || null) : null;
+            if (searchQ) return (
+              <button key={comp.label} className="sprig-tap" onClick={() => onFoodSearch(searchQ)}
+                style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: C.coral + "18", color: C.coral, display: "flex", alignItems: "center", gap: 3, cursor: "pointer", fontFamily: "DM Sans", border: "none" }}>
+                <span>⚠</span><span>{comp.label} →</span>
+              </button>
+            );
+            return (
+              <div key={comp.label} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 99, background: comp.ok ? C.green + "18" : C.coral + "18", color: comp.ok ? C.greenSoft : C.coral, display: "flex", alignItems: "center", gap: 3 }}>
+                <span>{comp.ok ? "✓" : "⚠"}</span><span>{comp.label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1204,7 +1223,7 @@ function NutritionTab({
           <MacroProgressBars t={viewT} targets={targets} />
 
           {/* SECTION B2: Food Quality Score — uses vitaeCalc dietQ when available */}
-          <FoodQualityScore entries={viewEntries} targets={targets} dietQ={isViewingToday ? nutriInfo?.dietQ : undefined} />
+          <FoodQualityScore entries={viewEntries} targets={targets} dietQ={isViewingToday ? nutriInfo?.dietQ : undefined} onFoodSearch={(q) => { setFoodSearchQuery(q); setSheetOpen(true); buzz("tap"); }} />
 
           {/* SECTION C: Projection */}
           {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
