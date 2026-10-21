@@ -3960,7 +3960,8 @@ function SprigApp() {
             sub={sleepSub} onSub={setSleepSub}
             session={session} micState={micState} onStart={startSession} onEnd={endSession}
             onManual={saveSleepLog} onRemove={removeSleep} onToggleIgnore={toggleSleepIgnored} onMarkNap={markSleepNap} onEditLog={editSleepLog} profile={profile} advanced={advanced}
-            daily={daily} onDaily={persistDaily} recoveryRec={trainInfo.recoveryRec} />
+            daily={daily} onDaily={persistDaily} recoveryRec={trainInfo.recoveryRec}
+            onAskCoach={(q) => { setTab("coach"); setAskOpen(true); if (q) setAskQuestion(q); }} />
         )}
         {tab === "energy" && (
           <EnergyTab sleepInfo={sleepInfo} entries={entries} t={t} advanced={advanced} onStart={() => { startWorkout(); setTab("train"); }} />

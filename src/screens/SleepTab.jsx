@@ -180,7 +180,7 @@ const DEFAULT_ROUTINE = [
 ];
 
 // ─── Sleep Score Card ─────────────────────────────────────────────────────────
-function SleepScoreCard({ log, allLogs, need }) {
+function SleepScoreCard({ log, allLogs, need, onAskCoach }) {
   const score = calcSleepScore(log, allLogs, need);
   if (!log) {
     return (
@@ -220,6 +220,21 @@ function SleepScoreCard({ log, allLogs, need }) {
           </div>
         ))}
       </div>
+      {onAskCoach && score.overall < 75 && (() => {
+        const subs = [
+          { key: "Duration", val: score.durationScore, fix: "you're not sleeping long enough — aim for 7–9 hours" },
+          { key: "Routine", val: score.routineScore, fix: "your sleep/wake times are inconsistent — try locking them within 30 min every day" },
+          { key: "Quality", val: score.qualityScore, fix: "your sleep quality is low — cut caffeine after 2pm, keep the room dark and cool" },
+        ];
+        const worst = subs.reduce((a, b) => a.val < b.val ? a : b);
+        return (
+          <button className="sprig-tap" onClick={() => { onAskCoach(`My sleep score last night was ${score.overall}/100 (${score.grade}). My weakest area is ${worst.key} (${worst.val}/100) — ${worst.fix}. What specific changes should I make tonight?`); buzz("tap"); }}
+            style={{ marginTop: 12, width: "100%", display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,.08)", border: "1px solid rgba(139,124,247,.4)", borderRadius: 12, padding: "9px 13px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+            <span style={{ fontSize: 14, flexShrink: 0 }}>🤖</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,.9)", flex: 1 }}>How do I improve my sleep score? →</span>
+          </button>
+        );
+      })()}
     </div>
   );
 }
@@ -1172,7 +1187,7 @@ function SleepSoundsCard() {
 }
 
 // ─── Main SleepTab ────────────────────────────────────────────────────────────
-function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec }) {
+function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec, onAskCoach }) {
   const { debtMin, lastSleep, rec, need, breakdown } = sleepInfo;
 
   // Local state for morning routine and wind-down
@@ -1254,7 +1269,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
           )}
 
           {/* A. Sleep Score Card */}
-          <SleepScoreCard log={lastSleep} allLogs={sleepLogs} need={need} />
+          <SleepScoreCard log={lastSleep} allLogs={sleepLogs} need={need} onAskCoach={onAskCoach} />
 
           {/* A1. Sleep Insight — why the score + what to do tonight */}
           {lastSleep && (breakdown?.mainReason || breakdown?.fix) && (
