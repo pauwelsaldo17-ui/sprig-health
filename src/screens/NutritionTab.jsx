@@ -216,7 +216,7 @@ function ProjectionCard({ t, adjTarget }) {
 // Surfaces nutriInfo.coach (goal-aligned cal/protein/weight-rate lines) and
 // nutriInfo.missing (top deficient nutrients with food suggestions). Both are
 // computed by vitaeCalc in App.jsx and passed via nutriInfo — no new props needed.
-function NutritionCoachCard({ coach, missing, t }) {
+function NutritionCoachCard({ coach, missing, t, onFoodSearch }) {
   const lines = coach?.lines || [];
   // Only show missing-nutrients section once there's meaningful food logged
   const calLogged = t?.calories || 0;
@@ -259,7 +259,17 @@ function NutritionCoachCard({ coach, missing, t }) {
                     background: m.pct < 40 ? C.coral : m.pct < 65 ? C.amber : NUTR_CLR }} />
                 </div>
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, minWidth: 58 }}>{m.label} <span style={{ fontWeight: 500, color: C.muted }}>{m.pct}%</span></span>
-                {m.food && (
+                {m.food && onFoodSearch && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, flex: 1 }}>
+                    {m.food.split(",").slice(0, 3).map((f) => f.trim()).filter(Boolean).map((f) => (
+                      <button key={f} className="sprig-tap" onClick={() => onFoodSearch(f)}
+                        style={{ background: NUTR_CLR + "14", border: `1px solid ${NUTR_CLR}33`, borderRadius: 8, padding: "2px 8px", fontSize: 11, color: NUTR_CLR, cursor: "pointer", fontFamily: "DM Sans", fontWeight: 600 }}>
+                        + {f}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {m.food && !onFoodSearch && (
                   <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.3, flex: 1 }}>Try: {m.food}</span>
                 )}
               </div>
@@ -352,7 +362,7 @@ function FoodEntryRow({ entry, onRemove, isToday: isT, flashId }) {
 const UNITS = ["g", "oz", "ml", "cup", "piece", "serving"];
 const UNIT_TO_G = { g: 1, oz: 28.35, ml: 1, cup: 240, piece: 1, serving: 1 };
 
-function FoodSearchSheet({ open, onClose, onAdd, entriesHistory, activeMeal }) {
+function FoodSearchSheet({ open, onClose, onAdd, entriesHistory, activeMeal, initialQuery = "" }) {
   const [tab, setTab]         = useState("search");
   const [query, setQuery]     = useState("");
   const [results, setResults] = useState([]);
@@ -371,7 +381,7 @@ function FoodSearchSheet({ open, onClose, onAdd, entriesHistory, activeMeal }) {
   const kb = useKeyboardInset();
 
   useEffect(() => {
-    if (open) { setTab("search"); setQuery(""); setResults([]); setSelected(null); setAiItems([]); setAddedIds(new Set()); }
+    if (open) { setTab("search"); setQuery(initialQuery || ""); setResults([]); setSelected(null); setAiItems([]); setAddedIds(new Set()); }
   }, [open]);
 
   useEffect(() => {
@@ -1107,6 +1117,7 @@ function NutritionTab({
   const [favSearch,      setFavSearch]      = useState("");
   const [favSort,        setFavSort]        = useState("most");
   const [sheetOpen,      setSheetOpen]      = useState(false);
+  const [foodSearchQuery, setFoodSearchQuery] = useState("");
   const [suppPickerOpen, setSuppPickerOpen] = useState(false);
   const [viewDateStr,    setViewDateStr]    = useState(todayStr);
 
@@ -1200,7 +1211,7 @@ function NutritionTab({
 
           {/* SECTION C2: Nutrition Coach — goal-aligned coaching + gap nutrients */}
           {isViewingToday && (nutriInfo?.coach?.lines?.length > 0 || (nutriInfo?.missing?.length > 0 && viewT.calories >= 200)) && (
-            <NutritionCoachCard coach={nutriInfo.coach} missing={nutriInfo.missing} t={viewT} />
+            <NutritionCoachCard coach={nutriInfo.coach} missing={nutriInfo.missing} t={viewT} onFoodSearch={(q) => { setFoodSearchQuery(q); setSheetOpen(true); buzz("tap"); }} />
           )}
 
           {/* SECTION D: Unified food log */}
@@ -1431,10 +1442,11 @@ function NutritionTab({
       {/* Food search sheet */}
       <FoodSearchSheet
         open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
+        onClose={() => { setSheetOpen(false); setFoodSearchQuery(""); }}
         onAdd={handleAddFood}
         entriesHistory={entriesHistory}
         activeMeal={null}
+        initialQuery={foodSearchQuery}
       />
     </div>
   );
