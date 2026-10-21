@@ -813,12 +813,23 @@ function TodayTab({
               Recovery:  v >= 85 ? "Peak"      : v >= 70 ? "Rested" : v >= 50 ? "Fair"   : "Tired",
             })[ch.label] ?? (v >= 85 ? "Great" : v >= 70 ? "Good" : v >= 50 ? "Fair" : "Low");
             const navFn = { Sleep: onGoSleep, Nutrition: onGoNutrition, Movement: onGoTrain, Recovery: onGoHealth || onGoBody }[ch.label];
+            const isLow = v < 50;
+            const scoreAskQ = {
+              Sleep: `My sleep score is ${v}/100 (${grade}). What are the top 2 things I can do tonight to improve it?`,
+              Nutrition: `My nutrition score is ${v}/100 (${grade}). What specific foods should I eat today to hit my macro targets?`,
+              Movement: `My movement score is ${v}/100 (${grade}). What does this mean and how can I improve it today?`,
+              Recovery: `My recovery score is ${v}/100 (${grade}). What's limiting my recovery and what should I do about it?`,
+            }[ch.label];
             return (
-              <button key={ch.label} className="sprig-tap" onClick={() => { navFn?.(); buzz("tap"); }}
+              <button key={ch.label} className="sprig-tap" onClick={() => {
+                if (onAskCoach && isLow && scoreAskQ) { onAskCoach(scoreAskQ); }
+                else { navFn?.(); }
+                buzz("tap");
+              }}
                 style={{
                   background: C.card, borderRadius: 14, padding: "9px 6px 8px",
-                  textAlign: "center", border: `1px solid ${C.line}`,
-                  cursor: navFn ? "pointer" : "default",
+                  textAlign: "center", border: `1px solid ${(onAskCoach && isLow) ? clr + "44" : C.line}`,
+                  cursor: (navFn || (onAskCoach && isLow)) ? "pointer" : "default",
                   fontFamily: "DM Sans", width: "100%",
                 }}>
                 <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: clr, lineHeight: 1 }}>
@@ -878,12 +889,24 @@ function TodayTab({
               .map((cat) => {
                 const clr = cat.score >= 70 ? (CAT_CLR[cat.key] ?? C.muted) : cat.score >= 45 ? C.amber : C.coral;
                 const navFn = { sleep: onGoSleep, nutrition: onGoNutrition, movement: onGoTrain, mind: onGoMind, markers: onGoHealth }[cat.key];
+                const catAskQ = {
+                  sleep: `My sleep score is ${Math.round(cat.score)}/100. What's causing this low score and what can I fix tonight?`,
+                  nutrition: `My nutrition score is ${Math.round(cat.score)}/100. What macros or foods am I missing?`,
+                  movement: `My movement score is ${Math.round(cat.score)}/100. How can I improve it today?`,
+                  mind: `My mindfulness/habit score is ${Math.round(cat.score)}/100. What habits should I focus on most?`,
+                  markers: `My health vitals score is ${Math.round(cat.score)}/100. What should I pay attention to?`,
+                }[cat.key];
+                const catIsLow = cat.score < 50;
                 return (
-                  <button key={cat.key} className="sprig-tap" onClick={() => { navFn?.(); buzz("tap"); }}
+                  <button key={cat.key} className="sprig-tap" onClick={() => {
+                    if (onAskCoach && catIsLow && catAskQ) { onAskCoach(catAskQ); }
+                    else { navFn?.(); }
+                    buzz("tap");
+                  }}
                     style={{
-                      flex: "0 0 auto", background: C.card, border: `1px solid ${C.line}`,
+                      flex: "0 0 auto", background: C.card, border: `1px solid ${(onAskCoach && catIsLow) ? clr + "44" : C.line}`,
                       borderRadius: 10, padding: "5px 9px 6px", textAlign: "center", minWidth: 50,
-                      cursor: navFn ? "pointer" : "default", fontFamily: "DM Sans",
+                      cursor: (navFn || (onAskCoach && catIsLow)) ? "pointer" : "default", fontFamily: "DM Sans",
                     }}>
                     <div style={{ fontSize: 14, fontFamily: "Fraunces, serif", fontWeight: 700, color: clr, lineHeight: 1 }}>
                       {Math.round(cat.score)}
