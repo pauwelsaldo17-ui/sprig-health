@@ -3857,13 +3857,17 @@ function TodayTab({
         return (
           <div style={{ marginTop: 8 }}>
             {flags.map((note, i) => (
-              <button key={i} className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+              <button key={i} className="sprig-tap" onClick={() => {
+                if (onAskCoach) { onAskCoach(`I have a supplement combination alert: ${note}. Is this actually dangerous? What should I do — change my timing, dose, or stop taking one of them?`); }
+                else { onGoHealth?.(); }
+                buzz("tap");
+              }}
                 style={{
                   width: "100%", display: "flex", alignItems: "flex-start", gap: 9,
                   background: C.amber + "0E", border: `1px solid ${C.amber}30`,
                   borderRadius: 13, padding: "9px 12px",
                   marginTop: i > 0 ? 6 : 0,
-                  cursor: onGoHealth ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                  cursor: (onAskCoach || onGoHealth) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
                 }}>
                 <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1.5 }}>⚠️</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -3872,7 +3876,7 @@ function TodayTab({
                   </div>
                   <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{note}</div>
                 </div>
-                {onGoHealth && <ChevronRight size={11} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} />}
+                {onAskCoach ? <Sparkles size={11} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} /> : onGoHealth ? <ChevronRight size={11} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} /> : null}
               </button>
             ))}
           </div>
