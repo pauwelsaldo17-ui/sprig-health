@@ -225,7 +225,7 @@ function SleepScoreCard({ log, allLogs, need }) {
 }
 
 // ─── Sleep Debt Card ──────────────────────────────────────────────────────────
-function SleepDebtCard({ debtMin, need, logs }) {
+function SleepDebtCard({ debtMin, need, logs, onGoAlarm }) {
   const hasDebt = debtMin >= 30;
   const debtH = Math.floor(debtMin / 60), debtM = debtMin % 60;
   const weekNeed = need * 7;
@@ -269,7 +269,13 @@ function SleepDebtCard({ debtMin, need, logs }) {
           </div>
           {suggestion && (
             <div style={{ fontSize: 13, color: C.inkSoft, background: C.bg2, borderRadius: 10, padding: "9px 12px", lineHeight: 1.45 }}>
-              💡 Pay it back: {suggestion}
+              <div>💡 Pay it back: {suggestion}</div>
+              {onGoAlarm && (
+                <button className="sprig-tap" onClick={() => { onGoAlarm(); buzz("tap"); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, background: SLEEP_CLR + "18", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: SLEEP_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
+                  <AlarmClock size={11} /> Adjust alarm →
+                </button>
+              )}
             </div>
           )}
         </>
@@ -1310,7 +1316,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
           })()}
 
           {/* B. Sleep Debt Card */}
-          <SleepDebtCard debtMin={debtMin} need={need} logs={sleepLogs} />
+          <SleepDebtCard debtMin={debtMin} need={need} logs={sleepLogs} onGoAlarm={() => onSub?.("alarm")} />
 
           {/* C. Energy Schedule */}
           <div>
