@@ -1868,8 +1868,13 @@ function TodayTab({
       {recoveryInfo?.limiters?.length > 0 && (recoveryInfo.score ?? 100) < 80 && (() => {
         const recNavFn = onGoHealth || onGoBody;
         return (
-          <button className="sprig-tap" onClick={() => { recNavFn?.(); buzz("tap"); }}
-            style={{ width: "100%", background: RECOV_CLR + "0E", border: `1px solid ${RECOV_CLR}2A`, borderRadius: 14, padding: "10px 14px", marginTop: 8, cursor: recNavFn ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+          <button className="sprig-tap" onClick={() => {
+            if (onAskCoach) {
+              onAskCoach(`My recovery score is ${recoveryInfo.score}/100. The factors limiting my recovery are: ${recoveryInfo.limiters.join(", ")}. Best action: ${recoveryInfo.bestAction || "improve recovery"}. How can I recover fastest while still training?`);
+            } else { recNavFn?.(); }
+            buzz("tap");
+          }}
+            style={{ width: "100%", background: RECOV_CLR + "0E", border: `1px solid ${RECOV_CLR}2A`, borderRadius: 14, padding: "10px 14px", marginTop: 8, cursor: (onAskCoach || recNavFn) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
               <span style={{ fontSize: 10, fontWeight: 800, color: RECOV_CLR, textTransform: "uppercase", letterSpacing: 0.4 }}>Affecting recovery</span>
               {recoveryInfo.confidence && (() => {
@@ -1886,7 +1891,7 @@ function TodayTab({
                     → {recoveryInfo.bestAction}
                   </span>
                 )}
-                {recNavFn && <ChevronRight size={11} color={C.muted} />}
+                {onAskCoach ? <Sparkles size={11} color={RECOV_CLR} /> : recNavFn ? <ChevronRight size={11} color={C.muted} /> : null}
               </div>
             </div>
             {recoveryInfo.limiters.map((l, i) => (
@@ -1931,15 +1936,22 @@ function TodayTab({
 
       {/* ══ 4c3. RECOVERY WEEK WARNING — deload nudge ════════════════ */}
       {recoveryInfo?.recoveryWeek && (
-        <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }} style={{
+        <button className="sprig-pop sprig-tap" onClick={() => {
+          if (onAskCoach) {
+            const reasons = [...(recoveryInfo.rwReasons || []), ...(trainInfo?.deload?.reasons || [])].join("; ");
+            const stalls = trainInfo?.deload?.stalls?.join(", ") || "";
+            onAskCoach(`My body is signalling I need a deload week. Reasons: ${reasons || "accumulated fatigue"}${stalls ? ". Plateauing lifts: " + stalls : ""}. How should I structure a deload week to maximise recovery while maintaining my gains?`);
+          } else { onGoTrain?.(); }
+          buzz("tap");
+        }} style={{
           width: "100%", background: C.amber + "10", border: `1px solid ${C.amber}44`,
           borderRadius: 14, padding: "10px 14px", marginTop: 8,
-          cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+          cursor: (onAskCoach || onGoTrain) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
             <span style={{ fontSize: 14 }}>🔄</span>
             <span style={{ fontSize: 10.5, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4 }}>Deload week recommended</span>
-            {onGoTrain && <ChevronRight size={11} color={C.amber} style={{ marginLeft: "auto", flexShrink: 0 }} />}
+            {onAskCoach ? <Sparkles size={11} color={C.amber} style={{ marginLeft: "auto", flexShrink: 0 }} /> : onGoTrain ? <ChevronRight size={11} color={C.amber} style={{ marginLeft: "auto", flexShrink: 0 }} /> : null}
           </div>
           {recoveryInfo.rwReasons?.length > 0 && (
             <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45, marginBottom: 4 }}>
@@ -1967,12 +1979,19 @@ function TodayTab({
 
       {/* ══ 4c3c. SOFT DELOAD HINT — progress stall detected, less severe than full deload card ════ */}
       {tp.training !== false && trainInfo?.deload?.suggest && !recoveryInfo?.recoveryWeek && trainInfo.deload.reasons?.length > 0 && (
-        <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+        <button className="sprig-pop sprig-tap" onClick={() => {
+          if (onAskCoach) {
+            const reasons = trainInfo.deload.reasons.join("; ");
+            const stalls = trainInfo.deload.stalls?.join(", ") || "";
+            onAskCoach(`My training data suggests a deload is starting to make sense. Reasons: ${reasons}${stalls ? ". Stalling lifts: " + stalls : ""}. Should I deload now, and if so what does an ideal deload week look like for me?`);
+          } else { onGoTrain?.(); }
+          buzz("tap");
+        }}
           style={{
             width: "100%", display: "flex", alignItems: "flex-start", gap: 10,
             background: C.amber + "0A", border: `1px solid ${C.amber}2E`,
             borderRadius: 14, padding: "10px 14px", marginTop: 8,
-            cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+            cursor: (onAskCoach || onGoTrain) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
           }}>
           <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.7 }}>📉</span>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1993,7 +2012,7 @@ function TodayTab({
               </div>
             )}
           </div>
-          {onGoTrain && <ChevronRight size={12} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} />}
+          {onAskCoach ? <Sparkles size={12} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} /> : onGoTrain ? <ChevronRight size={12} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} /> : null}
         </button>
       )}
 
@@ -2006,12 +2025,17 @@ function TodayTab({
         const icon  = isRest ? "💤" : isLight ? "🌿" : "💪";
         const title = isRest ? "Rest day recommended" : isLight ? "Light training today" : "High intensity — go hard";
         return (
-          <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+          <button className="sprig-pop sprig-tap" onClick={() => {
+            if (onAskCoach && (isRest || isLight)) {
+              onAskCoach(`My recovery data says: ${title}. ${rec.text} What should I do today to maximise recovery without losing fitness?`);
+            } else { onGoTrain?.(); }
+            buzz("tap");
+          }}
             style={{
               width: "100%", display: "flex", alignItems: "flex-start", gap: 10,
               background: clr + "0E", border: `1px solid ${clr}2A`,
               borderRadius: 14, padding: "10px 14px", marginTop: 8,
-              cursor: onGoTrain ? "pointer" : "default",
+              cursor: (onAskCoach && (isRest || isLight)) || onGoTrain ? "pointer" : "default",
               fontFamily: "DM Sans", textAlign: "left",
             }}>
             <span style={{ fontSize: 15, flexShrink: 0, lineHeight: 1.6 }}>{icon}</span>
@@ -2023,7 +2047,7 @@ function TodayTab({
                 {rec.text}
               </div>
             </div>
-            {onGoTrain && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0, marginTop: 2 }} />}
+            {(onAskCoach && (isRest || isLight)) ? <Sparkles size={13} color={clr} style={{ flexShrink: 0, marginTop: 2 }} /> : onGoTrain ? <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0, marginTop: 2 }} /> : null}
           </button>
         );
       })()}
