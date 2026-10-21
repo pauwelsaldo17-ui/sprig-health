@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Activity, Check, ChevronRight, Droplets, Dumbbell,
-  Flame, Heart, Moon, Pill, Plus, Repeat, Scale, TrendingUp, Zap,
+  Flame, Heart, Moon, Pill, Plus, Repeat, Scale, Sparkles, TrendingUp, Zap,
 } from "lucide-react";
 import { C } from "../theme.js";
 import {
@@ -63,7 +63,7 @@ function MiniArc({ pct = 0, color = C.greenSoft, size = 38, strokeWidth = 4 }) {
 }
 
 /* ─── BentoCard ──────────────────────────────────────────────────── */
-function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty, active, extra }) {
+function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, ctaIcon, empty, active, extra }) {
   return (
     <button className="sprig-tap" onClick={() => { onTap?.(); buzz("tap"); }}
       style={{
@@ -103,7 +103,7 @@ function BentoCard({ icon, color, label, main, sub, sub2, pct, onTap, cta, empty
       {/* cta */}
       {cta && (
         <div style={{ fontSize: 11, color, fontWeight: 700, display: "flex", alignItems: "center", gap: 2 }}>
-          {cta} <ChevronRight size={10} />
+          {cta} {ctaIcon || <ChevronRight size={10} />}
         </div>
       )}
     </button>
@@ -611,6 +611,24 @@ function TodayTab({
     { label: "Movement",  v: subScores.movement,  color: C.greenSoft },
     { label: "Recovery",  v: subScores.training,  color: RECOV_CLR },
   ].filter(ch => tp[ch.label.toLowerCase()] !== false && ch.v != null);
+
+  /* ── bento → coach when the card's score is low (< 50) ────────── */
+  const isLowScore = (v) => !!onAskCoach && Number.isFinite(v) && v < 50;
+  const bentoAsk = {
+    // empty cards keep their "Log …" CTA; coach only once there is data to talk about
+    sleep: dtSleepSrc && isLowScore(subScores.sleep)
+      ? `My sleep score is ${Math.round(subScores.sleep)}/100${sleepDur ? ` after ${sleepDur} of sleep` : ""}${lastSleep?.bedtime && lastSleep?.waketime ? ` (${minToTimeStr(new Date(lastSleep.bedtime).getHours() * 60 + new Date(lastSleep.bedtime).getMinutes())} → ${minToTimeStr(new Date(lastSleep.waketime).getHours() * 60 + new Date(lastSleep.waketime).getMinutes())})` : ""}${sleepInfo?.breakdown?.mainReason ? `. Main issue: ${sleepInfo.breakdown.mainReason}` : ""}. What are the top 2 things I should change tonight?`
+      : null,
+    nutrition: (t.calories > 0 || dtNutrSrc) && isLowScore(subScores.nutrition)
+      ? `My nutrition score is ${Math.round(subScores.nutrition)}/100. So far today: ${Math.round(t.calories || 0)}${adjTarget > 0 ? ` / ${adjTarget}` : ""} kcal, ${Math.round(t.protein || 0)}${targets.protein > 0 ? ` / ${targets.protein}` : ""}g protein. What should I eat for the rest of today to fix this?`
+      : null,
+    movement: (dtMoveSrc || dtTrainSrc || steps > 0) && isLowScore(subScores.movement)
+      ? `My movement score is ${Math.round(subScores.movement)}/100: ${steps.toLocaleString()} of ${sGoal.toLocaleString()} steps${dtTrainSrc ? ", workout logged" : ", no workout logged"}. What's the most effective way to make up for it today?`
+      : null,
+    recovery: isLowScore(recovScore)
+      ? `My recovery score is ${recovScore}/100.${recoveryInfo?.limiters?.length ? ` Limiting factors: ${recoveryInfo.limiters.join(", ")}.` : ""}${recoveryInfo?.bestAction ? ` Suggested: ${recoveryInfo.bestAction}.` : ""} Should I train today, and what should I do to recover faster?`
+      : null,
+  };
 
   const allLogged = dtNutrSrc === "exact" && !!dtSleepSrc && !!dtTrainSrc;
 
@@ -1442,8 +1460,9 @@ function TodayTab({
                   : null
             }
             pct={sleepPct}
-            onTap={onGoSleep}
-            cta={!dtSleepSrc ? "Log tonight's sleep" : null}
+            onTap={bentoAsk.sleep ? () => onAskCoach(bentoAsk.sleep) : onGoSleep}
+            cta={!dtSleepSrc ? "Log tonight's sleep" : bentoAsk.sleep ? "Ask coach" : null}
+            ctaIcon={bentoAsk.sleep ? <Sparkles size={10} /> : null}
             empty={!sleepDur && dtSleepSrc !== "quick_log"}
             active={!!(sleepDur || dtSleepSrc === "quick_log")}
           />
@@ -1489,8 +1508,9 @@ function TodayTab({
                         : null
             }
             pct={calPct}
-            onTap={onGoNutrition}
-            cta={!dtNutrSrc && t.calories === 0 ? "Log your meals" : null}
+            onTap={bentoAsk.nutrition ? () => onAskCoach(bentoAsk.nutrition) : onGoNutrition}
+            cta={!dtNutrSrc && t.calories === 0 ? "Log your meals" : bentoAsk.nutrition ? "Ask coach" : null}
+            ctaIcon={bentoAsk.nutrition ? <Sparkles size={10} /> : null}
             empty={t.calories === 0 && !dtNutrSrc}
             active={t.calories > 0 || dtNutrSrc === "quick_log"}
           />
@@ -1546,8 +1566,9 @@ function TodayTab({
                       : null
             }
             pct={movePct}
-            onTap={onGoTrain}
-            cta={!dtMoveSrc && !dtTrainSrc && steps === 0 ? "Log workout" : null}
+            onTap={bentoAsk.movement ? () => onAskCoach(bentoAsk.movement) : onGoTrain}
+            cta={!dtMoveSrc && !dtTrainSrc && steps === 0 ? "Log workout" : bentoAsk.movement ? "Ask coach" : null}
+            ctaIcon={bentoAsk.movement ? <Sparkles size={10} /> : null}
             empty={!dtMoveSrc && !dtTrainSrc && steps === 0}
             active={!!(dtMoveSrc || steps > 0 || dtTrainSrc)}
           />
@@ -1610,8 +1631,9 @@ function TodayTab({
               );
             })()}
             pct={recovScore}
-            onTap={onGoHealth || onGoBody}
-            cta={recovScore == null ? "Log sleep + training" : null}
+            onTap={bentoAsk.recovery ? () => onAskCoach(bentoAsk.recovery) : (onGoHealth || onGoBody)}
+            cta={recovScore == null ? "Log sleep + training" : bentoAsk.recovery ? "Ask coach" : null}
+            ctaIcon={bentoAsk.recovery ? <Sparkles size={10} /> : null}
             empty={recovScore == null}
             active={recovScore != null}
           />
