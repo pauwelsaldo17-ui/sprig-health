@@ -191,7 +191,7 @@ function DailyBriefing({ coach }) {
 }
 
 /* ─── Cross-Domain Insight ──────────────────────────────────────── */
-function CrossDomainInsight({ patterns, advanced }) {
+function CrossDomainInsight({ patterns, advanced, onAsk }) {
   if (!patterns?.length) return null;
   const p = patterns[0];
   const emoji =
@@ -199,27 +199,33 @@ function CrossDomainInsight({ patterns, advanced }) {
     : p.kind === "steps_mood"   ? "🚶"
     : p.kind === "pain_exercise"? "⚠️"
     : "🔗";
+  const askQ =
+    p.kind === "alcohol_sleep" ? "How is my alcohol intake affecting my sleep quality?"
+    : p.kind === "steps_mood"   ? "How are my daily steps affecting my mood and energy?"
+    : p.kind === "pain_exercise"? "How should I train given the pain pattern you detected?"
+    : `Tell me more about this pattern: ${p.text}`;
+  const Container = onAsk ? "button" : "div";
+  const containerProps = onAsk ? {
+    className: "sprig-tap",
+    onClick: () => { onAsk(askQ); buzz("tap"); },
+    style: {
+      width: "100%", background: `${COACH_CLR}10`, border: `1px solid ${COACH_CLR}28`,
+      borderRadius: 18, padding: "14px 15px", marginBottom: 10,
+      display: "flex", gap: 11, alignItems: "flex-start",
+      cursor: "pointer", fontFamily: "DM Sans", textAlign: "left",
+    },
+  } : {
+    style: {
+      background: `${COACH_CLR}10`, border: `1px solid ${COACH_CLR}28`,
+      borderRadius: 18, padding: "14px 15px", marginBottom: 10,
+      display: "flex", gap: 11, alignItems: "flex-start",
+    },
+  };
   return (
-    <div
-      style={{
-        background: `${COACH_CLR}10`,
-        border: `1px solid ${COACH_CLR}28`,
-        borderRadius: 18,
-        padding: "14px 15px",
-        marginBottom: 10,
-        display: "flex",
-        gap: 11,
-        alignItems: "flex-start",
-      }}
-    >
+    <Container {...containerProps}>
       <span style={{ fontSize: 20, lineHeight: 1.2, flexShrink: 0 }}>{emoji}</span>
-      <div>
-        <div
-          style={{
-            fontSize: 10.5, fontWeight: 700, color: COACH_CLR,
-            textTransform: "uppercase", letterSpacing: .6, marginBottom: 5,
-          }}
-        >
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: COACH_CLR, textTransform: "uppercase", letterSpacing: .6, marginBottom: 5 }}>
           Pattern detected
         </div>
         <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.5 }}>
@@ -230,8 +236,13 @@ function CrossDomainInsight({ patterns, advanced }) {
             +{patterns.length - 1} more patterns in your data
           </div>
         )}
+        {onAsk && (
+          <div style={{ fontSize: 11, fontWeight: 700, color: COACH_CLR, marginTop: 8, display: "flex", alignItems: "center", gap: 3 }}>
+            Ask about this <ChevronRight size={10} />
+          </div>
+        )}
       </div>
-    </div>
+    </Container>
   );
 }
 
@@ -709,7 +720,7 @@ function CoachTab({
       <DailyBriefing coach={coach} />
 
       {/* ── Cross-domain pattern */}
-      <CrossDomainInsight patterns={patterns} advanced={advanced} />
+      <CrossDomainInsight patterns={patterns} advanced={advanced} onAsk={onAsk} />
 
       {/* ── Domain cards */}
       {coach?.training && (
