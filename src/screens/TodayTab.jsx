@@ -1736,9 +1736,16 @@ function TodayTab({
 
       {/* ══ 4c0. SLEEP SCORE BREAKDOWN — why last night was low + one fix ════ */}
       {tp.sleep !== false && sleepInfo.breakdown?.fix && sleepInfo.lastSleep && new Date().getHours() < 15 && (
-        <button className="sprig-pop sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
-          style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: SLEEP_CLR + "0C", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "10px 13px", marginTop: 8, cursor: onGoSleep ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
-          <Moon size={14} color={SLEEP_CLR} style={{ flexShrink: 0, marginTop: 2 }} />
+        <button className="sprig-pop sprig-tap" onClick={() => {
+            if (onAskCoach) {
+              onAskCoach(`Last night's sleep issue: ${sleepInfo.breakdown.mainReason || "poor quality"}. Suggested fix: ${sleepInfo.breakdown.fix}. What specific changes should I make tonight to fix this?`);
+            } else {
+              onGoSleep?.();
+            }
+            buzz("tap");
+          }}
+          style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: SLEEP_CLR + "0C", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "10px 13px", marginTop: 8, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+          {onAskCoach ? <Sparkles size={14} color={SLEEP_CLR} style={{ flexShrink: 0, marginTop: 2 }} /> : <Moon size={14} color={SLEEP_CLR} style={{ flexShrink: 0, marginTop: 2 }} />}
           <div style={{ flex: 1 }}>
             {sleepInfo.breakdown.mainReason && (
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 3, lineHeight: 1.4 }}>
@@ -1748,22 +1755,31 @@ function TodayTab({
             <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45, fontWeight: 600 }}>
               {sleepInfo.breakdown.fix}
             </div>
+            {onAskCoach && <div style={{ fontSize: 10.5, color: SLEEP_CLR, fontWeight: 700, marginTop: 3 }}>Ask coach for a personalised plan →</div>}
           </div>
-          {onGoSleep && <ChevronRight size={12} color={SLEEP_CLR} style={{ flexShrink: 0, marginTop: 2 }} />}
+          <ChevronRight size={12} color={SLEEP_CLR} style={{ flexShrink: 0, marginTop: 2 }} />
         </button>
       )}
 
       {/* ══ 4c1. SLEEP DEBT BANNER — daytime nudge when debt is significant ══ */}
       {tp.sleep !== false && (sleepInfo.debtMin || 0) > 60 && new Date().getHours() < 20 && (
-        <button className="sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
-          style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: SLEEP_CLR + "0D", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8, cursor: onGoSleep ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+        <button className="sprig-tap" onClick={() => {
+            const debtH = Math.round((sleepInfo.debtMin / 60) * 10) / 10;
+            if (onAskCoach && (sleepInfo.debtMin || 0) > 120) {
+              onAskCoach(`I have ${debtH}h of sleep debt building up. What's the fastest safe way to recover from sleep debt without wrecking my training?`);
+            } else {
+              onGoSleep?.();
+            }
+            buzz("tap");
+          }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: SLEEP_CLR + "0D", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 14, padding: "9px 13px", marginTop: 8, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
           <Moon size={14} color={SLEEP_CLR} style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.4, flex: 1 }}>
             {(sleepInfo.debtMin || 0) > 180
               ? `Carrying ~${Math.round((sleepInfo.debtMin / 60) * 10) / 10}h sleep debt — affects energy, mood and recovery.`
               : `~${Math.round((sleepInfo.debtMin / 60) * 10) / 10}h sleep debt building up — an earlier bedtime tonight will help.`}
           </span>
-          {onGoSleep && <ChevronRight size={12} color={SLEEP_CLR} style={{ flexShrink: 0 }} />}
+          <ChevronRight size={12} color={SLEEP_CLR} style={{ flexShrink: 0 }} />
         </button>
       )}
 
