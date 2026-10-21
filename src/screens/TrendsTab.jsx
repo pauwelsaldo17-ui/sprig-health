@@ -113,7 +113,19 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
               <ReportLine emoji="🌟" label="Best win" text={R.win} color={TRENDS_CLR} />
             )}
             {R.bottleneck && (
-              <ReportLine emoji="🚧" label="Biggest bottleneck" text={R.bottleneck} color={C.amber} />
+              onAskCoach ? (
+                <button className="sprig-tap" onClick={() => onAskCoach(`My biggest bottleneck is: ${R.bottleneck} — what's the most effective single change I can make this week to fix this?`)}
+                  style={{ width: "100%", background: C.amber + "0E", border: `1px solid ${C.amber}33`, borderRadius: 12, padding: "10px 12px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 15, flexShrink: 0, lineHeight: 1.3 }}>🚧</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10.5, color: C.amber, fontWeight: 700, letterSpacing: .3, textTransform: "uppercase" }}>Biggest bottleneck</div>
+                    <div style={{ fontSize: 13, color: C.ink, marginTop: 1, lineHeight: 1.45 }}>{R.bottleneck}</div>
+                  </div>
+                  <span style={{ fontSize: 14, color: C.amber, flexShrink: 0 }}>→</span>
+                </button>
+              ) : (
+                <ReportLine emoji="🚧" label="Biggest bottleneck" text={R.bottleneck} color={C.amber} />
+              )
             )}
             <ReportLine emoji="🎯" label="Next week" text={R.nextWeek} color={TRENDS_CLR} />
           </div>
@@ -196,11 +208,19 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {(plateaus || []).map((p, i) => {
               const icon = p.kind === "weight" ? "⚖️" : p.kind === "strength" ? "💪" : "🌙";
+              const askQ = p.kind === "weight"
+                ? "My weight has plateaued. Based on my logs, what's the most likely cause and what should I change this week?"
+                : p.kind === "strength"
+                  ? "My lifts have stalled. What's causing it and what's the fastest way to break through?"
+                  : `My ${p.title} is a bottleneck. What should I change?`;
+              const Wrapper = onAskCoach ? "button" : "div";
+              const wrapProps = onAskCoach ? { className: "sprig-tap", onClick: () => onAskCoach(askQ), style: { width: "100%", background: C.bg2, borderRadius: 14, padding: "12px 14px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", border: "none", display: "block" } } : { style: { background: C.bg2, borderRadius: 14, padding: "12px 14px" } };
               return (
-                <div key={i} style={{ background: C.bg2, borderRadius: 14, padding: "12px 14px" }}>
+                <Wrapper key={i} {...wrapProps}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <span style={{ fontSize: 16 }}>{icon}</span>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>{p.title}</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, lineHeight: 1.3, flex: 1 }}>{p.title}</span>
+                    {onAskCoach && <span style={{ fontSize: 13, color: C.amber }}>→</span>}
                   </div>
                   {p.reasons?.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -212,7 +232,7 @@ function TrendsTab({ history, targets, t, scores, sleepLogs, sleepInfo, advanced
                       ))}
                     </div>
                   )}
-                </div>
+                </Wrapper>
               );
             })}
             {(patterns || []).map((p, i) => {
