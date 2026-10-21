@@ -13,7 +13,6 @@ export default defineConfig({
   cacheDir: '/tmp/sprig_vite_cache',
   build: {
     rolldownOptions: {
-      external: ['capacitor-health-connect', '@perfood/capacitor-healthkit'],
       output: {
         manualChunks(id) {
           for (const [pkg, chunk] of Object.entries(CHUNK_MAP)) {

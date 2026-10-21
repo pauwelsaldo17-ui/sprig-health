@@ -7,7 +7,7 @@ import { C } from "../theme.js";
 import {
   stepGoal, ACTIVITY_SOURCES, durLabel, scoreVerdict, uid, todayStr, MUSCLES, RISK_TAG, BLOOD_MARKERS,
   ALCOHOL_LEVELS, alcoholLevel, interactionFlags, volumeStatus, VOL_TAG_COLOR,
-  weightStats, weightVerdict, mealScore, photoReminder,
+  weightStats, weightVerdict, mealScore, photoReminder, minToLabel, ENERGY_ZONE_META,
 } from "../utils/vitaeCalc.js";
 import {
   btn, Btn, Ring, Badge, TodayWinsCard, ScoreDonut, ACTION_ICON,
@@ -1562,7 +1562,7 @@ function TodayTab({
                   : dtTrainSrc === "exact" && moveInfo?.workoutAdj?.totalMin > 0
                     ? `${moveInfo.workoutAdj.totalMin}min${moveInfo.workoutAdj.intensity ? ` · ${moveInfo.workoutAdj.intensity}` : ""}`
                     : steps > 0 && moveInfo?.movement?.kcal > 0
-                      ? `~${moveInfo.movement.kcal} kcal from steps`
+                      ? `~${moveInfo.movement.kcal} kcal ${moveInfo.movement.kcalSource === "health" ? "active energy" : "from steps"}`
                       : null
             }
             pct={movePct}
@@ -1643,7 +1643,11 @@ function TodayTab({
       {/* ══ 4c0_ec. ENERGY CURVE — full-day sparkline from wake to bed ════ */}
       {sleepInfo?.curve?.length > 5 && (() => {
         const curve = sleepInfo.curve;
-        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        let nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        if (nowMin < curve[0].min - 360) nowMin += 1440; // after midnight on a late schedule
+        const zones = sleepInfo.zones || [];
+        const zoneNow = zones.find((z) => nowMin >= z.start && nowMin < z.end);
+        const zoneNext = zones.find((z) => z.start > nowMin && z.kind !== "grogginess");
         const minX = curve[0].min;
         const maxX = curve[curve.length - 1].min;
         const span = maxX - minX || 1;
@@ -1736,6 +1740,13 @@ function TodayTab({
               )}
               <span style={{ fontSize: 9.5, color: C.muted, fontWeight: 600 }}>🌙 {bedStr}</span>
             </div>
+            {(zoneNow || zoneNext) && (
+              <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 6, lineHeight: 1.4 }}>
+                {zoneNow && <><b>{ENERGY_ZONE_META[zoneNow.kind].label}</b> until {minToLabel(zoneNow.end)}</>}
+                {zoneNow && zoneNext && " · "}
+                {zoneNext && <span style={{ color: C.muted }}>{zoneNow ? "next" : "Next"}: {ENERGY_ZONE_META[zoneNext.kind].label.toLowerCase()} {minToLabel(zoneNext.start)}</span>}
+              </div>
+            )}
           </button>
         );
       })()}

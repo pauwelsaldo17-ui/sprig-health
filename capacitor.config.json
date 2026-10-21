@@ -8,9 +8,6 @@
     },
     "Camera": {
       "presentationStyle": "popover"
-    },
-    "HealthConnect": {
-      "version": 1
     }
   },
   "android": {

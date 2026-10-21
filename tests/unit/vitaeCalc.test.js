@@ -143,51 +143,56 @@ describe('dayTotals', () => {
 });
 
 // ---------------------------------------------------------------------------
-// sleepDebtMin — cumulative decaying sleep debt.
-// Signature: sleepDebtMin(logs: Array, needMin: number).
-// Log entries need durationMin (minutes). Entries with durationMin < 20 are filtered.
+// sleepDebtMin — Rise-style 14-night weighted sleep debt.
+// Signature: sleepDebtMin(logs: Array, needMin: number, nowTs?: number).
+// Logs are grouped by wake date; naps add to their day; missing nights are skipped.
 // ---------------------------------------------------------------------------
 describe('sleepDebtMin', () => {
   const needMin = 8 * 60; // 480 min = 8h
+  const NOW = new Date('2026-10-21T12:00:00').getTime();
+  // a log that ended `daysAgo` days before NOW at 07:00
+  const night = (daysAgo, durationMin, extra = {}) => {
+    const wake = new Date('2026-10-21T07:00:00').getTime() - daysAgo * 864e5;
+    return { bedtime: wake - durationMin * 60000, waketime: wake, durationMin, date: new Date(wake).toLocaleDateString('en-CA'), ...extra };
+  };
+  const nights = (n, dur) => Array.from({ length: n }, (_, i) => night(n - 1 - i, dur));
 
   test('returns zero for empty log', () => {
-    expect(sleepDebtMin([], needMin)).toBe(0);
+    expect(sleepDebtMin([], needMin, NOW)).toBe(0);
   });
 
-  test('zero debt when consistently meeting sleep goal', () => {
-    const logs = [
-      { durationMin: 480 },
-      { durationMin: 480 },
-    ];
-    // On-target nights chip away at any prior debt; starting at 0 → stays 0
-    expect(sleepDebtMin(logs, needMin)).toBe(0);
+  test('zero debt when consistently meeting sleep need', () => {
+    expect(sleepDebtMin(nights(14, 480), needMin, NOW)).toBe(0);
   });
 
-  test('positive debt when undersleeping', () => {
-    const logs = [
-      { durationMin: 240 }, // 4h — well below goal
-      { durationMin: 240 },
-      { durationMin: 240 },
-    ];
-    expect(sleepDebtMin(logs, needMin)).toBeGreaterThan(0);
+  test('14 nights 1 h short ≈ 14 h of debt', () => {
+    expect(sleepDebtMin(nights(14, 420), needMin, NOW)).toBe(14 * 60);
   });
 
-  test('debt decays with subsequent good sleep', () => {
-    const shortLogs = Array(7).fill({ durationMin: 240 });
-    const debtAfterShort = sleepDebtMin(shortLogs, needMin);
-    const recovery = [...shortLogs, ...Array(7).fill({ durationMin: 600 })];
-    const debtAfterRecovery = sleepDebtMin(recovery, needMin);
-    expect(debtAfterRecovery).toBeLessThan(debtAfterShort);
+  test('last night weighs 15%: one short night last night beats one short night 10 days ago', () => {
+    const base = nights(14, 480);
+    const lastShort = base.map((l, i) => (i === 13 ? night(0, 240) : l));
+    const oldShort = base.map((l, i) => (i === 3 ? night(10, 240) : l));
+    expect(sleepDebtMin(lastShort, needMin, NOW)).toBeGreaterThan(sleepDebtMin(oldShort, needMin, NOW));
   });
 
-  test('ignores nap entries', () => {
-    const logs = [{ durationMin: 240, nap: true }];
-    // Nap entries are filtered — like empty log
-    expect(sleepDebtMin(logs, needMin)).toBe(0);
+  test('long nights pay debt down', () => {
+    const shortWeek = [...nights(14, 480).slice(0, 7).map((l, i) => night(13 - i, 300)), ...nights(7, 480)];
+    const recovered = [...shortWeek.slice(0, 7), ...nights(7, 600)];
+    expect(sleepDebtMin(recovered, needMin, NOW)).toBeLessThan(sleepDebtMin(shortWeek, needMin, NOW));
   });
 
-  test('ignores very short sessions (< 20 min)', () => {
-    const logs = [{ durationMin: 10 }];
-    expect(sleepDebtMin(logs, needMin)).toBe(0);
+  test('naps count toward the day they end on', () => {
+    const withoutNap = [night(0, 360)];
+    const withNap = [night(0, 360), { ...night(0, 60), waketime: NOW - 36e5, bedtime: NOW - 2 * 36e5, nap: true, ignoredFromScore: true }];
+    expect(sleepDebtMin(withNap, needMin, NOW)).toBe(sleepDebtMin(withoutNap, needMin, NOW) - 60);
+  });
+
+  test('missing nights do not create debt', () => {
+    expect(sleepDebtMin([night(0, 480), night(5, 480)], needMin, NOW)).toBe(0);
+  });
+
+  test('ignores mis-starts (< 20 min) and logs older than 14 days', () => {
+    expect(sleepDebtMin([night(0, 10), night(20, 120)], needMin, NOW)).toBe(0);
   });
 });
