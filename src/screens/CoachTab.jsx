@@ -10,6 +10,15 @@ import {
 } from "lucide-react";
 import { C } from "../theme.js";
 
+const HAPTIC_PATTERNS = {
+  tap: 14, light: 10, select: 8,
+  success: [30, 50, 30], complete: [30, 50, 50],
+  strong: 40, error: [100, 50, 100],
+};
+function buzz(kind = "tap") {
+  try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
+}
+
 /* ─── domain palette ────────────────────────────────────────────── */
 const COACH_CLR = "#C084FC";  // purple-pink — AI intelligence feel
 const SLEEP_CLR = "#8B7CF7";

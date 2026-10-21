@@ -4,6 +4,15 @@ import { C } from "../theme.js";
 import { FOCUS_PRESETS, HABIT_CATEGORIES, DAY_NAMES_SHORT, HABIT_SUGGESTIONS, computeHabitStreak } from "../utils/vitaeCalc.js";
 import { btn } from "../components/ui.jsx";
 
+const HAPTIC_PATTERNS = {
+  tap: 14, light: 10, select: 8,
+  success: [30, 50, 30], complete: [30, 50, 50],
+  strong: 40, error: [100, 50, 100],
+};
+function buzz(kind = "tap") {
+  try { navigator.vibrate?.(HAPTIC_PATTERNS[kind] ?? 14); } catch (_) {}
+}
+
 const MIND_CLR = "#A78BFA";
 
 function FocusTimer({ onLogFocus }) {
