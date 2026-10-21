@@ -1884,12 +1884,18 @@ function TodayTab({
         const info = ALCOHOL_LEVELS[level];
         const clr = info.color;
         return (
-          <button className="sprig-pop sprig-tap" onClick={() => { onGoSleep?.(); buzz("tap"); }}
+          <button className="sprig-pop sprig-tap" onClick={() => {
+            if (onAskCoach) {
+              const debtH = Math.round((sleepInfo?.debtMin || 0) / 6) / 10;
+              onAskCoach(`I'm having ${daily.alcohol} ${daily.alcohol === 1 ? "drink" : "drinks"} tonight (${info.label.toLowerCase()} drinking).${debtH >= 1 ? ` I already have ${debtH}h of sleep debt.` : ""} How will this affect my sleep and recovery, and what can I do tonight to limit the damage?`);
+            } else { onGoSleep?.(); }
+            buzz("tap");
+          }}
             style={{
               width: "100%", display: "flex", alignItems: "flex-start", gap: 9,
               background: clr + "0E", border: `1px solid ${clr}2A`,
               borderRadius: 14, padding: "9px 13px", marginTop: 8,
-              cursor: onGoSleep ? "pointer" : "default",
+              cursor: (onAskCoach || onGoSleep) ? "pointer" : "default",
               fontFamily: "DM Sans", textAlign: "left",
             }}>
             <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.5 }}>🍺</span>
@@ -1904,7 +1910,7 @@ function TodayTab({
               </div>
               <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{info.next}</div>
             </div>
-            {onGoSleep && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0, marginTop: 2 }} />}
+            {onAskCoach ? <Sparkles size={13} color={clr} style={{ flexShrink: 0, marginTop: 2 }} /> : onGoSleep && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0, marginTop: 2 }} />}
           </button>
         );
       })()}
@@ -2306,7 +2312,13 @@ function TodayTab({
         const { level, coach } = trainInfo.pain;
         const painClr = level === "serious" ? C.coral : C.amber;
         return (
-          <button className="sprig-pop sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }} style={{
+          <button className="sprig-pop sprig-tap" onClick={() => {
+            if (onAskCoach) {
+              const locs = trainInfo.pain.locations?.slice(0, 2).join(" and ");
+              onAskCoach(`I have ${level} pain${locs ? ` in my ${locs}` : ""}. Current guidance: ${coach.lines.slice(0, 2).join(" ")} How should I change my training today, and when should I get it checked?`);
+            } else { onGoHealth?.(); }
+            buzz("tap");
+          }} style={{
             width: "100%", background: painClr + "0E", border: `1px solid ${painClr}44`,
             borderRadius: 14, padding: "10px 14px", marginTop: 8,
             cursor: "pointer", fontFamily: "DM Sans", textAlign: "left",
@@ -2321,7 +2333,9 @@ function TodayTab({
                   {trainInfo.pain.locations.slice(0, 2).join(", ")}
                 </span>
               )}
-              {!trainInfo.pain.locations?.length && <ChevronRight size={11} color={painClr} style={{ marginLeft: "auto", flexShrink: 0 }} />}
+              {onAskCoach
+                ? <Sparkles size={11} color={painClr} style={{ marginLeft: trainInfo.pain.locations?.length ? 0 : "auto", flexShrink: 0 }} />
+                : !trainInfo.pain.locations?.length && <ChevronRight size={11} color={painClr} style={{ marginLeft: "auto", flexShrink: 0 }} />}
             </div>
             {coach.lines.slice(0, 3).map((line, i) => (
               <div key={i} style={{ display: "flex", gap: 6, marginTop: i > 0 ? 4 : 0 }}>
@@ -2640,13 +2654,18 @@ function TodayTab({
           </button>
         );
         return (
-          <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }} style={{ width: "100%", background: C.card, borderRadius: 14, padding: "12px 14px", border: `1px solid ${C.amber}33`, marginTop: 8, boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+          <button className="sprig-pop sprig-tap" onClick={() => {
+            if (onAskCoach) {
+              onAskCoach(`My weight trend is off target: ${ct.rationale}${ct.avgCal != null ? ` I've averaged ${ct.avgCal} kcal/day over ${ct.days} days.` : ""}${ct.suggestedTarget > 0 ? ` Suggested target: ${ct.suggestedTarget} kcal/day.` : ""} Should I change my calorie target, and how do I make it stick?`);
+            } else { onGoNutrition?.(); }
+            buzz("tap");
+          }} style={{ width: "100%", background: C.card, borderRadius: 14, padding: "12px 14px", border: `1px solid ${C.amber}33`, marginTop: 8, boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
             <div style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
               <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1.2 }}>⚖️</span>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, color: C.amber, textTransform: "uppercase", letterSpacing: 0.4 }}>Weight trend</div>
-                  <ChevronRight size={12} color={C.muted} />
+                  {onAskCoach ? <Sparkles size={12} color={C.amber} /> : <ChevronRight size={12} color={C.muted} />}
                 </div>
                 <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>{ct.rationale}</div>
                 {ct.suggestedTarget > 0 && (
@@ -2671,7 +2690,12 @@ function TodayTab({
         const pctHit  = Math.round((t.protein || 0) / targets.protein * 100);
         const clr     = pctHit < 50 ? C.coral : C.amber;
         return (
-          <button className="sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
+          <button className="sprig-tap" onClick={() => {
+            if (onAskCoach) {
+              onAskCoach(`I still need ${needed}g of protein today (${Math.round(t.protein || 0)}g of ${targets.protein}g so far). What can I eat for the rest of today to close the gap?`);
+            } else { onGoNutrition?.(); }
+            buzz("tap");
+          }}
             style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: clr + "0E", border: `1px solid ${clr}28`, borderRadius: 12, padding: "8px 12px", marginTop: 8, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
             <span style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}>💪</span>
             <div style={{ flex: 1 }}>
@@ -2680,7 +2704,7 @@ function TodayTab({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
               <span style={{ fontSize: 10, fontWeight: 800, color: clr, background: clr + "18", borderRadius: 5, padding: "3px 7px" }}>{pctHit}%</span>
-              <ChevronRight size={12} color={clr} />
+              {onAskCoach ? <Sparkles size={12} color={clr} /> : <ChevronRight size={12} color={clr} />}
             </div>
           </button>
         );
@@ -2875,12 +2899,19 @@ function TodayTab({
               const clr = n.pct < 40 ? C.coral : C.amber;
               // show first 3 food sources truncated
               const foods = n.food ? n.food.split(",").slice(0, 3).map(f => f.trim()).join(", ") : null;
-              return onGoNutrition ? (
-                <button key={n.key} className="sprig-tap" onClick={() => { onGoNutrition(); buzz("tap"); }}
+              const askLow = onAskCoach && n.pct < 40;
+              return (onGoNutrition || askLow) ? (
+                <button key={n.key} className="sprig-tap" onClick={() => {
+                  if (askLow) {
+                    onAskCoach(`My ${n.label} is only at ${n.pct}% of target today${foods ? ` (suggested sources: ${foods})` : ""}. What's the easiest way to fix it with my next meal?`);
+                  } else { onGoNutrition?.(); }
+                  buzz("tap");
+                }}
                   style={{ flex: "0 0 auto", background: clr + "10", border: `1px solid ${clr}33`, borderRadius: 10, padding: "6px 10px", minWidth: 90, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: foods ? 2 : 0 }}>
                     <span style={{ fontSize: 11, fontWeight: 800, color: clr }}>{n.label}</span>
                     <span style={{ fontSize: 10, color: C.muted, fontWeight: 500 }}>{n.pct}%</span>
+                    {askLow && <Sparkles size={9} color={clr} />}
                   </div>
                   {foods && (
                     <div style={{ fontSize: 9.5, color: C.muted, lineHeight: 1.3 }}>try: {foods}</div>
@@ -3113,12 +3144,19 @@ function TodayTab({
         if (!chips.length) return null;
         return (
           <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", paddingBottom: 2 }}>
-            {chips.map(c => (
-              <button key={c.label} className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+            {chips.map(c => {
+              const askFlag = onAskCoach && (c.clr === C.coral || c.clr === C.amber);
+              return (
+              <button key={c.label} className="sprig-tap" onClick={() => {
+                if (askFlag) {
+                  onAskCoach(`My ${c.label.toLowerCase()} is ${c.val} ${c.unit}${c.badge ? (c.badge === "↓" ? " (below the normal range)" : " (above the normal range)") : " (outside the ideal range)"}. What does this mean for me, and what can I change in my sleep, food or training to improve it?`);
+                } else { onGoHealth?.(); }
+                buzz("tap");
+              }}
                 style={{
                   flex: "0 0 auto", background: c.clr + "12",
                   border: `1px solid ${c.clr}2A`, borderRadius: 10, padding: "7px 12px",
-                  cursor: onGoHealth ? "pointer" : "default",
+                  cursor: (askFlag || onGoHealth) ? "pointer" : "default",
                   fontFamily: "DM Sans", textAlign: "left",
                 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 2 }}>
@@ -3128,13 +3166,15 @@ function TodayTab({
                   {c.badge && (
                     <span style={{ fontSize: 9, fontWeight: 800, color: c.clr }}>{c.badge}</span>
                   )}
+                  {askFlag && <Sparkles size={9} color={c.clr} />}
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
                   <span style={{ fontSize: 15, fontFamily: "Fraunces, serif", fontWeight: 700, color: c.clr }}>{c.val}</span>
                   <span style={{ fontSize: 10, color: C.muted }}>{c.unit}</span>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         );
       })()}
@@ -3210,11 +3250,16 @@ function TodayTab({
               </div>
             )}
             {neglected.length >= 2 && (
-              onGoTrain ? (
-                <button className="sprig-tap" onClick={() => { onGoTrain(); buzz("tap"); }}
+              (onGoTrain || onAskCoach) ? (
+                <button className="sprig-tap" onClick={() => {
+                  if (onAskCoach) {
+                    onAskCoach(`I haven't trained ${neglected.map(m => m.label.toLowerCase()).join(", ")} this week. How do I fit them into my next sessions without hurting my recovery?`);
+                  } else { onGoTrain?.(); }
+                  buzz("tap");
+                }}
                   style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", marginTop: 4, display: "flex", alignItems: "center", gap: 3 }}>
                   <span style={{ fontSize: 10.5, color: C.amber, lineHeight: 1.4 }}>⚡ Not hit this week: {neglected.map(m => m.label).join(" · ")}</span>
-                  <ChevronRight size={10} color={C.amber} style={{ flexShrink: 0 }} />
+                  {onAskCoach ? <Sparkles size={10} color={C.amber} style={{ flexShrink: 0 }} /> : <ChevronRight size={10} color={C.amber} style={{ flexShrink: 0 }} />}
                 </button>
               ) : (
                 <div style={{ fontSize: 10.5, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>
@@ -3225,11 +3270,16 @@ function TodayTab({
             {(() => {
               const over = items.filter(m => volumeStatus(m.sets, m.key).tag === "over");
               if (!over.length) return null;
-              return onGoTrain ? (
-                <button className="sprig-tap" onClick={() => { onGoTrain(); buzz("tap"); }}
+              return (onGoTrain || onAskCoach) ? (
+                <button className="sprig-tap" onClick={() => {
+                  if (onAskCoach) {
+                    onAskCoach(`I'm doing too many weekly sets for ${over.map(m => `${m.label.toLowerCase()} (${m.sets} sets)`).join(", ")}. How should I cut back without losing progress?`);
+                  } else { onGoTrain?.(); }
+                  buzz("tap");
+                }}
                   style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", marginTop: 3, display: "flex", alignItems: "center", gap: 3 }}>
                   <span style={{ fontSize: 10.5, color: C.coral, lineHeight: 1.4 }}>⚠ Too many sets: {over.map(m => m.label).join(" · ")} — trim junk volume</span>
-                  <ChevronRight size={10} color={C.coral} style={{ flexShrink: 0 }} />
+                  {onAskCoach ? <Sparkles size={10} color={C.coral} style={{ flexShrink: 0 }} /> : <ChevronRight size={10} color={C.coral} style={{ flexShrink: 0 }} />}
                 </button>
               ) : (
                 <div style={{ fontSize: 10.5, color: C.coral, marginTop: 3, lineHeight: 1.4 }}>
@@ -3710,13 +3760,19 @@ function TodayTab({
           : verdict.tag === "slow" ? C.amber
           : C.inkSoft;
         const tagIcon = verdict.tag === "good" ? "✓" : verdict.tag === "fast" ? "↑↑" : verdict.tag === "slow" ? "→" : "~";
+        const askOff = onAskCoach && (verdict.tag === "fast" || verdict.tag === "slow");
         return (
-          <button className="sprig-pop sprig-tap" onClick={() => { onGoBody?.(); buzz("tap"); }}
+          <button className="sprig-pop sprig-tap" onClick={() => {
+            if (askOff) {
+              onAskCoach(`My weight is ${ws.current}${unit}${ws.rate != null ? `, changing ${ws.rate > 0 ? "+" : ""}${ws.rate} kg/week` : ""}. That's too ${verdict.tag} for my goal (${goal}). ${verdict.text} What should I adjust in my food and training?`);
+            } else { onGoBody?.(); }
+            buzz("tap");
+          }}
             style={{
               width: "100%", background: C.card, borderRadius: 18,
               border: `1px solid ${tagClr}28`,
               marginTop: 8, padding: "12px 14px", boxShadow: C.shadow,
-              cursor: onGoBody ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+              cursor: (askOff || onGoBody) ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
             }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: WEIGHT_CLR + "1A", display: "grid", placeItems: "center", flexShrink: 0 }}>
@@ -3742,7 +3798,7 @@ function TodayTab({
               }}>
                 {tagIcon} {verdict.tag === "good" ? "On track" : verdict.tag === "fast" ? "Too fast" : verdict.tag === "slow" ? "Too slow" : "Stable"}
               </span>
-              {onGoBody && <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />}
+              {askOff ? <Sparkles size={12} color={tagClr} style={{ flexShrink: 0 }} /> : onGoBody && <ChevronRight size={12} color={C.muted} style={{ flexShrink: 0 }} />}
             </div>
             <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>
               {verdict.text}
