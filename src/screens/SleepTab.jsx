@@ -8,7 +8,7 @@ import {
 import { C } from "../theme.js";
 import {
   minToLabel, durLabel, circMean, circDiff, minToHm, hmToMin,
-  smartWake, sleepDebtLabel, tsToMin, DAYMIN, uid
+  smartWake, sleepDebtLabel, tsToMin, DAYMIN, uid, ENERGY_ZONE_META
 } from "../utils/vitaeCalc.js";
 import { btn, Btn, Legend, SubTabs, EmptyState, Ring } from "../components/ui.jsx";
 
@@ -309,9 +309,10 @@ function SleepDebtCard({ debtMin, need, logs, onGoAlarm, onAskCoach }) {
 }
 
 // ─── Energy Schedule Card ─────────────────────────────────────────────────────
+const ZONE_COLOR = { grogginess: () => C.muted, peak: () => C.greenSoft, dip: () => C.amber, peak2: () => C.greenSoft, winddown: () => C.purple, melatonin: () => C.purple };
+
 function EnergyScheduleCard({ sleepInfo }) {
-  const { curve, rec, wakeMin, todayBed } = sleepInfo;
-  const [tooltip, setTooltip] = useState(null);
+  const { curve, zones = [] } = sleepInfo;
   const [, tick] = useState(0);
   useEffect(() => { const id = setInterval(() => tick(n => n + 1), 60000); return () => clearInterval(id); }, []);
 
@@ -327,7 +328,9 @@ function EnergyScheduleCard({ sleepInfo }) {
   }
 
   const W = 360, H = 130, padL = 6, padR = 6, top = 14, bot = 22;
-  const nowMin = tsToMin(Date.now());
+  // the curve's axis runs past 1440 for bedtimes after midnight — put "now" on the same axis
+  let nowMin = tsToMin(Date.now());
+  if (nowMin < curve[0].min - 360) nowMin += DAYMIN;
   const visStart = Math.min(curve[0].min, nowMin - 60);
   const visEnd = Math.max(curve[curve.length - 1].min, nowMin + 60);
   const xRange = Math.max(1, visEnd - visStart);
@@ -338,18 +341,6 @@ function EnergyScheduleCard({ sleepInfo }) {
   const areaPath = curve.length
     ? `${linePath} L${x(curve[curve.length - 1].min).toFixed(1)},${H - bot} L${x(curve[0].min).toFixed(1)},${H - bot} Z`
     : "";
-
-  // Find peak, dip, winddown for chips
-  const peak = curve.reduce((a, p) => p.e > a.e ? p : a, curve[0]);
-  const midCurve = curve.filter(p => p.min > wakeMin + 240 && p.min < wakeMin + 600);
-  const dip = midCurve.length ? midCurve.reduce((a, p) => p.e < a.e ? p : a, midCurve[0]) : null;
-  const winddown = curve.filter(p => p.min > wakeMin + 540).find(p => p.e < 45);
-
-  const ZONE_LABELS = {
-    peak: { label: "Best for focus & workouts", color: C.greenSoft },
-    dip: { label: "Best for light tasks & rest", color: C.amber },
-    wind: { label: "Best for winding down", color: "#6C7BE0" },
-  };
 
   const nowX = curve.some(p => p.min >= nowMin) ? x(nowMin) : null;
 
@@ -372,6 +363,11 @@ function EnergyScheduleCard({ sleepInfo }) {
         </defs>
         {/* Hour grid lines */}
         {ticks.map((m, i) => <line key={i} x1={x(m)} y1={top} x2={x(m)} y2={H - bot} stroke={C.line} strokeWidth="1" />)}
+        {/* Timetable windows as faint bands */}
+        {zones.filter(z => z.kind !== "grogginess").map((z) => (
+          <rect key={z.kind} x={x(z.start)} y={top} width={Math.max(0, x(Math.min(z.end, visEnd)) - x(z.start))} height={H - top - bot}
+            fill={ZONE_COLOR[z.kind]()} opacity={C.isDark ? "0.10" : "0.07"} />
+        ))}
         {/* Past shading */}
         {nowX && <rect x={padL} y={top} width={Math.max(0, nowX - padL)} height={H - top - bot} fill={C.ink} opacity={C.isDark ? "0.06" : "0.03"} />}
         {/* Area fill + line */}
@@ -399,30 +395,28 @@ function EnergyScheduleCard({ sleepInfo }) {
         })}
       </svg>
 
-      {/* Insight chips */}
-      <div style={{ display: "flex", gap: 6, padding: "10px 12px", flexWrap: "wrap" }}>
-        {peak && (
-          <button className="sprig-tap" onClick={() => setTooltip(t => t === "peak" ? null : "peak")}
-            style={{ display: "flex", alignItems: "center", gap: 4, background: C.greenSoft + "18", color: C.greenSoft, border: "none", cursor: "pointer", borderRadius: 99, padding: "5px 10px", fontSize: 11.5, fontWeight: 700, fontFamily: "DM Sans" }}>
-            ⚡ Peak {minToLabel(peak.min)}
-          </button>
-        )}
-        {dip && (
-          <button className="sprig-tap" onClick={() => setTooltip(t => t === "dip" ? null : "dip")}
-            style={{ display: "flex", alignItems: "center", gap: 4, background: C.amber + "1f", color: C.amber, border: "none", cursor: "pointer", borderRadius: 99, padding: "5px 10px", fontSize: 11.5, fontWeight: 700, fontFamily: "DM Sans" }}>
-            😴 Dip {minToLabel(dip.min)}
-          </button>
-        )}
-        {winddown && (
-          <button className="sprig-tap" onClick={() => setTooltip(t => t === "wind" ? null : "wind")}
-            style={{ display: "flex", alignItems: "center", gap: 4, background: "#6C7BE022", color: "#8E9BEA", border: "none", cursor: "pointer", borderRadius: 99, padding: "5px 10px", fontSize: 11.5, fontWeight: 700, fontFamily: "DM Sans" }}>
-            🌙 Wind down {minToLabel(winddown.min)}
-          </button>
-        )}
-      </div>
-      {tooltip && (
-        <div style={{ margin: "0 12px 12px", background: C.bg2, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>
-          {ZONE_LABELS[tooltip].label}
+      {/* Timetable: today's windows from the two-process model, on the user's own clock */}
+      {zones.length > 0 && (
+        <div style={{ padding: "6px 14px 12px" }}>
+          {zones.map((z, i) => {
+            const meta = ENERGY_ZONE_META[z.kind];
+            const now = nowMin >= z.start && nowMin < z.end;
+            const past = nowMin >= z.end;
+            const color = ZONE_COLOR[z.kind]();
+            return (
+              <div key={z.kind} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 0", borderTop: i ? `1px solid ${C.line}` : "none", opacity: past ? 0.5 : 1 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 99, background: color, marginTop: 5, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{meta.label}</span>
+                    {now && <span style={{ fontSize: 10, fontWeight: 700, color: C.coral, letterSpacing: .3 }}>NOW</span>}
+                    <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted, fontVariantNumeric: "tabular-nums" }}>{minToLabel(z.start)} – {minToLabel(z.end)}</span>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>{meta.tip}</div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -434,6 +428,8 @@ function LastNightSummary({ log, allLogs, need, onEdit, onRemove }) {
   const score = calcSleepScore(log, allLogs, need);
   const bedLabel = minToLabel(tsToMin(log.bedtime));
   const wakeLabel = minToLabel(tsToMin(log.waketime));
+  const napMin = (allLogs || []).filter((l) => l.nap && l.date === log.date).reduce((a, l) => a + (l.durationMin || 0), 0);
+  const napLabel = napMin ? durLabel(napMin) : "—";
   return (
     <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -453,7 +449,7 @@ function LastNightSummary({ log, allLogs, need, onEdit, onRemove }) {
         {[
           { icon: "😴", label: "Fell asleep", val: bedLabel },
           { icon: "☀️", label: "Woke up", val: wakeLabel },
-          { icon: "💤", label: "Naps", val: "—" },
+          { icon: "💤", label: "Naps", val: napLabel },
         ].map(c => (
           <div key={c.label} style={{ flex: 1, textAlign: "center" }}>
             <div style={{ fontSize: 16 }}>{c.icon}</div>
@@ -1567,7 +1563,13 @@ function EnergyTab({ sleepInfo, entries, t, onStart }) {
 
   const peak = curve.reduce((a, p) => (p.e > a.e ? p : a), curve[0]);
   const dip = curve.filter((p) => p.min > wakeMin + 240 && p.min < wakeMin + 540).reduce((a, p) => (p.e < a.e ? p : a), curve[Math.floor(curve.length / 2)] || curve[0]);
-  const plan = [
+  // Timetable from the two-process model's windows (on the curve's axis, so cross-midnight days sort right)
+  const ZONE_ICON = { grogginess: <Sun size={15} />, peak: <Zap size={15} />, dip: <Coffee size={15} />, peak2: <Zap size={15} />, winddown: <EyeOff size={15} />, melatonin: <Moon size={15} /> };
+  const zones = sleepInfo.zones || [];
+  const plan = zones.length ? [
+    ...zones.map((z) => ({ min: z.start, icon: ZONE_ICON[z.kind], c: ZONE_COLOR[z.kind](), label: ENERGY_ZONE_META[z.kind].label, sub: `until ${minToLabel(z.end)} · ${ENERGY_ZONE_META[z.kind].tip}` })),
+    ...(gym ? [{ min: gym.start, icon: <Wind size={15} />, c: C.green, label: "Best workout window", sub: `${minToLabel(gym.start)}–${minToLabel(gym.end)} · fueled & high energy` }] : []),
+  ].sort((a, b) => a.min - b.min) : [
     { min: wakeMin, icon: <Sun size={15} />, c: C.amber, label: "Wake up", sub: "get daylight + protein to kill grogginess" },
     { min: peak.min, icon: <Zap size={15} />, c: C.greenSoft, label: "Peak focus", sub: `energy ${peak.e}/100 — do your hardest work` },
     ...(gym ? [{ min: gym.start, icon: <Wind size={15} />, c: C.green, label: "Best workout window", sub: `${minToLabel(gym.start)}–${minToLabel(gym.end)} · fueled & high energy` }] : []),

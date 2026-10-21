@@ -88,14 +88,16 @@ export function movementSummary({ daily, profile, trainedToday }) {
   const goal = stepGoal(profile);
   const cardioMin = daily?.cardioMin || 0;
   const pct = Math.min(100, Math.round((steps / goal) * 100));
-  const kcal = stepsKcal(steps, profile?.weight);
+  // Apple Health / Health Connect active energy beats the steps estimate when synced
+  const kcalSource = daily?.activeKcal > 0 ? "health" : "steps";
+  const kcal = kcalSource === "health" ? daily.activeKcal : stepsKcal(steps, profile?.weight);
   let note;
   if (steps === 0 && cardioMin === 0) note = "No movement logged yet — even a short walk counts.";
   else if (steps >= goal) note = `Goal hit — ${steps.toLocaleString()} steps. Nice and active today.`;
   else if (steps >= goal * 0.6) note = trainedToday ? "Solid — you trained and you're moving well." : `Good, but a 15-min walk after dinner would top you off.`;
   else if (trainedToday) note = "You trained, but NEAT is low — a short walk aids recovery and fat loss.";
   else note = "Low movement so far — a 20-minute walk lifts energy, mood, and recovery.";
-  return { steps, goal, pct, cardioMin, kcal, note };
+  return { steps, goal, pct, cardioMin, kcal, kcalSource, note };
 }
 // adjust today's calorie guidance based on actual movement vs the activity baseline
 // the profile's activity factor already assumes a baseline; big step days add on top.
@@ -2225,36 +2227,215 @@ export function scoreSleep({ durationMin, restlessness = 30, bedMin }, needMin, 
   if (usualBedMin != null) consist = 100 - Math.min(160, circDiff(bedMin, usualBedMin)) / 2;
   return Math.round(Math.max(0, Math.min(100, durScore * 0.5 + restScore * 0.3 + consist * 0.2)));
 }
-export function sleepDebtMin(logs, needMin) {
-  // Weighted, decaying sleep-debt model — debt is NOT a permanent unpaid balance.
-  // Recent nights matter most, old shortfalls fade, and nights at/above need pay debt down.
-  // Process the last 14 valid nights oldest → newest as a running balance:
-  //   • each new night, the prior balance decays (older debt fades ~15%/night)
-  //   • a short night adds its shortage; a long night subtracts its surplus (pays debt down)
-  // Ignore accidental/short/explicitly-ignored sessions so a mis-start can't create debt.
-  const recent = (logs || [])
-    .filter((l) => !l.ignoredFromScore && !l.discarded && (l.durationMin || 0) >= 20 && !l.nap)
-    .slice(-14);
-  if (recent.length === 0) return 0;
-  const DECAY = 0.8;          // each night, ~20% of accumulated debt fades
-  const PAYDOWN = 1.2;        // surplus sleep pays debt down a bit faster than shortage builds it
-  const ONTARGET_PAY = 20;    // a night that simply meets need still chips ~20 min off old debt
-  let bal = 0;
-  recent.forEach((l) => {
-    bal *= DECAY;                                   // yesterday's debt fades
-    const delta = needMin - (l.durationMin || 0);   // >0 short, <0 surplus
-    if (delta > 0) bal += delta;                    // short night adds shortage
-    else if (delta < 0) bal += delta * PAYDOWN;      // good night actively pays down (surplus)
-    else bal -= ONTARGET_PAY;                         // exactly on target still helps recovery
-    if (bal < 0) bal = 0;                            // can't bank negative debt
+// Total sleep per wake date over the 14 days up to nowTs: main sleep + naps (naps count toward
+// the day they end on). Mis-starts (< 20 min main sleep), discarded and ignored non-nap logs are skipped.
+export function sleepByWakeDate(logs, nowTs = Date.now()) {
+  const from = nowTs - 14 * 864e5;
+  const byDate = {};
+  (logs || []).forEach((l) => {
+    if (!l || l.discarded || !l.waketime || l.waketime > nowTs || l.waketime <= from) return;
+    if (!l.nap && (l.ignoredFromScore || (l.durationMin || 0) < 20)) return;
+    const d = l.date || new Date(l.waketime).toLocaleDateString("en-CA");
+    byDate[d] = (byDate[d] || 0) + (l.durationMin || 0);
   });
-  return Math.max(0, Math.min(40 * 60, Math.round(bal)));
+  return byDate;
 }
-// Friendly label + tone for a sleep-debt amount in minutes.
+export function sleepDebtMin(logs, needMin, nowTs = Date.now()) {
+  // Rise-style 14-night sleep debt. The latest night weighs 15%, the 13 before it share 85%
+  // with more recent nights weighted higher. Nights at/above need pay debt down; missing nights
+  // are skipped (a gap never creates debt). Result = weighted mean shortfall × nights counted,
+  // so 14 nights 1 h short → ~14 h of debt, matching how Rise reports it.
+  const byDate = sleepByWakeDate(logs, nowTs);
+  const nights = Object.keys(byDate).sort().reverse().slice(0, 14); // newest first
+  if (nights.length === 0) return 0;
+  const olderW = (k) => 0.85 * (14 - k) / 91;   // k = 1..13; Σ(14-k) = 91
+  let wSum = 0, acc = 0;
+  nights.forEach((d, k) => {
+    const w = k === 0 ? 0.15 : olderW(k);
+    wSum += w;
+    acc += w * (needMin - byDate[d]);
+  });
+  const debt = (acc / wSum) * nights.length;
+  return Math.max(0, Math.min(40 * 60, Math.round(debt)));
+}
+// Turn Apple Health / Health Connect sleep samples into sessions with real timestamps.
+// Input: [{ startDate, endDate, sleepState?, stages?: [{ startDate, endDate, stage }], sourceId? }]
+// (iOS: one sample per stage segment; Android: one sample per session with a stages array).
+// Overlapping sources (iPhone + Watch) are unioned so minutes are never double-counted.
+// A session < 3 h that isn't the longest sleep within 12 h either side is a nap.
+const HOUR_MS = 36e5;
+const ASLEEP_STATES = new Set(["asleep", "light", "deep", "rem"]);
+function unionIntervals(iv) {
+  const out = [];
+  [...iv].sort((a, b) => a.s - b.s).forEach((x) => {
+    const last = out[out.length - 1];
+    if (last && x.s <= last.e) last.e = Math.max(last.e, x.e);
+    else out.push({ s: x.s, e: x.e });
+  });
+  return out;
+}
+const ivMin = (iv) => iv.reduce((a, x) => a + (x.e - x.s), 0) / 60000;
+export function healthSleepSessions(samples, { gapMin = 45, minMin = 15 } = {}) {
+  const segs = [];
+  (samples || []).forEach((smp) => {
+    const parts = Array.isArray(smp?.stages) && smp.stages.length
+      ? smp.stages.map((st) => ({ startDate: st.startDate, endDate: st.endDate, state: st.stage }))
+      : [{ startDate: smp?.startDate, endDate: smp?.endDate, state: smp?.sleepState || "asleep" }];
+    parts.forEach((p) => {
+      const s = Date.parse(p.startDate), e = Date.parse(p.endDate);
+      if (Number.isFinite(s) && Number.isFinite(e) && e > s) segs.push({ s, e, state: p.state, src: smp.sourceId || smp.sourceName || "" });
+    });
+  });
+  const asleep = segs.filter((x) => ASLEEP_STATES.has(x.state));
+  // Only "in bed" data (e.g. iPhone bedtime schedule, no watch) → use it as the sleep window.
+  const base = asleep.length ? asleep : segs.filter((x) => x.state === "inBed");
+  const blocks = [];
+  unionIntervals(base).forEach((x) => {
+    const last = blocks[blocks.length - 1];
+    if (last && x.s - last.e < gapMin * 60000) { last.e = Math.max(last.e, x.e); last.iv.push(x); }
+    else blocks.push({ s: x.s, e: x.e, iv: [x] });
+  });
+  const sessions = blocks.map((b) => {
+    const inB = (x) => x.s < b.e && x.e > b.s;
+    const asleepMin = Math.round(ivMin(b.iv));
+    // stage minutes from the single source with the most staged data in this block
+    const bySrc = {};
+    segs.filter((x) => inB(x) && ["light", "deep", "rem"].includes(x.state)).forEach((x) => {
+      (bySrc[x.src] = bySrc[x.src] || []).push(x);
+    });
+    const best = Object.values(bySrc).sort((a, c) => ivMin(c) - ivMin(a))[0];
+    const stages = best ? {
+      deep: Math.round(ivMin(unionIntervals(best.filter((x) => x.state === "deep")))),
+      rem: Math.round(ivMin(unionIntervals(best.filter((x) => x.state === "rem")))),
+      light: Math.round(ivMin(unionIntervals(best.filter((x) => x.state === "light")))),
+    } : null;
+    const awakeMin = Math.max(0, Math.round((b.e - b.s) / 60000) - asleepMin);
+    return { bedTs: b.s, wakeTs: b.e, asleepMin, awakeMin, stages };
+  }).filter((s) => s.asleepMin >= minMin);
+  sessions.forEach((s) => {
+    const near = sessions.filter((o) => o !== s && Math.abs(o.wakeTs - s.wakeTs) < 12 * HOUR_MS);
+    s.nap = s.asleepMin < 180 && near.some((o) => o.asleepMin > s.asleepMin);
+  });
+  return sessions;
+}
+// Restlessness (0..100) from awake minutes inside a session, on the same scale as manual logs.
+export const restlessnessFromAwake = (awakeMin, spanMin) =>
+  Math.round(Math.max(5, Math.min(80, (spanMin > 0 ? awakeMin / spanMin : 0) * 250 + 10)));
+// Merge health sleep sessions into sprig_sleep_v1 logs without losing user data:
+//  • a session overlapping (> 50%) a manual/tracked log is skipped — the user's log wins
+//  • a main sleep is skipped if the user already has a non-health main sleep for that wake date
+//  • an overlapping, unedited health log is updated in place (keeps id and user flags)
+//  • ids in `tombstones` (health logs the user deleted) are never re-added
+// Returns the merged list sorted by waketime, or null when nothing changed.
+export function mergeHealthSleep(logs, sessions, { tombstones = [], needMin = 480, tz = "" } = {}) {
+  const dead = new Set(tombstones.map((t) => t.id));
+  const deadIv = tombstones.filter((t) => t.bedtime && t.waketime);
+  const next = [...(logs || [])];
+  let changed = false;
+  const overlaps = (a, b) => {
+    const ov = Math.min(a.e, b.e) - Math.max(a.s, b.s);
+    return ov > 0.5 * Math.min(a.e - a.s, b.e - b.s);
+  };
+  const usualBed = circMean(next.filter((l) => !l.nap).slice(-7).map((l) => tsToMin(l.bedtime)));
+  (sessions || []).forEach((s) => {
+    const id = `health_${s.bedTs}`;
+    const iv = { s: s.bedTs, e: s.wakeTs };
+    if (dead.has(id) || deadIv.some((t) => overlaps(iv, { s: t.bedtime, e: t.waketime }))) return;
+    const date = new Date(s.wakeTs).toLocaleDateString("en-CA");
+    const spanMin = Math.round((s.wakeTs - s.bedTs) / 60000);
+    const durationMin = s.asleepMin;
+    const restlessness = restlessnessFromAwake(s.awakeMin || 0, spanMin);
+    const realStages = !!(s.stages && (s.stages.deep + s.stages.rem + s.stages.light) > 0);
+    const fields = {
+      date, bedtime: s.bedTs, waketime: s.wakeTs, durationMin, restlessness,
+      stages: realStages ? s.stages : estimateStages(durationMin, restlessness),
+      stagesFromHealth: realStages,
+      score: scoreSleep({ durationMin, restlessness, bedMin: tsToMin(s.bedTs) }, needMin, usualBed),
+    };
+    const hit = next.findIndex((l) => l.bedtime && l.waketime && overlaps(iv, { s: l.bedtime, e: l.waketime }));
+    if (hit >= 0) {
+      const l = next[hit];
+      if (l.source !== "health_sync" || l.edited) return;
+      if (l.bedtime === fields.bedtime && l.waketime === fields.waketime && l.durationMin === fields.durationMin) return;
+      next[hit] = { ...l, ...fields }; // keeps id and the user's nap / ignore choices
+      changed = true;
+      return;
+    }
+    if (!s.nap && next.some((l) => !l.nap && l.date === date && l.source !== "health_sync")) return;
+    next.push({
+      id, ...fields,
+      source: "health_sync", timezone: s.timezone || tz, confirmed: true,
+      source_record_id: `healthkit_sleep_${s.bedTs}`,
+      ...(s.nap ? { nap: true, ignoredFromScore: true, short: true } : {}),
+    });
+    changed = true;
+  });
+  return changed ? next.sort((a, b) => a.waketime - b.waketime) : null;
+}
+// Fill resting HR (`rhr`, existing field) and HRV (`hrv`, ms) into sprig_health_v1 day records.
+// Values the user typed are never overwritten. Returns the merged list or null when unchanged.
+export function mergeHealthMetrics(series, { restingHr = {}, hrv = {} } = {}) {
+  const byDate = new Map((series || []).map((h) => [h.date, { ...h }]));
+  let changed = false;
+  const put = (d, key, v) => {
+    if (!Number.isFinite(v) || v <= 0) return;
+    const rec = byDate.get(d) || { date: d };
+    const val = Math.round(v);
+    if (rec[key] != null && rec[`${key}Source`] !== "health_sync") return; // manual wins
+    if (rec[key] === val) return;
+    byDate.set(d, { ...rec, [key]: val, [`${key}Source`]: "health_sync" });
+    changed = true;
+  };
+  Object.entries(restingHr || {}).forEach(([d, v]) => put(d, "rhr", v));
+  Object.entries(hrv || {}).forEach(([d, v]) => put(d, "hrv", v));
+  return changed ? [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-180) : null;
+}
+// Map an Apple Health / Health Connect workout type onto SPORTS_LIBRARY ids (null = no good match).
+const HEALTH_WORKOUT_SPORT = {
+  running: "running", runningTreadmill: "running", walking: "walking", hiking: "hiking",
+  cycling: "cycling", bikingStationary: "stationary_bike", handCycling: "cycling",
+  swimming: "swimming", swimmingPool: "swimming", swimmingOpenWater: "swimming",
+  rowing: "rowing", rowingMachine: "rowing", elliptical: "elliptical",
+  stairClimbing: "stairmaster", stairs: "stairmaster", stairClimbingMachine: "stairmaster", stepTraining: "stairmaster",
+  jumpRope: "jumprope", highIntensityIntervalTraining: "hiit", mixedCardio: "circuit", bootCamp: "circuit",
+  crossTraining: "crosstraining", functionalStrengthTraining: "crosstraining", traditionalStrengthTraining: "circuit",
+  strengthTraining: "circuit", weightlifting: "circuit", calisthenics: "bodyweight", coreTraining: "bodyweight",
+  flexibility: "stretching", stretching: "stretching", cooldown: "mobility", preparationAndRecovery: "mobility",
+  yoga: "yoga", pilates: "pilates", barre: "pilates", mindAndBody: "yoga", taiChi: "yoga",
+  climbing: "climbing", rockClimbing: "climbing", skiing: "skiing", downhillSkiing: "skiing", crossCountrySkiing: "skiing",
+  snowboarding: "skiing", skatingSports: "skating", iceSkating: "skating", skating: "skating",
+  dance: "dancing", dancing: "dancing", cardioDance: "dancing", socialDance: "dancing",
+  soccer: "football", americanFootball: "football", australianFootball: "football", basketball: "basketball",
+  tennis: "tennis", pickleball: "padel", racquetball: "padel", squash: "padel", badminton: "badminton",
+  volleyball: "volleyball", rugby: "rugby", handball: "handball", hockey: "hockey", iceHockey: "hockey",
+  boxing: "boxing", kickboxing: "kickboxing", martialArts: "mma", wrestling: "wrestling",
+};
+// Build a sport session (same shape TrainTab saves) from a health workout.
+export function sportSessionFromHealthWorkout(w, weightKg) {
+  const startTs = Date.parse(w?.startDate), endTs = Date.parse(w?.endDate);
+  if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || endTs <= startTs) return null;
+  const durationMin = Math.round((w.duration ? w.duration / 60 : (endTs - startTs) / 60000));
+  if (durationMin < 5) return null;
+  const sport = SPORTS_LIBRARY.find((s) => s.id === (HEALTH_WORKOUT_SPORT[w.workoutType] || "")) || null;
+  const intensity = "moderate";
+  const key = w.platformId || `${w.workoutType}_${startTs}`;
+  return {
+    id: `health_workout_${key}`, ts: startTs, endTs,
+    date: new Date(startTs).toLocaleDateString("en-CA"),
+    sportId: sport?.id || null, sportName: sport?.name || "Workout", emoji: sport?.emoji || "🏃",
+    durationMin, intensity,
+    estimatedCalories: Math.round(w.totalEnergyBurned || (sport ? sportKcal(sport, durationMin, intensity, weightKg) : 0)),
+    muscleImpact: sport ? sportMuscleImpact(sport, durationMin, intensity) : {},
+    distanceM: w.totalDistance ? Math.round(w.totalDistance) : undefined,
+    bodyWeightKg: weightKg || undefined,
+    source: "health_sync", source_record_id: `healthkit_workout_${key}`, healthType: w.workoutType,
+  };
+}
+// Friendly label + tone for a sleep-debt amount in minutes (Rise scale: under 5 h is low).
 export function sleepDebtLabel(debtMin) {
-  if (debtMin < 30) return { label: "Recovered", tone: "success" };
-  if (debtMin < 90) return { label: "Mild debt", tone: "neutral" };
-  if (debtMin < 180) return { label: "Moderate debt", tone: "warning" };
+  if (debtMin < 60) return { label: "Recovered", tone: "success" };
+  if (debtMin < 300) return { label: "Mild debt", tone: "neutral" };
+  if (debtMin < 600) return { label: "Moderate debt", tone: "warning" };
   return { label: "High debt", tone: "danger" };
 }
 
@@ -2289,7 +2470,7 @@ export function bedtimeReminder({ nowTs, recBedMin, lastLogTs, t, targets, daily
 }
 export function recommend(logs, profile, debtMin) {
   const need = sleepNeedMin(profile.age);
-  const recent = logs.slice(-7);
+  const recent = logs.filter((l) => !l.nap).slice(-7);
   const wakeMins = recent.map((l) => tsToMin(l.waketime));
   const bedMins = recent.map((l) => tsToMin(l.bedtime));
   const recWake = circMean(wakeMins) ?? 420;
@@ -2662,9 +2843,98 @@ export function calculatePerfectRecovery({ sleepInfo, trainInfo, nutriInfo, dail
 
 // figure out WHY a sleep score is what it is + one fix for tonight (helper end)
 export const gauss = (x, mu, sig) => Math.exp(-((x - mu) ** 2) / (2 * sig * sig));
-export function energyCurve({ wakeMin, bedMin, debtMin, meals }) {
+
+/* ---------------- energy schedule: two-process model (Rise-style) --------------
+   Energy = circadian rhythm (Process C, phased to the user's own habitual wake time)
+          − homeostatic sleep pressure (Process S, simulated from real sleep incl. naps)
+          − sleep inertia after every wake − a sleep-debt penalty that also flattens peaks. */
+const HOUR = 36e5;
+const S_RISE_H = 18.2, S_FALL_H = 4.2;   // Borbély-style time constants (hours)
+const INERTIA_H = 0.55;                  // grogginess fades to < 5 pts in ~1 h
+function circMeanW(mins, weights) {
+  if (!mins.length) return null;
+  let x = 0, y = 0;
+  mins.forEach((m, i) => { const a = (m / DAYMIN) * 2 * Math.PI; x += Math.cos(a) * weights[i]; y += Math.sin(a) * weights[i]; });
+  let ang = Math.atan2(y, x); if (ang < 0) ang += 2 * Math.PI;
+  return Math.round((ang / (2 * Math.PI)) * DAYMIN) % DAYMIN;
+}
+// Main (non-nap) sleeps that ended before nowTs, oldest → newest.
+function mainSleeps(logs, nowTs) {
+  return (logs || [])
+    .filter((l) => l && !l.nap && !l.discarded && !l.ignoredFromScore && l.bedtime && l.waketime && l.waketime <= nowTs && (l.durationMin || 0) >= 120)
+    .sort((a, b) => a.waketime - b.waketime);
+}
+// The user's habitual rhythm from the last 14 main sleeps (recent nights weigh more).
+// Works for any schedule: circular means handle bedtimes either side of midnight.
+export function circadianAnchor(logs, nowTs = Date.now()) {
+  const recent = mainSleeps(logs, nowTs).slice(-14);
+  if (!recent.length) return null;
+  const w = recent.map((_, i) => 1 + i / 2);
+  const wakeMin = circMeanW(recent.map((l) => tsToMin(l.waketime)), w);
+  const bedMin = circMeanW(recent.map((l) => tsToMin(l.bedtime)), w);
+  const sleepMin = Math.round(recent.reduce((a, l, i) => a + (l.durationMin || 0) * w[i], 0) / w.reduce((a, b) => a + b, 0));
+  return { wakeMin, bedMin, sleepMin, nights: recent.length };
+}
+// Process S (0..1) at ts from all real sleep intervals (main + naps) in the prior 72 h.
+// Unknown history starts at 0.35; it is washed out after the first full night.
+export function sleepPressure(logs, ts) {
+  const from = ts - 72 * HOUR;
+  const iv = (logs || [])
+    .filter((l) => l && !l.discarded && l.bedtime && l.waketime && l.waketime > from && l.bedtime < ts)
+    .map((l) => ({ s: l.bedtime, e: l.waketime }))
+    .sort((a, b) => a.s - b.s);
+  let t = from, S = 0.35;
+  iv.forEach(({ s, e }) => {
+    const st = Math.max(s, t), en = Math.min(e, ts);
+    if (en <= t) return;
+    if (st > t) S = 1 - (1 - S) * Math.exp(-(st - t) / HOUR / S_RISE_H);
+    S *= Math.exp(-(en - st) / HOUR / S_FALL_H);
+    t = en;
+  });
+  if (ts > t) S = 1 - (1 - S) * Math.exp(-(ts - t) / HOUR / S_RISE_H);
+  return S;
+}
+// Process C by hours since habitual wake: morning rise, post-lunch dip ~7–8 h after waking,
+// evening "wake maintenance" peak ~12 h after waking.
+function circadianC(hSinceWake) {
+  const w = (2 * Math.PI) / 24;
+  return 0.7 * Math.cos(w * (hSinceWake - 11)) + 0.7 * Math.cos(2 * w * (hSinceWake - 2.2));
+}
+// Model energy (3..100) at ts. anchor = circadianAnchor(); lastWakeTs = most recent wake (main or nap).
+function modelEnergy(logs, ts, anchor, debtMin, wakes) {
+  const S = sleepPressure(logs, ts);
+  const anchorWakeTs = (() => { // habitual wake on/before ts
+    const d = new Date(ts); d.setHours(0, 0, 0, 0);
+    let a = d.getTime() + anchor.wakeMin * 60000;
+    if (a > ts) a -= 24 * HOUR;
+    return a;
+  })();
+  const h = (ts - anchorWakeTs) / HOUR;
+  const habitualAwakeH = ((anchor.bedMin - anchor.wakeMin + DAYMIN) % DAYMIN) / 60 || 16;
+  let e = 58 + 20 * circadianC(h) - 50 * (S - 0.45);
+  e -= 22 / (1 + Math.exp(-(h - (habitualAwakeH - 1.5)) / 0.8)); // melatonin onset: evening slide
+  const lastWake = wakes.filter((x) => x <= ts).pop();
+  if (lastWake != null) e -= 30 * Math.exp(-(ts - lastWake) / HOUR / INERTIA_H);
+  const debtH = (debtMin || 0) / 60;
+  e = 55 + (e - 55) / (1 + debtH / 12) - Math.min(18, debtH * 1.6);
+  return e;
+}
+// Energy curve from wake to bed in 15-min steps ({ min, e }, min may run past 1440 for
+// cross-midnight days). With `logs` + `dayStartTs` (local midnight of the Sprig day) it uses
+// the two-process model; without sleep history it falls back to the generic clock-based curve.
+export function energyCurve({ wakeMin, bedMin, debtMin, meals, logs, nowTs = Date.now(), dayStartTs }) {
   const pts = []; const debtH = debtMin / 60;
   const end = bedMin > wakeMin ? bedMin : bedMin + DAYMIN;
+  const anchor = logs && dayStartTs != null ? circadianAnchor(logs, nowTs) : null;
+  if (anchor) {
+    const wakes = (logs || []).filter((l) => l && !l.discarded && l.waketime).map((l) => l.waketime).sort((a, b) => a - b);
+    for (let t = wakeMin; t <= end; t += 15) {
+      let e = modelEnergy(logs, dayStartTs + t * 60000, anchor, debtMin, wakes);
+      e += mealEffect(meals, t, wakeMin);
+      pts.push({ min: t, e: Math.max(3, Math.min(100, Math.round(e))) });
+    }
+    return pts;
+  }
   for (let t = wakeMin; t <= end; t += 15) {
     const h = (((t % DAYMIN) + DAYMIN) % DAYMIN) / 60;
     const awake = (t - wakeMin) / 60;
@@ -2677,16 +2947,74 @@ export function energyCurve({ wakeMin, bedMin, debtMin, meals }) {
     if (awake < 1) e -= (1 - awake) * 30;           // sleep inertia / grogginess
     e -= debtH * 2.2;
     e -= gauss(h, 15, 2.1) * debtH * 1.6;            // debt deepens afternoon crash
-    (meals || []).forEach((m) => {
-      const dt = (t - m.min) / 60; if (dt < -0.2 || dt > 3.5) return;
-      const carbsN = Math.min(1.6, (m.carbs || 0) / 55);
-      const sizeN = Math.min(1.6, (m.cal || 0) / 650);
-      e += gauss(dt, 0.4, 0.28) * 10 * carbsN;        // glucose lift
-      e -= gauss(dt, 1.5, 0.7) * 15 * (carbsN * 0.6 + sizeN * 0.6); // postprandial dip
-    });
+    e += mealEffect(meals, t, wakeMin);
     pts.push({ min: t, e: Math.max(3, Math.min(100, Math.round(e))) });
   }
   return pts;
+}
+// Meal minutes are clock minutes (0..1439); a meal after midnight on a cross-midnight day
+// belongs at min + 1440 on the curve's axis.
+const mealAxisMin = (mMin, wakeMin) => (mMin < wakeMin - 240 ? mMin + DAYMIN : mMin);
+function mealEffect(meals, t, wakeMin) {
+  let e = 0;
+  (meals || []).forEach((m) => {
+    const dt = (t - mealAxisMin(m.min, wakeMin)) / 60; if (dt < -0.2 || dt > 3.5) return;
+    const carbsN = Math.min(1.6, (m.carbs || 0) / 55);
+    const sizeN = Math.min(1.6, (m.cal || 0) / 650);
+    e += gauss(dt, 0.4, 0.28) * 10 * carbsN;        // glucose lift
+    e -= gauss(dt, 1.5, 0.7) * 15 * (carbsN * 0.6 + sizeN * 0.6); // postprandial dip
+  });
+  return e;
+}
+// Hour-by-hour timetable from an energy curve (Rise-style): grogginess, morning peak,
+// afternoon dip, evening peak, wind-down and melatonin window. Windows are found on the
+// curve itself, relative to this wake, so they follow the user's schedule and naps.
+export const ENERGY_ZONE_META = {
+  grogginess: { label: "Grogginess", tip: "Easy tasks, daylight, water. Hold the coffee ~60 min." },
+  peak: { label: "Morning peak", tip: "Deep work and hard decisions." },
+  dip: { label: "Afternoon dip", tip: "Admin, a walk, or a nap under 20 min." },
+  peak2: { label: "Evening peak", tip: "Training, creative or social plans." },
+  winddown: { label: "Wind-down", tip: "Dim lights, screens away, no heavy meals." },
+  melatonin: { label: "Melatonin window", tip: "Your easiest time to fall asleep." },
+};
+export function energyZones(curve, { wakeMin, bedMin } = {}) {
+  if (!curve || curve.length < 8 || wakeMin == null) return [];
+  const endMin = curve[curve.length - 1].min;
+  const bed = bedMin == null ? endMin : (bedMin > wakeMin ? bedMin : bedMin + DAYMIN);
+  const zones = [];
+  // grogginess: until inertia has mostly faded (≈ 60 min) or the curve first reaches 85% of its morning max
+  const morning = curve.filter((p) => p.min <= wakeMin + 360);
+  const mMax = Math.max(...morning.map((p) => p.e));
+  const clear = morning.find((p) => p.min >= wakeMin + 45 && p.e >= mMax * 0.85);
+  const grogEnd = Math.min(wakeMin + 90, clear ? clear.min : wakeMin + 60);
+  zones.push({ kind: "grogginess", start: wakeMin, end: grogEnd });
+  // a peak/trough window: the contiguous run around the extreme that stays within 5 pts of it
+  const around = (lo, hi, pick) => {
+    const seg = curve.filter((p) => p.min >= lo && p.min <= hi);
+    if (seg.length < 2) return null;
+    const ext = seg.reduce((a, p) => (pick(p.e, a.e) ? p : a), seg[0]);
+    const ok = (p) => Math.abs(p.e - ext.e) <= 5;
+    let i = seg.indexOf(ext), j = i;
+    while (i > 0 && ok(seg[i - 1])) i--;
+    while (j < seg.length - 1 && ok(seg[j + 1])) j++;
+    // keep windows actionable: at most 3 h, centred on the extreme
+    let start = seg[i].min, end = Math.max(seg[j].min, seg[i].min + 30);
+    if (end - start > 180) { start = Math.max(start, ext.min - 90); end = Math.min(end, start + 180); }
+    return { start, end, e: ext.e };
+  };
+  const peak = around(grogEnd, wakeMin + 360, (a, b) => a > b);
+  if (peak) zones.push({ kind: "peak", ...peak });
+  const dip = around(Math.max(wakeMin + 300, peak ? peak.end : 0), wakeMin + 660, (a, b) => a < b);
+  if (dip) zones.push({ kind: "dip", ...dip });
+  const peak2 = around(Math.max(wakeMin + 540, dip ? dip.end : 0), bed - 120, (a, b) => a > b);
+  if (peak2 && (!dip || peak2.e > dip.e + 4)) zones.push({ kind: "peak2", ...peak2 });
+  zones.push({ kind: "winddown", start: bed - 120, end: bed - 45 });
+  zones.push({ kind: "melatonin", start: bed - 45, end: bed + 15 });
+  // never overlap: clip each window to start after the previous one ends
+  for (let k = 1; k < zones.length; k++) {
+    if (zones[k].start < zones[k - 1].end) zones[k].start = zones[k - 1].end;
+  }
+  return zones.filter((z) => z.end - z.start >= 15);
 }
 export function bestGymWindow(curve, meals, wakeMin, bedMin) {
   const winLen = 90; let best = null;
@@ -2695,10 +3023,10 @@ export function bestGymWindow(curve, meals, wakeMin, bedMin) {
     const seg = curve.filter((p) => p.min >= s && p.min <= s + winLen);
     if (!seg.length) continue;
     const avg = seg.reduce((a, p) => a + p.e, 0) / seg.length;
-    const h = (((s + winLen / 2) % DAYMIN) + DAYMIN) % DAYMIN / 60;
-    let sc = avg + gauss(h, 17, 2.6) * 10;            // late-afternoon performance peak
+    const hAwake = (s + winLen / 2 - wakeMin) / 60;
+    let sc = avg + gauss(hAwake, 10, 2.6) * 10;       // strength/power peak ~10 h after waking (17:00 for a 07:00 wake)
     (meals || []).forEach((m) => {
-      const gap = (s - m.min) / 60;
+      const gap = (s - mealAxisMin(m.min, wakeMin)) / 60;
       if (gap > 1 && gap < 3.5) sc += Math.min(9, (m.carbs || 0) / 11); // fueled
       if (gap > -0.4 && gap < 1) sc -= 9;             // mid-digestion, avoid
     });

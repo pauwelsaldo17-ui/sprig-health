@@ -1,5 +1,15 @@
 // Health platform integration — Apple HealthKit (iOS) + Health Connect (Android)
+// via @capgo/capacitor-health (Capacitor 8, Swift Package Manager).
 // Gracefully no-ops when permissions are not granted or the platform is unsupported.
+// Never log raw health values or tokens — only error messages.
+
+import { Health } from "@capgo/capacitor-health";
+import { healthSleepSessions } from "./utils/vitaeCalc.js";
+
+const READ_TYPES = [
+  "steps", "calories", "basalCalories", "weight", "sleep",
+  "restingHeartRate", "heartRateVariability", "workouts",
+];
 
 async function isNative() {
   try {
@@ -15,208 +25,81 @@ async function platform() {
   } catch { return "web"; }
 }
 
-// ── Apple HealthKit (iOS) ─────────────────────────────────────────────────────
-// Requires @perfood/capacitor-healthkit + HealthKit entitlements in Xcode.
-// Until the iOS build has those entitlements these are safe stubs.
+const iso = (ts) => new Date(ts).toISOString();
+const dayKey = (ts) => new Date(ts).toLocaleDateString("en-CA");
 
-async function hkPlugin() {
-  try {
-    const mod = await import("@perfood/capacitor-healthkit");
-    return mod.CapacitorHealthkit ?? mod.default ?? null;
-  } catch { return null; }
+// Local-midnight start `days` days ago, so day buckets line up with local calendar days.
+function startOfDayAgo(days) {
+  const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - days);
+  return d.getTime();
 }
 
-async function requestAppleHealth() {
-  const hk = await hkPlugin();
-  if (!hk) return false;
-  try {
-    await hk.requestAuthorization({
-      all: [],
-      read: ["steps", "weight", "sleep_analysis"],
-      write: [],
-    });
-    return true;
-  } catch { return false; }
-}
-
-async function readAppleHealthSteps(days = 7) {
-  const hk = await hkPlugin();
-  if (!hk) return {};
+// Daily totals/averages via HealthKit statistics queries (de-duplicates iPhone + Watch).
+async function readDaily(dataType, days, aggregation) {
   const byDay = {};
-  const end = new Date();
-  const start = new Date(end - days * 864e5);
   try {
-    const res = await hk.queryHKitSampleType({
-      sampleName: "stepCount",
-      startDate: start.toISOString(),
-      endDate: end.toISOString(),
-      limit: 1000,
+    const res = await Health.queryAggregated({
+      dataType, bucket: "day", aggregation,
+      startDate: iso(startOfDayAgo(days - 1)), endDate: iso(Date.now()),
     });
-    for (const r of res.resultData || []) {
-      const d = new Date(r.startDate).toLocaleDateString("en-CA");
-      byDay[d] = (byDay[d] || 0) + (r.value || 0);
+    for (const b of res.samples || []) {
+      const v = b.values?.[aggregation] ?? b.value;
+      if (Number.isFinite(v) && v > 0) byDay[dayKey(Date.parse(b.startDate))] = v;
     }
-  } catch { /* permission not granted or unavailable */ }
+  } catch (e) { console.warn(`[health] ${dataType} read failed:`, e?.message); }
   return byDay;
 }
 
-async function readAppleHealthWeight(days = 30) {
-  const hk = await hkPlugin();
-  if (!hk) return [];
-  const results = [];
-  const end = new Date();
-  const start = new Date(end - days * 864e5);
+async function readSamples(dataType, days, limit) {
   try {
-    const res = await hk.queryHKitSampleType({
-      sampleName: "bodyMass",
-      startDate: start.toISOString(),
-      endDate: end.toISOString(),
-      limit: 100,
+    const res = await Health.readSamples({
+      dataType, startDate: iso(Date.now() - days * 864e5), endDate: iso(Date.now()), limit, ascending: true,
     });
-    for (const r of res.resultData || []) {
-      const d = new Date(r.startDate).toLocaleDateString("en-CA");
-      // HealthKit returns bodyMass in kg
-      results.push({ date: d, kg: +(r.value || 0).toFixed(2) });
-    }
-  } catch { /* permission not granted */ }
-  // Latest value per day
-  const byDay = {};
-  for (const w of results) byDay[w.date] = w;
-  return Object.values(byDay);
+    return res.samples || [];
+  } catch (e) { console.warn(`[health] ${dataType} read failed:`, e?.message); return []; }
 }
 
-async function readAppleHealthSleep(days = 14) {
-  const hk = await hkPlugin();
-  if (!hk) return [];
-  const results = [];
-  const end = new Date();
-  const start = new Date(end - days * 864e5);
-  try {
-    const res = await hk.queryHKitSampleType({
-      sampleName: "sleepAnalysis",
-      startDate: start.toISOString(),
-      endDate: end.toISOString(),
-      limit: 200,
-    });
-    // Merge overlapping asleep segments into sessions
-    const asleep = (res.resultData || []).filter((r) => r.value === 1 || r.value === "ASLEEP");
-    const sessions = mergeIntoSessions(asleep);
-    for (const s of sessions) {
-      results.push({
-        bedTs: new Date(s.startDate).getTime(),
-        wakeTs: new Date(s.endDate).getTime(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      });
-    }
-  } catch { /* permission not granted */ }
-  return results;
-}
-
-// Merge overlapping/adjacent sleep segments into single sessions (gap < 30 min ignored).
-function mergeIntoSessions(segments) {
-  if (!segments.length) return [];
-  const sorted = [...segments].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-  const sessions = [{ startDate: sorted[0].startDate, endDate: sorted[0].endDate }];
-  for (let i = 1; i < sorted.length; i++) {
-    const last = sessions[sessions.length - 1];
-    const gapMs = new Date(sorted[i].startDate) - new Date(last.endDate);
-    if (gapMs < 30 * 60 * 1000) {
-      // Extend the current session
-      if (new Date(sorted[i].endDate) > new Date(last.endDate)) last.endDate = sorted[i].endDate;
-    } else {
-      sessions.push({ startDate: sorted[i].startDate, endDate: sorted[i].endDate });
-    }
+// Per-day sum/average computed from raw samples — for types Health Connect can't aggregate
+// (HRV, basal calories). HealthKit HRV is SDNN in ms.
+async function readDailyFromSamples(dataType, days, mode, limit = 2000) {
+  const acc = {};
+  for (const s of await readSamples(dataType, days, limit)) {
+    if (!Number.isFinite(s.value)) continue;
+    const d = dayKey(Date.parse(s.startDate));
+    (acc[d] = acc[d] || []).push(s.value);
   }
-  return sessions;
+  const out = {};
+  Object.entries(acc).forEach(([d, v]) => {
+    const sum = v.reduce((a, b) => a + b, 0);
+    out[d] = mode === "sum" ? sum : sum / v.length;
+  });
+  return out;
 }
 
-// ── Android Health Connect ────────────────────────────────────────────────────
-
-const HC_READ = ["Steps", "Weight", "SleepSession", "ActiveCaloriesBurned", "HeartRate"];
-const HC_WRITE = ["Weight", "ActiveCaloriesBurned"];
-
-async function hcPlugin() {
-  let HealthConnect = null;
-  try {
-    const mod = await import("capacitor-health-connect");
-    HealthConnect = mod.HealthConnect ?? mod.default ?? null;
-  } catch (_) {
-    // Not available on web
-  }
-  return HealthConnect;
-}
-
-async function requestAndroidHealth() {
-  const hc = await hcPlugin();
-  if (!hc) return false;
-  await hc.requestHealthPermissions({ read: HC_READ, write: HC_WRITE });
-  return true;
-}
-
-async function readAndroidSteps(days = 7) {
-  const hc = await hcPlugin();
-  if (!hc) return {};
-  const end = new Date();
-  const start = new Date(end - days * 864e5);
+async function readWeights(days) {
   const byDay = {};
-  for (let i = 0; i < days; i++) {
-    const d = new Date(start.getTime() + i * 864e5);
-    const dayEnd = new Date(d.getTime() + 864e5);
-    try {
-      const res = await hc.readRecords({
-        type: "Steps",
-        timeRangeFilter: { operator: "between", startTime: d.toISOString(), endTime: dayEnd.toISOString() },
-      });
-      const total = (res.records || []).reduce((sum, r) => sum + (r.count || 0), 0);
-      if (total > 0) byDay[d.toLocaleDateString("en-CA")] = total;
-    } catch { /* skip day */ }
+  for (const s of await readSamples("weight", days, 200)) {
+    const kg = s.value;
+    const d = dayKey(Date.parse(s.startDate));
+    if (kg > 20 && kg < 500) byDay[d] = { date: d, kg: +kg.toFixed(2) };
   }
-  return byDay;
+  return Object.values(byDay); // latest per day (samples ascending)
 }
 
-async function readAndroidWeight(days = 30) {
-  const hc = await hcPlugin();
-  if (!hc) return [];
-  const end = new Date();
-  const start = new Date(end - days * 864e5);
-  const results = [];
-  try {
-    const res = await hc.readRecords({
-      type: "Weight",
-      timeRangeFilter: { operator: "between", startTime: start.toISOString(), endTime: end.toISOString() },
-    });
-    for (const r of res.records || []) {
-      const d = new Date(r.time || r.startTime).toLocaleDateString("en-CA");
-      const kg = r.weight?.inKilograms ?? r.weightKg ?? null;
-      if (kg && kg > 20 && kg < 500) results.push({ date: d, kg: +kg.toFixed(2) });
-    }
-  } catch { /* permission not granted */ }
-  // Latest per day
-  const byDay = {};
-  for (const w of results) byDay[w.date] = w;
-  return Object.values(byDay);
+async function readSleep(days) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // A night can have a few hundred stage segments per source; 14 nights × 2 sources fits in 5000.
+  const samples = await readSamples("sleep", days, 5000);
+  return healthSleepSessions(samples).map((s) => ({ ...s, timezone: tz }));
 }
 
-async function readAndroidSleep(days = 14) {
-  const hc = await hcPlugin();
-  if (!hc) return [];
-  const end = new Date();
-  const start = new Date(end - days * 864e5);
-  const results = [];
+async function readWorkouts(days) {
   try {
-    const res = await hc.readRecords({
-      type: "SleepSession",
-      timeRangeFilter: { operator: "between", startTime: start.toISOString(), endTime: end.toISOString() },
+    const res = await Health.queryWorkouts({
+      startDate: iso(Date.now() - days * 864e5), endDate: iso(Date.now()), limit: 200, ascending: true,
     });
-    for (const r of res.records || []) {
-      results.push({
-        bedTs: new Date(r.startTime).getTime(),
-        wakeTs: new Date(r.endTime).getTime(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      });
-    }
-  } catch { /* permission not granted */ }
-  return results;
+    return res.workouts || [];
+  } catch (e) { console.warn("[health] workouts read failed:", e?.message); return []; }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -224,29 +107,36 @@ async function readAndroidSleep(days = 14) {
 export async function isHealthAvailable() {
   if (!(await isNative())) return false;
   const p = await platform();
-  return p === "ios" || p === "android";
+  if (p !== "ios" && p !== "android") return false;
+  try { return !!(await Health.isAvailable()).available; } catch { return false; }
 }
 
 export async function requestHealthPermissions() {
-  const p = await platform();
-  if (p === "ios") return requestAppleHealth();
-  if (p === "android") return requestAndroidHealth();
-  return false;
+  if (!(await isHealthAvailable())) return false;
+  try {
+    // HealthKit never reveals read denials; Health Connect does. Either way, reads of
+    // denied types just come back empty, so the app keeps working.
+    await Health.requestAuthorization({ read: READ_TYPES, write: [] });
+    return true;
+  } catch (e) { console.warn("[health] permission error:", e?.message); return false; }
 }
 
+// steps / activeKcal / basalKcal / restingHr / hrv: { "YYYY-MM-DD": number } (calendar days)
+// weights: [{ date, kg }] · sleep: [{ bedTs, wakeTs, asleepMin, awakeMin, stages, nap, timezone }]
+// workouts: raw plugin workouts (mapped to sport sessions in App.jsx)
 export async function syncHealthData() {
-  const p = await platform();
-  const result = { steps: null, weights: [], sleep: [] };
+  const result = { steps: null, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [] };
+  if (!(await isHealthAvailable())) return result;
   try {
-    if (p === "ios") {
-      result.steps = await readAppleHealthSteps(7);
-      result.weights = await readAppleHealthWeight(30);
-      result.sleep = await readAppleHealthSleep(14);
-    } else if (p === "android") {
-      result.steps = await readAndroidSteps(7);
-      result.weights = await readAndroidWeight(30);
-      result.sleep = await readAndroidSleep(14);
-    }
+    result.steps = await readDaily("steps", 7, "sum");
+    result.activeKcal = await readDaily("calories", 7, "sum");
+    result.basalKcal = await readDaily("basalCalories", 7, "sum");
+    if (!Object.keys(result.basalKcal).length) result.basalKcal = await readDailyFromSamples("basalCalories", 7, "sum", 5000);
+    result.restingHr = await readDaily("restingHeartRate", 14, "average");
+    result.hrv = await readDailyFromSamples("heartRateVariability", 14, "average");
+    result.weights = await readWeights(30);
+    result.sleep = await readSleep(14);
+    result.workouts = await readWorkouts(14);
   } catch (e) {
     console.warn("[health] sync error:", e?.message);
   }

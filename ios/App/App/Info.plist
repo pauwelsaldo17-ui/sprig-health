@@ -48,7 +48,7 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Vitae reads your steps, weight, and sleep data to give you accurate health insights without manual entry.</string>
+	<string>Vitae reads your steps, active energy, workouts, weight, sleep, resting heart rate and HRV so your day, sleep and energy schedule fill in without manual entry.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Vitae may write workout summaries back to Apple Health.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
