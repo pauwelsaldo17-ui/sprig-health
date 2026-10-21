@@ -571,7 +571,7 @@ function RoutineBuilder({ initial, onSave, onClose }) {
   );
 }
 
-function VolumeCoach({ volume, advanced }) {
+function VolumeCoach({ volume, advanced, onAskCoach }) {
   const rows = MUSCLES.map(([k, n]) => {
     const v = volume[k] || 0;
     const st = volumeStatus(v, k);
@@ -616,9 +616,29 @@ function VolumeCoach({ volume, advanced }) {
         const over = rows.filter((r) => r.st.tag === "over").map((r) => r.n);
         if (!weak.length && !over.length) return null;
         return (
-          <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 10, marginTop: 6, fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5 }}>
-            {weak.length > 0 && <div>📈 <b>Add volume:</b> {weak.slice(0, 4).join(", ")}{weak.length > 4 ? "…" : ""}</div>}
-            {over.length > 0 && <div style={{ marginTop: 3 }}>⚠️ <b>Ease off:</b> {over.join(", ")} — likely junk volume.</div>}
+          <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 10, marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+            {weak.length > 0 && (
+              onAskCoach ? (
+                <button className="sprig-tap" onClick={() => { onAskCoach(`My ${weak.slice(0, 4).join(", ")} are under-trained this week. Can you give me a specific workout that adds volume to these muscles without overlapping my current sessions?`); buzz("tap"); }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, background: C.greenSoft + "10", border: `1px solid ${C.greenSoft}33`, borderRadius: 10, padding: "8px 11px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>📈</span>
+                  <span style={{ fontSize: 11.5, color: C.greenSoft, fontWeight: 700, flex: 1 }}>Add volume: {weak.slice(0, 4).join(", ")}{weak.length > 4 ? "…" : ""} →</span>
+                </button>
+              ) : (
+                <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5 }}>📈 <b>Add volume:</b> {weak.slice(0, 4).join(", ")}{weak.length > 4 ? "…" : ""}</div>
+              )
+            )}
+            {over.length > 0 && (
+              onAskCoach ? (
+                <button className="sprig-tap" onClick={() => { onAskCoach(`I've been overtraining ${over.join(", ")} this week — likely junk volume. How should I restructure my sessions to reduce this without losing progress?`); buzz("tap"); }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, background: C.amber + "10", border: `1px solid ${C.amber}33`, borderRadius: 10, padding: "8px 11px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>⚠️</span>
+                  <span style={{ fontSize: 11.5, color: C.amber, fontWeight: 700, flex: 1 }}>Ease off: {over.join(", ")} — likely junk volume →</span>
+                </button>
+              ) : (
+                <div style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.5 }}>⚠️ <b>Ease off:</b> {over.join(", ")} — likely junk volume.</div>
+              )
+            )}
           </div>
         );
       })()}
@@ -994,7 +1014,7 @@ function MovementSportsPanel({ daily, onDaily, profile }) {
 }
 
 
-function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "training", onSub, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio, sleepInfo, rirPref, recoveryInfo }) {
+function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "training", onSub, routines, onSaveRoutine, onDeleteRoutine, onUseTemplate, onStart, onAddExercise, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveExercise, onFinish, onCancel, onSaveRest, onSetExercisePain, onGoBody, onGoHealth, onStartRest, restActive, moveInfo, daily, onDaily, onAddCardio, sleepInfo, rirPref, recoveryInfo, onAskCoach }) {
   const unit = profile.unit || "kg";
   const [picker, setPicker] = useState(false);
   const [builder, setBuilder] = useState(null); // null | {} (new) | routine (edit)
@@ -1363,7 +1383,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
 
       {normSub === "recovery" && (<>
       {recoveryInfo && <PerfectRecoveryCard recoveryInfo={recoveryInfo} compact={false} />}
-      <VolumeCoach volume={trainInfo.volume} advanced={advanced} />
+      <VolumeCoach volume={trainInfo.volume} advanced={advanced} onAskCoach={onAskCoach} />
 
       {/* Recovery & strength — moved here from Progress; lives with the rest of training */}
       <div style={{ margin: "20px 2px 8px", fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}><Crown size={16} color={C.lime} /> Recovery &amp; strength</div>

@@ -3938,7 +3938,8 @@ function SprigApp() {
             onSaveRest={saveRest} onSetExercisePain={woSetExercisePain} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")}
             onStartRest={startRest} restActive={!!rest}
             moveInfo={moveInfo} daily={daily} onDaily={persistDaily} sleepInfo={sleepInfo} rirPref={rirPref}
-            recoveryInfo={recoveryInfo} />
+            recoveryInfo={recoveryInfo}
+            onAskCoach={(q) => { setTab("coach"); setAskOpen(true); if (q) setAskQuestion(q); }} />
         )}
         {(tab === "progress" || tab === "body" || tab === "trends") && (
           <>
