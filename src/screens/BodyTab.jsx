@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Check, Camera, Ruler, User, Trophy, Plus, RotateCcw, Crown, TrendingDown, TrendingUp, Activity, Target, ArrowRight, Flag } from "lucide-react";
+import { Check, Camera, Ruler, User, Trophy, Plus, RotateCcw, Crown, TrendingDown, TrendingUp, Activity, Target, ArrowRight, Flag, Sparkles } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Area, ComposedChart, Dot } from "recharts";
 import { C } from "../theme.js";
 import {
@@ -104,7 +104,7 @@ function BodyFigure({ colorOf, selected, onPick }) {
   );
 }
 
-function GoalTimelineCard({ timeline, profile }) {
+function GoalTimelineCard({ timeline, profile, onAskCoach }) {
   const w = timeline?.weight;
   if (!w || profile.goal === "maintain" || w.status === "goal_met") return null;
   const unit = profile?.unit || "kg";
@@ -164,6 +164,19 @@ function GoalTimelineCard({ timeline, profile }) {
           </div>
         )}
       </div>
+      {onAskCoach && (w.status === "stalled" || w.status === "off_track" || w.status === "too_fast") && (
+        <button className="sprig-tap" onClick={() => onAskCoach(
+          w.status === "stalled"
+            ? `My weight has been stalled at ${w.current} ${unit} and my goal is ${w.target} ${unit}. What's the most likely cause and what specific changes should I make this week?`
+            : w.status === "too_fast"
+              ? `I'm losing weight too fast (${w.rate} ${unit}/wk vs ideal ${w.ideal} ${unit}/wk). What should I adjust to slow it down safely?`
+              : `My weight progress is off track — I'm at ${w.current} ${unit} targeting ${w.target} ${unit}. What's the quickest correction I can make?`
+        )}
+          style={{ width: "100%", marginTop: 10, background: BODY_CLR + "10", border: `1px solid ${BODY_CLR}33`, borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 7, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+          <Sparkles size={13} color={BODY_CLR} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: BODY_CLR, flex: 1 }}>Get a plan from your coach →</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -304,7 +317,7 @@ export function RecoveryStrengthSection({ workouts, profile, trainInfo, sleepInf
   );
 }
 
-function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeries, measureSeries, photoLog, onLogWeight, onSaveMeasurement, onLogPhotoSet, onOpenPhotos, progressPhotosCount, timeline }) {
+function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeries, measureSeries, photoLog, onLogWeight, onSaveMeasurement, onLogPhotoSet, onOpenPhotos, progressPhotosCount, timeline, onAskCoach }) {
   const [showMeasure, setShowMeasure] = useState(false);
   const [weightInput, setWeightInput] = useState("");
   const measureCur = measurementStats(measureSeries);
@@ -379,7 +392,7 @@ function BodyTab({ workouts, profile, trainInfo, sleepInfo, advanced, weightSeri
       </div>
 
       {/* Goal ETA card — shown when user has a non-maintain goal and timeline data */}
-      {profile.goal !== "maintain" && <GoalTimelineCard timeline={timeline} profile={profile} />}
+      {profile.goal !== "maintain" && <GoalTimelineCard timeline={timeline} profile={profile} onAskCoach={onAskCoach} />}
 
       {(
         <>
