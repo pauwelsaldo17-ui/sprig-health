@@ -3928,7 +3928,8 @@ function SprigApp() {
             onManual={() => { setFoodOverlayMode("manual"); setResult(null); }}
             onOpenCreateFavorite={openFavoriteChooser} onOpenEditFavorite={openEditFavorite}
             onFavoriteDuplicate={(form, existing) => setFavDup({ form, existing })}
-            onOpenLogSheet={() => setFoodOverlayMode("menu")} flashEntryId={flashEntryId} dt={dt} />
+            onOpenLogSheet={() => setFoodOverlayMode("menu")} flashEntryId={flashEntryId} dt={dt}
+            onAskCoach={(q) => { setTab("coach"); setAskOpen(true); if (q) setAskQuestion(q); }} />
         )}
         {tab === "train" && (
           <TrainTab workouts={workouts} active={activeWorkout} profile={profile} trainInfo={trainInfo} advanced={advanced}

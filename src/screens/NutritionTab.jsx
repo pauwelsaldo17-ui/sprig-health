@@ -216,7 +216,7 @@ function ProjectionCard({ t, adjTarget }) {
 // Surfaces nutriInfo.coach (goal-aligned cal/protein/weight-rate lines) and
 // nutriInfo.missing (top deficient nutrients with food suggestions). Both are
 // computed by vitaeCalc in App.jsx and passed via nutriInfo — no new props needed.
-function NutritionCoachCard({ coach, missing, t, onFoodSearch }) {
+function NutritionCoachCard({ coach, missing, t, onFoodSearch, onAskCoach }) {
   const lines = coach?.lines || [];
   // Only show missing-nutrients section once there's meaningful food logged
   const calLogged = t?.calories || 0;
@@ -276,6 +276,19 @@ function NutritionCoachCard({ coach, missing, t, onFoodSearch }) {
             ))}
           </div>
         </>
+      )}
+      {onAskCoach && lines.length > 0 && (
+        <button className="sprig-tap" onClick={() => {
+          const summary = lines.map((l) => l.text).join(" ");
+          onAskCoach(`Here is my nutrition coaching summary: ${summary}. What specific foods or changes should I prioritize today to hit my goals?`);
+          buzz("tap");
+        }}
+          style={{ marginTop: 12, width: "100%", display: "flex", alignItems: "center", gap: 7,
+            background: NUTR_CLR + "12", border: `1px solid ${NUTR_CLR}33`,
+            borderRadius: 9, padding: "7px 11px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+          <Sparkles size={12} color={NUTR_CLR} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: NUTR_CLR, flex: 1 }}>Ask coach for a specific meal plan →</span>
+        </button>
       )}
     </div>
   );
@@ -974,7 +987,7 @@ function SuppPickerSheet({ open, onClose, supps = [], onSuppDirect }) {
 }
 
 // ── Food Quality Score ────────────────────────────────────────────────────────
-function FoodQualityScore({ entries = [], targets = {}, dietQ, onFoodSearch }) {
+function FoodQualityScore({ entries = [], targets = {}, dietQ, onFoodSearch, onAskCoach }) {
   // Use vitaeCalc dietQ when available (fiber density + protein fraction + micros + alcohol)
   // Fall back to local heuristic when dietQ isn't passed or has no data
   const totals = dayTotals(entries);
@@ -1088,6 +1101,18 @@ function FoodQualityScore({ entries = [], targets = {}, dietQ, onFoodSearch }) {
           })}
         </div>
       )}
+      {onAskCoach && !noData && score < 70 && (
+        <button className="sprig-tap" onClick={() => {
+          onAskCoach(`My food quality score today is ${score}/100 (grade ${grade}). ${whyText || "My diet could be improved."} What specific foods should I add or remove to get above 80?`);
+          buzz("tap");
+        }}
+          style={{ marginTop: 11, width: "100%", display: "flex", alignItems: "center", gap: 7,
+            background: NUTR_CLR + "12", border: `1px solid ${NUTR_CLR}33`,
+            borderRadius: 9, padding: "7px 11px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+          <Sparkles size={12} color={NUTR_CLR} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: NUTR_CLR, flex: 1 }}>How do I improve my food quality? →</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -1131,6 +1156,7 @@ function NutritionTab({
   favoriteMeals = [], onSaveFavorite, onReplaceFavorite, onUpdateFavorite, onRemoveFavorite, onAddFavorite, onNewFood,
   onSnapFood, onScanLabel, onDescribe, onManual,
   onOpenCreateFavorite, onOpenEditFavorite, onFavoriteDuplicate, onOpenLogSheet, flashEntryId, dt = null,
+  onAskCoach = null,
 }) {
   const [showMicros,     setShowMicros]     = useState(advanced);
   const [favSearch,      setFavSearch]      = useState("");
@@ -1223,14 +1249,14 @@ function NutritionTab({
           <MacroProgressBars t={viewT} targets={targets} />
 
           {/* SECTION B2: Food Quality Score — uses vitaeCalc dietQ when available */}
-          <FoodQualityScore entries={viewEntries} targets={targets} dietQ={isViewingToday ? nutriInfo?.dietQ : undefined} onFoodSearch={(q) => { setFoodSearchQuery(q); setSheetOpen(true); buzz("tap"); }} />
+          <FoodQualityScore entries={viewEntries} targets={targets} dietQ={isViewingToday ? nutriInfo?.dietQ : undefined} onFoodSearch={(q) => { setFoodSearchQuery(q); setSheetOpen(true); buzz("tap"); }} onAskCoach={onAskCoach} />
 
           {/* SECTION C: Projection */}
           {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
 
           {/* SECTION C2: Nutrition Coach — goal-aligned coaching + gap nutrients */}
           {isViewingToday && (nutriInfo?.coach?.lines?.length > 0 || (nutriInfo?.missing?.length > 0 && viewT.calories >= 200)) && (
-            <NutritionCoachCard coach={nutriInfo.coach} missing={nutriInfo.missing} t={viewT} onFoodSearch={(q) => { setFoodSearchQuery(q); setSheetOpen(true); buzz("tap"); }} />
+            <NutritionCoachCard coach={nutriInfo.coach} missing={nutriInfo.missing} t={viewT} onFoodSearch={(q) => { setFoodSearchQuery(q); setSheetOpen(true); buzz("tap"); }} onAskCoach={onAskCoach} />
           )}
 
           {/* SECTION D: Unified food log */}
