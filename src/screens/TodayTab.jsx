@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Activity, Check, ChevronRight, Droplets, Dumbbell,
-  Flame, Heart, Moon, Pill, Plus, Repeat, Scale, TrendingUp, Zap,
+  Flame, Heart, Moon, Pill, Plus, Repeat, Scale, Sparkles, TrendingUp, Zap,
 } from "lucide-react";
 import { C } from "../theme.js";
 import {

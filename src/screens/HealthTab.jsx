@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { HeartPulse, Activity, Check, Plus, PencilLine, Pill } from "lucide-react";
+import { HeartPulse, Activity, Check, ChevronRight, Plus, PencilLine, Pill } from "lucide-react";
 import { C } from "../theme.js";
 import { PAIN_LEVELS, PAIN_LOCATIONS, PAIN_TYPES, RISK_TAG } from "../utils/vitaeCalc.js";
 import { btn } from "../components/ui.jsx";
