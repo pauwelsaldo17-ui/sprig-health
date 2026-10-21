@@ -440,7 +440,7 @@ const CI_ROWS = [
   { key: "stress", label: "Stress", opts: [["low","😌","Low"], ["medium","😤","Medium"], ["high","😰","High"]] },
 ];
 
-function DailyCheckinStrip({ checkin, onCheckin, sleepInfo, onGoTrain, onGoNutrition, onGoSleep, onGoMind }) {
+function DailyCheckinStrip({ checkin, onCheckin, sleepInfo, onGoTrain, onGoNutrition, onGoSleep, onGoMind, onAskCoach }) {
   const [editing, setEditing] = useState(false);
   const ci = checkin || {};
   const allDone = CI_ROWS.every(({ key }) => ci[key]);
@@ -454,17 +454,17 @@ function DailyCheckinStrip({ checkin, onCheckin, sleepInfo, onGoTrain, onGoNutri
     let insight = null;
     if (m === "good" && e === "high" && s === "low")    insight = { text: "Peak state — great time to tackle something big.", icon: "⚡", clr: C.greenSoft, cta: { label: "Start workout", fn: onGoTrain } };
     else if (m === "good" && s === "low")               insight = { text: "Great headspace today! Keep the momentum going.", icon: "🌟", clr: C.greenSoft, cta: { label: "Log food", fn: onGoNutrition } };
-    else if (m === "bad" && s === "high")               insight = { text: "Tough combo. A short walk or 5-min breathing break genuinely helps.", icon: "💆", clr: C.coral, cta: { label: "Open Mind tab", fn: onGoMind } };
-    else if (m === "bad" && e === "low")                insight = { text: "Rest and recovery mode — be kind to yourself today.", icon: "🛌", clr: C.amber, cta: { label: "Log sleep", fn: onGoSleep } };
-    else if (e === "high" && s === "high")              insight = { text: "Wired but stressed — channel it into a workout if you can.", icon: "😤", clr: C.amber, cta: { label: "Start workout", fn: onGoTrain } };
-    else if (e === "low" && s === "low" && m !== "bad") insight = { text: "Low energy today — hydrate, eat something good, rest if needed.", icon: "🌿", clr: C.muted, cta: { label: "Log food", fn: onGoNutrition } };
-    else if (s === "high")                              insight = { text: "High stress — even 10 minutes of movement or breathing helps.", icon: "😤", clr: C.amber, cta: { label: "Open Mind tab", fn: onGoMind } };
+    else if (m === "bad" && s === "high")               insight = { text: "Tough combo. A short walk or 5-min breathing break genuinely helps.", icon: "💆", clr: C.coral, cta: { label: "Open Mind tab", fn: onGoMind }, askQ: "I'm feeling bad mood + high stress today. What are the most effective immediate strategies to manage stress and shift my mood? Give me 3 specific actions I can do in the next 30 minutes." };
+    else if (m === "bad" && e === "low")                insight = { text: "Rest and recovery mode — be kind to yourself today.", icon: "🛌", clr: C.amber, cta: { label: "Log sleep", fn: onGoSleep }, askQ: "I'm feeling bad mood and low energy today. What does my body need right now — is this a sleep debt issue, nutrition, or something else? What should I do today?" };
+    else if (e === "high" && s === "high")              insight = { text: "Wired but stressed — channel it into a workout if you can.", icon: "😤", clr: C.amber, cta: { label: "Start workout", fn: onGoTrain }, askQ: "I'm feeling high energy but high stress today. How do I channel this into productive training without making the stress worse?" };
+    else if (e === "low" && s === "low" && m !== "bad") insight = { text: "Low energy today — hydrate, eat something good, rest if needed.", icon: "🌿", clr: C.muted, cta: { label: "Log food", fn: onGoNutrition }, askQ: "I have low energy today despite low stress. What are the most likely causes and what should I eat/drink/do right now to get my energy back?" };
+    else if (s === "high")                              insight = { text: "High stress — even 10 minutes of movement or breathing helps.", icon: "😤", clr: C.amber, cta: { label: "Open Mind tab", fn: onGoMind }, askQ: "My stress levels are high today. What are the most evidence-based techniques to reduce stress quickly, and how does high stress affect my training and recovery?" };
     else if (m === "okay" && e === "normal")            insight = { text: "Steady day — keep the routine going.", icon: "📊", clr: C.muted, cta: { label: "Train", fn: onGoTrain } };
     else if (m === "good" && e === "low")               insight = { text: "Good mindset despite low energy — light movement can help.", icon: "🌿", clr: C.greenSoft, cta: { label: "Start workout", fn: onGoTrain } };
-    else if (m === "bad" && e === "high")               insight = { text: "High energy, low mood — a workout might actually help shift it.", icon: "💪", clr: C.amber, cta: { label: "Start workout", fn: onGoTrain } };
+    else if (m === "bad" && e === "high")               insight = { text: "High energy, low mood — a workout might actually help shift it.", icon: "💪", clr: C.amber, cta: { label: "Start workout", fn: onGoTrain }, askQ: "I'm in a bad mood but have high energy. How does exercise affect mood, and what type of workout would help the most right now?" };
     else if (m === "okay" && e === "high")              insight = { text: "Good energy today — put it to use!", icon: "🔥", clr: C.greenSoft, cta: { label: "Start workout", fn: onGoTrain } };
     else if (m === "good")                              insight = { text: "Great mindset today — keep that momentum.", icon: "🌟", clr: C.greenSoft, cta: { label: "Train", fn: onGoTrain } };
-    else if (m === "bad")                               insight = { text: "Difficult day — take it one step at a time.", icon: "🛌", clr: C.amber, cta: { label: "Log sleep", fn: onGoSleep } };
+    else if (m === "bad")                               insight = { text: "Difficult day — take it one step at a time.", icon: "🛌", clr: C.amber, cta: { label: "Log sleep", fn: onGoSleep }, askQ: "I'm in a bad mood today. What usually drives bad mood days — sleep, nutrition, training overload? What can I check and fix?" };
     else                                                insight = { text: "Consistency is what builds results — keep going.", icon: "📊", clr: C.muted, cta: { label: "Train", fn: onGoTrain } };
     return (
       <button className="sprig-tap" onClick={() => { setEditing(true); buzz("tap"); }}
@@ -491,10 +491,10 @@ function DailyCheckinStrip({ checkin, onCheckin, sleepInfo, onGoTrain, onGoNutri
             <span style={{ fontSize: 13, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>{insight.icon}</span>
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: 11.5, color: C.inkSoft, lineHeight: 1.45 }}>{insight.text}</span>
-              {insight.cta?.fn && (
-                <button className="sprig-tap" onClick={(e) => { e.stopPropagation(); insight.cta.fn(); buzz("tap"); }}
+              {(insight.cta?.fn || (onAskCoach && insight.askQ)) && (
+                <button className="sprig-tap" onClick={(e) => { e.stopPropagation(); if (onAskCoach && insight.askQ) { onAskCoach(insight.askQ); } else { insight.cta?.fn?.(); } buzz("tap"); }}
                   style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 5, background: insight.clr + "1A", border: `1px solid ${insight.clr}33`, borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 700, color: insight.clr, cursor: "pointer", fontFamily: "DM Sans" }}>
-                  {insight.cta.label} →
+                  {(onAskCoach && insight.askQ) ? <>Ask coach →</> : <>{insight.cta.label} →</>}
                 </button>
               )}
             </div>
@@ -3881,7 +3881,7 @@ function TodayTab({
 
       {/* ══ 6.7. DAILY CHECK-IN ══════════════════════════════════ */}
       {tp.mind !== false && onCheckin && (
-        <DailyCheckinStrip checkin={daily.checkin} onCheckin={onCheckin} sleepInfo={sleepInfo} onGoTrain={onGoTrain} onGoNutrition={onGoNutrition} onGoSleep={onGoSleep} onGoMind={onGoMind} />
+        <DailyCheckinStrip checkin={daily.checkin} onCheckin={onCheckin} sleepInfo={sleepInfo} onGoTrain={onGoTrain} onGoNutrition={onGoNutrition} onGoSleep={onGoSleep} onGoMind={onGoMind} onAskCoach={onAskCoach} />
       )}
 
       {/* ══ 7. QUICK LOG ═════════════════════════════════════════ */}
