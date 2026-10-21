@@ -184,7 +184,7 @@ function MacroProgressBars({ t, targets }) {
 }
 
 // ── SECTION C: Time-Aware Projection ─────────────────────────────────────────
-function ProjectionCard({ t, adjTarget }) {
+function ProjectionCard({ t, adjTarget, onAskCoach }) {
   const now = new Date();
   const hour = now.getHours();
   const min  = now.getMinutes();
@@ -201,14 +201,23 @@ function ProjectionCard({ t, adjTarget }) {
     const diff = projected - adjTarget;
     const icon = diff > 100 ? "📈" : diff < -100 ? "📉" : "✅";
     const color = diff > 200 ? C.coral : diff > 100 ? C.amber : diff < -200 ? C.amber : C.greenSoft;
-    content = { text: `On track for ~${fmtCal(projected)} kcal today`, color, icon };
+    content = { text: `On track for ~${fmtCal(projected)} kcal today`, color, icon, projected, diff };
   }
 
+  // more than 200 kcal off target by end of day → let the coach suggest a fix
+  const askOff = onAskCoach && adjTarget > 0 && Math.abs(content.diff || 0) > 200;
+  const Tag = askOff ? "button" : "div";
   return (
-    <div style={{ background: C.bg2, borderRadius: 14, padding: "10px 14px", marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+    <Tag className={askOff ? "sprig-tap" : undefined}
+      onClick={askOff ? () => {
+        onAskCoach(`I've eaten ${fmtCal(cals)} kcal so far and I'm on pace for ~${fmtCal(content.projected)} kcal today, ${fmtCal(Math.abs(content.diff))} kcal ${content.diff > 0 ? "over" : "under"} my ${fmtCal(adjTarget)} kcal target. What should the rest of my day of eating look like?`);
+        buzz("tap");
+      } : undefined}
+      style={{ background: C.bg2, borderRadius: 14, padding: "10px 14px", marginTop: 10, display: "flex", alignItems: "center", gap: 10, ...(askOff ? { width: "100%", border: "none", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" } : {}) }}>
       <span style={{ fontSize: 16 }}>{content.icon}</span>
       <span style={{ fontSize: 12.5, fontWeight: 600, color: content.color, flex: 1 }}>{content.text}</span>
-    </div>
+      {askOff && <Sparkles size={13} color={content.color} style={{ flexShrink: 0 }} />}
+    </Tag>
   );
 }
 
@@ -1252,7 +1261,7 @@ function NutritionTab({
           <FoodQualityScore entries={viewEntries} targets={targets} dietQ={isViewingToday ? nutriInfo?.dietQ : undefined} onFoodSearch={(q) => { setFoodSearchQuery(q); setSheetOpen(true); buzz("tap"); }} onAskCoach={onAskCoach} />
 
           {/* SECTION C: Projection */}
-          {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} />}
+          {isViewingToday && <ProjectionCard t={viewT} adjTarget={adjTarget} onAskCoach={onAskCoach} />}
 
           {/* SECTION C2: Nutrition Coach — goal-aligned coaching + gap nutrients */}
           {isViewingToday && (nutriInfo?.coach?.lines?.length > 0 || (nutriInfo?.missing?.length > 0 && viewT.calories >= 200)) && (

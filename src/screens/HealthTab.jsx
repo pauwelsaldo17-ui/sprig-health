@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { HeartPulse, Activity, Check, ChevronRight, Plus, PencilLine, Pill } from "lucide-react";
+import { HeartPulse, Activity, Check, ChevronRight, Plus, PencilLine, Pill, Sparkles } from "lucide-react";
 import { C } from "../theme.js";
 import { PAIN_LEVELS, PAIN_LOCATIONS, PAIN_TYPES, RISK_TAG } from "../utils/vitaeCalc.js";
 import { btn } from "../components/ui.jsx";
@@ -398,14 +398,22 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
             {hr.breakdown.map((b, i) => {
               const srcColor = b.source === "exact" ? C.greenSoft : b.source === "quick_log" ? C.amber : b.source === "disabled" ? C.muted : C.muted;
               const srcLabel = b.source === "exact" ? "Logged" : b.source === "quick_log" ? "Quick log" : b.source === "disabled" ? "Off" : "No data";
+              const askLow = onAskCoach && b.score != null && b.score < 55;
+              const Row = askLow ? "button" : "div";
               return (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Row key={i} className={askLow ? "sprig-tap" : undefined}
+                  onClick={askLow ? () => {
+                    onAskCoach(`My ${String(b.cat).toLowerCase()} score in my health report is ${b.score}/100 (${srcLabel.toLowerCase()} data). What's dragging it down and what should I change first?`);
+                    buzz("tap");
+                  } : undefined}
+                  style={{ display: "flex", alignItems: "center", gap: 10, ...(askLow ? { width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" } : {}) }}>
                   <div style={{ flex: 1, fontSize: 12.5, color: b.source === "disabled" || b.source === "unknown" ? C.muted : C.inkSoft }}>{b.cat}</div>
                   <span style={{ fontSize: 10.5, fontWeight: 600, color: srcColor, background: srcColor + "18", border: `1px solid ${srcColor}33`, borderRadius: 99, padding: "2px 8px" }}>{srcLabel}</span>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: b.score == null ? C.muted : b.score >= 75 ? C.greenSoft : b.score >= 55 ? C.amber : C.coral, minWidth: 28, textAlign: "right" }}>
                     {b.score != null ? b.score : "—"}
                   </div>
-                </div>
+                  {askLow && <Sparkles size={11} color={C.coral} style={{ flexShrink: 0 }} />}
+                </Row>
               );
             })}
           </div>
@@ -436,13 +444,18 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
             <Activity size={13} color={C.amber} /> What's hurting
           </div>
           {hr.hurting.map((item, i) => {
-            const go = routeImprovement(item, { onGoNutrition, onGoSleep, onGoTrain });
+            const nav = routeImprovement(item, { onGoNutrition, onGoSleep, onGoTrain });
+            const go = onAskCoach
+              ? () => onAskCoach(`My health report says this is hurting my score: ${item}${score != null ? ` My overall health score is ${score}/100.` : ""} What's the most effective thing I can change, starting today?`)
+              : nav;
             if (go) return (
               <button key={i} className="sprig-tap" onClick={() => { go(); buzz("tap"); }}
                 style={{ width: "100%", display: "flex", gap: 9, alignItems: "flex-start", padding: "6px 0", marginTop: i ? 2 : 0, background: "none", border: "none", borderTop: i > 0 ? `1px solid ${C.line}` : "none", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
                 <span style={{ color: C.amber, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>↓</span>
                 <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{item}</span>
-                <span style={{ fontSize: 14, color: C.amber, flexShrink: 0, alignSelf: "center" }}>→</span>
+                {onAskCoach
+                  ? <Sparkles size={13} color={C.amber} style={{ flexShrink: 0, alignSelf: "center" }} />
+                  : <span style={{ fontSize: 14, color: C.amber, flexShrink: 0, alignSelf: "center" }}>→</span>}
               </button>
             );
             return (
