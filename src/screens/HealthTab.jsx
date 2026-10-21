@@ -285,7 +285,7 @@ function routeImprovement(text, { onGoNutrition, onGoSleep, onGoTrain } = {}) {
   return null;
 }
 
-function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, onAddPain, onUpdatePain, onRemovePain, onGoNutrition, onGoSleep, onGoTrain }) {
+function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, onAddPain, onUpdatePain, onRemovePain, onGoNutrition, onGoSleep, onGoTrain, onAskCoach }) {
   const hr = healthReport || {};
   const radar = healthInfo?.radar || [];
   const disabledCats = hr.disabledCategories || [];
@@ -567,6 +567,13 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
                   <span style={{ color: HEALTH_CLR }}>•</span><span>{l}</span>
                 </div>
               ))}
+              {onAskCoach && pain?.summary?.active?.length > 0 && (
+                <button className="sprig-tap" onClick={() => { onAskCoach(`I have ${pain.summary.active.map(a => `${a.location} pain (${a.trend})`).join(", ")}. ${pain.coach.lines.slice(0, 2).join(". ")}. Can you give me a detailed week-by-week recovery plan?`); buzz("tap"); }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, background: HEALTH_CLR + "12", border: `1px solid ${HEALTH_CLR}33`, borderRadius: 9, padding: "6px 11px", cursor: "pointer", fontFamily: "DM Sans" }}>
+                  <HeartPulse size={12} color={HEALTH_CLR} />
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: HEALTH_CLR }}>Get a recovery plan from coach →</span>
+                </button>
+              )}
               {pain.coach.seekHelp && (
                 <div style={{ fontSize: 11, color: C.coral, marginTop: 7, lineHeight: 1.5, borderTop: `1px dashed ${C.line}`, paddingTop: 7 }}>
                   ⚕️ Sharp pain, swelling, or pain lasting 2+ weeks → see a doctor or physio.
@@ -592,18 +599,31 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
             {sortedRadar.map((r) => {
               const t = RISK_TAG[r.tag] || RISK_TAG.unknown;
-              return (
-                <div key={r.key} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 99, background: t.color, flexShrink: 0, marginTop: 6 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{r.label}</span>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: t.color, textTransform: "uppercase", letterSpacing: .4 }}>{t.label}</span>
+              return onAskCoach ? (
+                  <button key={r.key} className="sprig-tap" onClick={() => { onAskCoach(`My ${r.label} is ${t.label}: ${r.text}. What can I do to improve it?`); buzz("tap"); }}
+                    style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, background: "none", border: "none", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", padding: 0 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 99, background: t.color, flexShrink: 0, marginTop: 6 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{r.label}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: t.color, textTransform: "uppercase", letterSpacing: .4 }}>{t.label}</span>
+                        <ChevronRight size={10} color={t.color} style={{ marginLeft: "auto" }} />
+                      </div>
+                      <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.5 }}>{r.text}</div>
                     </div>
-                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.5 }}>{r.text}</div>
+                  </button>
+                ) : (
+                  <div key={r.key} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 99, background: t.color, flexShrink: 0, marginTop: 6 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>{r.label}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: t.color, textTransform: "uppercase", letterSpacing: .4 }}>{t.label}</span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.5 }}>{r.text}</div>
+                    </div>
                   </div>
-                </div>
-              );
+                );
             })}
           </div>
           {flagged.length > 0 && (
