@@ -2131,8 +2131,16 @@ function TodayTab({
 
       {/* ══ 4c6. TRAINING GUIDE — how to approach today's workout ════ */}
       {tp.training !== false && (recoveryInfo?.trainingAdj || recoveryInfo?.loadLevel) && (
-        <button className="sprig-pop sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
-          style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${RECOV_CLR}22`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow, cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+        <button className="sprig-pop sprig-tap" onClick={() => {
+            const ll = recoveryInfo?.loadLevel;
+            if (onAskCoach && (ll === "Excessive load" || ll === "High load")) {
+              onAskCoach(`My current training load is "${ll}". ${recoveryInfo?.trainingAdj || ""} How should I adjust my training this week to avoid overtraining while still making progress?`);
+            } else {
+              onGoTrain?.();
+            }
+            buzz("tap");
+          }}
+          style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${RECOV_CLR}22`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: RECOV_CLR + "18", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
             <Dumbbell size={13} color={RECOV_CLR} />
           </div>
@@ -2166,10 +2174,17 @@ function TodayTab({
           ].map(r => {
             const clr = r.val >= 70 ? C.greenSoft : r.val >= 50 ? C.amber : C.coral;
             return (
-              <button key={r.label} className="sprig-tap" onClick={() => { onGoTrain?.(); buzz("tap"); }}
+              <button key={r.label} className="sprig-tap" onClick={() => {
+                if (onAskCoach && r.val < 55) {
+                  onAskCoach(`My ${r.label.toLowerCase()} is ${r.val}/100. What's limiting it and what can I do today to improve it?`);
+                } else {
+                  onGoTrain?.();
+                }
+                buzz("tap");
+              }}
                 style={{
                   flex: 1, background: clr + "10", border: `1px solid ${clr}28`, borderRadius: 10, padding: "7px 10px",
-                  cursor: onGoTrain ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left",
+                  cursor: "pointer", fontFamily: "DM Sans", textAlign: "left",
                 }}>
                 <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 3 }}>
                   {r.label}
