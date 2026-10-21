@@ -3965,7 +3965,8 @@ function SprigApp() {
           <EnergyTab sleepInfo={sleepInfo} entries={entries} t={t} advanced={advanced} onStart={() => { startWorkout(); setTab("train"); }} />
         )}
         {tab === "health" && <HealthTab healthInfo={healthInfo} healthReport={healthReport} advanced={advanced} onSave={saveHealth} safety={safetyInfo}
-          pain={trainInfo.pain} onAddPain={addPainLog} onUpdatePain={updatePainLog} onRemovePain={removePainLog} />}
+          pain={trainInfo.pain} onAddPain={addPainLog} onUpdatePain={updatePainLog} onRemovePain={removePainLog}
+          onGoNutrition={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoTrain={() => setTab("train")} />}
         {tab === "mind" && <MindTab mindInfo={mindInfo} advanced={advanced} profile={profile} today={date}
           onToggleHabit2={(id) => toggleHabit2(id, date)} onAddHabit2={addHabit2} onEditHabit2={editHabit2}
           onArchiveHabit2={archiveHabit2} onRestoreHabit2={restoreHabit2} onDeleteHabit2={deleteHabit2}

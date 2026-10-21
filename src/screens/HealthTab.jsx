@@ -274,7 +274,18 @@ export function computeHealthReport({ history7, sleepLogs7, workouts7, daily, t,
   };
 }
 
-function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, onAddPain, onUpdatePain, onRemovePain }) {
+const _HAPTIC_H = { tap: 14, light: 10, success: [30, 50, 30] };
+function buzz(kind = "tap") { try { navigator.vibrate?.(_HAPTIC_H[kind] ?? 14); } catch (_) {} }
+
+function routeImprovement(text, { onGoNutrition, onGoSleep, onGoTrain } = {}) {
+  const t = text.toLowerCase();
+  if (/protein|calories|food|fiber|meal|eat|carb|fat|macro|log meal|diet/.test(t)) return onGoNutrition;
+  if (/sleep|bed|rest|recovery|night|wake/.test(t)) return onGoSleep;
+  if (/step|walk|movement|train|workout|exercise|gym|cardio|active/.test(t)) return onGoTrain;
+  return null;
+}
+
+function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, onAddPain, onUpdatePain, onRemovePain, onGoNutrition, onGoSleep, onGoTrain }) {
   const hr = healthReport || {};
   const radar = healthInfo?.radar || [];
   const disabledCats = hr.disabledCategories || [];
@@ -436,12 +447,25 @@ function HealthTab({ healthInfo, healthReport, advanced, onSave, safety, pain, o
       {(hr.improvements?.length ?? 0) > 0 && (
         <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginBottom: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft, letterSpacing: .3, marginBottom: 10, textTransform: "uppercase" }}>Top improvements</div>
-          {hr.improvements.map((item, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderTop: i > 0 ? `1px solid ${C.line}` : "none" }}>
-              <span style={{ width: 22, height: 22, borderRadius: 99, background: HEALTH_CLR + "22", color: HEALTH_CLR, fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</span>
-              <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{item}</span>
-            </div>
-          ))}
+          {hr.improvements.map((item, i) => {
+            const go = routeImprovement(item, { onGoNutrition, onGoSleep, onGoTrain });
+            if (go) {
+              return (
+                <button key={i} className="sprig-tap" onClick={() => { go(); buzz("tap"); }}
+                  style={{ width: "100%", display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderTop: i > 0 ? `1px solid ${C.line}` : "none", background: "none", border: "none", borderTop: i > 0 ? `1px solid ${C.line}` : "none", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
+                  <span style={{ width: 22, height: 22, borderRadius: 99, background: HEALTH_CLR + "22", color: HEALTH_CLR, fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</span>
+                  <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{item}</span>
+                  <span style={{ fontSize: 16, color: HEALTH_CLR, flexShrink: 0, alignSelf: "center" }}>→</span>
+                </button>
+              );
+            }
+            return (
+              <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderTop: i > 0 ? `1px solid ${C.line}` : "none" }}>
+                <span style={{ width: 22, height: 22, borderRadius: 99, background: HEALTH_CLR + "22", color: HEALTH_CLR, fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</span>
+                <span style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.45, flex: 1 }}>{item}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
