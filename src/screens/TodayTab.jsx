@@ -3007,15 +3007,22 @@ function TodayTab({
             {alerts.map(cat => {
               const rt = RISK_TAG[cat.tag] || RISK_TAG.moderate;
               return (
-                <button key={cat.key} className="sprig-tap" onClick={() => { onGoHealth?.(); buzz("tap"); }}
+                <button key={cat.key} className="sprig-tap" onClick={() => {
+                  if (onAskCoach) { onAskCoach(`My health radar shows ${cat.label} is ${rt.label}. ${cat.text} What does this mean for my training and what should I do about it?`); }
+                  else { onGoHealth?.(); }
+                  buzz("tap");
+                }}
                   style={{
                     flex: "0 0 auto", background: rt.color + "12",
                     border: `1px solid ${rt.color}33`, borderRadius: 10, padding: "6px 11px",
-                    cursor: onGoHealth ? "pointer" : "default",
+                    cursor: (onAskCoach || onGoHealth) ? "pointer" : "default",
                     fontFamily: "DM Sans", textAlign: "left",
                   }}>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: rt.color, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-                    {rt.label}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, color: rt.color, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      {rt.label}
+                    </div>
+                    {onAskCoach && <Sparkles size={9} color={rt.color} />}
                   </div>
                   <div style={{ fontSize: 10.5, fontWeight: 700, color: rt.color }}>
                     {cat.label}
