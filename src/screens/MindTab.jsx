@@ -163,7 +163,7 @@ function AddHabitForm({ onSave, onCancel, initial }) {
   );
 }
 
-function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabit2, onEditHabit2, onArchiveHabit2, onRestoreHabit2, onDeleteHabit2, onUndoCompletion, onLogFocus, tp = {} }) {
+function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabit2, onEditHabit2, onArchiveHabit2, onRestoreHabit2, onDeleteHabit2, onUndoCompletion, onLogFocus, tp = {}, onAskCoach }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingHabit, setEditingHabit] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -346,6 +346,16 @@ function MindTab({ mindInfo, advanced, profile, today, onToggleHabit2, onAddHabi
             )}
           </div>
         </div>
+      )}
+
+      {active.length > 0 && cv2.pct !== null && cv2.pct < 75 && onAskCoach && (
+        <button className="sprig-tap" onClick={() => { onAskCoach(cv2.pct < 50
+          ? `My habit consistency is ${cv2.pct}% this week (${cv2.label}). I have ${dueToday.length} habits still pending today. What's the most effective strategy to build better consistency and make these habits actually stick?`
+          : `My habit consistency is ${cv2.pct}% this week (${cv2.label}). What's the single most impactful change I can make to push it above 80%?`); buzz("tap"); }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, background: MIND_CLR + "10", border: `1px solid ${MIND_CLR}33`, borderRadius: 14, padding: "11px 14px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", marginBottom: 14 }}>
+          <Sparkles size={14} color={MIND_CLR} style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: MIND_CLR, flex: 1 }}>Ask coach how to build better habits →</span>
+        </button>
       )}
 
       {/* ---- DUE TODAY ---- */}
