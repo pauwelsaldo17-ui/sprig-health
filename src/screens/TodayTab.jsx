@@ -2687,10 +2687,18 @@ function TodayTab({
         const dqScore = (!dq?.noData && dq?.score != null) ? dq.score : null;
         const dqClr = dqScore == null ? null : dqScore >= 70 ? C.greenSoft : dqScore >= 50 ? C.amber : C.coral;
         return (
-          <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
-            style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${accentClr}33`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow, cursor: onGoNutrition ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+          <button className="sprig-pop sprig-tap" onClick={() => {
+              if (onAskCoach && hasWarn) {
+                const warnTexts = warns.map(l => l.text).join(" ");
+                onAskCoach(`Nutrition issue today: ${warnTexts} What specific foods or meal timing changes should I make right now to get back on track?`);
+              } else {
+                onGoNutrition?.();
+              }
+              buzz("tap");
+            }}
+            style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 9, background: C.card, border: `1px solid ${accentClr}33`, borderRadius: 14, padding: "10px 14px", marginTop: 8, boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
             <div style={{ width: 26, height: 26, borderRadius: 8, background: accentClr + "18", display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <Flame size={12} color={accentClr} />
+              {onAskCoach && hasWarn ? <Sparkles size={12} color={accentClr} /> : <Flame size={12} color={accentClr} />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
@@ -2744,8 +2752,15 @@ function TodayTab({
         const gapClr  = gap.score < 40 ? C.coral : gap.score < 65 ? C.amber : C.greenSoft;
         const gapLabel = gap.score < 40 ? "Critical gap" : gap.score < 65 ? "Needs fuel" : "All on track";
         return (
-          <button className="sprig-pop sprig-tap" onClick={() => { onGoNutrition?.(); buzz("tap"); }}
-            style={{ width: "100%", background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow, cursor: onGoNutrition ? "pointer" : "default", fontFamily: "DM Sans", textAlign: "left" }}>
+          <button className="sprig-pop sprig-tap" onClick={() => {
+              if (onAskCoach && gap.score < 40) {
+                onAskCoach(`My body function "${gap.name || gap.key}" is critically low (${gap.score}%) from today's nutrition. What specific foods should I eat now to fix this?`);
+              } else {
+                onGoNutrition?.();
+              }
+              buzz("tap");
+            }}
+            style={{ width: "100%", background: C.card, borderRadius: 16, border: `1px solid ${NUTR_CLR}22`, marginTop: 8, padding: "12px 14px", boxShadow: C.shadow, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left" }}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: NUTR_CLR, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>Body functions</div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
