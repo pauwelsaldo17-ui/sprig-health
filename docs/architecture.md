@@ -80,6 +80,14 @@ Some small flags bypass `store` and use localStorage directly (theme, nudges, co
 
 The Sleep tab (`SleepTab.jsx`) is Rise-style with four sub-tabs: **Today** (sleep debt + energy now, the energy timetable, readiness), **Sleep debt** (`sleepDebtNights` 14-night chart, tonight's target from `recommend`, last night, recent nights with nap/ignore/delete), **Habits** (`sleepHabits`: light, caffeine, nap, training, meal, alcohol, dim lights, bed — timed to today's wake and bedtime) and **Alarm** (alarm, wind-down, morning routine, sounds).
 
+### Native sleep summary (iOS): widget + morning notification
+
+The web layer is suspended in the background, so this part is Swift in the app target:
+
+- `ios/App/App/SleepBackgroundSync.swift`: started from `AppDelegate` on every launch. An `HKObserverQuery` on sleep analysis with background delivery makes iOS wake the app when new sleep is written. It totals last night natively (same rules as `healthSleepSessions`: union of sources, 45-min gap, ≥ 3 h = main sleep), stores it in the App Group, reloads widget timelines, and posts one "Last night: 7h 25m" notification per wake-up (only within 6 h of waking; off when `profile.sleepSummaryNotify === false`).
+- `ios/App/App/SleepSummaryPlugin.swift` (JS name `SleepSummary`, registered in `MainViewController.swift`, the storyboard's bridge VC): `src/sleepSummary.js` → `pushSleepSummary({ needMin, debtMin, notify })`, called from `App.jsx` when need/debt change. No-op off iOS.
+- `ios/App/SleepWidget/`: WidgetKit extension (`systemSmall`, Lock Screen rectangular/circular/inline). Reads only the App Group (`ios/App/Shared/SleepShared.swift`, compiled into both targets), never HealthKit, so it works while the phone is locked.
+
 ## The "Sprig day" (date boundary)
 
 `getSprigDate(now, latestSleepLog, mode)` in `App.jsx` decides which calendar day "today" is:

@@ -60,6 +60,8 @@ Read this when: adding, renaming or reshaping any stored value, writing a migrat
 
 `vitae_idb_v1` (IDB migration done) · `sprig_theme_v1` · `sprig_health_connected` · `sprig_health_sync_ts` · `sprig_health_status_v1` (last Health sync summary, counts only) · `sprig_last_synced_at` · `sprig_first_login_prompted_<userId>` · `sprig_account_nudge_v1` · `sprig_account_nudge_snooze` · `sprig_coach_queries_YYYY-MM` · `sprig_ai_scans_YYYY-MM` (free-tier counters) · `sprig_seen_achievements_v1` · `sprig_rir_preference_v1` · `sprig_routine_v1`, `sprig_winddown_v1` (SleepTab wind-down) · `sprig.supabase.auth` (Supabase session).
 
+**iOS App Group** `group.com.pauwelsaldo.vitae` (native `UserDefaults`, not in `store` or cloud backup): `sleep.lastNight` (asleep minutes + bed/wake, computed natively from Apple Health), `sleep.summary` (need, debt, notify flag pushed from JS), `sleep.notifiedWakeTs`. Derived data only; the source of truth stays in `sprig_sleep_v1`. Profile flag `sleepSummaryNotify` (default on) controls the morning notification.
+
 ## Shapes worth knowing
 
 **Sleep log** (`sprig_sleep_v1` item):

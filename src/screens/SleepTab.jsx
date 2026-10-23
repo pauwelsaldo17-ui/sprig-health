@@ -1064,6 +1064,32 @@ function MorningRoutineCard({ routine, onSaveRoutine, alarm }) {
 }
 
 // ─── Wind-Down Card ───────────────────────────────────────────────────────────
+// ─── Morning summary (native notification + widget, iOS) ─────────────────────
+function MorningSummaryCard({ enabled, onToggle }) {
+  return (
+    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: `${SLEEP_CLR}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <Sun size={18} color={SLEEP_CLR} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>Morning sleep summary</div>
+            <div style={{ fontSize: 12, color: C.muted }}>"Last night: 7h 25m" when you wake</div>
+          </div>
+        </div>
+        <button className="sprig-tap" onClick={() => { onToggle(); buzz("tap"); }} aria-label="Morning sleep summary"
+          style={{ width: 44, height: 26, borderRadius: 99, background: enabled ? SLEEP_CLR : C.bg2, border: "none", cursor: "pointer", position: "relative", transition: "background .2s", flexShrink: 0, fontFamily: "DM Sans" }}>
+          <div style={{ position: "absolute", top: 3, left: enabled ? 21 : 3, width: 20, height: 20, borderRadius: 99, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.3)" }} />
+        </button>
+      </div>
+      <div style={{ marginTop: 12, background: C.bg2, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5 }}>
+        Comes from Apple Health, even if you don't open Vitae. For the widget: long-press your Home or Lock Screen, tap +, and add <b>Vitae Sleep</b>.
+      </div>
+    </div>
+  );
+}
+
 function WindDownCard({ alarm, need, winddownEnabled, onToggle }) {
   const wakeMin = hmToMin(alarm?.latest || "07:00");
   const bedMin = ((wakeMin - need - 15) + DAYMIN) % DAYMIN;
@@ -1292,7 +1318,7 @@ function SleepSoundsCard() {
 }
 
 // ─── Main SleepTab ────────────────────────────────────────────────────────────
-function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec, onAskCoach, healthStatus, onHealthSync }) {
+function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec, onAskCoach, healthStatus, onHealthSync, sleepSummaryNotify = true, onToggleSleepSummary }) {
   const { debtMin, lastSleep, rec, need, breakdown } = sleepInfo;
 
   // Local state for morning routine and wind-down
@@ -1534,6 +1560,8 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
           <AlarmCard alarm={alarm} onSaveAlarm={onSaveAlarm} profile={profile} />
 
           {/* B. Wind-Down Reminder */}
+          {onToggleSleepSummary && <MorningSummaryCard enabled={sleepSummaryNotify} onToggle={onToggleSleepSummary} />}
+
           <WindDownCard alarm={alarm} need={need} winddownEnabled={winddownEnabled} onToggle={toggleWinddown} />
 
           {/* C. Morning Routine */}

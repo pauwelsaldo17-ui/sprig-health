@@ -30,6 +30,7 @@ import NutritionTab, { MealsTab, FavoriteFormSheet } from "./screens/NutritionTa
 import TodayTab from "./screens/TodayTab.jsx";
 import QuickLogSheet from "./components/QuickLogSheet.jsx";
 import { isHealthAvailable, requestHealthPermissions, syncHealthData } from "./healthService.js";
+import { pushSleepSummary } from "./sleepSummary.js";
 import { requestNotificationPermissions, scheduleSmartNotifications } from "./notifications.js";
 import { useSupabaseAuth } from "./hooks/useSupabaseAuth.js";
 import { C, THEMES, applyTheme } from "./theme.js";
@@ -3627,6 +3628,11 @@ function SprigApp() {
   const sleepHabitList = sleepHabits({ wakeMin, bedMin: curveBed, zones: energyTimeline, rec, gym, debtMin });
   const debtNights = sleepDebtNights(sleepLogs, need);
   const sleepInfo = { need, debtMin, lastSleep, rec, wakeMin, todayBed, curve, gym, mealMarks, zones: energyTimeline, habits: sleepHabitList, debtNights, breakdown: sleepBreakdown };
+  // Keep the iOS widget + morning notification in step with the app's need/debt (no-op off iOS).
+  useEffect(() => {
+    if (!ready) return;
+    pushSleepSummary({ needMin: need, debtMin, notify: profile?.sleepSummaryNotify !== false });
+  }, [ready, need, debtMin, profile?.sleepSummaryNotify]);
 
   // Detect daily nutrition/movement wins as the day's data crosses thresholds.
   // recordWins dedupes by type per day, so re-running on every change is safe (no spam).
@@ -4061,6 +4067,8 @@ function SprigApp() {
             onManual={saveSleepLog} onRemove={removeSleep} onToggleIgnore={toggleSleepIgnored} onMarkNap={markSleepNap} onEditLog={editSleepLog} profile={profile} advanced={advanced}
             daily={daily} onDaily={persistDaily} recoveryRec={trainInfo.recoveryRec}
             healthStatus={healthStatus} onHealthSync={healthAvailable ? syncHealthNow : null}
+            sleepSummaryNotify={profile?.sleepSummaryNotify !== false}
+            onToggleSleepSummary={healthAvailable ? () => saveProfile({ ...profile, sleepSummaryNotify: profile?.sleepSummaryNotify === false }) : null}
             onAskCoach={(q) => { setTab("coach"); setAskOpen(true); if (q) setAskQuestion(q); }} />
         )}
         {tab === "energy" && (
