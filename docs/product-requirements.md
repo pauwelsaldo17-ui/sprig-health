@@ -23,7 +23,7 @@ Use these as the test for new work: does it reduce effort, feed the coach better
 2. **Minimal manual input**
    - Default to recently used values, smart defaults and platform health data.
    - Quick Log fills the day from one tap where possible.
-   - HealthKit / Health Connect sync steps, weight and sleep on launch and when the app returns to the foreground.
+   - HealthKit / Health Connect sync steps, energy, weight, sleep, heart rate and workouts on launch and when the app returns to the foreground.
    - Nudge, don't demand: never block the user on mandatory fields.
 3. **AI coach is direct and context-aware**
    - The coach uses the user's actual logged data (sleep, training, nutrition, weight) as context, not generic advice.

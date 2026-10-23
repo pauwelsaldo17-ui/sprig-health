@@ -12,7 +12,7 @@ Read this when: adding a screen or component, moving state, touching storage/syn
 | Local storage | IndexedDB (`idb`) with localStorage fallback |
 | Auth + cloud backup | Supabase (`@supabase/supabase-js` 2), PKCE, deep link `com.pauwelsaldo.vitae://` |
 | Subscriptions | RevenueCat (`@revenuecat/purchases-js`) |
-| Health data | HealthKit (`@perfood/capacitor-healthkit`), Health Connect (`capacitor-health-connect`) |
+| Health data | `@capgo/capacitor-health`: HealthKit (iOS) and Health Connect (Android) |
 | Notifications | `@capacitor/local-notifications`, `@capacitor/push-notifications` |
 | Haptics | `@capacitor/haptics`, Web Vibration API fallback |
 | AI | Vercel serverless `api/analyze.js` → Anthropic Messages API |
@@ -76,7 +76,7 @@ Some small flags bypass `store` and use localStorage directly (theme, nudges, co
 
 ## Health sync
 
-`healthService.js` exposes `isHealthAvailable`, `requestHealthPermissions`, `syncHealthData` (steps 7 d, weight 30 d, sleep 14 d). `App.jsx` runs an initial sync once data has loaded and again on app foreground; `MeTab.jsx` has the manual connect button. Timestamps of the last sync live in localStorage (`sprig_health_sync_ts`, `sprig_health_connected`).
+`healthService.js` exposes `isHealthAvailable`, `requestHealthPermissions`, `syncHealthData` (steps, active and basal energy 7 d; resting HR, HRV, sleep and workouts 14 d; weight 30 d). `App.jsx` merges the result with `mergeHealthSleep`, `mergeHealthMetrics` and `sportSessionFromHealthWorkout` from `vitaeCalc.js`. `App.jsx` runs an initial sync once data has loaded and again on app foreground; `MeTab.jsx` has the manual connect button. Timestamps of the last sync live in localStorage (`sprig_health_sync_ts`, `sprig_health_connected`).
 
 ## The "Sprig day" (date boundary)
 

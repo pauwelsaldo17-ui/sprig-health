@@ -5,7 +5,7 @@ Personal health tracker: sleep, nutrition, training, body, habits/mind and an AI
 ## Product requirements — apply to every change
 
 1. **Fast, minimal, Apple-like.** Press feedback 120 ms, entrances 200–260 ms, easing `cubic-bezier(.2,.8,.2,1)`. No spinners for data already in state — skeleton (`.sprig-skeleton`) or nothing. No visual noise.
-2. **Minimal manual input.** Default to recent values and smart defaults; Quick Log fills the day in one tap; HealthKit / Health Connect fill steps, weight and sleep automatically. Nudge, never block on mandatory fields.
+2. **Minimal manual input.** Default to recent values and smart defaults; Quick Log fills the day in one tap; HealthKit / Health Connect fill steps, energy, weight, sleep, heart rate and workouts automatically. Nudge, never block on mandatory fields.
 3. **AI coach is data-driven and direct.** Coach prompts include the user's actual logged sleep, training, nutrition and weight. Answers are concise: no filler, disclaimers, or restating the question. If the API fails, fall back to `localCoachAnswer` — never a dead end.
 4. **Follow the user's real schedule.** "Today" rolls at the user's wake time (`getSprigDate` in `App.jsx`: after-wake default, 04:00 fallback), not midnight. Sleep logs store real timestamps; `date` is the wake date. Cross-midnight schedules are the normal case.
 5. **Never lose user data.** No renaming, wiping or reshaping a stored key without a migration. Append/update logs by `id`. Removed features keep their data (hidden, not deleted).
@@ -19,7 +19,7 @@ Where the code currently diverges from these (account required when Supabase is 
 |------|-------------------|
 | UI | React 18, Vite 8 (Rolldown), plain JSX — no TypeScript |
 | Native shell | Capacitor 8: app, browser, camera, haptics, local + push notifications |
-| Health | `@perfood/capacitor-healthkit` (iOS), `capacitor-health-connect` (Android) — marked `external` in `vite.config.js`; keep it that way |
+| Health | `@capgo/capacitor-health`: HealthKit (iOS) and Health Connect (Android) through one plugin |
 | Storage | `idb` → IndexedDB `vitae-db`, localStorage fallback |
 | Auth / cloud backup | `@supabase/supabase-js` 2, PKCE, deep link `com.pauwelsaldo.vitae://` |
 | Subscriptions | `@revenuecat/purchases-js` |
