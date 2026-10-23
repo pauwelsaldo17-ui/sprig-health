@@ -3,12 +3,12 @@ import {
   AlarmClock, ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight,
   Coffee, EyeOff, Mic, MicOff, Moon, MoonStar, Pause, PencilLine,
   Play, Plus, SkipForward, Sun, Trash2,
-  Volume2, Zap, Music, Wind, Sparkles
+  Volume2, Zap, Music, Wind, Sparkles, HeartPulse, RefreshCw, Utensils, Wine
 } from "lucide-react";
 import { C } from "../theme.js";
 import {
   minToLabel, durLabel, circMean, circDiff, minToHm, hmToMin,
-  smartWake, sleepDebtLabel, tsToMin, DAYMIN, uid, ENERGY_ZONE_META
+  smartWake, sleepDebtLabel, tsToMin, DAYMIN, uid, ENERGY_ZONE_META, SLEEP_HABIT_META
 } from "../utils/vitaeCalc.js";
 import { btn, Btn, Legend, SubTabs, EmptyState, Ring } from "../components/ui.jsx";
 
@@ -239,75 +239,6 @@ function SleepScoreCard({ log, allLogs, need, onAskCoach }) {
   );
 }
 
-// ─── Sleep Debt Card ──────────────────────────────────────────────────────────
-function SleepDebtCard({ debtMin, need, logs, onGoAlarm, onAskCoach }) {
-  const hasDebt = debtMin >= 30;
-  const debtH = Math.floor(debtMin / 60), debtM = debtMin % 60;
-  const weekNeed = need * 7;
-  const weekSlept = (logs || [])
-    .filter(l => !l.ignoredFromScore && !l.nap && l.waketime > Date.now() - 7 * 864e5)
-    .reduce((s, l) => s + (l.durationMin || 0), 0);
-  const pct = weekNeed > 0 ? Math.min(100, Math.round((weekSlept / weekNeed) * 100)) : 0;
-  const debtColor = !hasDebt ? C.greenSoft : debtMin < 180 ? C.amber : C.coral;
-
-  let suggestion = null;
-  if (hasDebt) {
-    const nights = debtMin <= 120 ? 3 : debtMin <= 240 ? 4 : debtMin <= 360 ? 5 : 7;
-    const extra = Math.round(debtMin / nights / 5) * 5;
-    suggestion = `Sleep ${extra} min extra for the next ${nights} nights`;
-  }
-
-  return (
-    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ fontSize: 18 }}>😴</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>Sleep Debt</span>
-        </div>
-        <span style={{ fontSize: 11.5, color: C.muted, fontWeight: 600 }}>This week</span>
-      </div>
-
-      {!hasDebt ? (
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: C.greenSoft }}>
-          You're well rested — no sleep debt 🎉
-        </div>
-      ) : (
-        <>
-          <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, fontWeight: 700, color: debtColor }}>
-            You're <span style={{ fontSize: 22 }}>{debtH > 0 ? `${debtH}h ` : ""}{debtM}min</span> in debt
-          </div>
-          <div style={{ margin: "12px 0 8px" }}>
-            <div style={{ display: "flex", height: 10, background: C.bg2, borderRadius: 99, overflow: "hidden" }}>
-              <div style={{ width: pct + "%", background: debtColor, borderRadius: 99, transition: "width .6s ease" }} />
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 4, textAlign: "right" }}>{pct}% of weekly need</div>
-          </div>
-          {suggestion && (
-            <div style={{ fontSize: 13, color: C.inkSoft, background: C.bg2, borderRadius: 10, padding: "9px 12px", lineHeight: 1.45 }}>
-              <div>💡 Pay it back: {suggestion}</div>
-              {onGoAlarm && (
-                <button className="sprig-tap" onClick={() => { onGoAlarm(); buzz("tap"); }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, background: SLEEP_CLR + "18", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: SLEEP_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
-                  <AlarmClock size={11} /> Adjust alarm →
-                </button>
-              )}
-              {onAskCoach && (
-                <button className="sprig-tap" onClick={() => {
-                  onAskCoach(`I have ${durLabel(debtMin)} of sleep debt (I've slept ${pct}% of my sleep need over the last 7 days). The suggestion is: ${suggestion}. Is that realistic for my schedule, and what else speeds up recovery from sleep debt?`);
-                  buzz("tap");
-                }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, marginLeft: onGoAlarm ? 6 : 0, background: SLEEP_CLR + "18", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: SLEEP_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
-                  <Sparkles size={11} /> Ask coach
-                </button>
-              )}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 // ─── Energy Schedule Card ─────────────────────────────────────────────────────
 const ZONE_COLOR = { grogginess: () => C.muted, peak: () => C.greenSoft, dip: () => C.amber, peak2: () => C.greenSoft, winddown: () => C.purple, melatonin: () => C.purple };
 
@@ -480,7 +411,7 @@ function LastNightSummary({ log, allLogs, need, onEdit, onRemove }) {
 // ─── Smart Estimate Card ──────────────────────────────────────────────────────
 function SmartEstimateCard({ alarm, sleepLogs, onConfirm }) {
   const avgBedMin = sleepLogs.length
-    ? (circMean(sleepLogs.slice(-7).map(l => tsToMin(l.bedtime))) ?? hmToMin("23:00"))
+    ? (circMean(sleepLogs.filter(l => !l.nap).slice(-7).map(l => tsToMin(l.bedtime))) ?? hmToMin("23:00"))
     : hmToMin("23:00");
   const wakeMin = hmToMin(alarm?.latest || "07:00");
   let durMin = ((wakeMin - avgBedMin) + DAYMIN) % DAYMIN;
@@ -526,69 +457,238 @@ function SmartEstimateCard({ alarm, sleepLogs, onConfirm }) {
   );
 }
 
-// ─── 7-Day History Bar Chart ──────────────────────────────────────────────────
-function SleepHistoryChart({ sleepLogs, need }) {
-  const [selected, setSelected] = useState(null);
-  const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    const dateStr = d.toLocaleDateString("en-CA");
-    const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-    const log = [...sleepLogs].reverse().find(l => l.date === dateStr && !l.nap);
-    days.push({ date: dateStr, day: dayName, log, dur: log?.durationMin || 0 });
+// ─── Apple Health sync status (Rise-style "synced from your watch") ───────────
+// Counts only — never raw values. Tapping syncs now.
+function HealthSyncRow({ healthStatus, onHealthSync }) {
+  const [syncing, setSyncing] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+  if (!onHealthSync || unavailable) return null;
+  const s = healthStatus;
+  let line, tone = C.muted;
+  if (syncing) line = "Syncing…";
+  else if (!s) line = "Tap to sync sleep, naps and stages";
+  else if (s.sleepError) { line = "Couldn't read sleep. Check Health › Sharing › Apps › Vitae › Sleep."; tone = C.amber; }
+  else if (s.sleepSamples === 0) { line = "No sleep in Apple Health yet. Wear your Apple Watch to bed or turn on Sleep Schedule in the Health app."; tone = C.amber; }
+  else {
+    const t = new Date(s.ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    line = `${s.nights} night${s.nights === 1 ? "" : "s"}${s.naps ? ` · ${s.naps} nap${s.naps === 1 ? "" : "s"}` : ""} synced · ${t}`;
+    if (s.kept > 0) line += ` · your own log kept for ${s.kept}`;
   }
-
-  const maxDur = Math.max(need * 1.1, ...days.map(d => d.dur), 1);
-  const barColor = (dur) => dur >= need ? SLEEP_CLR : dur >= need - 60 ? C.amber : C.coral;
-
+  async function sync() {
+    if (syncing) return;
+    buzz("tap"); setSyncing(true);
+    const ok = await onHealthSync();
+    setSyncing(false);
+    if (ok === false && !s) setUnavailable(true); // web / no HealthKit: hide the row
+  }
   return (
-    <div style={{ background: C.card, borderRadius: 20, padding: "16px 16px 12px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: .4, textTransform: "uppercase", marginBottom: 12 }}>7-day history</div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80, position: "relative" }}>
-        {/* Sleep need reference line */}
-        <div style={{ position: "absolute", bottom: (need / maxDur) * 80, left: 0, right: 0, borderTop: `1.5px dashed ${C.inkSoft}`, opacity: 0.3, pointerEvents: "none" }} />
-        {days.map((d, i) => {
-          const h = d.dur > 0 ? Math.max(4, (d.dur / maxDur) * 80) : 4;
-          const isSelected = selected === i;
+    <button className="sprig-tap" onClick={sync}
+      style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "10px 12px", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", boxShadow: C.shadow }}>
+      <div style={{ width: 30, height: 30, borderRadius: 9, background: C.coral + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>
+        <HeartPulse size={15} color={C.coral} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>Apple Health</div>
+        <div style={{ fontSize: 11.5, color: tone, lineHeight: 1.35, marginTop: 1 }}>{line}</div>
+      </div>
+      <RefreshCw size={14} color={C.muted} style={{ flexShrink: 0, opacity: syncing ? 0.4 : 1 }} />
+    </button>
+  );
+}
+
+// ─── Today hero: sleep debt + energy now (Rise's home screen) ────────────────
+function SleepTodayHero({ sleepInfo }) {
+  const { debtMin, lastSleep, curve = [], zones = [], need } = sleepInfo;
+  const lbl = sleepDebtLabel(debtMin);
+  const toneClr = { success: C.greenSoft, neutral: "#C9B8FF", warning: C.amber, danger: C.coral }[lbl.tone] || "#fff";
+  let nowMin = tsToMin(Date.now());
+  if (curve.length && nowMin < curve[0].min - 360) nowMin += DAYMIN;
+  const inCurve = curve.length && nowMin >= curve[0].min && nowMin <= curve[curve.length - 1].min;
+  const nowE = inCurve ? curve.reduce((b, p) => (Math.abs(p.min - nowMin) < Math.abs(b.min - nowMin) ? p : b), curve[0]).e : null;
+  const zNow = zones.find((z) => nowMin >= z.start && nowMin < z.end);
+  const zNext = zones.find((z) => z.start > nowMin);
+  return (
+    <div style={{ background: "linear-gradient(148deg, #2D1B6B 0%, #1A0F3F 100%)", borderRadius: 24, padding: "18px 18px 16px", color: "#fff", boxShadow: C.shadow }}>
+      <div style={{ display: "flex", gap: 14 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, opacity: .65, textTransform: "uppercase" }}>Sleep debt</div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 34, fontWeight: 700, lineHeight: 1.05, marginTop: 6 }}>{durLabel(debtMin)}</div>
+          <span style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 700, color: toneClr, background: "rgba(255,255,255,.08)", borderRadius: 99, padding: "3px 9px" }}>{lbl.label}</span>
+        </div>
+        <div style={{ width: 1, background: "rgba(255,255,255,.12)" }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: .6, opacity: .65, textTransform: "uppercase" }}>Energy now</div>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 34, fontWeight: 700, lineHeight: 1.05, marginTop: 6 }}>{nowE != null ? nowE : "—"}</div>
+          <div style={{ fontSize: 11.5, opacity: .75, marginTop: 6 }}>{zNow ? ENERGY_ZONE_META[zNow.kind].label : nowE != null ? "Steady" : curve.length && nowMin > curve[curve.length - 1].min ? "Past bedtime: time to sleep" : "Before your wake time"}</div>
+        </div>
+      </div>
+      <div style={{ borderTop: "1px solid rgba(255,255,255,.12)", marginTop: 14, paddingTop: 11, fontSize: 12, opacity: .85, lineHeight: 1.45 }}>
+        {lastSleep
+          ? <>Last night {durLabel(lastSleep.durationMin)} · need {durLabel(need)}{lastSleep.source === "health_sync" ? " · from Apple Health" : ""}</>
+          : "No sleep yet. Sync Apple Health or log last night below."}
+        {zNext && <div style={{ opacity: .8 }}>Next: {ENERGY_ZONE_META[zNext.kind].label.toLowerCase()} at {minToLabel(zNext.start)}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Sleep debt detail (Rise's Sleep screen): 14 nights vs need ──────────────
+function SleepDebtDetail({ sleepInfo, onGoAlarm, onAskCoach }) {
+  const { debtMin, need, rec, debtNights = [] } = sleepInfo;
+  const [selected, setSelected] = useState(null);
+  const lbl = sleepDebtLabel(debtMin);
+  const toneClr = { success: C.greenSoft, neutral: SLEEP_CLR, warning: C.amber, danger: C.coral }[lbl.tone] || SLEEP_CLR;
+  const tonight = need + Math.round(rec?.payDown || 0);
+  const maxMin = Math.max(need * 1.25, ...debtNights.map((n) => n.totalMin), 1);
+  const H = 96;
+  const sel = selected != null ? debtNights[selected] : null;
+  return (
+    <div style={{ background: C.card, borderRadius: 20, padding: "16px 16px 14px", boxShadow: C.shadow, border: `1px solid ${SLEEP_CLR}22` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: .4, textTransform: "uppercase" }}>Sleep debt · last 14 nights</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
+        <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, fontWeight: 700, color: toneClr }}>{durLabel(debtMin)}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: toneClr }}>{lbl.label}</div>
+      </div>
+      <div style={{ fontSize: 12, color: C.muted, marginTop: 2, lineHeight: 1.45 }}>
+        Your sleep need is {durLabel(need)}. Last night counts most (15%); older nights fade. Naps count toward their day.
+      </div>
+
+      {/* 14-night bars: main sleep + nap stacked, dashed line = need */}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: H, position: "relative", marginTop: 14 }}>
+        <div style={{ position: "absolute", bottom: (need / maxMin) * H, left: 0, right: 0, borderTop: `1.5px dashed ${C.inkSoft}`, opacity: .35, pointerEvents: "none" }} />
+        {debtNights.map((n, i) => {
+          const mainH = n.missing ? 3 : Math.max(3, (n.mainMin / maxMin) * H);
+          const napH = n.napMin ? Math.max(2, (n.napMin / maxMin) * H) : 0;
+          const clr = n.missing ? C.line : n.totalMin >= need ? SLEEP_CLR : n.totalMin >= need - 60 ? C.amber : C.coral;
           return (
-            <button key={d.date} className="sprig-tap" onClick={() => setSelected(isSelected ? null : i)}
-              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-              <div style={{
-                width: "100%", height: h, borderRadius: "5px 5px 2px 2px",
-                background: d.dur > 0 ? barColor(d.dur) : C.bg2,
-                opacity: isSelected ? 1 : 0.85,
-                boxShadow: isSelected ? `0 0 0 2px ${C.card}, 0 0 0 3px ${barColor(d.dur)}` : "none",
-                transition: "height .3s ease",
-                alignSelf: "flex-end",
-              }} />
+            <button key={n.date} className="sprig-tap" onClick={() => { setSelected(selected === i ? null : i); buzz("tap"); }}
+              style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "DM Sans", opacity: selected == null || selected === i ? 1 : .55 }}>
+              {napH > 0 && <div style={{ height: napH, background: clr, opacity: .45, borderRadius: "4px 4px 0 0" }} />}
+              <div style={{ height: mainH, background: clr, borderRadius: napH ? "0 0 2px 2px" : "4px 4px 2px 2px" }} />
             </button>
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-        {days.map((d, i) => (
-          <div key={d.date} style={{ flex: 1, textAlign: "center", fontSize: 10, color: selected === i ? C.ink : C.muted, fontWeight: selected === i ? 700 : 400 }}>{d.day}</div>
+      <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
+        {debtNights.map((n, i) => (
+          <div key={n.date} style={{ flex: 1, textAlign: "center", fontSize: 9, color: selected === i ? C.ink : C.muted }}>
+            {i % 2 === (debtNights.length - 1) % 2 ? new Date(n.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "narrow" }) : ""}
+          </div>
         ))}
       </div>
-      {selected != null && days[selected] && (
-        <div className="sprig-pop" style={{ marginTop: 10, background: C.bg2, borderRadius: 10, padding: "9px 12px" }}>
-          {days[selected].log ? (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{durLabel(days[selected].dur)}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>{days[selected].day} · {new Date(days[selected].date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
-              </div>
-              {days[selected].log.score != null && (
-                <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: days[selected].log.score >= 80 ? C.greenSoft : days[selected].log.score >= 65 ? C.amber : C.coral }}>
-                  {days[selected].log.score}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ fontSize: 12.5, color: C.muted }}>No sleep logged this day.</div>
+      {sel && (
+        <div className="sprig-pop" style={{ marginTop: 8, background: C.bg2, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: C.inkSoft }}>
+          <b style={{ color: C.ink }}>{new Date(sel.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</b>
+          {" · "}{sel.missing ? "nothing logged (not counted)" : `${durLabel(sel.mainMin)}${sel.napMin ? ` + ${durLabel(sel.napMin)} nap` : ""}${sel.shortMin ? ` · ${durLabel(sel.shortMin)} short` : " · need met"}${sel.fromHealth ? " · Apple Health" : ""}`}
+        </div>
+      )}
+
+      {/* Tonight's plan */}
+      <div style={{ marginTop: 12, background: C.bg2, borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+        <Moon size={16} color={SLEEP_CLR} style={{ flexShrink: 0 }} />
+        <div style={{ flex: 1, fontSize: 12.5, color: C.inkSoft, lineHeight: 1.4 }}>
+          Tonight: aim for <b style={{ color: C.ink }}>{durLabel(tonight)}</b>, in bed by <b style={{ color: C.ink }}>{minToLabel(rec.recBed)}</b>.
+        </div>
+      </div>
+      {(onGoAlarm || (onAskCoach && debtMin >= 60)) && (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          {onGoAlarm && (
+            <button className="sprig-tap" onClick={() => { onGoAlarm(); buzz("tap"); }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, background: SLEEP_CLR + "18", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: SLEEP_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
+              <AlarmClock size={11} /> Alarm
+            </button>
+          )}
+          {onAskCoach && debtMin >= 60 && (
+            <button className="sprig-tap" onClick={() => { onAskCoach(`I have ${durLabel(debtMin)} of sleep debt over the last 14 nights (need ${durLabel(need)}). Tonight's target is ${durLabel(tonight)} with bed by ${minToLabel(rec.recBed)}. What's the fastest realistic way to pay it down with my schedule?`); buzz("tap"); }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, background: SLEEP_CLR + "18", border: `1px solid ${SLEEP_CLR}33`, borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: SLEEP_CLR, cursor: "pointer", fontFamily: "DM Sans" }}>
+              <Sparkles size={11} /> Ask coach
+            </button>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Recent nights: source, naps, and per-log actions ────────────────────────
+const SOURCE_LABEL = { health_sync: "Apple Health", manual: "Manual", estimate: "Estimate", session: "Tracked", auto: "Tracked" };
+function RecentNights({ sleepLogs, onRemove, onToggleIgnore, onMarkNap }) {
+  const [open, setOpen] = useState(null);
+  const logs = [...sleepLogs].sort((a, b) => b.waketime - a.waketime).slice(0, 14);
+  if (!logs.length) return null;
+  const act = (fn) => { buzz("tap"); fn(); setOpen(null); };
+  const chip = { background: C.bg2, border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 11.5, fontWeight: 600, color: C.inkSoft, cursor: "pointer", fontFamily: "DM Sans" };
+  return (
+    <div style={{ background: C.card, borderRadius: 20, padding: "14px 14px 6px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: .4, textTransform: "uppercase", marginBottom: 4 }}>Recent sleep</div>
+      {logs.map((l, i) => (
+        <div key={l.id} style={{ borderTop: i ? `1px solid ${C.line}` : "none" }}>
+          <button className="sprig-tap" onClick={() => { setOpen(open === l.id ? null : l.id); buzz("tap"); }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: "10px 0", cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", opacity: l.ignoredFromScore && !l.nap ? .55 : 1 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 99, background: l.nap ? SLEEP_CLR + "77" : SLEEP_CLR, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                {durLabel(l.durationMin)}{l.nap ? <span style={{ fontWeight: 600, color: C.muted }}> · nap</span> : null}
+              </div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
+                {new Date(l.waketime).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · {minToLabel(tsToMin(l.bedtime))} → {minToLabel(tsToMin(l.waketime))}
+              </div>
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: l.source === "health_sync" ? C.coral : C.muted, flexShrink: 0 }}>{SOURCE_LABEL[l.source] || "Logged"}</span>
+            <ChevronDown size={14} color={C.muted} style={{ flexShrink: 0, transform: open === l.id ? "rotate(180deg)" : "none", transition: "transform .12s cubic-bezier(.2,.8,.2,1)" }} />
+          </button>
+          {open === l.id && (
+            <div className="sprig-pop" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "0 0 10px 18px" }}>
+              {l.stagesFromHealth && l.stages && (
+                <div style={{ width: "100%", fontSize: 11.5, color: C.muted, marginBottom: 2 }}>Deep {durLabel(l.stages.deep)} · REM {durLabel(l.stages.rem)} · Core {durLabel(l.stages.light)}</div>
+              )}
+              {!l.nap && onMarkNap && <button className="sprig-tap" onClick={() => act(() => onMarkNap(l.id))} style={chip}>Mark as nap</button>}
+              {!l.nap && onToggleIgnore && <button className="sprig-tap" onClick={() => act(() => onToggleIgnore(l.id))} style={chip}>{l.ignoredFromScore ? "Count it" : "Don't count"}</button>}
+              {onRemove && <button className="sprig-tap" onClick={() => act(() => onRemove(l.id))} style={{ ...chip, color: C.coral }}><Trash2 size={11} style={{ verticalAlign: -1 }} /> Delete</button>}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Habits (Rise's daily habit timeline) ────────────────────────────────────
+const HABIT_ICON = { light: Sun, caffeine: Coffee, nap: MoonStar, exercise: Zap, meal: Utensils, alcohol: Wine, dim: EyeOff, bed: Moon };
+function SleepHabitsCard({ habits = [], curve = [] }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const id = setInterval(() => tick((n) => n + 1), 60000); return () => clearInterval(id); }, []);
+  if (!habits.length) {
+    return <EmptyState icon={<Moon size={20} />} title="Habits appear with your sleep" text="Sync Apple Health or log a night so we can time them to your day." />;
+  }
+  let nowMin = tsToMin(Date.now());
+  if (curve.length && nowMin < curve[0].min - 360) nowMin += DAYMIN;
+  return (
+    <div style={{ background: C.card, borderRadius: 20, padding: "6px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+      {habits.map((h, i) => {
+        const meta = SLEEP_HABIT_META[h.key];
+        const Icon = HABIT_ICON[h.key] || Moon;
+        const past = h.at ? nowMin > h.start : nowMin >= h.end;
+        const now = !h.at && nowMin >= h.start && nowMin < h.end;
+        const soon = h.at && !past && h.start - nowMin <= 60;
+        return (
+          <div key={h.key} style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "11px 0", borderTop: i ? `1px solid ${C.line}` : "none", opacity: past ? .45 : 1 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 9, background: (now || soon ? C.lime : SLEEP_CLR) + "1f", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <Icon size={15} color={now || soon ? C.lime : SLEEP_CLR} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{meta.label}</span>
+                {(now || soon) && <span style={{ fontSize: 10, fontWeight: 700, color: C.coral, letterSpacing: .3 }}>{now ? "NOW" : "SOON"}</span>}
+                <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                  {h.at ? `by ${minToLabel(h.start)}` : `${minToLabel(h.start)} – ${minToLabel(h.end)}`}
+                </span>
+              </div>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>{meta.tip}</div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1192,7 +1292,7 @@ function SleepSoundsCard() {
 }
 
 // ─── Main SleepTab ────────────────────────────────────────────────────────────
-function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec, onAskCoach }) {
+function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec, onAskCoach, healthStatus, onHealthSync }) {
   const { debtMin, lastSleep, rec, need, breakdown } = sleepInfo;
 
   // Local state for morning routine and wind-down
@@ -1202,7 +1302,6 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
   const [editingLog, setEditingLog] = useState(null); // log object being edited
   const [editBed, setEditBed] = useState("23:00");
   const [editWake, setEditWake] = useState("07:00");
-  const [histSelected, setHistSelected] = useState(null);
 
   function saveRoutine(steps) { setRoutine(steps); lsSet("sprig_routine_v1", steps); }
   function toggleWinddown() { const v = !winddownEnabled; setWinddownEnabled(v); lsSet("sprig_winddown_v1", v); }
@@ -1249,58 +1348,41 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: C.ink, lineHeight: 1.1 }}>Sleep</div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Tracking, debt & smart alarm</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Debt, energy, habits & alarm</div>
         </div>
       </div>
-      <SubTabs tabs={[["sleep", "Sleep"], ["alarm", "Alarm & Routine"]]} active={sub} onChange={onSub} />
+      <SubTabs tabs={[["today", "Today"], ["sleep", "Sleep debt"], ["habits", "Habits"], ["alarm", "Alarm"]]} active={sub} onChange={onSub} />
 
-      {/* ── SLEEP SUB-TAB ─────────────────────────────────── */}
-      {sub === "sleep" && (
+      {/* ── TODAY: sleep debt, energy now and today's schedule ─── */}
+      {sub === "today" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <SleepTodayHero sleepInfo={sleepInfo} />
+          <HealthSyncRow healthStatus={healthStatus} onHealthSync={onHealthSync} />
 
-          {/* A0. Quick-log banner when no sleep logged today */}
+          {/* No sleep for last night yet → one tap to log it */}
           {!hasRecentLog && (
-            <button className="sprig-tap" onClick={() => { setShowLogForm(true); playChime(0.3); }}
-              style={{ width: "100%", background: `${SLEEP_CLR}15`, border: `1px solid ${SLEEP_CLR}44`, borderRadius: 14, padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontFamily: "DM Sans", boxShadow: C.shadow }}>
+            <button className="sprig-tap" onClick={() => { onSub?.("sleep"); setShowLogForm(true); buzz("tap"); }}
+              style={{ width: "100%", background: `${SLEEP_CLR}15`, border: `1px solid ${SLEEP_CLR}44`, borderRadius: 14, padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", boxShadow: C.shadow }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: `${SLEEP_CLR}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
                 <PencilLine size={16} color={SLEEP_CLR} />
               </div>
-              <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>No sleep logged yet</div>
-                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>Tap to log last night's sleep</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>No sleep for last night yet</div>
+                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>Apple Health fills this in. Tap to log it yourself.</div>
               </div>
               <ChevronRight size={15} color={C.muted} style={{ flexShrink: 0 }} />
             </button>
           )}
 
-          {/* A. Sleep Score Card */}
-          <SleepScoreCard log={lastSleep} allLogs={sleepLogs} need={need} onAskCoach={onAskCoach} />
-
-          {/* A1. Sleep Insight — why the score + what to do tonight */}
-          {lastSleep && (breakdown?.mainReason || breakdown?.fix) && (
-            <div className="sprig-pop" style={{ background: C.card, borderRadius: 14, padding: "12px 14px", border: `1px solid ${SLEEP_CLR}22`, boxShadow: C.shadow }}>
-              {breakdown.mainReason && (
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: breakdown.fix ? 9 : 0 }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.3 }}>📉</span>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: SLEEP_CLR, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Why your score</div>
-                    <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>Last night: {breakdown.mainReason}.</div>
-                  </div>
-                </div>
-              )}
-              {breakdown.fix && (
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.3 }}>💡</span>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Tonight</div>
-                    <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.45, fontWeight: 500 }}>{breakdown.fix}</div>
-                  </div>
-                </div>
-              )}
+          {/* Energy schedule */}
+          <div>
+            <div style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 600, margin: "4px 2px 8px", display: "flex", alignItems: "center", gap: 7 }}>
+              <Zap size={15} color={C.lime} /> Energy today
             </div>
-          )}
+            <EnergyScheduleCard sleepInfo={sleepInfo} />
+          </div>
 
-          {/* A1b. Recovery Readiness — training recommendation driven by sleep */}
+          {/* Recovery readiness — training recommendation driven by sleep */}
           {recoveryRec && (() => {
             const lvlMeta = {
               hard:   { color: C.greenSoft,  bg: C.greenSoft + "18", border: C.greenSoft + "44", emoji: "💪", label: "High readiness" },
@@ -1327,34 +1409,41 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
             );
           })()}
 
-          {/* A2. Tonight's bedtime chip */}
-          {alarm?.enabled && (() => {
-            const wMin = hmToMin(alarm.latest || "07:00");
-            const bedMin = ((wMin - need - 15) + DAYMIN) % DAYMIN;
-            return (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, background: `${SLEEP_CLR}15`, borderRadius: 14, padding: "10px 14px", border: `1px solid ${SLEEP_CLR}33` }}>
-                <Moon size={15} color={SLEEP_CLR} />
-                <div style={{ fontSize: 13, color: C.ink, flex: 1 }}>
-                  <span style={{ fontWeight: 700 }}>Tonight's bedtime</span>
-                  <span style={{ color: C.muted }}> · get {(need / 60).toFixed(1)}h</span>
+          {/* Why last night scored what it did + one fix for tonight */}
+          {lastSleep && (breakdown?.mainReason || breakdown?.fix) && (
+            <div className="sprig-pop" style={{ background: C.card, borderRadius: 14, padding: "12px 14px", border: `1px solid ${SLEEP_CLR}22`, boxShadow: C.shadow }}>
+              {breakdown.mainReason && (
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: breakdown.fix ? 9 : 0 }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.3 }}>📉</span>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: SLEEP_CLR, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Why your score</div>
+                    <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45 }}>Last night: {breakdown.mainReason}.</div>
+                  </div>
                 </div>
-                <span style={{ fontFamily: "Fraunces, serif", fontSize: 17, fontWeight: 700, color: SLEEP_CLR }}>{minToLabel(bedMin)}</span>
-              </div>
-            );
-          })()}
-
-          {/* B. Sleep Debt Card */}
-          <SleepDebtCard debtMin={debtMin} need={need} logs={sleepLogs} onGoAlarm={() => onSub?.("alarm")} onAskCoach={onAskCoach} />
-
-          {/* C. Energy Schedule */}
-          <div>
-            <div style={{ fontFamily: "Fraunces, serif", fontSize: 15, fontWeight: 600, margin: "4px 2px 8px", display: "flex", alignItems: "center", gap: 7 }}>
-              <Zap size={15} color={C.lime} /> Energy today
+              )}
+              {breakdown.fix && (
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.3 }}>💡</span>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Tonight</div>
+                    <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.45, fontWeight: 500 }}>{breakdown.fix}</div>
+                  </div>
+                </div>
+              )}
             </div>
-            <EnergyScheduleCard sleepInfo={sleepInfo} />
-          </div>
+          )}
+          <div style={{ height: 8 }} />
+        </div>
+      )}
 
-          {/* D. Last Night Summary */}
+      {/* ── SLEEP DEBT: 14 nights, last night, recent logs, manual logging ── */}
+      {sub === "sleep" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <SleepDebtDetail sleepInfo={sleepInfo} onGoAlarm={() => onSub?.("alarm")} onAskCoach={onAskCoach} />
+
+          <SleepScoreCard log={lastSleep} allLogs={sleepLogs} need={need} onAskCoach={onAskCoach} />
+
+          {/* Last Night Summary */}
           {lastSleep && !editingLog && (
             <LastNightSummary
               log={lastSleep} allLogs={sleepLogs} need={need}
@@ -1392,15 +1481,14 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
             </div>
           )}
 
-          {/* E. Smart Estimate (when no recent log) */}
+          {/* Smart Estimate (when no recent log) */}
           {!hasRecentLog && alarm?.enabled && (
             <SmartEstimateCard alarm={alarm} sleepLogs={sleepLogs} onConfirm={onManual} />
           )}
 
-          {/* F. 7-Day History */}
-          <SleepHistoryChart sleepLogs={sleepLogs} need={need} />
+          <RecentNights sleepLogs={sleepLogs} onRemove={onRemove} onToggleIgnore={onToggleIgnore} onMarkNap={onMarkNap} />
 
-          {/* G. Sleep Log Form */}
+          {/* Manual logging stays available when Health has no data */}
           <div>
             <button className="sprig-tap" onClick={() => setShowLogForm(s => !s)}
               style={{ ...btn(showLogForm ? C.bg2 : C.card, showLogForm ? C.muted : C.inkSoft), width: "100%", padding: "13px 0", border: `1px solid ${C.line}`, boxShadow: C.shadow, fontSize: 13.5, fontWeight: 600 }}>
@@ -1425,6 +1513,18 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "sleep", onS
           <div style={{ height: 8 }} />
         </div>
       )}
+
+      {/* ── HABITS: timed to today's wake and bedtime ─────────── */}
+      {sub === "habits" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, margin: "0 2px" }}>
+            Timed to your day: up at {minToLabel(sleepInfo.wakeMin)}, bed by {minToLabel(rec.recBed)}. Hit these and your energy peaks get higher and your debt comes down.
+          </div>
+          <SleepHabitsCard habits={sleepInfo.habits} curve={sleepInfo.curve} />
+          <div style={{ height: 8 }} />
+        </div>
+      )}
+
 
       {/* ── ALARM & ROUTINE SUB-TAB ───────────────────────── */}
       {sub === "alarm" && (

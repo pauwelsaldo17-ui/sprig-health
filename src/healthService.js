@@ -86,11 +86,21 @@ async function readWeights(days) {
   return Object.values(byDay); // latest per day (samples ascending)
 }
 
+// Returns { sessions, samples (count), error } — the counts feed the Sleep tab's sync status
+// so "no sleep in Apple Health" and "read failed" can be told apart.
 async function readSleep(days) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  // A night can have a few hundred stage segments per source; 14 nights × 2 sources fits in 5000.
-  const samples = await readSamples("sleep", days, 5000);
-  return healthSleepSessions(samples).map((s) => ({ ...s, timezone: tz }));
+  try {
+    // A night can have a few hundred stage segments per source; 14 nights × 2 sources fits in 5000.
+    const res = await Health.readSamples({
+      dataType: "sleep", startDate: iso(Date.now() - days * 864e5), endDate: iso(Date.now()), limit: 5000, ascending: true,
+    });
+    const samples = res.samples || [];
+    return { sessions: healthSleepSessions(samples).map((s) => ({ ...s, timezone: tz })), samples: samples.length, error: false };
+  } catch (e) {
+    console.warn("[health] sleep read failed:", e?.message);
+    return { sessions: [], samples: 0, error: true };
+  }
 }
 
 async function readWorkouts(days) {
@@ -124,10 +134,14 @@ export async function requestHealthPermissions() {
 // steps / activeKcal / basalKcal / restingHr / hrv: { "YYYY-MM-DD": number } (calendar days)
 // weights: [{ date, kg }] · sleep: [{ bedTs, wakeTs, asleepMin, awakeMin, stages, nap, timezone }]
 // workouts: raw plugin workouts (mapped to sport sessions in App.jsx)
+// meta: { sleepSamples, sleepError } — counts only, for the Sleep tab's sync status
 export async function syncHealthData() {
-  const result = { steps: null, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [] };
+  const result = { steps: null, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [], meta: {} };
   if (!(await isHealthAvailable())) return result;
   try {
+    const sl = await readSleep(14);
+    result.sleep = sl.sessions;
+    result.meta = { sleepSamples: sl.samples, sleepError: sl.error };
     result.steps = await readDaily("steps", 7, "sum");
     result.activeKcal = await readDaily("calories", 7, "sum");
     result.basalKcal = await readDaily("basalCalories", 7, "sum");
@@ -135,7 +149,6 @@ export async function syncHealthData() {
     result.restingHr = await readDaily("restingHeartRate", 14, "average");
     result.hrv = await readDailyFromSamples("heartRateVariability", 14, "average");
     result.weights = await readWeights(30);
-    result.sleep = await readSleep(14);
     result.workouts = await readWorkouts(14);
   } catch (e) {
     console.warn("[health] sync error:", e?.message);

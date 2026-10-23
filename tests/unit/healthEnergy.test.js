@@ -15,6 +15,9 @@ import {
   energyZones,
   bestGymWindow,
   DAYMIN,
+  sleepDebtNights,
+  sleepHabits,
+  recommend,
 } from '../../src/utils/vitaeCalc.js';
 
 const H = 36e5;
@@ -98,7 +101,7 @@ describe('mergeHealthSleep — never loses user data', () => {
   const session = (bed, wake, extra = {}) => ({ bedTs: at(bed), wakeTs: at(wake), asleepMin: (at(wake) - at(bed)) / 60000, awakeMin: 0, stages: null, nap: false, ...extra });
 
   test('adds a new health night with real stages and a computed score', () => {
-    const next = mergeHealthSleep([], [session('2026-10-20T23:00:00', '2026-10-21T07:00:00', { stages: { deep: 90, rem: 100, light: 290 } })]);
+    const next = mergeHealthSleep([], [session('2026-10-20T23:00:00', '2026-10-21T07:00:00', { stages: { deep: 90, rem: 100, light: 290 } })])?.logs;
     expect(next).toHaveLength(1);
     expect(next[0]).toMatchObject({ id: `health_${at('2026-10-20T23:00:00')}`, date: '2026-10-21', durationMin: 480, source: 'health_sync', stagesFromHealth: true });
     expect(next[0].score).toBeGreaterThan(0);
@@ -112,7 +115,7 @@ describe('mergeHealthSleep — never loses user data', () => {
   test('updates an unedited health log in place but never an edited one', () => {
     const old = { id: 'health_1', bedtime: at('2026-10-20T23:00:00'), waketime: at('2026-10-21T06:00:00'), durationMin: 420, date: '2026-10-21', source: 'health_sync', ignoredFromScore: true };
     const s = session('2026-10-20T23:00:00', '2026-10-21T07:00:00');
-    const next = mergeHealthSleep([old], [s]);
+    const next = mergeHealthSleep([old], [s])?.logs;
     expect(next).toHaveLength(1);
     expect(next[0]).toMatchObject({ id: 'health_1', durationMin: 480, ignoredFromScore: true });
     expect(mergeHealthSleep([{ ...old, edited: true }], [s])).toBeNull();
@@ -127,7 +130,7 @@ describe('mergeHealthSleep — never loses user data', () => {
   test('naps are added with the existing nap flags and keep the main night', () => {
     const night = session('2026-10-20T23:00:00', '2026-10-21T07:00:00');
     const nap = session('2026-10-21T14:00:00', '2026-10-21T14:25:00', { nap: true });
-    const next = mergeHealthSleep([], [night, nap]);
+    const next = mergeHealthSleep([], [night, nap])?.logs;
     expect(next).toHaveLength(2);
     expect(next[1]).toMatchObject({ nap: true, ignoredFromScore: true, date: '2026-10-21' });
   });
@@ -269,5 +272,74 @@ describe('bestGymWindow', () => {
     const g1 = bestGymWindow(day, [], 420, 1380);
     const g2 = bestGymWindow(night, [], 900, 420 + DAYMIN);
     expect(Math.abs((g2.start - 900) - (g1.start - 420))).toBeLessThanOrEqual(60);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('mergeHealthSleep — Health replaces the app\'s own estimates', () => {
+  const session = (bed, wake) => ({ bedTs: at(bed), wakeTs: at(wake), asleepMin: (at(wake) - at(bed)) / 60000, awakeMin: 0, stages: null, nap: false });
+
+  test('an unedited estimate for the night is superseded (returned, not deleted)', () => {
+    const est = { id: 'e1', bedtime: at('2026-10-20T23:00:00'), waketime: at('2026-10-21T07:00:00'), durationMin: 480, date: '2026-10-21', source: 'estimate' };
+    const res = mergeHealthSleep([est], [session('2026-10-20T23:40:00', '2026-10-21T06:50:00')]);
+    expect(res.logs).toHaveLength(1);
+    expect(res.logs[0].source).toBe('health_sync');
+    expect(res.superseded).toEqual([expect.objectContaining({ id: 'e1', discarded: true, supersededBy: res.logs[0].id })]);
+  });
+
+  test('an edited estimate is the user\'s and is kept', () => {
+    const est = { id: 'e1', bedtime: at('2026-10-20T23:00:00'), waketime: at('2026-10-21T07:00:00'), durationMin: 480, date: '2026-10-21', source: 'estimate', edited: true };
+    expect(mergeHealthSleep([est], [session('2026-10-20T23:40:00', '2026-10-21T06:50:00')])).toBeNull();
+  });
+
+  test('superseded estimates are not treated as deletions', () => {
+    const tomb = { id: 'e1', bedtime: at('2026-10-20T23:00:00'), waketime: at('2026-10-21T07:00:00'), discarded: true, supersededBy: 'health_x' };
+    expect(mergeHealthSleep([], [session('2026-10-20T23:40:00', '2026-10-21T06:50:00')], { tombstones: [tomb] }).logs).toHaveLength(1);
+  });
+});
+
+describe('sleepDebtNights', () => {
+  test('14 days oldest → newest with naps split out and gaps marked missing', () => {
+    const NOW = at('2026-10-21T12:00:00');
+    const logs = [
+      { bedtime: at('2026-10-20T23:00:00'), waketime: at('2026-10-21T06:00:00'), durationMin: 420, date: '2026-10-21', source: 'health_sync' },
+      { bedtime: at('2026-10-21T10:00:00'), waketime: at('2026-10-21T10:30:00'), durationMin: 30, date: '2026-10-21', nap: true, ignoredFromScore: true },
+      { bedtime: at('2026-10-18T23:00:00'), waketime: at('2026-10-19T07:00:00'), durationMin: 480, date: '2026-10-19' },
+    ];
+    const n = sleepDebtNights(logs, 480, NOW);
+    expect(n).toHaveLength(14);
+    expect(n[13]).toMatchObject({ date: '2026-10-21', mainMin: 420, napMin: 30, totalMin: 450, shortMin: 30, fromHealth: true, missing: false });
+    expect(n[12]).toMatchObject({ date: '2026-10-20', missing: true, shortMin: 0 });
+    expect(n[11]).toMatchObject({ date: '2026-10-19', shortMin: 0 });
+  });
+});
+
+describe('sleepHabits', () => {
+  const logs = sleepHistory({});
+  const curve = energyCurve({ wakeMin: 420, bedMin: 1380, debtMin: 0, meals: [], logs, nowTs: at('2026-10-21T12:00:00'), dayStartTs: dayStart('2026-10-21') });
+  const zones = energyZones(curve, { wakeMin: 420, bedMin: 1380 });
+  const gym = bestGymWindow(curve, [], 420, 1380);
+  const rec = recommend(logs, { age: 30 }, 0);
+
+  test('timed to the day in order, light first and bed last', () => {
+    const h = sleepHabits({ wakeMin: 420, bedMin: 1380, zones, rec, gym, debtMin: 0 });
+    expect(h[0]).toMatchObject({ key: 'light', start: 420, end: 480 });
+    expect(h[h.length - 1].key).toBe('bed');
+    expect(h.find((x) => x.key === 'meal').start).toBe(1380 - 180);
+    for (let i = 1; i < h.length; i++) expect(h[i].start).toBeGreaterThanOrEqual(h[i - 1].start);
+    expect(h.some((x) => x.key === 'nap')).toBe(false); // no debt → no nap
+  });
+
+  test('suggests a nap in the dip only when carrying debt', () => {
+    const h = sleepHabits({ wakeMin: 420, bedMin: 1380, zones, rec, gym, debtMin: 180 });
+    const nap = h.find((x) => x.key === 'nap');
+    expect(nap.start).toBe(zones.find((z) => z.kind === 'dip').start);
+    expect(nap.end - nap.start).toBeLessThanOrEqual(30);
+  });
+
+  test('night-shift day: habits run past midnight on the curve axis', () => {
+    const h = sleepHabits({ wakeMin: 900, bedMin: 420, zones: [], rec: { caffeineCutoff: 1380 }, gym: null, debtMin: 0 });
+    expect(h.find((x) => x.key === 'bed').start).toBe(420 + DAYMIN - 45);
+    expect(h.find((x) => x.key === 'caffeine').start).toBe(1380);
   });
 });
