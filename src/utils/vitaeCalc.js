@@ -3037,6 +3037,14 @@ export const clockToCurveMin = mealAxisMin;
 
 // The last `n` wake dates (oldest → newest) for the sleep-debt chart: main sleep + naps per day,
 // `missing` when nothing was logged or synced. Same filtering as sleepDebtMin.
+// How many days of Apple Health sleep to read so no night is ever missed, however long the
+// app went unopened: everything since the last sync (+2 days overlap), at least 14, at most a year.
+// First connect (no previous sync) imports 120 days of history.
+export function sleepBackfillDays(lastSyncTs, nowTs = Date.now()) {
+  if (!lastSyncTs || !Number.isFinite(lastSyncTs) || lastSyncTs > nowTs) return 120;
+  return Math.max(14, Math.min(365, Math.ceil((nowTs - lastSyncTs) / 864e5) + 2));
+}
+
 export function sleepDebtNights(logs, needMin, nowTs = Date.now(), n = 14) {
   const out = [];
   const valid = (logs || []).filter((l) => l && !l.discarded && l.waketime && l.waketime <= nowTs && (l.nap || (!l.ignoredFromScore && (l.durationMin || 0) >= 20)));
