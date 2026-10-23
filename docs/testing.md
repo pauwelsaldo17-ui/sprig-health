@@ -64,7 +64,7 @@ UI rendering (use E2E / playwright-cli), IndexedDB I/O, HealthKit / Health Conne
 
 For a change that touches native behaviour, put the matching rows in the handoff and mark them "not verified on device" until the owner confirms them. Include only the rows the change touches.
 
-- **Apple Health** (`healthService.js`): the permission prompt appears on enable; steps, energy, weight, sleep, resting HR, HRV and workouts come through (workouts the user deletes stay deleted after the next sync); denying permission doesn't break the app.
+- **Apple Health** (`healthService.js`): the permission prompt appears on enable; steps, energy, weight, sleep, resting HR, HRV and workouts come through (workouts the user deletes stay deleted after the next sync); denying permission doesn't break the app. Sleep tab: last night and naps arrive without manual logging, the Apple Health row shows the night count and "Sync now" works, a deleted synced night stays deleted, and an alarm estimate for a night is replaced once Health has that night.
 - **Local notifications and alarms** (`notifications.js`, SleepTab and Me alarms): the permission prompt appears; a notification fires on time while the app is backgrounded and while the phone is locked; tapping it opens the right screen.
 - **Push**: a token is registered in `device_tokens` for that user, and a test push is received.
 - **Haptics**: felt on device via the `buzz` in `App.jsx`. Screen-local `buzz()` uses web vibration and does nothing on iOS.

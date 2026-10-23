@@ -2326,12 +2326,17 @@ export const restlessnessFromAwake = (awakeMin, spanMin) =>
 //  • a main sleep is skipped if the user already has a non-health main sleep for that wake date
 //  • an overlapping, unedited health log is updated in place (keeps id and user flags)
 //  • ids in `tombstones` (health logs the user deleted) are never re-added
-// Returns the merged list sorted by waketime, or null when nothing changed.
+//  • an app *estimate* (source "estimate", not edited) for the same night is superseded by real
+//    Health data: it's returned in `superseded` so the caller keeps it hidden in storage
+// Returns { logs (sorted by waketime), superseded }, or null when nothing changed.
 export function mergeHealthSleep(logs, sessions, { tombstones = [], needMin = 480, tz = "" } = {}) {
-  const dead = new Set(tombstones.map((t) => t.id));
-  const deadIv = tombstones.filter((t) => t.bedtime && t.waketime);
-  const next = [...(logs || [])];
+  const userDeleted = tombstones.filter((t) => !t.supersededBy);
+  const dead = new Set(userDeleted.map((t) => t.id));
+  const deadIv = userDeleted.filter((t) => t.bedtime && t.waketime);
+  let next = [...(logs || [])];
+  const superseded = [];
   let changed = false;
+  const isEstimate = (l) => l.source === "estimate" && !l.edited;
   const overlaps = (a, b) => {
     const ov = Math.min(a.e, b.e) - Math.max(a.s, b.s);
     return ov > 0.5 * Math.min(a.e - a.s, b.e - b.s);
@@ -2352,6 +2357,15 @@ export function mergeHealthSleep(logs, sessions, { tombstones = [], needMin = 48
       stagesFromHealth: realStages,
       score: scoreSleep({ durationMin, restlessness, bedMin: tsToMin(s.bedTs) }, needMin, usualBed),
     };
+    // real data beats the app's own guess for that night
+    if (!s.nap) {
+      const est = next.filter((l) => isEstimate(l) && !l.nap && (l.date === date || (l.bedtime && l.waketime && overlaps(iv, { s: l.bedtime, e: l.waketime }))));
+      if (est.length) {
+        est.forEach((l) => superseded.push({ ...l, discarded: true, supersededBy: id }));
+        next = next.filter((l) => !est.includes(l));
+        changed = true;
+      }
+    }
     const hit = next.findIndex((l) => l.bedtime && l.waketime && overlaps(iv, { s: l.bedtime, e: l.waketime }));
     if (hit >= 0) {
       const l = next[hit];
@@ -2370,7 +2384,7 @@ export function mergeHealthSleep(logs, sessions, { tombstones = [], needMin = 48
     });
     changed = true;
   });
-  return changed ? next.sort((a, b) => a.waketime - b.waketime) : null;
+  return changed ? { logs: next.sort((a, b) => a.waketime - b.waketime), superseded } : null;
 }
 // Fill resting HR (`rhr`, existing field) and HRV (`hrv`, ms) into sprig_health_v1 day records.
 // Values the user typed are never overwritten. Returns the merged list or null when unchanged.
@@ -2475,7 +2489,9 @@ export function recommend(logs, profile, debtMin) {
   const bedMins = recent.map((l) => tsToMin(l.bedtime));
   const recWake = circMean(wakeMins) ?? 420;
   const usualBed = circMean(bedMins) ?? (recWake - need + DAYMIN) % DAYMIN;
-  const payDown = Math.min(90, debtMin * 0.4);
+  // Rise-style pay-down: up to an extra hour a night (debt is a 14-night total, so ~15% per night);
+  // bigger jumps in bedtime shift the rhythm instead of repaying debt.
+  const payDown = Math.min(60, Math.round((debtMin * 0.15) / 5) * 5);
   const recBed = (recWake - need - payDown + DAYMIN) % DAYMIN;
   const blueCutoff = (recBed - 90 - Math.min(45, debtMin / 3) + DAYMIN) % DAYMIN;
   // caffeine cutoff: 8h before recommended bedtime; pull earlier if debt is high
@@ -3015,6 +3031,57 @@ export function energyZones(curve, { wakeMin, bedMin } = {}) {
     if (zones[k].start < zones[k - 1].end) zones[k].start = zones[k - 1].end;
   }
   return zones.filter((z) => z.end - z.start >= 15);
+}
+// Clock minute (0..1439) → the curve's axis (past 1440 on cross-midnight days).
+export const clockToCurveMin = mealAxisMin;
+
+// The last `n` wake dates (oldest → newest) for the sleep-debt chart: main sleep + naps per day,
+// `missing` when nothing was logged or synced. Same filtering as sleepDebtMin.
+export function sleepDebtNights(logs, needMin, nowTs = Date.now(), n = 14) {
+  const out = [];
+  const valid = (logs || []).filter((l) => l && !l.discarded && l.waketime && l.waketime <= nowTs && (l.nap || (!l.ignoredFromScore && (l.durationMin || 0) >= 20)));
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(nowTs - i * 864e5).toLocaleDateString("en-CA");
+    const day = valid.filter((l) => (l.date || new Date(l.waketime).toLocaleDateString("en-CA")) === d);
+    const mainMin = day.filter((l) => !l.nap).reduce((a, l) => a + (l.durationMin || 0), 0);
+    const napMin = day.filter((l) => l.nap).reduce((a, l) => a + (l.durationMin || 0), 0);
+    const fromHealth = day.some((l) => l.source === "health_sync");
+    out.push({ date: d, mainMin, napMin, totalMin: mainMin + napMin, missing: !day.length, fromHealth, shortMin: day.length ? Math.max(0, needMin - mainMin - napMin) : 0 });
+  }
+  return out;
+}
+
+// Rise-style daily habits timed to today's schedule (minutes on the curve's axis).
+// `rec` = recommend(), `zones` = energyZones(), `gym` = bestGymWindow().
+export const SLEEP_HABIT_META = {
+  light: { label: "Get bright light", tip: "10+ min outside in the first hour sets your body clock and clears grogginess." },
+  caffeine: { label: "Last caffeine", tip: "Caffeine after this keeps sleep pressure from building tonight." },
+  nap: { label: "Power nap", tip: "Under 20 min in your dip pays down debt without hurting tonight." },
+  exercise: { label: "Best time to train", tip: "Body temperature and strength peak here." },
+  meal: { label: "Last big meal", tip: "Late digestion raises heart rate and cuts deep sleep." },
+  alcohol: { label: "Last alcohol", tip: "Alcohol fragments the second half of the night." },
+  dim: { label: "Dim the lights", tip: "Bright and screen light now delays melatonin." },
+  bed: { label: "Go to bed", tip: "Your melatonin window, the easiest time to fall asleep." },
+};
+export function sleepHabits({ wakeMin, bedMin, zones = [], rec, gym, debtMin = 0 }) {
+  if (wakeMin == null || bedMin == null) return [];
+  const bed = bedMin > wakeMin ? bedMin : bedMin + DAYMIN;
+  // clock → curve axis, rounded to 5 min so times read cleanly
+  const ax = (m) => clockToCurveMin(Math.round((((m % DAYMIN) + DAYMIN) % DAYMIN) / 5) * 5 % DAYMIN, wakeMin);
+  const z = (k) => zones.find((x) => x.kind === k);
+  const out = [];
+  out.push({ key: "light", start: wakeMin, end: wakeMin + 60 });
+  if (rec?.caffeineCutoff != null) { const c = ax(rec.caffeineCutoff); if (c > wakeMin + 60 && c < bed) out.push({ key: "caffeine", start: c, end: c, at: true }); }
+  const dip = z("dip");
+  if (dip && debtMin >= 60 && dip.start < bed - 360) out.push({ key: "nap", start: dip.start, end: Math.min(dip.end, dip.start + 30) });
+  if (gym) out.push({ key: "exercise", start: gym.start, end: gym.end });
+  out.push({ key: "meal", start: bed - 180, end: bed - 180, at: true });
+  out.push({ key: "alcohol", start: bed - 240, end: bed - 240, at: true });
+  const wd = z("winddown");
+  out.push({ key: "dim", start: wd ? wd.start : bed - 120, end: bed });
+  const mel = z("melatonin");
+  out.push({ key: "bed", start: mel ? mel.start : bed - 45, end: mel ? mel.end : bed + 15 });
+  return out.filter((h) => h.start >= wakeMin).sort((a, b) => a.start - b.start);
 }
 export function bestGymWindow(curve, meals, wakeMin, bedMin) {
   const winLen = 90; let best = null;

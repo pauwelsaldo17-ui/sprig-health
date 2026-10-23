@@ -51,7 +51,7 @@ Use these as the test for new work: does it reduce effort, feed the coach better
 | Daily dashboard, check-ins, insight cards that open the coach with context | `src/screens/TodayTab.jsx` |
 | Food logging, macros, meal library, favorites, AI meal scan | `src/screens/NutritionTab.jsx` |
 | Workouts, routines, rest timer, PRs | `src/screens/TrainTab.jsx` |
-| Sleep logs, alarm, wind-down routine | `src/screens/SleepTab.jsx` |
+| Sleep (Rise-style: Today energy + debt, Sleep debt, Habits, Alarm), sleep logs, wind-down routine | `src/screens/SleepTab.jsx` |
 | Body measurements, progress photos | `src/screens/BodyTab.jsx` |
 | Health metrics, recovery, blood markers | `src/screens/HealthTab.jsx` |
 | Habits, mindfulness, focus sessions | `src/screens/MindTab.jsx` |
