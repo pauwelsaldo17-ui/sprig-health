@@ -30,9 +30,10 @@ dist-ssr
 # Vite HMR timestamp artifacts
 vite.config.js.timestamp-*.mjs
 
-# Claude Code local config (agents/ is shared via !.claude/agents/ if desired)
-.claude/
+# Claude Code: share agents/ and rules/, keep local settings, skills and memory out
+.claude/*
 !.claude/agents/
+!.claude/rules/
 
 # Stray shell artifacts
 cd
@@ -41,6 +42,7 @@ npm
 # Playwright state and session output
 .playwright/
 .playwright-cli/
+test-results/
 
 # Python patch scripts generated during development
 patch*.py
