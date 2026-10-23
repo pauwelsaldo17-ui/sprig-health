@@ -53,6 +53,11 @@ private let sleepPurple = Color(red: 0.545, green: 0.361, blue: 0.965)   // #8B5
 private let nightTop = Color(red: 0.176, green: 0.106, blue: 0.420)      // #2D1B6B
 private let nightBottom = Color(red: 0.102, green: 0.059, blue: 0.247)   // #1A0F3F
 
+/// "~7h 25m" when the night was estimated from the phone's motion + steps.
+private func nightLabel(_ n: SleepLastNight) -> String {
+    (n.estimated == true ? "~" : "") + SleepShared.durationLabel(n.asleepMin)
+}
+
 private func clock(_ ts: Double) -> String {
     let f = DateFormatter()
     f.timeStyle = .short
@@ -69,7 +74,7 @@ struct SleepWidgetView: View {
         case .accessoryInline:
             Group {
                 if let n = entry.freshNight {
-                    Text("\(Image(systemName: "bed.double.fill")) \(SleepShared.durationLabel(n.asleepMin)) last night")
+                    Text("\(Image(systemName: "bed.double.fill")) \(nightLabel(n)) last night")
                 } else {
                     Text("\(Image(systemName: "bed.double.fill")) No sleep yet")
                 }
@@ -104,7 +109,7 @@ struct SleepWidgetView: View {
         VStack(alignment: .leading, spacing: 1) {
             Text("LAST NIGHT").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
             if let n = entry.freshNight {
-                Text(SleepShared.durationLabel(n.asleepMin)).font(.system(size: 20, weight: .bold, design: .rounded))
+                Text(nightLabel(n)).font(.system(size: 20, weight: .bold, design: .rounded))
                 if let debt = entry.debtMin {
                     Text("Sleep debt \(SleepShared.durationLabel(debt))").font(.system(size: 12))
                 } else {
@@ -112,7 +117,7 @@ struct SleepWidgetView: View {
                 }
             } else {
                 Text("No sleep yet").font(.system(size: 17, weight: .bold))
-                Text("Syncs from Apple Health").font(.system(size: 12))
+                Text("From your iPhone").font(.system(size: 12))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -126,7 +131,7 @@ struct SleepWidgetView: View {
             }
             Spacer(minLength: 0)
             if let n = entry.freshNight {
-                Text(SleepShared.durationLabel(n.asleepMin))
+                Text(nightLabel(n))
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .minimumScaleFactor(0.7)
@@ -146,7 +151,7 @@ struct SleepWidgetView: View {
                 Text("No sleep yet")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Syncs from Apple Health after you wake.")
+                Text("Appears after you wake, from your iPhone.")
                     .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.7))
             }
@@ -178,7 +183,7 @@ struct SleepWidget: Widget {
             SleepWidgetView(entry: entry)
         }
         .configurationDisplayName("Last night's sleep")
-        .description("How long you slept, from Apple Health. Updates on its own.")
+        .description("How long you slept, from your iPhone. Updates on its own.")
         .supportedFamilies([.systemSmall, .accessoryRectangular, .accessoryCircular, .accessoryInline])
     }
 }

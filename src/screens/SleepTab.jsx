@@ -464,15 +464,24 @@ function HealthSyncRow({ healthStatus, onHealthSync }) {
   const [unavailable, setUnavailable] = useState(false);
   if (!onHealthSync || unavailable) return null;
   const s = healthStatus;
-  let line, tone = C.muted;
+  // Phone only — no watch needed: Apple Health's iPhone "time in bed" first, then Vitae's own
+  // estimate from the phone's motion + steps.
+  let line, tip = null, tone = C.muted;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   if (syncing) line = "Syncing…";
-  else if (!s) line = "Tap to sync sleep, naps and stages";
-  else if (s.sleepError) { line = "Couldn't read sleep. Check Health › Sharing › Apps › Vitae › Sleep."; tone = C.amber; }
-  else if (s.sleepSamples === 0) { line = "No sleep in Apple Health yet. Wear your Apple Watch to bed or turn on Sleep Schedule in the Health app."; tone = C.amber; }
-  else {
+  else if (!s) line = "Tap to pick up last night from your iPhone";
+  else if (s.sleepError) { line = "Couldn't read sleep. Check Health › Sharing › Apps › Vitae."; tone = C.amber; }
+  else if (s.motionStatus === "denied" && !(s.nights > 0)) {
+    line = "Allow Motion & Fitness for Vitae (Settings › Privacy & Security › Motion & Fitness) so your phone can track your sleep."; tone = C.amber;
+  } else {
     const t = new Date(s.ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-    line = `${s.nights} night${s.nights === 1 ? "" : "s"}${s.naps ? ` · ${s.naps} nap${s.naps === 1 ? "" : "s"}` : ""} synced · ${t}`;
+    const parts = [];
+    if (s.nights > 0) parts.push(`${plural(s.nights, "night")} from Apple Health`);
+    if (s.phoneAdded > 0) parts.push(`${plural(s.phoneAdded, "night")} estimated from your phone's movement`);
+    if (s.naps) parts.push(plural(s.naps, "nap"));
+    line = parts.length ? `${parts.join(" · ")} · ${t}` : "No nights yet. Your first one appears the morning after a night with your phone nearby.";
     if (s.kept > 0) line += ` · your own log kept for ${s.kept}`;
+    if (!(s.nights > 0)) tip = "More accurate bedtimes: in the Health app, set a Sleep Schedule and turn on Track Time in Bed with iPhone.";
   }
   async function sync() {
     if (syncing) return;
@@ -488,8 +497,9 @@ function HealthSyncRow({ healthStatus, onHealthSync }) {
         <HeartPulse size={15} color={C.coral} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>Apple Health</div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>Sleep from your iPhone</div>
         <div style={{ fontSize: 11.5, color: tone, lineHeight: 1.35, marginTop: 1 }}>{line}</div>
+        {tip && <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.35, marginTop: 4 }}>{tip}</div>}
       </div>
       <RefreshCw size={14} color={C.muted} style={{ flexShrink: 0, opacity: syncing ? 0.4 : 1 }} />
     </button>
@@ -524,7 +534,7 @@ function SleepTodayHero({ sleepInfo }) {
       </div>
       <div style={{ borderTop: "1px solid rgba(255,255,255,.12)", marginTop: 14, paddingTop: 11, fontSize: 12, opacity: .85, lineHeight: 1.45 }}>
         {lastSleep
-          ? <>Last night {durLabel(lastSleep.durationMin)} · need {durLabel(need)}{lastSleep.source === "health_sync" ? " · from Apple Health" : ""}</>
+          ? <>Last night {durLabel(lastSleep.durationMin)} · need {durLabel(need)}{lastSleep.source === "health_sync" ? " · from Apple Health" : lastSleep.source === "phone_estimate" ? " · estimated from your phone" : ""}</>
           : "No sleep yet. Sync Apple Health or log last night below."}
         {zNext && <div style={{ opacity: .8 }}>Next: {ENERGY_ZONE_META[zNext.kind].label.toLowerCase()} at {minToLabel(zNext.start)}</div>}
       </div>
@@ -611,7 +621,7 @@ function SleepDebtDetail({ sleepInfo, onGoAlarm, onAskCoach }) {
 }
 
 // ─── Recent nights: source, naps, and per-log actions ────────────────────────
-const SOURCE_LABEL = { health_sync: "Apple Health", manual: "Manual", estimate: "Estimate", session: "Tracked", auto: "Tracked" };
+const SOURCE_LABEL = { health_sync: "Apple Health", phone_estimate: "Phone", manual: "Manual", estimate: "Estimate", session: "Tracked", auto: "Tracked" };
 function RecentNights({ sleepLogs, onRemove, onToggleIgnore, onMarkNap }) {
   const [open, setOpen] = useState(null);
   const logs = [...sleepLogs].sort((a, b) => b.waketime - a.waketime).slice(0, 14);
@@ -1084,7 +1094,7 @@ function MorningSummaryCard({ enabled, onToggle }) {
         </button>
       </div>
       <div style={{ marginTop: 12, background: C.bg2, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, color: C.inkSoft, lineHeight: 1.5 }}>
-        Comes from Apple Health, even if you don't open Vitae. For the widget: long-press your Home or Lock Screen, tap +, and add <b>Vitae Sleep</b>.
+        Works from your iPhone alone, even if you don't open Vitae. For the widget: long-press your Home or Lock Screen, tap +, and add <b>Vitae Sleep</b>.
       </div>
     </div>
   );

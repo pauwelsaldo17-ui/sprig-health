@@ -38,12 +38,14 @@ enum SleepShared {
     }
 }
 
-/// Last main sleep (naps excluded), computed natively from Apple Health.
+/// Last main sleep (naps excluded): from Apple Health when it has the night (incl. iPhone
+/// "time in bed"), otherwise estimated from the phone's own motion + steps.
 struct SleepLastNight: Codable, Equatable {
     var asleepMin: Int
     var bedTs: Double   // seconds since 1970
     var wakeTs: Double
     var updatedAt: Double
+    var estimated: Bool? = nil   // true = phone motion/steps estimate
 }
 
 /// Written by the app (JS → SleepSummary plugin) whenever it recomputes sleep need and debt.
@@ -52,4 +54,5 @@ struct SleepSummary: Codable {
     var debtMin: Int?
     var debtAt: Double?        // when debt was computed (seconds since 1970)
     var notify: Bool           // morning "last night" notification on/off
+    var usualMidMin: Int? = nil  // habitual sleep midpoint (clock minutes) for the phone estimate
 }

@@ -5,10 +5,11 @@ import WidgetKit
 
 /// Keeps "last night" current even when Vitae is never opened.
 ///
-/// iOS wakes the app in the background when new sleep is written to Apple Health
-/// (HKObserverQuery + background delivery). We then total last night's sleep, store it in the
-/// App Group for the widget, and post one "Last night: 7h 25m" notification per morning.
-/// The web layer is not involved: it's suspended in the background.
+/// Phone-only, no wearable needed. iOS wakes the app in the background when new sleep (e.g. the
+/// iPhone's own "time in bed") or new steps reach Apple Health (HKObserverQuery + background
+/// delivery). We take last night from Apple Health, or estimate it from the phone's motion +
+/// steps (PhoneSleepEstimator), store it in the App Group for the widget, and post one
+/// "Last night: 7h 25m" notification per morning. The web layer is suspended in the background.
 final class SleepBackgroundSync {
     static let shared = SleepBackgroundSync()
 
@@ -26,15 +27,21 @@ final class SleepBackgroundSync {
     /// Call from application(_:didFinishLaunchingWithOptions:) so background launches re-register.
     func start() {
         guard !started, HKHealthStore.isHealthDataAvailable(),
-              let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return }
+              let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
+              let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else { return }
         started = true
-        let observer = HKObserverQuery(sampleType: type, predicate: nil) { [weak self] _, completion, error in
-            // Always call completion, or HealthKit backs off and eventually stops waking us.
-            guard let self = self, error == nil else { completion(); return }
-            self.refresh(notify: true) { completion() }
+        // Sleep: immediate (e.g. the iPhone's own "time in bed"). Steps: iOS delivers at most
+        // hourly — the first steps of the morning close the night for the phone-only estimate.
+        let watched: [(HKSampleType, HKUpdateFrequency)] = [(sleepType, .immediate), (stepType, .hourly)]
+        for (type, frequency) in watched {
+            let observer = HKObserverQuery(sampleType: type, predicate: nil) { [weak self] _, completion, error in
+                // Always call completion, or HealthKit backs off and eventually stops waking us.
+                guard let self = self, error == nil else { completion(); return }
+                self.refresh(notify: true) { completion() }
+            }
+            store.execute(observer)
+            store.enableBackgroundDelivery(for: type, frequency: frequency) { _, _ in }
         }
-        store.execute(observer)
-        store.enableBackgroundDelivery(for: type, frequency: .immediate) { _, _ in }
     }
 
     /// Re-reads the last 36 h of sleep, updates the widget and (optionally) notifies.
@@ -45,20 +52,31 @@ final class SleepBackgroundSync {
         let predicate = HKQuery.predicateForSamples(withStart: now.addingTimeInterval(-36 * 3600), end: now, options: [])
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
         let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { [weak self] _, samples, _ in
-            guard let self = self,
-                  let night = Self.lastMainSleep(samples as? [HKCategorySample] ?? [], now: now) else { completion?(); return }
-            let previous = SleepShared.loadLastNight()
-            if previous?.bedTs != night.bedTs || previous?.wakeTs != night.wakeTs || previous?.asleepMin != night.asleepMin {
-                SleepShared.saveLastNight(night)
-                WidgetCenter.shared.reloadAllTimelines()
+            guard let self = self else { completion?(); return }
+            if let night = Self.lastMainSleep(samples as? [HKCategorySample] ?? [], now: now) {
+                self.publish(night, notify: notify, now: now, completion: completion)
+                return
             }
-            if notify {
-                self.notifyIfNew(night, now: now) { completion?() }
-            } else {
-                completion?()
+            // No night in Apple Health → estimate it from the phone's own motion + steps.
+            PhoneSleepEstimator.shared.estimateLastNight(now: now, usualMidMin: SleepShared.loadSummary()?.usualMidMin) { estimate in
+                guard let night = estimate else { completion?(); return }
+                self.publish(night, notify: notify, now: now, completion: completion)
             }
         }
         store.execute(query)
+    }
+
+    private func publish(_ night: SleepLastNight, notify: Bool, now: Date, completion: (() -> Void)?) {
+        let previous = SleepShared.loadLastNight()
+        if previous?.bedTs != night.bedTs || previous?.wakeTs != night.wakeTs || previous?.asleepMin != night.asleepMin {
+            SleepShared.saveLastNight(night)
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        if notify {
+            notifyIfNew(night, now: now) { completion?() }
+        } else {
+            completion?()
+        }
     }
 
     // MARK: - Sleep totals (mirrors healthSleepSessions() in src/utils/vitaeCalc.js)
@@ -117,10 +135,14 @@ final class SleepBackgroundSync {
         let wake = time.string(from: Date(timeIntervalSince1970: night.wakeTs))
 
         let content = UNMutableNotificationContent()
-        content.title = "Last night: \(SleepShared.durationLabel(night.asleepMin))"
-        content.body = diff >= 0
-            ? "\(bed) → \(wake) · your \(SleepShared.durationLabel(need)) need is covered."
-            : "\(bed) → \(wake) · \(SleepShared.durationLabel(-diff)) short of your \(SleepShared.durationLabel(need)) need."
+        let estimated = night.estimated == true
+        let vsNeed = diff >= 0
+            ? "your \(SleepShared.durationLabel(need)) need is covered."
+            : "\(SleepShared.durationLabel(-diff)) short of your \(SleepShared.durationLabel(need)) need."
+        content.title = "Last night: \(estimated ? "~" : "")\(SleepShared.durationLabel(night.asleepMin))"
+        content.body = estimated
+            ? "Estimated from your phone · \(bed) → \(wake) · \(vsNeed)"
+            : "\(bed) → \(wake) · \(vsNeed)"
         content.sound = nil
         content.threadIdentifier = "vitae.sleep"
         let request = UNNotificationRequest(identifier: "vitae.sleep.lastNight", content: content, trigger: nil)

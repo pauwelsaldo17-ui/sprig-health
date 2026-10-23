@@ -2321,29 +2321,35 @@ export function healthSleepSessions(samples, { gapMin = 45, minMin = 15 } = {}) 
 // Restlessness (0..100) from awake minutes inside a session, on the same scale as manual logs.
 export const restlessnessFromAwake = (awakeMin, spanMin) =>
   Math.round(Math.max(5, Math.min(80, (spanMin > 0 ? awakeMin / spanMin : 0) * 250 + 10)));
-// Merge health sleep sessions into sprig_sleep_v1 logs without losing user data:
-//  • a session overlapping (> 50%) a manual/tracked log is skipped — the user's log wins
-//  • a main sleep is skipped if the user already has a non-health main sleep for that wake date
-//  • an overlapping, unedited health log is updated in place (keeps id and user flags)
-//  • ids in `tombstones` (health logs the user deleted) are never re-added
-//  • an app *estimate* (source "estimate", not edited) for the same night is superseded by real
-//    Health data: it's returned in `superseded` so the caller keeps it hidden in storage
+// Merge synced sleep (Apple Health sessions, or Vitae's phone estimate) into sprig_sleep_v1 logs
+// without losing user data. Sources rank: the user's own logs (manual / tracked / any edited log)
+// > Apple Health ("health_sync") > phone estimate ("phone_estimate") > alarm estimate ("estimate").
+//  • a session overlapping (> 50%) a log of another source is skipped unless that log ranks lower
+//  • a main sleep is skipped if a non-superseded main sleep from another source has that wake date
+//  • an overlapping, unedited log of the same source is updated in place (keeps id and user flags)
+//  • ids in `tombstones` (synced logs the user deleted) are never re-added
+//  • unedited lower-ranked estimates for the same night are superseded: returned in `superseded`
+//    so the caller keeps them hidden in storage (never deleted)
 // Returns { logs (sorted by waketime), superseded }, or null when nothing changed.
-export function mergeHealthSleep(logs, sessions, { tombstones = [], needMin = 480, tz = "" } = {}) {
+const SLEEP_SOURCE_RANK = { estimate: 1, phone_estimate: 2, health_sync: 3 };
+export function mergeHealthSleep(logs, sessions, { tombstones = [], needMin = 480, tz = "", source = "health_sync" } = {}) {
+  const prefix = source === "phone_estimate" ? "phone" : "health";
+  const myRank = SLEEP_SOURCE_RANK[source] || 3;
   const userDeleted = tombstones.filter((t) => !t.supersededBy);
   const dead = new Set(userDeleted.map((t) => t.id));
   const deadIv = userDeleted.filter((t) => t.bedtime && t.waketime);
   let next = [...(logs || [])];
   const superseded = [];
   let changed = false;
-  const isEstimate = (l) => l.source === "estimate" && !l.edited;
+  // lower-ranked estimate the incoming data may replace (user-edited logs always stay)
+  const isWeaker = (l) => !l.edited && (SLEEP_SOURCE_RANK[l.source] || 99) < myRank;
   const overlaps = (a, b) => {
     const ov = Math.min(a.e, b.e) - Math.max(a.s, b.s);
     return ov > 0.5 * Math.min(a.e - a.s, b.e - b.s);
   };
   const usualBed = circMean(next.filter((l) => !l.nap).slice(-7).map((l) => tsToMin(l.bedtime)));
   (sessions || []).forEach((s) => {
-    const id = `health_${s.bedTs}`;
+    const id = `${prefix}_${s.bedTs}`;
     const iv = { s: s.bedTs, e: s.wakeTs };
     if (dead.has(id) || deadIv.some((t) => overlaps(iv, { s: t.bedtime, e: t.waketime }))) return;
     const date = new Date(s.wakeTs).toLocaleDateString("en-CA");
@@ -2357,35 +2363,104 @@ export function mergeHealthSleep(logs, sessions, { tombstones = [], needMin = 48
       stagesFromHealth: realStages,
       score: scoreSleep({ durationMin, restlessness, bedMin: tsToMin(s.bedTs) }, needMin, usualBed),
     };
-    // real data beats the app's own guess for that night
+    // better data beats a weaker estimate for that night
     if (!s.nap) {
-      const est = next.filter((l) => isEstimate(l) && !l.nap && (l.date === date || (l.bedtime && l.waketime && overlaps(iv, { s: l.bedtime, e: l.waketime }))));
-      if (est.length) {
-        est.forEach((l) => superseded.push({ ...l, discarded: true, supersededBy: id }));
-        next = next.filter((l) => !est.includes(l));
+      const weak = next.filter((l) => isWeaker(l) && !l.nap && (l.date === date || (l.bedtime && l.waketime && overlaps(iv, { s: l.bedtime, e: l.waketime }))));
+      if (weak.length) {
+        weak.forEach((l) => superseded.push({ ...l, discarded: true, supersededBy: id }));
+        next = next.filter((l) => !weak.includes(l));
         changed = true;
       }
     }
     const hit = next.findIndex((l) => l.bedtime && l.waketime && overlaps(iv, { s: l.bedtime, e: l.waketime }));
     if (hit >= 0) {
       const l = next[hit];
-      if (l.source !== "health_sync" || l.edited) return;
+      if (l.source !== source || l.edited) return;
       if (l.bedtime === fields.bedtime && l.waketime === fields.waketime && l.durationMin === fields.durationMin) return;
       next[hit] = { ...l, ...fields }; // keeps id and the user's nap / ignore choices
       changed = true;
       return;
     }
-    if (!s.nap && next.some((l) => !l.nap && l.date === date && l.source !== "health_sync")) return;
+    if (!s.nap && next.some((l) => !l.nap && l.date === date && l.source !== source)) return;
     next.push({
       id, ...fields,
-      source: "health_sync", timezone: s.timezone || tz, confirmed: true,
-      source_record_id: `healthkit_sleep_${s.bedTs}`,
+      source, timezone: s.timezone || tz, confirmed: true,
+      source_record_id: source === "phone_estimate" ? `phone_sleep_${s.bedTs}` : `healthkit_sleep_${s.bedTs}`,
       ...(s.nap ? { nap: true, ignoredFromScore: true, short: true } : {}),
     });
     changed = true;
   });
   return changed ? { logs: next.sort((a, b) => a.waketime - b.waketime), superseded } : null;
 }
+
+// ── Phone-only sleep estimate (no wearable) ─────────────────────────────────────
+// The iPhone keeps motion history (Core Motion: walking / running / driving) and step samples
+// even while Vitae is closed. Sleep ≈ the long gap overnight with no movement, bounded by the last
+// movement before bed and the first movement after waking (Rise-style, phone only).
+// active: [{ s, e }] ms intervals where the phone was moving (any order, may overlap).
+// usualMidMin: the user's habitual sleep midpoint (clock minutes); null when unknown.
+// Mirrored in Swift (ios/App/App/PhoneSleepEstimator.swift) for the background path; keep in sync.
+export const PHONE_SLEEP = { minSleepMin: 180, maxSleepMin: 840, latencyMin: 15, blipMin: 8, nightReachMin: 240, blipReachMin: 180 };
+export function phoneSleepNights(active, { usualMidMin = null, nowTs = Date.now() } = {}) {
+  const P = PHONE_SLEEP;
+  let mid = usualMidMin;
+  const sorted = (active || [])
+    .filter((x) => x && Number.isFinite(x.s) && Number.isFinite(x.e) && x.e > x.s && x.s <= nowTs)
+    .map((x) => ({ s: x.s, e: Math.min(x.e, nowTs) }))
+    .sort((a, b) => a.s - b.s);
+  const merged = [];
+  sorted.forEach((x) => {
+    const last = merged[merged.length - 1];
+    if (last && x.s - last.e < 2 * 60000) last.e = Math.max(last.e, x.e);
+    else merged.push({ ...x });
+  });
+  const midOf = (x) => tsToMin((x.s + x.e) / 2);
+  // No sleep history yet: the longest still stretch in the data stands in for the habitual midpoint.
+  if (mid == null) {
+    let best = null;
+    for (let i = 1; i < merged.length; i++) {
+      const g = { s: merged[i - 1].e, e: merged[i].s };
+      if (g.e - g.s <= P.maxSleepMin * 60000 && (!best || g.e - g.s > best.e - best.s)) best = g;
+    }
+    if (best && best.e - best.s >= P.minSleepMin * 60000) mid = midOf(best);
+  }
+  // A short walk in the middle of the night (bathroom, water) shouldn't split the night.
+  const kept = merged.filter((x) => {
+    const short = x.e - x.s < P.blipMin * 60000;
+    return !(short && mid != null && circDiff(midOf(x), mid) <= P.blipReachMin);
+  });
+  const byDate = {};
+  for (let i = 1; i < kept.length; i++) {
+    const g = { s: kept[i - 1].e, e: kept[i].s }; // still, bounded by movement on both sides
+    const len = (g.e - g.s) / 60000;
+    if (len < P.minSleepMin || len > P.maxSleepMin) continue;
+    if (mid != null && circDiff(midOf(g), mid) > P.nightReachMin) continue;
+    const date = new Date(g.e).toLocaleDateString("en-CA");
+    if (!byDate[date] || len > (byDate[date].e - byDate[date].s) / 60000) byDate[date] = g;
+  }
+  return Object.values(byDate)
+    .sort((a, b) => a.s - b.s)
+    .map((g) => {
+      const span = Math.round((g.e - g.s) / 60000);
+      return { bedTs: g.s, wakeTs: g.e, asleepMin: Math.max(0, span - P.latencyMin), awakeMin: 0, stages: null, nap: false, estimated: true };
+    });
+}
+// Habitual sleep midpoint (clock minutes) from main sleeps, for phoneSleepNights; null if none.
+export function usualSleepMidMin(logs, nowTs = Date.now()) {
+  const a = circadianAnchor(logs, nowTs);
+  if (!a) return null;
+  const span = (a.wakeMin - a.bedMin + DAYMIN) % DAYMIN;
+  return Math.round(a.bedMin + span / 2) % DAYMIN;
+}
+// Step samples ({ startDate, endDate, value }) → movement intervals (≥ 8 steps counts as moving).
+export function stepActiveIntervals(samples, minSteps = 8) {
+  return (samples || [])
+    .filter((x) => (x?.value || 0) >= minSteps)
+    .map((x) => ({ s: Date.parse(x.startDate), e: Date.parse(x.endDate) }))
+    .filter((x) => Number.isFinite(x.s) && Number.isFinite(x.e))
+    .map((x) => (x.e > x.s ? x : { s: x.s, e: x.s + 60000 }));
+}
+
 // Fill resting HR (`rhr`, existing field) and HRV (`hrv`, ms) into sprig_health_v1 day records.
 // Values the user typed are never overwritten. Returns the merged list or null when unchanged.
 export function mergeHealthMetrics(series, { restingHr = {}, hrv = {} } = {}) {
