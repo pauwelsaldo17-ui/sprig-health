@@ -110,6 +110,7 @@ Before committing: validation hook clean + `npm run build` passes (+ `npm test` 
 | `docs/testing.md` | Writing/running tests, browser verification, native (TestFlight) checklist |
 | `docs/deployment.md` | Env vars, Vercel, Codemagic, native sync |
 | `docs/decisions.md` | Before changing a foundation; log new foundational decisions there |
+| `docs/automation-roadmap.md` | Planning tracking, automation, AI or background features; what to build next (phone-only) |
 | `docs/claude-workflow.md` | Choosing agents/skills and which review to run |
 
 `.claude/rules/ui.md` and `.claude/rules/data-safety.md` load automatically when matching files are opened. Reviewers: `sprig-qa-reviewer` (storage/dates/sync/secrets), `sprig-ui-reviewer` (UI standards). When a change makes a doc wrong, update the doc in the same change.
