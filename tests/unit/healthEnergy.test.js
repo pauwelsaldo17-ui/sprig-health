@@ -17,6 +17,9 @@ import {
   DAYMIN,
   sleepDebtNights,
   sleepHabits,
+  phoneSleepNights,
+  usualSleepMidMin,
+  stepActiveIntervals,
   sleepBackfillDays,
   recommend,
 } from '../../src/utils/vitaeCalc.js';
@@ -342,6 +345,92 @@ describe('sleepHabits', () => {
     const h = sleepHabits({ wakeMin: 900, bedMin: 420, zones: [], rec: { caffeineCutoff: 1380 }, gym: null, debtMin: 0 });
     expect(h.find((x) => x.key === 'bed').start).toBe(420 + DAYMIN - 45);
     expect(h.find((x) => x.key === 'caffeine').start).toBe(1380);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('phoneSleepNights — sleep from iPhone motion + steps only (no wearable)', () => {
+  const iv = (a, b) => ({ s: at(a), e: at(b) });
+  const NOW = at('2026-10-24T12:00:00');
+  // a normal day: moving in the evening, phone still overnight, moving again in the morning
+  const day = [
+    iv('2026-10-23T18:00:00', '2026-10-23T18:40:00'),
+    iv('2026-10-23T22:50:00', '2026-10-23T23:05:00'),  // last walk before bed
+    iv('2026-10-24T07:10:00', '2026-10-24T07:20:00'),  // first steps in the morning
+    iv('2026-10-24T08:30:00', '2026-10-24T09:00:00'),
+  ];
+
+  test('finds the overnight gap between last and first movement', () => {
+    const n = phoneSleepNights(day, { usualMidMin: 3 * 60, nowTs: NOW });
+    expect(n).toHaveLength(1);
+    expect(n[0]).toMatchObject({ bedTs: at('2026-10-23T23:05:00'), wakeTs: at('2026-10-24T07:10:00'), estimated: true, nap: false });
+    expect(n[0].asleepMin).toBe(8 * 60 + 5 - 15); // minus sleep-onset latency
+  });
+
+  test('a short bathroom walk at night does not split the night', () => {
+    const n = phoneSleepNights([...day, iv('2026-10-24T03:00:00', '2026-10-24T03:04:00')], { usualMidMin: 3 * 60, nowTs: NOW });
+    expect(n).toHaveLength(1);
+    expect(n[0].bedTs).toBe(at('2026-10-23T23:05:00'));
+  });
+
+  test('a long still afternoon is not a night when the usual midpoint is known', () => {
+    const n = phoneSleepNights([iv('2026-10-24T12:00:00', '2026-10-24T12:10:00'), iv('2026-10-24T16:30:00', '2026-10-24T16:40:00')], { usualMidMin: 3 * 60, nowTs: at('2026-10-24T20:00:00') });
+    expect(n).toHaveLength(0);
+  });
+
+  test('night-shift sleeper: daytime sleep is found around their own midpoint', () => {
+    const n = phoneSleepNights([iv('2026-10-24T07:30:00', '2026-10-24T07:45:00'), iv('2026-10-24T15:10:00', '2026-10-24T15:30:00')], { usualMidMin: 11 * 60, nowTs: at('2026-10-24T18:00:00') });
+    expect(n).toHaveLength(1);
+    expect(n[0].wakeTs).toBe(at('2026-10-24T15:10:00'));
+  });
+
+  test('no anchor yet: the longest still stretch per wake date is used', () => {
+    const n = phoneSleepNights(day, { usualMidMin: null, nowTs: NOW });
+    expect(n).toHaveLength(1);
+    expect(n[0].wakeTs).toBe(at('2026-10-24T07:10:00'));
+  });
+
+  test('still period that is still going (no movement yet) is not counted', () => {
+    expect(phoneSleepNights(day.slice(0, 2), { usualMidMin: 3 * 60, nowTs: at('2026-10-24T06:00:00') })).toHaveLength(0);
+  });
+
+  test('usualSleepMidMin and stepActiveIntervals', () => {
+    expect(usualSleepMidMin(sleepHistory({ bedH: 23, wakeH: 7 }), at('2026-10-21T12:00:00'))).toBe(3 * 60);
+    expect(usualSleepMidMin([], Date.now())).toBeNull();
+    const a = stepActiveIntervals([{ startDate: iso('2026-10-24T07:10:00'), endDate: iso('2026-10-24T07:12:00'), value: 40 }, { startDate: iso('2026-10-24T03:00:00'), endDate: iso('2026-10-24T03:01:00'), value: 2 }]);
+    expect(a).toEqual([{ s: at('2026-10-24T07:10:00'), e: at('2026-10-24T07:12:00') }]);
+  });
+});
+
+describe('mergeHealthSleep — source ranks (manual > Apple Health > phone estimate > alarm estimate)', () => {
+  const night = (bed, wake) => ({ bedTs: at(bed), wakeTs: at(wake), asleepMin: (at(wake) - at(bed)) / 60000 - 15, awakeMin: 0, stages: null, nap: false });
+
+  test('a phone estimate is added with its own source and id', () => {
+    const r = mergeHealthSleep([], [night('2026-10-23T23:05:00', '2026-10-24T07:10:00')], { source: 'phone_estimate' });
+    expect(r.logs[0]).toMatchObject({ id: `phone_${at('2026-10-23T23:05:00')}`, source: 'phone_estimate', date: '2026-10-24' });
+  });
+
+  test('a phone estimate never replaces Apple Health or a manual night', () => {
+    const health = { id: 'h', bedtime: at('2026-10-23T23:00:00'), waketime: at('2026-10-24T07:00:00'), durationMin: 470, date: '2026-10-24', source: 'health_sync' };
+    const manual = { ...health, id: 'm', source: 'manual' };
+    expect(mergeHealthSleep([health], [night('2026-10-23T23:05:00', '2026-10-24T07:10:00')], { source: 'phone_estimate' })).toBeNull();
+    expect(mergeHealthSleep([manual], [night('2026-10-23T23:05:00', '2026-10-24T07:10:00')], { source: 'phone_estimate' })).toBeNull();
+  });
+
+  test('Apple Health in-bed data supersedes a phone estimate (kept hidden)', () => {
+    const phone = { id: 'p', bedtime: at('2026-10-23T23:05:00'), waketime: at('2026-10-24T07:10:00'), durationMin: 470, date: '2026-10-24', source: 'phone_estimate' };
+    const r = mergeHealthSleep([phone], [night('2026-10-23T23:20:00', '2026-10-24T07:05:00')]);
+    expect(r.logs).toHaveLength(1);
+    expect(r.logs[0].source).toBe('health_sync');
+    expect(r.superseded[0]).toMatchObject({ id: 'p', discarded: true });
+  });
+
+  test('a phone estimate replaces an alarm estimate but not an edited phone estimate', () => {
+    const alarm = { id: 'e', bedtime: at('2026-10-23T23:00:00'), waketime: at('2026-10-24T07:00:00'), durationMin: 480, date: '2026-10-24', source: 'estimate' };
+    const r = mergeHealthSleep([alarm], [night('2026-10-23T23:05:00', '2026-10-24T07:10:00')], { source: 'phone_estimate' });
+    expect(r.logs[0].source).toBe('phone_estimate');
+    const edited = { ...alarm, id: 'p', source: 'phone_estimate', edited: true };
+    expect(mergeHealthSleep([edited], [night('2026-10-23T23:05:00', '2026-10-24T07:10:00')], { source: 'phone_estimate' })).toBeNull();
   });
 });
 

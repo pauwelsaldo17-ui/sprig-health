@@ -36,6 +36,15 @@ Names only. Never write values into the repo or docs.
 - **No automatic trigger is configured.** The owner starts builds manually at codemagic.io. Claude cannot trigger them.
 - The TestFlight build is the reference product. To find a build's source, open its Codemagic build page, which shows the branch and commit. The local `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` don't identify a build (`$BUILD_NUMBER` is set at build time).
 
+### Native targets, identifiers and signing
+
+| Target | Bundle ID | Capabilities |
+|--------|-----------|--------------|
+| `App` | `com.pauwelsaldo.vitae` | HealthKit (+ Background Delivery), App Groups `group.com.pauwelsaldo.vitae`, Push |
+| `SleepWidgetExtension` (iOS 16+) | `com.pauwelsaldo.vitae.SleepWidget` | App Groups `group.com.pauwelsaldo.vitae` |
+
+Codemagic fetches an App Store profile for **both** bundle IDs (`WIDGET_BUNDLE_ID` in `codemagic.yaml`); `xcode-project use-profiles` assigns them by bundle ID. Changing an App ID's capabilities invalidates its existing profile: delete it in the Apple Developer portal so the next build's `--create` makes a fresh one. When bumping `MARKETING_VERSION`, bump it on both targets (App Store requires the widget to match the app).
+
 ## Local native
 
 ```bash

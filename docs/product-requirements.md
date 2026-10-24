@@ -11,6 +11,7 @@ Sprig is marketed as **Vitae** (bundle ID `com.pauwelsaldo.vitae`): a personal h
 - **About 20 minutes a day, everything tracked.** Automate as much as possible from data the phone already collects (HealthKit / Health Connect). Every manual step should be as short as possible.
 - **Missed days don't break the rhythm.** People will forget or be too busy to log. Quick Log gives a rough picture of the day, and nothing in the app should punish or derail on gaps.
 - **Fits anyone's rhythm.** The app adapts to each user's own schedule, especially sleep. No fixed day or routine is assumed.
+- **Phone only, no wearables (owner, 2026-10-24).** Vitae is for people who only have their iPhone: no Apple Watch, ring or other tracker. Every feature must work from phone data alone. Sleep comes from Apple Health's iPhone "time in bed" when it exists, otherwise from Vitae's own estimate from the phone's motion and steps. Watch-only data (sleep stages, HRV, resting HR, Watch workouts) is a bonus when present, never a requirement, and the app never tells users to get or wear one.
 
 Use these as the test for new work: does it reduce effort, feed the coach better context, survive missed days, or adapt to the user's schedule?
 

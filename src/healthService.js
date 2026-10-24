@@ -4,7 +4,8 @@
 // Never log raw health values or tokens — only error messages.
 
 import { Health } from "@capgo/capacitor-health";
-import { healthSleepSessions } from "./utils/vitaeCalc.js";
+import { healthSleepSessions, stepActiveIntervals } from "./utils/vitaeCalc.js";
+import { getMotionActive } from "./sleepSummary.js";
 
 const READ_TYPES = [
   "steps", "calories", "basalCalories", "weight", "sleep",
@@ -134,15 +135,22 @@ export async function requestHealthPermissions() {
 // steps / activeKcal / basalKcal / restingHr / hrv: { "YYYY-MM-DD": number } (calendar days)
 // weights: [{ date, kg }] · sleep: [{ bedTs, wakeTs, asleepMin, awakeMin, stages, nap, timezone }]
 // workouts: raw plugin workouts (mapped to sport sessions in App.jsx)
-// meta: { sleepSamples, sleepError } — counts only, for the Sleep tab's sync status
+// stepActive / motionActive: [{ s, e }] ms intervals when the phone moved (for the phone estimate)
+// meta: { sleepSamples, sleepError, motionStatus } — counts/status only, for the Sleep tab
 // sleepDays: how far back to read sleep (see sleepBackfillDays) so nights are never missed.
 export async function syncHealthData({ sleepDays = 14 } = {}) {
-  const result = { steps: null, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [], meta: {} };
+  const result = { steps: null, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [], stepActive: [], motionActive: [], meta: {} };
   if (!(await isHealthAvailable())) return result;
   try {
     const sl = await readSleep(sleepDays);
     result.sleep = sl.sessions;
     result.meta = { sleepSamples: sl.samples, sleepError: sl.error };
+    // Phone-only sleep (no wearable): when the phone moved — step samples + Core Motion history.
+    // Times only; App.jsx turns the still gaps into nights (phoneSleepNights).
+    result.stepActive = stepActiveIntervals(await readSamples("steps", Math.max(14, sleepDays), Math.max(20000, sleepDays * 400)));
+    const motion = await getMotionActive(7);
+    result.motionActive = motion.active;
+    result.meta.motionStatus = motion.status;
     result.steps = await readDaily("steps", 7, "sum");
     result.activeKcal = await readDaily("calories", 7, "sum");
     result.basalKcal = await readDaily("basalCalories", 7, "sum");

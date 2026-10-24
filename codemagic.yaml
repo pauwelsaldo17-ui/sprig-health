@@ -8,6 +8,7 @@ workflows:
       node: 22
       vars:
         BUNDLE_ID: com.pauwelsaldo.vitae
+        WIDGET_BUNDLE_ID: com.pauwelsaldo.vitae.SleepWidget
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
     scripts:
@@ -36,13 +37,16 @@ workflows:
         script: |
           printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > /tmp/asc_key.p8
           printf '%s\n' "$CERTIFICATE_PRIVATE_KEY" > /tmp/cert_key.pem
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --private-key @file:/tmp/asc_key.p8 \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --certificate-key @file:/tmp/cert_key.pem \
-            --create
+          # The app and its sleep widget extension each need an App Store profile.
+          for id in "$BUNDLE_ID" "$WIDGET_BUNDLE_ID"; do
+            app-store-connect fetch-signing-files "$id" \
+              --type IOS_APP_STORE \
+              --private-key @file:/tmp/asc_key.p8 \
+              --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+              --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+              --certificate-key @file:/tmp/cert_key.pem \
+              --create
+          done
 
       - name: Add certificates to keychain
         script: keychain add-certificates

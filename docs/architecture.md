@@ -82,6 +82,22 @@ Some small flags bypass `store` and use localStorage directly (theme, nudges, co
 
 The Sleep tab (`SleepTab.jsx`) is Rise-style with four sub-tabs: **Today** (sleep debt + energy now, the energy timetable, readiness), **Sleep debt** (`sleepDebtNights` 14-night chart, tonight's target from `recommend`, last night, recent nights with nap/ignore/delete), **Habits** (`sleepHabits`: light, caffeine, nap, training, meal, alcohol, dim lights, bed — timed to today's wake and bedtime) and **Alarm** (alarm, wind-down, morning routine, sounds).
 
+### Phone-only sleep (no wearable)
+
+Sleep sources, best first (`mergeHealthSleep` ranks them; the user's own or edited logs always win):
+1. Apple Health sleep (`health_sync`): on a phone-only setup this is the iPhone's "time in bed" (Sleep Schedule + Track Time in Bed with iPhone).
+2. Vitae's phone estimate (`phone_estimate`): `phoneSleepNights` in `vitaeCalc.js` finds the long still gap overnight between the phone's movement, from step samples (`stepActiveIntervals`) and Core Motion history (`getMotionActive` → `SleepSummary.motionActive`, about 7 days kept by iOS). It is anchored on the user's usual sleep midpoint (`usualSleepMidMin`; first nights use the longest still stretch), ignores short walks at night, and subtracts 15 min sleep-onset latency. Naps can't be told apart from sitting still, so they stay manual.
+3. The alarm estimate (`estimate`).
+Needs the **Motion & Fitness** permission (`NSMotionUsageDescription`), asked together with Health. The Swift port for the background path is `ios/App/App/PhoneSleepEstimator.swift`; keep it in sync with `phoneSleepNights`.
+
+### Native sleep summary (iOS): widget + morning notification
+
+The web layer is suspended in the background, so this part is Swift in the app target:
+
+- `ios/App/App/SleepBackgroundSync.swift`: started from `AppDelegate` on every launch. `HKObserverQuery`s with background delivery on sleep analysis (immediate) and step count (hourly: the first steps of the morning) make iOS wake the app. It takes last night from Apple Health or, if there is none, from `PhoneSleepEstimator` (marked estimated, shown with "~"). It totals Health nights natively (same rules as `healthSleepSessions`: union of sources, 45-min gap, ≥ 3 h = main sleep), stores it in the App Group, reloads widget timelines, and posts one "Last night: 7h 25m" notification per wake-up (only within 6 h of waking; off when `profile.sleepSummaryNotify === false`).
+- `ios/App/App/SleepSummaryPlugin.swift` (JS name `SleepSummary`, registered in `MainViewController.swift`, the storyboard's bridge VC): `src/sleepSummary.js` → `pushSleepSummary({ needMin, debtMin, notify, usualMidMin })`, plus `requestMotionPermission` / `getMotionActive`, called from `App.jsx` when need/debt change. No-op off iOS.
+- `ios/App/SleepWidget/`: WidgetKit extension (`systemSmall`, Lock Screen rectangular/circular/inline). Reads only the App Group (`ios/App/Shared/SleepShared.swift`, compiled into both targets), never HealthKit, so it works while the phone is locked.
+
 ## The "Sprig day" (date boundary)
 
 `getSprigDate(now, latestSleepLog, mode)` in `App.jsx` decides which calendar day "today" is:

@@ -47,6 +47,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSMotionUsageDescription</key>
+	<string>Vitae uses your iPhone's motion and step history to estimate when you fell asleep and woke up, so your sleep is tracked without a watch or any logging.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Vitae reads your steps, active energy, workouts, weight, sleep, resting heart rate and HRV so your day, sleep and energy schedule fill in without manual entry.</string>
 	<key>NSHealthUpdateUsageDescription</key>

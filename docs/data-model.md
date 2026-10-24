@@ -60,6 +60,8 @@ Read this when: adding, renaming or reshaping any stored value, writing a migrat
 
 `vitae_idb_v1` (IDB migration done) · `sprig_theme_v1` · `sprig_health_connected` · `sprig_health_sync_ts` · `sprig_health_status_v1` (last Health sync summary, counts only; `sleepOkTs` = last successful sleep read, sizes the backfill) · `sprig_last_synced_at` · `sprig_device_id` · `sprig_cloud_rev_<userId>` (cloud revision this device last pushed or restored) · `sprig_first_login_prompted_<userId>` · `sprig_account_nudge_v1` · `sprig_account_nudge_snooze` · `sprig_coach_queries_YYYY-MM` · `sprig_ai_scans_YYYY-MM` (free-tier counters) · `sprig_seen_achievements_v1` · `sprig_rir_preference_v1` · `sprig_routine_v1`, `sprig_winddown_v1` (SleepTab wind-down) · `sprig.supabase.auth` (Supabase session).
 
+**iOS App Group** `group.com.pauwelsaldo.vitae` (native `UserDefaults`, not in `store` or cloud backup): `sleep.lastNight` (asleep minutes + bed/wake, natively from Apple Health or the phone motion/steps estimate; `estimated` flag), `sleep.summary` (need, debt, notify flag and usual sleep midpoint pushed from JS), `sleep.notifiedWakeTs`. Derived data only; the source of truth stays in `sprig_sleep_v1`. Profile flag `sleepSummaryNotify` (default on) controls the morning notification.
+
 ## Shapes worth knowing
 
 **Sleep log** (`sprig_sleep_v1` item):
@@ -67,7 +69,7 @@ Read this when: adding, renaming or reshaping any stored value, writing a migrat
 { id, date /* wake date, YYYY-MM-DD */, bedtime /* Unix ms */, waketime /* Unix ms */,
   durationMin, score, restlessness, stages, source /* e.g. 'manual' */, timezone, ... }
 ```
-Optional flags: `nap`, `ignoredFromScore`, `short`, `edited` (user changed times; Health sync won't overwrite), `stagesFromHealth`, `source_record_id`. Sources: `health_sync`, `manual`, `estimate` (from the alarm), `session`/`auto` (in-app tracker). Hidden-but-kept items stay in the same array with `discarded: true` and are filtered out at load: health logs the user deleted and estimates replaced by Health data (`supersededBy: <health log id>`, never pruned). Deletion tombstones are pruned 400 days after wake, longer than the longest Health read window. The list has no length cap (it used to keep 30 entries on manual saves).
+Optional flags: `nap`, `ignoredFromScore`, `short`, `edited` (user changed times; Health sync won't overwrite), `stagesFromHealth`, `source_record_id`. Sources: `health_sync`, `phone_estimate` (Vitae's motion + steps estimate, id `phone_<bedTs>`), `manual`, `estimate` (from the alarm), `session`/`auto` (in-app tracker). Rank when merging: own/edited logs > `health_sync` > `phone_estimate` > `estimate`; a higher-ranked night supersedes an unedited lower one (kept hidden with `supersededBy`). Hidden-but-kept items stay in the same array with `discarded: true` and are filtered out at load: health logs the user deleted and estimates replaced by better data (`supersededBy: <log id>`, never pruned). Deletion tombstones are pruned 400 days after wake, longer than the longest Health read window. The list has no length cap (it used to keep 30 entries on manual saves).
 Dates are always `new Date(x).toLocaleDateString("en-CA")` → `YYYY-MM-DD`.
 
 ## Supabase
