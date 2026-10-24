@@ -71,8 +71,8 @@ Before committing: validation hook clean + `npm run build` passes (+ `npm test` 
 - **State:** all top-level state lives in `SprigApp` (`App.jsx`); screens receive data and callbacks via props.
 - **Persist pattern:** `const persistFoo = async (next) => { setFoo(next); await store.set("sprig_foo_v1", JSON.stringify(next)); };` Read with `safeParse(raw, fallback, asArray|asObject)`.
 - **Storage:** `store` (get/set/remove/list) wraps IndexedDB `vitae-db`/`kv`; all user data goes through it. Keys: `sprig_<name>_v1`, per-day `sprig_<name>_YYYY-MM-DD`. Migrations bump `DATA_VERSION` and are gated on `sprig_data_version_v1`.
-- **Cloud:** optional. `getSupabase()` may return `null` — handle it everywhere. When configured, `AuthGate` requires sign-in. Sync is manual: `syncToCloud`/`restoreFromCloud` move all `sprig_*` keys as one blob in `sprig_user_data`; restore needs user confirmation. Push tokens → `device_tokens`.
-- **AI:** client calls `analyze()`/`analyzeText()` (vitaeCalc) → `/api/analyze`. Free tier: 5 coach questions + 10 scans per month, then `PaywallSheet` (RevenueCat premium lifts it).
+- **Cloud:** optional. `getSupabase()` may return `null` — handle it everywhere. When configured, `AuthGate` requires sign-in. Sync is automatic but **versioned**: `syncToCloud` pushes all `sprig_*` keys (except progress photos) as one blob in `sprig_user_data` only when the cloud `rev` matches what this device last saw (`src/cloudSync.js`); otherwise it pauses and the user chooses. Restore needs user confirmation. Push tokens → `device_tokens`.
+- **AI:** client calls `analyze()`/`analyzeCoach()` (vitaeCalc) → `src/apiClient.js` → `/api/analyze` (signed-in only; native builds use `https://sprig-health.vercel.app`). Free tier: 5 coach questions + 10 scans per month, enforced server-side, then `PaywallSheet` (RevenueCat premium lifts it).
 - **Computation:** belongs in `vitaeCalc.js`; import it, don't duplicate math in screens. Circular time math: `tsToMin`, `circMean`, `circDiff`, `inWindow`.
 - **Dates:** always `toLocaleDateString("en-CA")` → `YYYY-MM-DD`.
 

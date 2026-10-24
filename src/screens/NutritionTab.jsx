@@ -8,6 +8,7 @@ import {
 import { C } from "../theme.js";
 import { pct, MICRO_KEYS, uid, DRINK_PRESETS, minToLabel, tsToMin, todayStr, dayTotals } from "../utils/vitaeCalc.js";
 import { btn, SubTabs, EmptyState, useKeyboardInset, Portal, scrollIntoViewOnFocus, MacroBar } from "../components/ui.jsx";
+import { postAnalyze } from "../apiClient.js";
 
 // ── Haptics ──────────────────────────────────────────────────────────────────
 const HAPTIC = { tap: 14, light: 10, select: 8, success: [30, 50, 30], error: [100, 50, 100] };
@@ -468,13 +469,8 @@ function FoodSearchSheet({ open, onClose, onAdd, entriesHistory, activeMeal, ini
     setAiLoading(true);
     setAiItems([]);
     try {
-      const r = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "nutrition", description: aiText.trim() }),
-      });
-      if (!r.ok) throw new Error("API error " + r.status);
-      const d = await r.json();
+      // signed-in call to the Vercel API (works inside the native app too)
+      const d = await postAnalyze({ mode: "nutrition", description: aiText.trim() });
       if (d.items && Array.isArray(d.items)) setAiItems(d.items);
       else throw new Error("No items returned");
     } catch (_) {
@@ -1589,8 +1585,7 @@ function MealsTab({ library = [], onLog, onRemove, onNew, entries = [], onAddEnt
     if (!aiText.trim()) return;
     setAiLoading(true);
     try {
-      const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "nutrition", description: aiText.trim() }) });
-      const d = await r.json();
+      const d = await postAnalyze({ mode: "nutrition", description: aiText.trim() });
       if (d.items?.length) {
         setAiItems(d.items.map((i) => ({ name: i.name, amount: i.amount || "1 serving", calories: Math.round(i.calories || 0), protein_g: +(i.protein || 0).toFixed(1), carbs_g: +(i.carbs || 0).toFixed(1), fat_g: +(i.fat || 0).toFixed(1), fiber_g: +(i.fiber || 0).toFixed(1) })));
         setAiName(aiText.split(/[:\n]/)[0].trim().slice(0, 40));

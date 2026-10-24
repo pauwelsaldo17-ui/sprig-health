@@ -70,5 +70,7 @@ For a change that touches native behaviour, put the matching rows in the handoff
 - **Haptics**: felt on device via the `buzz` in `App.jsx`. Screen-local `buzz()` uses web vibration and does nothing on iOS.
 - **Camera** (food scan): the permission prompt appears, a photo is captured, and the scan returns a result.
 - **OAuth** (`@capacitor/browser`): sign-in returns to the app through `com.pauwelsaldo.vitae://`.
+- **AI from the app** (`src/apiClient.js`): a food photo scan and a coach question get real AI answers (not the offline coach) on TestFlight; after the monthly limit the paywall opens.
+- **Cloud sync** (`src/cloudSync.js`): sign in on a second device → "Sync paused" instead of overwriting; "Use cloud data" and "Keep this phone" both work; progress photos stay on each device.
 - **Layout**: safe areas, keyboard inset on sheets, and Portal overlays, checked on a notched iPhone.
 - **Android / Health Connect**: on an Android device, only when it's touched.
