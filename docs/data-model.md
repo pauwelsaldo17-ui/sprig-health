@@ -40,6 +40,8 @@ Read this when: adding, renaming or reshaping any stored value, writing a migrat
 | `sprig_routines_v1` | Saved workout routines |
 | `sprig_sport_sessions_v1` | Sport / cardio sessions |
 | `sprig_weightseries_v1` | Weight series |
+| `sprig_activity_days_v1` | `[{ date, steps, distanceM?, activeKcal? }]` per day, last 120 days — Apple Health sync + today's steps; backfilled once from `sprig_daily_*`. Feeds the energy-budget averages |
+| `sprig_energy_cal_v1` | Maintenance calibration from intake + weight trend: `{ offset, date, status, observed, target, days, weighIns, kgPerWeek }` |
 | `sprig_measure_v1` | Body measurements |
 | `sprig_photos_v1` | Photo metadata (Body) |
 | `sprig_progress_photos_v1` | Progress photos |

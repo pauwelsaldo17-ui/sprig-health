@@ -1176,6 +1176,9 @@ function NutritionTab({
   const adjTarget  = moveInfo?.calAdjust?.adjustedTargetCalories || targets.calories;
 
   const isViewingToday = isToday(viewDateStr);
+  // Today's budget macros: carbs/fat follow the day's calories, protein stays (docs/energy-budget.md)
+  const dayTargets = isViewingToday && moveInfo?.calAdjust?.carbs != null
+    ? { ...targets, calories: adjTarget, carbs: moveInfo.calAdjust.carbs, fat: moveInfo.calAdjust.fat } : targets;
   const viewEntries = isViewingToday
     ? (entries || [])
     : (entriesHistory || []).filter((e) => e.date === viewDateStr);
@@ -1240,10 +1243,10 @@ function NutritionTab({
           )}
 
           {/* SECTION A: Banner */}
-          <NutritionBanner t={viewT} targets={targets} adjTarget={adjTarget} />
+          <NutritionBanner t={viewT} targets={dayTargets} adjTarget={adjTarget} />
 
           {/* Calorie adjustment note — explains WHY the target number changed */}
-          {isViewingToday && moveInfo?.calAdjust?.text && Math.abs(moveInfo.calAdjust.delta || 0) >= 150 && (
+          {isViewingToday && moveInfo?.calAdjust?.text && Math.abs(moveInfo.calAdjust.delta || 0) >= 50 && (
             <div style={{ display: "flex", gap: 8, alignItems: "flex-start", background: C.bg2, borderRadius: 12, padding: "9px 12px", marginTop: 8 }}>
               <span style={{ fontSize: 12, flexShrink: 0, lineHeight: 1.4 }}>🏃</span>
               <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45 }}>{moveInfo.calAdjust.text}</span>
@@ -1251,7 +1254,7 @@ function NutritionTab({
           )}
 
           {/* SECTION B: Macro bars */}
-          <MacroProgressBars t={viewT} targets={targets} />
+          <MacroProgressBars t={viewT} targets={dayTargets} />
 
           {/* SECTION B2: Food Quality Score — uses vitaeCalc dietQ when available */}
           <FoodQualityScore entries={viewEntries} targets={targets} dietQ={isViewingToday ? nutriInfo?.dietQ : undefined} onFoodSearch={(q) => { setFoodSearchQuery(q); setSheetOpen(true); buzz("tap"); }} onAskCoach={onAskCoach} />

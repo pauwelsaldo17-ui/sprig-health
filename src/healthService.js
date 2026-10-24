@@ -9,7 +9,7 @@ import { getMotionActive } from "./sleepSummary.js";
 
 const READ_TYPES = [
   "steps", "calories", "basalCalories", "weight", "sleep",
-  "restingHeartRate", "heartRateVariability", "workouts",
+  "restingHeartRate", "heartRateVariability", "workouts", "distance",
 ];
 
 async function isNative() {
@@ -132,14 +132,14 @@ export async function requestHealthPermissions() {
   } catch (e) { console.warn("[health] permission error:", e?.message); return false; }
 }
 
-// steps / activeKcal / basalKcal / restingHr / hrv: { "YYYY-MM-DD": number } (calendar days)
+// steps / distance (m) / activeKcal / basalKcal / restingHr / hrv: { "YYYY-MM-DD": number } (calendar days)
 // weights: [{ date, kg }] · sleep: [{ bedTs, wakeTs, asleepMin, awakeMin, stages, nap, timezone }]
 // workouts: raw plugin workouts (mapped to sport sessions in App.jsx)
 // stepActive / motionActive: [{ s, e }] ms intervals when the phone moved (for the phone estimate)
 // meta: { sleepSamples, sleepError, motionStatus } — counts/status only, for the Sleep tab
 // sleepDays: how far back to read sleep (see sleepBackfillDays) so nights are never missed.
 export async function syncHealthData({ sleepDays = 14 } = {}) {
-  const result = { steps: null, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [], stepActive: [], motionActive: [], meta: {} };
+  const result = { steps: null, distance: {}, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [], stepActive: [], motionActive: [], meta: {} };
   if (!(await isHealthAvailable())) return result;
   try {
     const sl = await readSleep(sleepDays);
@@ -151,7 +151,9 @@ export async function syncHealthData({ sleepDays = 14 } = {}) {
     const motion = await getMotionActive(7);
     result.motionActive = motion.active;
     result.meta.motionStatus = motion.status;
-    result.steps = await readDaily("steps", 7, "sum");
+    // 28 days of steps + walking/running distance feed the energy budget averages
+    result.steps = await readDaily("steps", 28, "sum");
+    result.distance = await readDaily("distance", 28, "sum");
     result.activeKcal = await readDaily("calories", 7, "sum");
     result.basalKcal = await readDaily("basalCalories", 7, "sum");
     if (!Object.keys(result.basalKcal).length) result.basalKcal = await readDailyFromSamples("basalCalories", 7, "sum", 5000);

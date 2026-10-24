@@ -411,7 +411,7 @@ const store = {
 };
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, workoutAdjustment, calorieAdjustment, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, energyZones, sleepHabits, sleepDebtNights, sleepBackfillDays, bestGymWindow, smartWake, mergeHealthSleep, mergeHealthMetrics, sportSessionFromHealthWorkout, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeCoach, localCoachAnswer, phoneSleepNights, usualSleepMidMin } from "./utils/vitaeCalc.js";
+import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, workoutAdjustment, exerciseByDay, activityAverages, dailyBudget, calibrateMaintenance, todayActivityEnergy, wakingDayFraction, bmrMifflin, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, energyZones, sleepHabits, sleepDebtNights, sleepBackfillDays, bestGymWindow, smartWake, mergeHealthSleep, mergeHealthMetrics, sportSessionFromHealthWorkout, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeCoach, localCoachAnswer, phoneSleepNights, usualSleepMidMin } from "./utils/vitaeCalc.js";
 
 /* ---------------- Sprig "day" boundary --------------
    A calendar day rolls at 00:00, which is wrong for late-night eating/drinking:
@@ -880,7 +880,7 @@ function ResultCard({ result, onAdd, onCancel, mode, isSupp, favoriteMode, onRef
 }
 
 /* ---------------- main app -------------- */
-const DEFAULT_PROFILE = { sex: "male", age: 18, weight: 72, height: 178, activity: "active", goal: "gain", experience: "beginner", focus: "gym", mode: "simple", workoutCalorieMode: "conservative", dayResetMode: "after-wake", restTimerSound: true, restTimerVibrate: true, restTimerSoundChoice: "beep", alarmSound: "bells", alarmVolume: 0.7, devMode: false };
+const DEFAULT_PROFILE = { sex: "male", age: 18, weight: 72, height: 178, activity: "active", goal: "gain", experience: "beginner", focus: "gym", mode: "simple", workoutCalorieMode: "conservative", calorieMode: "dynamic", dayResetMode: "after-wake", restTimerSound: true, restTimerVibrate: true, restTimerSoundChoice: "beep", alarmSound: "bells", alarmVolume: 0.7, devMode: false };
 
 /* ================= AI LOADING CARD ================= */
 const AI_FOOD_MSGS = ["Analyzing your meal…", "Identifying ingredients…", "Calculating nutrition…"];
@@ -1896,6 +1896,9 @@ function SprigApp() {
   const [photoLog, setPhotoLog] = useState([]);              // [{date, kinds:['front','side','back']}]
   // health markers: vitals + blood work + symptoms, date-keyed series
   const [healthSeries, setHealthSeries] = useState([]);      // [{date, bpSys, bpDia, rhr, smoking, blood:{...}, symptoms:'...'}]
+  // energy budget (docs/energy-budget.md): daily steps history + maintenance calibration
+  const [activityDays, setActivityDays] = useState([]);      // [{date, steps, distanceM?, activeKcal?}]
+  const [energyCal, setEnergyCal] = useState(null);          // {offset, date, status, observed?, ...}
 
   // pain logs: structured entries beyond the daily check-in
   const [painLogs, setPainLogs] = useState([]);              // [{id, ts, date, level, location, type, note, exercise, status}]
@@ -1951,7 +1954,45 @@ function SprigApp() {
   const latestSleepLog = [...sleepLogs].reverse().find((l) => !l.nap) || null;
   const date = getSprigDate(Date.now(), latestSleepLog, profile?.dayResetMode || "after-wake");
 
-  const targets = computeTargets(profile);
+  // Net exercise per day (deduped) → activity averages → stable targets (docs/energy-budget.md).
+  const exerciseDays = useMemo(() => exerciseByDay({ workouts, sportSessionsLog, daily, date, profile }), [workouts, sportSessionsLog, daily, date, profile]);
+  const firstDataDate = useMemo(() => [...workouts.map((w) => w.date), ...history.map((h) => h.date), ...activityDays.map((a) => a.date)].filter(Boolean).sort()[0] || null,
+    [workouts, history, activityDays]);
+  const activityAvg = useMemo(() => activityAverages({ activityDays, exercise: exerciseDays, today: date, firstDate: firstDataDate, profile }),
+    [activityDays, exerciseDays, date, firstDataDate, profile]);
+  const targets = useMemo(() => computeTargets(profile, { averages: activityAvg, calibrationOffset: energyCal?.offset || 0 }), [profile, activityAvg, energyCal]);
+  // Today's budget: stable target ± damped activity difference (Apple Health active energy is never added).
+  const todayAct = todayActivityEnergy({ daily, exerciseToday: exerciseDays[date], profile });
+  const wakeRefTs = latestSleepLog?.waketime && Date.now() - latestSleepLog.waketime < 30 * 36e5 ? latestSleepLog.waketime : new Date(date + "T07:00:00").getTime();
+  const budget = dailyBudget({ profile, targets, neatKcal: todayAct.neatKcal, exerciseKcal: todayAct.exerciseKcal, dayFraction: wakingDayFraction(Date.now(), wakeRefTs) });
+  // Targets for today's cards: calories/carbs/fat follow the day's budget, protein stays.
+  const dayTargets = { ...targets, calories: budget.calories, carbs: budget.carbs, fat: budget.fat };
+  const persistActivityDays = async (rows) => {
+    const next = [...rows].sort((a, b) => a.date.localeCompare(b.date)).slice(-120);
+    setActivityDays(next);
+    await store.set("sprig_activity_days_v1", JSON.stringify(next)).catch(() => {});
+  };
+  // Today's steps (manual or Health) into the activity history used for the averages.
+  useEffect(() => {
+    if (!ready || !(daily.steps > 0)) return;
+    const cur = activityDays.find((r) => r.date === date);
+    const row = { ...(cur || {}), date, steps: Math.round(daily.steps) };
+    if (daily.distanceM > 0) row.distanceM = Math.round(daily.distanceM);
+    if (daily.activeKcal > 0) row.activeKcal = Math.round(daily.activeKcal);
+    if (cur && JSON.stringify(cur) === JSON.stringify(row)) return;
+    persistActivityDays([...activityDays.filter((r) => r.date !== date), row]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, date, daily.steps, daily.distanceM, daily.activeKcal, activityDays]);
+  // Calibrate maintenance from logged intake + weight trend, at most once a day (slow, capped).
+  useEffect(() => {
+    if (!ready) return;
+    const r = calibrateMaintenance({ history, weights: weightSeries, today: date, modelKcal: targets.energy.kcal - targets.energy.calibration,
+      targetKcal: targets.calories, bmr: bmrMifflin(profile), prev: energyCal });
+    if (r.status !== "updated") return;
+    setEnergyCal(r);
+    store.set("sprig_energy_cal_v1", JSON.stringify(r)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, date, history, weightSeries]);
 
   // load
   useEffect(() => {
@@ -2007,6 +2048,20 @@ function SprigApp() {
         setWorkouts(safeParse(wk, [], asArray));
         const ssl = await store.get("sprig_sport_sessions_v1");
         setSportSessionsLog(safeParse(ssl, [], asArray));
+        const ad = safeParse(await store.get("sprig_activity_days_v1"), [], asArray);
+        if (!ad.length) {
+          // one-time backfill: steps used to live only in the per-day records
+          const from = new Date(Date.now() - 35 * 864e5).toLocaleDateString("en-CA");
+          const keys = (await store.list("sprig_daily_")).filter((k) => /^sprig_daily_\d{4}-\d{2}-\d{2}$/.test(k) && k.slice(12) >= from);
+          for (const k of keys) {
+            const rec = safeParse(await store.get(k), {}, asObject);
+            if (rec.steps > 0) ad.push({ date: k.slice(12), steps: Math.round(rec.steps), ...(rec.distanceM > 0 ? { distanceM: Math.round(rec.distanceM) } : {}) });
+          }
+          ad.sort((a, b) => a.date.localeCompare(b.date));
+          if (ad.length) await store.set("sprig_activity_days_v1", JSON.stringify(ad));
+        }
+        setActivityDays(ad);
+        setEnergyCal(safeParse(await store.get("sprig_energy_cal_v1"), null, asObject));
         setActiveWorkout(safeParse(aw, null, (v) => (v === null ? null : asObject(v))));
         setCustomRests(safeParse(cr, {}, asObject));
         setRoutines(safeParse(rt, [], asArray));
@@ -2468,6 +2523,19 @@ function SprigApp() {
     if (hkSteps != null && hkSteps > (daily?.steps || 0)) patch.steps = Math.round(hkSteps);
     if (data.activeKcal?.[date] != null) patch.activeKcal = Math.round(data.activeKcal[date]);
     if (data.basalKcal?.[date] != null) patch.basalKcal = Math.round(data.basalKcal[date]);
+    if (data.distance?.[date] != null) patch.distanceM = Math.round(data.distance[date]);
+    // Earlier days' steps/distance into the activity history (averages for the energy budget).
+    const pastDates = Object.keys(data.steps || {}).filter((d) => d < date);
+    if (pastDates.length) {
+      const rows = new Map(activityDays.map((r) => [r.date, r]));
+      pastDates.forEach((d) => {
+        const row = { ...(rows.get(d) || {}), date: d, steps: Math.round(Math.max(rows.get(d)?.steps || 0, data.steps[d] || 0)) };
+        if (data.distance?.[d] > 0) row.distanceM = Math.round(data.distance[d]);
+        if (data.activeKcal?.[d] > 0) row.activeKcal = Math.round(data.activeKcal[d]);
+        rows.set(d, row);
+      });
+      await persistActivityDays([...rows.values()]);
+    }
 
     // Weight: historical days go straight into the series; today fills daily.weight if empty.
     if (data.weights?.length) {
@@ -2881,6 +2949,12 @@ function SprigApp() {
       targets: targets ? {
         calories: targets.calories, protein_g: targets.protein,
         carbs_g: targets.carbs, fat_g: targets.fat, fiber_g: targets.fiber,
+      } : null,
+      // Deterministic energy budget (estimates): what the targets are built from
+      energyBudget: trackingPrefs.nutrition !== false ? {
+        maintenanceKcal: targets.maintenance, stableTargetKcal: targets.calories, mode: profile?.calorieMode || "dynamic",
+        todayTargetKcal: calAdjust?.calories ?? null, todayExerciseKcal: calAdjust?.exerciseKcal ?? null,
+        weightTrendCalibrationKcal: Math.round(targets.energy?.calibration || 0), avgSteps28d: activityAvg?.avgSteps ?? null,
       } : null,
       today: ctx?.today || null,
       averages14d: trackingPrefs.nutrition !== false ? {
@@ -3782,9 +3856,9 @@ function SprigApp() {
   const healthScore = dailyHealthScore(subScores);
   const funcHealth = functionalHealth({ subScores, sleepInfo, trainInfo, daily, healthInfo, profile, targets, t, trainedToday });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const actions = useMemo(() => bestActions({ t, targets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp: trackingPrefs, recoveryInfo }),
+  const actions = useMemo(() => bestActions({ t, targets: dayTargets, sleepInfo, trainInfo, daily, trainedToday, profile, quickLog, tp: trackingPrefs, recoveryInfo }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recoveryInfo, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile]);
+    [recoveryInfo, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile, budget.calories]);
   const dailyInfo = { daily, weightSeries, subScores, healthScore, funcHealth, actions, trainedToday };
 
   // Days with any meaningful data logged — used for progressive disclosure gating.
@@ -3858,9 +3932,9 @@ function SprigApp() {
 
   // rule-based coach (no AI) — synthesizes everything above into 4 cards
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const coach2 = useMemo(() => coachReport({ t, targets, sleepInfo, trainInfo, nutriInfo, dailyInfo, daily, profile, workouts, quickLog, tp: trackingPrefs, dt: dailyTruth }),
+  const coach2 = useMemo(() => coachReport({ t, targets: dayTargets, sleepInfo, trainInfo, nutriInfo, dailyInfo, daily, profile, workouts, quickLog, tp: trackingPrefs, dt: dailyTruth }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dailyTruth, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile]);
+    [dailyTruth, entries, daily, date, workouts, sleepLogs, quickLog, trackingPrefs, profile, budget.calories]);
 
   // weekly report (rule-based)
   const report = weeklyReport({ history, workouts, sleepLogs, weightSeries, daily, dailyHistory, painLogs, focusSessions, consistency, targets, profile, sleepInfo, tp: trackingPrefs });
@@ -3868,7 +3942,7 @@ function SprigApp() {
   // movement + dynamic calorie adjustment + progress diagnosis
   const movement = movementSummary({ daily, profile, trainedToday });
   const workoutAdj = workoutAdjustment({ workouts, profile, date });
-  const calAdjust = calorieAdjustment({ daily, profile, targets, trainedToday, workoutAdj });
+  const calAdjust = { ...budget, adjustedTargetCalories: budget.calories, stepDelta: budget.delta, today: todayAct };
   const diagnosis = progressDiagnosis({ workouts, weightSeries, history, sleepLogs, sleepInfo, targets, profile, dailyHistory, painLogs, daily });
   const hydration = smartHydration({ daily, profile, sleepInfo, workouts, trainedToday });
   const sedentary = sedentaryNote(daily?.sedentary);
@@ -3878,7 +3952,7 @@ function SprigApp() {
   moveInfo.nextWorkout = nextWorkoutSuggestion({ workouts, trainInfo });
   moveInfo.mealShortcuts = mealShortcuts({ allEntries: entriesHistory, todayEntries: entries });
   moveInfo.tonight = tonightPlan({ sleepInfo });
-  moveInfo.calorieTrend = calorieTrendRecommendation({ profile, weightSeries, history, targets });
+  moveInfo.calorieTrend = calorieTrendRecommendation({ profile, weightSeries, history, targets, calibrating: !!energyCal?.date && energyCal.date >= new Date(Date.now() - 7 * 864e5).toLocaleDateString("en-CA") });
   moveInfo.trainedToday = trainedToday; // needed by computeAutoHabitToday workout autoType
   // Auto-habit completion (needs moveInfo)
   const autoToday = computeAutoHabitToday(habits2, { nutriInfo, moveInfo, sleepInfo, daily, targets, supps, takenIds, quickLog, tp: trackingPrefs });
@@ -4113,13 +4187,13 @@ function SprigApp() {
         {tab === "coach" && <CoachTab coach={coach2} advanced={advanced} moveInfo={moveInfo} timeline={timeline} plateaus={plateaus} patterns={patterns}
           onGoTrain={() => setTab("train")} onGoMeals={() => setTab("nutrition")} onGoSleep={() => setTab("sleep")} onGoHealth={() => setTab("health")} onAsk={(q) => { setAskOpen(true); if (q) setAskQuestion(q); }} />}
         {(tab === "more" || tab === "me") && <MoreTab onGoTargets={() => setTab("targets")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")} onGoProgress={() => setTab("progress")} onGoSettings={() => setTab("settings")} onGoCoach={() => setTab("coach")} trackingPrefs={trackingPrefs} onToggleTracking={(k, v) => persistTrackingPrefs({ ...trackingPrefs, [k]: v })} />}
-        {tab === "targets" && <MeTab view="targets" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
+        {tab === "targets" && <MeTab view="targets" onBack={() => setTab("more")} profile={profile} targets={targets} energyCtx={{ averages: activityAvg, calibrationOffset: energyCal?.offset || 0, calibration: energyCal }} onSave={saveProfile}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}
           rirPref={rirPref} onSaveRirPref={saveRirPref} user={cloudUser}
           onSyncToCloud={syncToCloud} onRestoreFromCloud={restoreFromCloud}
           syncConflict={syncStatus === "conflict"} onSyncResolved={() => { syncPausedRef.current = false; setSyncStatus("idle"); }} />}
-        {tab === "settings" && <MeTab view="settings" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
+        {tab === "settings" && <MeTab view="settings" onBack={() => setTab("more")} profile={profile} targets={targets} energyCtx={{ averages: activityAvg, calibrationOffset: energyCal?.offset || 0, calibration: energyCal }} onSave={saveProfile}
           themeMode={themeMode} onSetTheme={setTheme}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}

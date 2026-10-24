@@ -2641,9 +2641,8 @@ function TodayTab({
           }}>
           <Dumbbell size={12} color={C.greenSoft} style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 11.5, color: C.inkSoft, flex: 1, lineHeight: 1.4 }}>
-            Workout added{" "}
-            <strong style={{ color: C.greenSoft }}>+{moveInfo.workoutAdj.kcal} kcal</strong>{" "}
-            to your target
+            Workout burned an estimated{" "}
+            <strong style={{ color: C.greenSoft }}>{moveInfo.workoutAdj.low}–{moveInfo.workoutAdj.high} kcal</strong>
             {moveInfo.workoutAdj.totalMin > 0 && (
               <span style={{ color: C.muted }}>{" "}· {moveInfo.workoutAdj.totalMin}min · {moveInfo.workoutAdj.intensity} intensity</span>
             )}
@@ -2723,22 +2722,11 @@ function TodayTab({
 
       {/* ══ 4d1c. MACRO SNAPSHOT — compact full macro picture at a glance ══ */}
       {tp.nutrition !== false && t.calories > 50 && (t.carbs > 0 || t.fat > 0 || t.fiber > 0) && (() => {
-        // Estimate carb/fat targets from calorie goal when not explicitly set
-        // Remaining calories after protein → 65% carbs / 35% fat (standard balanced split)
-        const estCarbTarget = (() => {
-          if (!(targets.calories > 0)) return 0;
-          const protCal = (targets.protein || 0) * 4;
-          const rem = Math.max(0, targets.calories - protCal);
-          return rem > 0 ? Math.round(rem * 0.65 / 4) : 0;
-        })();
-        const estFatTarget = (() => {
-          if (!(targets.calories > 0)) return 0;
-          const protCal = (targets.protein || 0) * 4;
-          const rem = Math.max(0, targets.calories - protCal);
-          return rem > 0 ? Math.round(rem * 0.35 / 9) : 0;
-        })();
+        // Today's budget macros (carbs/fat follow the day's calories; protein stays fixed)
+        const estCarbTarget = moveInfo?.calAdjust?.carbs ?? targets.carbs ?? 0;
+        const estFatTarget  = moveInfo?.calAdjust?.fat ?? targets.fat ?? 0;
         const macros = [
-          { key: "cal",     label: "Cal",     value: Math.round(t.calories || 0), target: targets.calories || 0, unit: "kcal", clr: NUTR_CLR,    est: false },
+          { key: "cal",     label: "Cal",     value: Math.round(t.calories || 0), target: adjTarget || 0, unit: "kcal", clr: NUTR_CLR,    est: false },
           { key: "protein", label: "Protein", value: Math.round(t.protein  || 0), target: targets.protein  || 0, unit: "g",    clr: C.coral,     est: false },
           { key: "carbs",   label: "Carbs",   value: Math.round(t.carbs    || 0), target: estCarbTarget,          unit: "g",    clr: C.amber,     est: estCarbTarget > 0 },
           { key: "fat",     label: "Fat",     value: Math.round(t.fat      || 0), target: estFatTarget,           unit: "g",    clr: C.muted,     est: estFatTarget > 0  },
