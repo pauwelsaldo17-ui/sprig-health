@@ -31,7 +31,7 @@ import NutritionTab, { MealsTab, FavoriteFormSheet } from "./screens/NutritionTa
 import TodayTab from "./screens/TodayTab.jsx";
 import QuickLogSheet from "./components/QuickLogSheet.jsx";
 import { isHealthAvailable, requestHealthPermissions, syncHealthData } from "./healthService.js";
-import { pushSleepSummary, requestMotionPermission } from "./sleepSummary.js";
+import { pushSleepSummary, requestMotionPermission, syncWakeAlarm } from "./sleepSummary.js";
 import { requestNotificationPermissions, scheduleSmartNotifications } from "./notifications.js";
 import { useSupabaseAuth } from "./hooks/useSupabaseAuth.js";
 import { C, THEMES, applyTheme } from "./theme.js";
@@ -411,7 +411,7 @@ const store = {
 };
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, workoutAdjustment, exerciseByDay, activityAverages, dailyBudget, calibrateMaintenance, todayActivityEnergy, wakingDayFraction, bmrMifflin, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, energyZones, sleepHabits, sleepDebtNights, sleepBackfillDays, bestGymWindow, smartWake, mergeHealthSleep, mergeHealthMetrics, sportSessionFromHealthWorkout, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeCoach, localCoachAnswer, phoneSleepNights, usualSleepMidMin } from "./utils/vitaeCalc.js";
+import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, sleepPattern, sleepRegularity, sleepTrends, sleepGoalProgress, likelySleepPeriod, sprigDateFor, workoutAdjustment, exerciseByDay, activityAverages, dailyBudget, calibrateMaintenance, todayActivityEnergy, wakingDayFraction, bmrMifflin, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, energyZones, sleepHabits, sleepDebtNights, sleepBackfillDays, bestGymWindow, smartWake, mergeHealthSleep, mergeHealthMetrics, sportSessionFromHealthWorkout, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeCoach, localCoachAnswer, phoneSleepNights, usualSleepMidMin } from "./utils/vitaeCalc.js";
 
 /* ---------------- Sprig "day" boundary --------------
    A calendar day rolls at 00:00, which is wrong for late-night eating/drinking:
@@ -422,31 +422,12 @@ import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALA
    getSprigDate(now, latestSleepLog, mode):
      - mode "midnight"  → plain calendar date (old behaviour)
      - mode "fixed-4am" → always roll at 04:00
-     - mode "after-wake" (default) → roll at this morning's wake time if a main
-       sleep log woke up today in the morning window, else 04:00.
+     - mode "after-wake" (default) → roll at the wake time of the latest main sleep
+       (any hour that day; for day sleepers / night shifts up to 20 h after waking),
+       else 04:00. See sprigDateFor in vitaeCalc.js (tested) and docs/sleep-intelligence.md.
    Anything before the boundary counts as the previous calendar day. */
-function getSprigDate(now = Date.now(), latestSleepLog = null, mode = "after-wake") {
-  const d = new Date(now);
-  const dayOf = (dt) => new Date(dt).toLocaleDateString("en-CA");
-  if (mode === "midnight") return dayOf(d);
-
-  let boundaryMin = 4 * 60; // 04:00 fallback
-  if (mode === "after-wake" && latestSleepLog && latestSleepLog.waketime) {
-    const wake = new Date(latestSleepLog.waketime);
-    const sameCalDay = dayOf(wake) === dayOf(d);
-    const wokeAlready = latestSleepLog.waketime <= now;
-    const wMin = wake.getHours() * 60 + wake.getMinutes();
-    const morningWindow = wMin >= 3 * 60 && wMin <= 11 * 60; // ignore naps that "wake" midday
-    const longEnough = (latestSleepLog.durationMin || 0) >= 180; // ignore short naps as the day reset
-    if (sameCalDay && wokeAlready && morningWindow && longEnough) boundaryMin = wMin;
-  }
-  const nowMin = d.getHours() * 60 + d.getMinutes();
-  if (nowMin < boundaryMin) {
-    const y = new Date(d);
-    y.setDate(y.getDate() - 1);
-    return dayOf(y);
-  }
-  return dayOf(d);
+function getSprigDate(now = Date.now(), latestSleepLog = null, mode = "after-wake", opts = {}) {
+  return sprigDateFor(now, latestSleepLog, mode, opts);
 }
 
 
@@ -1882,6 +1863,9 @@ function SprigApp() {
   const [sleepLogs, setSleepLogs] = useState([]);
   const [alarm, setAlarm] = useState({ ...DEFAULT_ALARM });
   const [session, setSession] = useState(null); // {bedTs, restSamples, micOn}
+  // What rings at wake-up on this device: "system" (AlarmKit), "notification", "off", "none", "failed"
+  const [alarmSupport, setAlarmSupport] = useState(null);
+  const alarmSupportRef = useRef(null);
   const [ringing, setRinging] = useState(false);
   const [micState, setMicState] = useState("idle"); // idle | on | denied
   const [workouts, setWorkouts] = useState([]);
@@ -1952,7 +1936,9 @@ function SprigApp() {
   // Late-night food/drink before the morning boundary counts toward the previous day.
   // Naps never move the day boundary, so "latest" means the latest main sleep.
   const latestSleepLog = [...sleepLogs].reverse().find((l) => !l.nap) || null;
-  const date = getSprigDate(Date.now(), latestSleepLog, profile?.dayResetMode || "after-wake");
+  // Learned sleep schedule (work vs free days, day sleepers) — also drives the day boundary.
+  const sleepPat = useMemo(() => sleepPattern(sleepLogs, { workDays: alarm?.days?.length ? alarm.days : [1, 2, 3, 4, 5] }), [sleepLogs, alarm?.days]);
+  const date = getSprigDate(Date.now(), latestSleepLog, profile?.dayResetMode || "after-wake", { daySleeper: sleepPat.daySleeper });
 
   // Net exercise per day (deduped) → activity averages → stable targets (docs/energy-budget.md).
   const exerciseDays = useMemo(() => exerciseByDay({ workouts, sportSessionsLog, daily, date, profile }), [workouts, sportSessionsLog, daily, date, profile]);
@@ -2567,7 +2553,7 @@ function SprigApp() {
         .map((w) => sportSessionFromHealthWorkout(w, profile?.weight))
         .filter((s) => s && !known.has(s.id) && !dismissed.has(s.id) && !overlapsApp(s));
       for (const s of fresh) {
-        const sDay = getSprigDate(s.ts, latestSleepLog, profile?.dayResetMode || "after-wake");
+        const sDay = getSprigDate(s.ts, latestSleepLog, profile?.dayResetMode || "after-wake", { daySleeper: sleepPat.daySleeper });
         if (sDay === date) { (todaySessions = todaySessions || [...(daily.sportSessions || [])]).push(s); continue; }
         // past day: respect deletions recorded on that day's record
         const dayRec = safeParse(await store.get("sprig_daily_" + sDay), {}, asObject);
@@ -2968,6 +2954,17 @@ function SprigApp() {
         napsTodayMin: sleepLogs.filter((l) => l.nap && l.date === date).reduce((a, l) => a + (l.durationMin || 0), 0) || null,
         // Two-process model windows for today (clock times, local)
         energySchedule: (sleepInfo?.zones || []).map((z) => ({ window: z.kind, from: minToHM(z.start), to: minToHM(z.end) })),
+        // learned from the user's own nights (estimates included, marked by source)
+        regularityScore: sleepInfo?.regularity?.sri ?? null,
+        bedtimeSpreadMin: sleepInfo?.regularity?.bedSdMin ?? null,
+        usualWorkDay: sleepInfo?.pattern?.work ? { bed: minToHM(sleepInfo.pattern.work.bedMin), wake: minToHM(sleepInfo.pattern.work.wakeMin) } : null,
+        usualDayOff: sleepInfo?.pattern?.free ? { bed: minToHM(sleepInfo.pattern.free.bedMin), wake: minToHM(sleepInfo.pattern.free.wakeMin) } : null,
+        weekendShiftMin: sleepInfo?.pattern?.socialJetlagMin ?? null,
+        daySleeper: sleepInfo?.pattern?.daySleeper || false,
+        last7AvgHr: sleepInfo?.trends?.d7 ? +(sleepInfo.trends.d7.durationMin / 60).toFixed(1) : null,
+        last28AvgHr: sleepInfo?.trends?.d28 ? +(sleepInfo.trends.d28.durationMin / 60).toFixed(1) : null,
+        nightsMeetingNeed7d: sleepInfo?.goal ? `${sleepInfo.goal.metNights}/${sleepInfo.goal.nights}` : null,
+        lastNightSource: sleepInfo?.lastSleep?.source || null,
       } : null,
       // Synced from Apple Health / Health Connect when connected
       heart: (() => {
@@ -3083,7 +3080,7 @@ function SprigApp() {
   };
   const saveAlarm = async (a) => { const wasOff = !alarm?.enabled; setAlarm(a); if (a?.enabled && wasOff) logged("Alarm set", "light"); await store.set("sprig_alarm_v1", JSON.stringify(a)); };
 
-  function saveSleepLog({ bedTs, wakeTs, restlessness, source }) {
+  function saveSleepLog({ bedTs, wakeTs, restlessness, source, userConfirmed = false }) {
     const durationMin = Math.max(0, Math.round((wakeTs - bedTs) / 60000));
     const need = sleepNeedMin(profile.age);
     const usualBed = circMean(sleepLogs.filter((l) => !l.nap).slice(-7).map((l) => tsToMin(l.bedtime)));
@@ -3102,6 +3099,7 @@ function SprigApp() {
       confirmed: true,
       short: isShort,
       ignoredFromScore: isShort,
+      ...(userConfirmed ? { userConfirmed: true } : {}),
     };
     // replaces that day's main sleep; naps on the same day are kept
     const next = [...sleepLogs.filter((l) => l.nap || l.date !== log.date), log].sort((a, b) => a.waketime - b.waketime); // full history is kept (no cap)
@@ -3123,6 +3121,16 @@ function SprigApp() {
     logged("Saved as nap", "light");
   };
   // Edit a sleep log's bed/wake times — recompute duration, stages, score, and re-flag short sessions.
+  // Morning check-in "Looks right": confirm an estimated night, or save the suggested one.
+  const confirmSleepCheckin = (c) => {
+    if (!c) return;
+    if (c.kind === "confirm") {
+      persistSleep(sleepLogs.map((l) => (l.id === c.log.id ? { ...l, userConfirmed: true } : l)));
+      logged("Sleep confirmed", "light");
+    } else {
+      saveSleepLog({ bedTs: c.bedTs, wakeTs: c.wakeTs, restlessness: 30, source: "estimate", userConfirmed: true });
+    }
+  };
   const editSleepLog = (id, bedTs, wakeTs) => {
     const need = sleepNeedMin(profile.age);
     const usualBed = circMean(sleepLogs.slice(-7).map((l) => tsToMin(l.bedtime)));
@@ -3241,18 +3249,20 @@ function SprigApp() {
           else if ((alarm.window || 0) > 0 && asleepMin >= targetMin - (alarm.window) && circDiff(nowMin, wakeMin) <= 1) triggerWake();
         } else if (mode === "fixed") {
           const latest = hmToMin(alarm.latest);
-          if (asleepMin > 180 && circDiff(nowMin, latest) <= 1) triggerWake();
+          if (asleepMin > 180 && circDiff(nowMin, latest) <= 1) triggerWake({ atLatest: true });
         } else {
           // smart window (default, original behavior)
           const { wakeMin } = smartWake(cur.bedTs, hmToMin(alarm.latest), alarm.window);
           const latest = hmToMin(alarm.latest);
-          if (asleepMin > 180 && (circDiff(nowMin, wakeMin) <= 1 || circDiff(nowMin, latest) <= 1)) triggerWake();
+          if (asleepMin > 180 && circDiff(nowMin, wakeMin) <= 1) triggerWake({ atLatest: wakeMin === latest });
+          else if (asleepMin > 180 && circDiff(nowMin, latest) <= 1) triggerWake({ atLatest: true });
         }
       }
       setSession({ ...cur });
     }, 60000);
   }
-  function triggerWake() {
+  function triggerWake({ atLatest = false } = {}) {
+    if (atLatest && alarmSupportRef.current === "system") return; // the system alarm rings then
     if (ringing) return;
     setRinging(true);
     startAlarmSound();
@@ -3267,6 +3277,12 @@ function SprigApp() {
         ? Math.min(100, Math.round(cur.samples.reduce((a, b) => a + b, 0) / cur.samples.length) + 12)
         : 28;
       saveSleepLog({ bedTs: cur.bedTs, wakeTs: Date.now(), restlessness: avgRest, source: cur.micOn ? "auto" : "session" });
+    }
+    // Already up before today's system alarm → skip today's ring (restored on the next sync).
+    const today = new Date();
+    if (alarm.enabled && (alarm.days || [1, 2, 3, 4, 5]).includes(today.getDay()) && tsToMin(Date.now()) < hmToMin(alarm.latest)) {
+      try { localStorage.setItem("vitae_alarm_skip", today.toLocaleDateString("en-CA")); } catch (_) {}
+      syncWakeAlarm({ enabled: true, latest: alarm.latest, days: alarm.days, skipToday: true }).then((r) => { alarmSupportRef.current = r; setAlarmSupport(r); });
     }
     sessionRef.current = null; setSession(null);
     setTab("sleep");
@@ -3709,7 +3725,9 @@ function SprigApp() {
   const need = sleepNeedMin(profile.age);
   const debtMin = sleepDebtMin(sleepLogs, need);
   const lastSleep = latestSleepLog; // last main sleep — a nap is never "last night"
-  const rec = recommend(sleepLogs, profile, debtMin);
+  // tonight's bedtime aims for tomorrow's learned wake time (work vs free day)
+  const tomorrowDate = (() => { const d = new Date(date + "T12:00:00"); d.setDate(d.getDate() + 1); return d.toLocaleDateString("en-CA"); })();
+  const rec = recommend(sleepLogs, profile, debtMin, { pattern: sleepPat, wakeDate: tomorrowDate });
   const wakeMin = lastSleep && lastSleep.date === date ? tsToMin(lastSleep.waketime) : rec.recWake;
   const todayBed = rec.recBed;
   // curve end on the same axis as wakeMin (past 1440 when bedtime is after midnight)
@@ -3728,7 +3746,25 @@ function SprigApp() {
   // Rise-style timed habits + the 14-night debt breakdown for the Sleep tab
   const sleepHabitList = sleepHabits({ wakeMin, bedMin: curveBed, zones: energyTimeline, rec, gym, debtMin });
   const debtNights = sleepDebtNights(sleepLogs, need);
-  const sleepInfo = { need, debtMin, lastSleep, rec, wakeMin, todayBed, curve, gym, mealMarks, zones: energyTimeline, habits: sleepHabitList, debtNights, breakdown: sleepBreakdown };
+  // Wearable-free sleep intelligence (docs/sleep-intelligence.md)
+  const sleepIQ = useMemo(() => ({
+    pattern: sleepPat,
+    regularity: sleepRegularity(sleepLogs),
+    trends: sleepTrends(sleepLogs),
+    goal: sleepGoalProgress(sleepLogs, { needMin: need }),
+  }), [sleepLogs, sleepPat, need]);
+  const sleepCheckin = likelySleepPeriod({ logs: sleepLogs, pattern: sleepPat });
+  const sleepInfo = { need, debtMin, lastSleep, rec, wakeMin, todayBed, curve, gym, mealMarks, zones: energyTimeline, habits: sleepHabitList, debtNights, breakdown: sleepBreakdown, ...sleepIQ, checkin: sleepCheckin };
+  // Keep the wake-up alarm in step with the settings: a real system alarm on iOS 26+, else a backup
+  // notification (src/sleepSummary.js). Re-syncs each Sprig day so a skipped day is restored.
+  useEffect(() => {
+    if (!ready) return;
+    let skip = false;
+    try { skip = localStorage.getItem("vitae_alarm_skip") === new Date().toLocaleDateString("en-CA"); } catch (_) {}
+    syncWakeAlarm({ enabled: alarm.enabled, latest: alarm.latest, days: alarm.days, skipToday: skip })
+      .then((r) => { alarmSupportRef.current = r; setAlarmSupport(r); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, date, alarm.enabled, alarm.latest, (alarm.days || []).join(",")]);
   // Keep the iOS widget + morning notification in step with the app's need/debt (no-op off iOS).
   useEffect(() => {
     if (!ready) return;
@@ -3828,7 +3864,7 @@ function SprigApp() {
 
   // ---- daily command center derivations ----
   // trainedToday: exact workout OR quick log says trained
-  const trainedToday = workouts.some((w) => (w.date || getSprigDate(w.ts, latestSleepLog, profile?.dayResetMode || "after-wake")) === date) || (quickLog?.trainedToday === true);
+  const trainedToday = workouts.some((w) => (w.date || getSprigDate(w.ts, latestSleepLog, profile?.dayResetMode || "after-wake", { daySleeper: sleepPat.daySleeper })) === date) || (quickLog?.trainedToday === true);
   // Keep notifStateRef current so the notification effects always use latest state.
   // No-dep effect: re-runs after every render, captures the current render's closure.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4101,7 +4137,7 @@ function SprigApp() {
             sleepInfo={sleepInfo} trainInfo={trainInfo} advanced={advanced}
             dailyInfo={dailyInfo} nutriInfo={nutriInfo} healthInfo={healthInfo} mindInfo={mindInfo} moveInfo={moveInfo} onDaily={persistDaily} onAddEntry={addEntry} onCheckin={setCheckin} onQuickLog={() => setQuickOpen(true)} quickLog={quickLog} tp={trackingPrefs}
             onStartWorkout={(routine) => { startWorkout(routine || undefined); setTab("train"); }}
-            onGoSleep={() => setTab("sleep")} onGoEnergy={() => setTab("energy")} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")}
+            onGoSleep={() => setTab("sleep")} onConfirmSleepCheckin={confirmSleepCheckin} onGoEnergy={() => setTab("energy")} onGoBody={() => setTab("progress")} onGoHealth={() => setTab("health")} onGoMind={() => setTab("mind")}
             onQuickSleep={saveSleepLog}
             onGoNutrition={() => setTab("nutrition")} onGoTrain={() => setTab("train")}
             recoveryInfo={recoveryInfo} dt={dailyTruth} onToast={showToast}
@@ -4165,7 +4201,8 @@ function SprigApp() {
           <SleepTab sleepLogs={sleepLogs} sleepInfo={sleepInfo} alarm={alarm} onSaveAlarm={saveAlarm}
             sub={sleepSub} onSub={setSleepSub}
             session={session} micState={micState} onStart={startSession} onEnd={endSession}
-            onManual={saveSleepLog} onRemove={removeSleep} onToggleIgnore={toggleSleepIgnored} onMarkNap={markSleepNap} onEditLog={editSleepLog} profile={profile} advanced={advanced}
+            onManual={saveSleepLog} onRemove={removeSleep} onToggleIgnore={toggleSleepIgnored} onMarkNap={markSleepNap} onEditLog={editSleepLog}
+            onConfirmCheckin={confirmSleepCheckin} alarmSupport={alarmSupport} profile={profile} advanced={advanced}
             daily={daily} onDaily={persistDaily} recoveryRec={trainInfo.recoveryRec}
             healthStatus={healthStatus} onHealthSync={healthAvailable ? syncHealthNow : null}
             sleepSummaryNotify={profile?.sleepSummaryNotify !== false}

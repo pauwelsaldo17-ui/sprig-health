@@ -100,11 +100,13 @@ The web layer is suspended in the background, so this part is Swift in the app t
 
 ## The "Sprig day" (date boundary)
 
-`getSprigDate(now, latestSleepLog, mode)` in `App.jsx` decides which calendar day "today" is:
+`getSprigDate(now, latestSleepLog, mode, { daySleeper })` in `App.jsx` (a thin wrapper over the tested `sprigDateFor` in `vitaeCalc.js`) decides which calendar day "today" is:
 
-- `"after-wake"` (default): the day rolls at this morning's wake time if the latest main sleep log woke today between 03:00 and 11:00 and lasted ≥ 180 min; otherwise at 04:00.
+- `"after-wake"` (default): the day starts at the wake time of the latest main sleep (≥ 180 min, not a nap) if it woke on today's calendar date, at any hour; for day sleepers (learned by `sleepPattern`: main sleep centred 08:00–18:00, i.e. night shifts) up to 20 h after that wake even past midnight. Otherwise the day rolls at 04:00.
 - `"fixed-4am"`: always rolls at 04:00. `"midnight"`: plain calendar date.
 - Anything before the boundary belongs to the previous day (a 01:30 drink counts for the night before).
+
+Wearable-free sleep intelligence (`docs/sleep-intelligence.md`): `sleepPattern` / `expectedNight` (learned work-day vs day-off schedule), `sleepRegularity` (SRI), `sleepTrends`, `sleepGoalProgress`, `likelySleepPeriod` (morning check-in) — all in `sleepInfo`. Wake-up alarm: `syncWakeAlarm` (`src/sleepSummary.js`) sets real system alarms via AlarmKit on iOS 26+ (`WakeAlarms` in `SleepSummaryPlugin.swift`), otherwise backup notifications (ids 130–136); the in-app smart window needs Vitae open.
 
 Sleep math uses circular-time helpers from `vitaeCalc.js`: `tsToMin`, `circMean`, `circDiff`, `inWindow`. `getDailyTruth()` builds the authoritative "today" data object from the logs.
 

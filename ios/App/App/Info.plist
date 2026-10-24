@@ -47,6 +47,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>Vitae sets your wake-up alarm so it rings even when the app is closed or your iPhone is locked.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Vitae uses your iPhone's motion and step history to estimate when you fell asleep and woke up, so your sleep is tracked without a watch or any logging.</string>
 	<key>NSHealthShareUsageDescription</key>
