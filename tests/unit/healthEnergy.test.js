@@ -20,6 +20,7 @@ import {
   phoneSleepNights,
   usualSleepMidMin,
   stepActiveIntervals,
+  sleepBackfillDays,
   recommend,
 } from '../../src/utils/vitaeCalc.js';
 
@@ -430,5 +431,21 @@ describe('mergeHealthSleep — source ranks (manual > Apple Health > phone estim
     expect(r.logs[0].source).toBe('phone_estimate');
     const edited = { ...alarm, id: 'p', source: 'phone_estimate', edited: true };
     expect(mergeHealthSleep([edited], [night('2026-10-23T23:05:00', '2026-10-24T07:10:00')], { source: 'phone_estimate' })).toBeNull();
+  });
+});
+
+describe('sleepBackfillDays — never miss a night, however long the app stays closed', () => {
+  const NOW = at('2026-10-23T08:00:00');
+  test('first connect imports 120 days', () => {
+    expect(sleepBackfillDays(null, NOW)).toBe(120);
+  });
+  test('daily use reads the normal 14-day window', () => {
+    expect(sleepBackfillDays(NOW - 6 * H, NOW)).toBe(14);
+  });
+  test('three weeks unopened reads back past the last sync', () => {
+    expect(sleepBackfillDays(NOW - 21 * 864e5, NOW)).toBe(23);
+  });
+  test('capped at a year', () => {
+    expect(sleepBackfillDays(NOW - 800 * 864e5, NOW)).toBe(365);
   });
 });

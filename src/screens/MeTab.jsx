@@ -129,7 +129,7 @@ function HealthIntegrationCard({ onSync }) {
   );
 }
 
-function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
+function AccountSection({ onSyncToCloud, onRestoreFromCloud, syncConflict = false, onSyncResolved }) {
   const { user, loading, supabase } = useSupabaseAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -138,6 +138,10 @@ function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [showFirstChoice, setShowFirstChoice] = useState(false);
+  // Cloud copy changed on another device (or this is a new device): the user picks which data to keep.
+  const [localConflict, setLocalConflict] = useState(false);
+  const [confirmKeep, setConfirmKeep] = useState(false);
+  const conflict = syncConflict || localConflict;
   const [lastSynced, setLastSynced] = useState(() => {
     try { return window.localStorage.getItem("sprig_last_synced_at"); } catch (_) { return null; }
   });
@@ -210,11 +214,13 @@ function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
     if (error) return note(false, error.message);
     note(true, "Signed out.");
   }
-  async function handleSync() {
-    setBusy(true); setMsg(null);
-    const r = await (onSyncToCloud ? onSyncToCloud() : Promise.resolve({ ok: false, error: "Not configured." }));
+  // force = the user explicitly chose to keep this phone's data over the cloud copy
+  async function handleSync(force = false) {
+    setBusy(true); setMsg(null); setConfirmKeep(false);
+    const r = await (onSyncToCloud ? onSyncToCloud({ force }) : Promise.resolve({ ok: false, error: "Not configured." }));
     setBusy(false);
-    if (!r.ok) { buzz("error"); return note(false, r.error); }
+    if (!r.ok) { buzz("error"); if (r.conflict) setLocalConflict(true); return note(false, r.error); }
+    setLocalConflict(false); onSyncResolved?.();
     setLastSynced(new Date().toISOString());
     buzz("success");
     note(true, "Synced " + r.count + " keys to your account.");
@@ -225,6 +231,7 @@ function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
     const r = await (onRestoreFromCloud ? onRestoreFromCloud() : Promise.resolve({ ok: false, error: "Not configured." }));
     setBusy(false);
     if (!r.ok) return note(false, r.error);
+    setLocalConflict(false); onSyncResolved?.();
     note(true, "Restored " + r.count + " keys. Reloading…");
     setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 800);
   }
@@ -306,8 +313,36 @@ function AccountSection({ onSyncToCloud, onRestoreFromCloud }) {
                 Last synced: {new Date(lastSynced).toLocaleString()}
               </div>
             )}
+            {conflict && (
+              <div style={{ background: C.isDark ? "#2a200a" : "#fdf6e9", border: `1px solid ${C.amber}55`, borderRadius: 11, padding: 11, marginBottom: 10 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Backup paused</div>
+                <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.45, marginBottom: 9 }}>
+                  Your cloud backup has newer data from another device. Nothing was overwritten. Choose which data to keep.
+                </div>
+                {!confirmKeep ? (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="sprig-tap" onClick={() => { buzz("tap"); setConfirmRestore(true); }} disabled={busy}
+                      style={{ flex: 1, background: ME_CLR, color: "#fff", border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 700, fontFamily: "DM Sans" }}>
+                      <CloudDownload size={13} /> Use cloud data
+                    </button>
+                    <button className="sprig-tap" onClick={() => { buzz("tap"); setConfirmKeep(true); }} disabled={busy}
+                      style={{ flex: 1, background: C.bg2, color: ME_CLR, border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 700, fontFamily: "DM Sans" }}>
+                      <CloudUpload size={13} /> Keep this phone
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 8, lineHeight: 1.45 }}>This replaces the cloud backup with this phone's data.</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className="sprig-tap" onClick={() => { buzz("tap"); setConfirmKeep(false); }} style={{ flex: 1, background: C.bg2, color: C.inkSoft, border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 600, fontFamily: "DM Sans" }}>Cancel</button>
+                      <button className="sprig-tap" onClick={() => { buzz("tap"); handleSync(true); }} style={{ flex: 1, background: C.amber, color: "#fff", border: "none", cursor: "pointer", borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: 700, fontFamily: "DM Sans" }}>Yes, keep this phone</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button className="sprig-tap" onClick={handleSync} disabled={busy}
+              <button className="sprig-tap" onClick={() => handleSync()} disabled={busy}
                 style={{ background: ME_CLR, color: "#fff", border: "none", cursor: busy ? "default" : "pointer", borderRadius: 11, padding: "11px 0", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: busy ? 0.6 : 1 }}>
                 <CloudUpload size={14} /> Sync now
               </button>
@@ -490,7 +525,7 @@ export function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoS
   );
 }
 
-function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday, user, onHealthSync, onSyncToCloud, onRestoreFromCloud }) {
+function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday, user, onHealthSync, onSyncToCloud, onRestoreFromCloud, syncConflict, onSyncResolved }) {
   const saveRirPref = onSaveRirPref || (() => {});
   const [confirmResetOnb, setConfirmResetOnb] = useState(false);
   const importRef = useRef(null);
@@ -1113,7 +1148,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       <HealthIntegrationCard onSync={onHealthSync} />
 
       {/* ACCOUNT (optional cloud sync) */}
-      <AccountSection onSyncToCloud={onSyncToCloud} onRestoreFromCloud={onRestoreFromCloud} />
+      <AccountSection onSyncToCloud={onSyncToCloud} onRestoreFromCloud={onRestoreFromCloud} syncConflict={syncConflict} onSyncResolved={onSyncResolved} />
 
       {/* DATA & PRIVACY */}
       {onExportJSON && (

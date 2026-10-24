@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { openDB } from "idb";
 import { getSupabase, supabaseConfigured } from "./supabaseClient.js";
+import { cloudPushPlan, cloudBlob, cloudRevKey, CLOUD_EXCLUDED_KEYS } from "./cloudSync.js";
 import { rcConfigured, hasPremium, getOfferings, purchasePackage } from "./revenueCatClient.js";
 import AuthScreen from "./screens/AuthScreen.jsx";
 import GDPRScreen from "./screens/GDPRScreen.jsx";
@@ -410,7 +411,7 @@ const store = {
 };
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, workoutAdjustment, calorieAdjustment, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, energyZones, sleepHabits, sleepDebtNights, bestGymWindow, smartWake, mergeHealthSleep, phoneSleepNights, usualSleepMidMin, mergeHealthMetrics, sportSessionFromHealthWorkout, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeText, localCoachAnswer } from "./utils/vitaeCalc.js";
+import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, workoutAdjustment, calorieAdjustment, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, energyZones, sleepHabits, sleepDebtNights, sleepBackfillDays, bestGymWindow, smartWake, mergeHealthSleep, mergeHealthMetrics, sportSessionFromHealthWorkout, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeCoach, localCoachAnswer, phoneSleepNights, usualSleepMidMin } from "./utils/vitaeCalc.js";
 
 /* ---------------- Sprig "day" boundary --------------
    A calendar day rolls at 00:00, which is wrong for late-night eating/drinking:
@@ -1936,6 +1937,10 @@ function SprigApp() {
   // Health-synced sleep logs the user deleted: kept in storage with `discarded: true` (out of state)
   // so the next Apple Health sync doesn't bring them back.
   const discardedSleepRef = useRef([]);
+  // When Apple Health last synced (from the device-only status flag), to size the sleep backfill.
+  const lastHealthSyncTs = () => {
+    try { const st = JSON.parse(localStorage.getItem("sprig_health_status_v1") || "null"); return st?.sleepOkTs ?? st?.ts ?? null; } catch (_) { return null; }
+  };
   // Last Health sync summary (counts only, never values) — device-only, shown on the Sleep tab.
   const [healthStatus, setHealthStatus] = useState(() => {
     try { return JSON.parse(localStorage.getItem("sprig_health_status_v1") || "null"); } catch (_) { return null; }
@@ -2084,7 +2089,7 @@ function SprigApp() {
         if (!(await isHealthAvailable())) return;
         await requestHealthPermissions();
         await requestMotionPermission(); // phone-only sleep: Motion & Fitness (no-op off iOS)
-        const data = await syncHealthData();
+        const data = await syncHealthData({ sleepDays: sleepBackfillDays(lastHealthSyncTs()) });
         applyHealthSyncRef.current?.(data);
         localStorage.setItem("sprig_health_connected", "1");
         localStorage.setItem("sprig_health_sync_ts", new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }));
@@ -2101,7 +2106,7 @@ function SprigApp() {
         if (!isActive) return;
         try {
           if (!(await isHealthAvailable())) return;
-          const data = await syncHealthData();
+          const data = await syncHealthData({ sleepDays: sleepBackfillDays(lastHealthSyncTs()) });
           applyHealthSyncRef.current?.(data);
           localStorage.setItem("sprig_health_sync_ts", new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }));
         } catch {}
@@ -2120,7 +2125,7 @@ function SprigApp() {
     try {
       await requestHealthPermissions();
       await requestMotionPermission(); // phone-only sleep: Motion & Fitness (no-op off iOS)
-      const data = await syncHealthData();
+      const data = await syncHealthData({ sleepDays: sleepBackfillDays(lastHealthSyncTs()) });
       await applyHealthSyncRef.current?.(data);
       localStorage.setItem("sprig_health_connected", "1");
       localStorage.setItem("sprig_health_sync_ts", new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }));
@@ -2165,16 +2170,19 @@ function SprigApp() {
     registerPushNotifications(supabase, cloudUser.id);
     requestNotificationPermissions();
   }, [cloudUser]);
-  const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "syncing" | "synced" | "error"
+  const [syncStatus, setSyncStatus] = useState("idle"); // "idle" | "syncing" | "synced" | "error" | "conflict"
   const syncTimerRef = useRef(null);
+  const syncPausedRef = useRef(false); // true while a cloud conflict waits for the user's choice
   const syncClearRef = useRef(null);
   useEffect(() => {
-    if (!ready || !cloudUser) return;
+    if (!ready || !cloudUser || syncPausedRef.current) return;
     clearTimeout(syncTimerRef.current);
     clearTimeout(syncClearRef.current);
     setSyncStatus("syncing");
     syncTimerRef.current = setTimeout(async () => {
       const r = await syncToCloud();
+      // conflict: another device's backup is newer — stay paused until the user picks in Me › Account
+      if (r.conflict) { syncPausedRef.current = true; setSyncStatus("conflict"); return; }
       setSyncStatus(r.ok ? "synced" : "error");
       syncClearRef.current = setTimeout(() => setSyncStatus("idle"), 4000);
     }, 3000);
@@ -2439,6 +2447,8 @@ function SprigApp() {
       }
       status.phoneAdded = current.filter((l) => l.source === "phone_estimate" && l.waketime > Date.now() - 14 * 864e5).length;
     } catch (e) { console.warn("[health] sleep merge failed:", e?.message); status.sleepError = true; }
+    // the backfill window counts from the last sleep read that worked
+    status.sleepOkTs = status.sleepError ? (lastHealthSyncTs() ?? null) : status.ts;
     setHealthStatus(status);
     try { localStorage.setItem("sprig_health_status_v1", JSON.stringify(status)); } catch (_) {}
 
@@ -2855,8 +2865,7 @@ function SprigApp() {
     const _coachNow = new Date();
     const _coachHour = _coachNow.getHours();
     const _coachTimeStr = `${String(_coachHour).padStart(2, "0")}:${String(_coachNow.getMinutes()).padStart(2, "0")}`;
-    const _coachPeriod = _coachHour < 12 ? "morning" : _coachHour < 17 ? "afternoon" : "evening";
-    const system = `You are Vitae Coach, an elite evidence-based coach. Answer the user's question directly. Use the user's data only when relevant. Do not give a full audit unless asked. Do not use canned templates. Think like a real coach reviewing a client's data. Never invent exact numbers for anything marked quick_log, unknown, or disabled in dataQuality — speak in estimates for those. Do not diagnose injuries or medical conditions; for sharp pain, swelling, suspected injury, or any serious/worsening symptom, recommend rest and seeing a doctor or physiotherapist instead of guessing a cause. Current local time: ${_coachTimeStr} (${_coachPeriod}). Do NOT flag today's calories or protein as insufficient if the current time is before 14:00 — the user may not have eaten all meals yet. If before 14:00, base nutrition assessment on projected daily intake (current intake ÷ fraction of day elapsed × 24) rather than raw totals.`;
+    // The coach system prompt (incl. the time-of-day rules) is built server-side in api/analyze.js.
 
     // Structured coaching context. We hand the model the whole picture and let it choose what to use.
     // Keys are deliberately readable so the model interprets them correctly.
@@ -2932,15 +2941,17 @@ function SprigApp() {
       },
     };
 
-    const prompt = `User question: "${question}"\n\nUser data (structured): ${JSON.stringify(coachingContext)}\n\nAnswer the question. Use the data only where it actually helps. If todayWins exist and it feels natural, you may briefly acknowledge real progress ("kudos") before the main advice — but only when relevant, and never force it.`;
+    // (question + context are sent as-is; the server wraps them in the coach prompt)
 
     let aiError = null;
     try {
-      const r = await analyzeText({ prompt, system });
+      const r = await analyzeCoach({ question, context: coachingContext, localTime: _coachTimeStr });
       if (r && r.trim()) { incrementCoachCount(); return r; }
       console.warn("[sprig] askCoach: AI returned empty response");
       aiError = "AI returned an empty response";
     } catch (e) {
+      // Server-side monthly limit reached (e.g. after a reinstall reset the local counter)
+      if (e?.status === 402) setPaywallOpen(true);
       console.error("[sprig] askCoach: AI failed —", e?.message || e);
       aiError = e?.message || String(e);
     }
@@ -2991,9 +3002,9 @@ function SprigApp() {
   /* ---- sleep ---- */
   const persistSleep = async (next) => {
     setSleepLogs(next);
-    // deletion tombstones only need to outlive the 14-day Health read window;
+    // deletion tombstones must outlive the longest Health read window (365 d, see sleepBackfillDays);
     // estimates replaced by Health data are user data and are kept
-    discardedSleepRef.current = discardedSleepRef.current.filter((l) => l.supersededBy || (l.waketime || 0) > Date.now() - 30 * 864e5);
+    discardedSleepRef.current = discardedSleepRef.current.filter((l) => l.supersededBy || (l.waketime || 0) > Date.now() - 400 * 864e5);
     await store.set("sprig_sleep_v1", JSON.stringify([...next, ...discardedSleepRef.current]));
   };
   const saveAlarm = async (a) => { const wasOff = !alarm?.enabled; setAlarm(a); if (a?.enabled && wasOff) logged("Alarm set", "light"); await store.set("sprig_alarm_v1", JSON.stringify(a)); };
@@ -3019,7 +3030,7 @@ function SprigApp() {
       ignoredFromScore: isShort,
     };
     // replaces that day's main sleep; naps on the same day are kept
-    const next = [...sleepLogs.filter((l) => l.nap || l.date !== log.date), log].sort((a, b) => a.waketime - b.waketime).slice(-30);
+    const next = [...sleepLogs.filter((l) => l.nap || l.date !== log.date), log].sort((a, b) => a.waketime - b.waketime); // full history is kept (no cap)
     persistSleep(next);
     logged(isShort ? "Saved as a short nap" : "Sleep logged", "light");
     if (!isShort) {
@@ -3417,6 +3428,7 @@ function SprigApp() {
       incrementScanCount();
       setResult(res); setResultMode(opts.mode);
     } catch (e) {
+      if (e?.status === 402) { setPaywallOpen(true); return; }
       setError("AI analysis is unavailable. You can still add this manually.");
     } finally { setBusy(false); }
   }
@@ -3425,7 +3437,7 @@ function SprigApp() {
     if (!capturedImage && !result) return;
     setError(""); setBusy(true);
     try {
-      const res = await analyze({ image: capturedImage, text: correctionText, mode: resultMode });
+      const res = await analyze({ image: capturedImage, text: correctionText, mode: resultMode, refine: true });
       setResult(res);
     } catch (e) {
       setError("Could not refine analysis. Try editing manually.");
@@ -4105,7 +4117,8 @@ function SprigApp() {
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
           reminders={reminders} onSaveReminders={persistReminders} sleepInfo={sleepInfo}
           rirPref={rirPref} onSaveRirPref={saveRirPref} user={cloudUser}
-          onSyncToCloud={syncToCloud} onRestoreFromCloud={restoreFromCloud} />}
+          onSyncToCloud={syncToCloud} onRestoreFromCloud={restoreFromCloud}
+          syncConflict={syncStatus === "conflict"} onSyncResolved={() => { syncPausedRef.current = false; setSyncStatus("idle"); }} />}
         {tab === "settings" && <MeTab view="settings" onBack={() => setTab("more")} profile={profile} targets={targets} onSave={saveProfile}
           themeMode={themeMode} onSetTheme={setTheme}
           onExportJSON={exportJSON} onExportCSV={exportCSV} onImportJSON={importJSON} onResetData={resetAllData} onLoadDemo={loadDemoData}
@@ -4115,7 +4128,8 @@ function SprigApp() {
           trackingPrefs={trackingPrefs} onSaveTrackingPrefs={persistTrackingPrefs}
           onDevSeedFull={devSeedFullDay} onDevSeedQL={devSeedQuickLogDay} onDevClearToday={devClearToday}
           user={cloudUser} onHealthSync={applyHealthSync}
-          onSyncToCloud={syncToCloud} onRestoreFromCloud={restoreFromCloud} />}
+          onSyncToCloud={syncToCloud} onRestoreFromCloud={restoreFromCloud}
+          syncConflict={syncStatus === "conflict"} onSyncResolved={() => { syncPausedRef.current = false; setSyncStatus("idle"); }} />}
         </div>{/* /tab-enter */}
       </div>
 
@@ -4406,8 +4420,9 @@ function SprigApp() {
             borderRadius: 99,
             padding: "4px 10px 4px 8px",
             boxShadow: "0 2px 12px rgba(0,0,0,.18)",
-            pointerEvents: "none",
-          }}>
+            pointerEvents: syncStatus === "conflict" ? "auto" : "none",
+            cursor: syncStatus === "conflict" ? "pointer" : "default",
+          }} onClick={syncStatus === "conflict" ? () => { buzz("tap"); setTab("settings"); } : undefined}>
             <WifiOff size={12} style={{ color: C.amber }} />
             <span style={{ fontSize: 11, fontWeight: 600, color: C.amber }}>Offline</span>
           </div>
@@ -4448,6 +4463,12 @@ function SprigApp() {
               <>
                 <CloudUpload size={13} style={{ color: "#ef4444" }} />
                 <span style={{ fontSize: 11, fontWeight: 600, color: "#ef4444" }}>Sync failed</span>
+              </>
+            )}
+            {syncStatus === "conflict" && (
+              <>
+                <CloudUpload size={13} style={{ color: C.amber }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.amber }}>Sync paused · tap to choose</span>
               </>
             )}
           </div>
@@ -5359,27 +5380,62 @@ async function collectSprigLocalData() {
   return out;
 }
 
-// Push the current device's sprig_* keys into the user's row in sprig_user_data.
-// Returns { ok: true, count } or { ok: false, error }.
-async function syncToCloud() {
+// This device's id for the cloud row (device-only flag).
+function cloudDeviceId() {
+  try {
+    let id = window.localStorage.getItem("sprig_device_id");
+    if (!id) { id = uid() + uid(); window.localStorage.setItem("sprig_device_id", id); }
+    return id;
+  } catch (_) { return "unknown"; }
+}
+function readKnownRev(userId) {
+  try { const v = window.localStorage.getItem(cloudRevKey(userId)); return v == null ? null : Number(v); } catch (_) { return null; }
+}
+function writeKnownRev(userId, rev) {
+  try { window.localStorage.setItem(cloudRevKey(userId), String(rev)); } catch (_) {}
+}
+
+// Push the current device's sprig_* keys (minus photos) into the user's row in sprig_user_data,
+// only if the cloud copy is still the revision this device last saw (src/cloudSync.js).
+// { force: true } = the user chose "keep this phone's data": overwrite whatever revision is there.
+// Returns { ok: true, count } | { ok: false, conflict: true, error } | { ok: false, error }.
+async function syncToCloud({ force = false } = {}) {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, error: "Cloud sync isn't configured for this build." };
   const { data: sess } = await supabase.auth.getSession();
   const user = sess?.session?.user;
   if (!user) return { ok: false, error: "You're not logged in." };
-  const data = await collectSprigLocalData();
+  const data = cloudBlob(await collectSprigLocalData());
   const count = Object.keys(data).length;
   if (count === 0) return { ok: false, error: "Nothing local to sync." };
-  const { error } = await supabase
-    .from("sprig_user_data")
-    .upsert(
-      { user_id: user.id, app_data: data, updated_at: new Date().toISOString() },
-      { onConflict: "user_id" }
-    );
+
+  const { data: meta, error: metaErr } = await supabase
+    .from("sprig_user_data").select("rev").eq("user_id", user.id).maybeSingle();
+  if (metaErr) {
+    console.error("[sprig] syncToCloud meta read failed:", metaErr.code || metaErr.message);
+    return { ok: false, error: metaErr.message || "Sync failed" };
+  }
+  const cloud = { exists: !!meta, rev: meta?.rev ?? 0 };
+  let hadSyncedBefore = false;
+  try { hadSyncedBefore = !!window.localStorage.getItem("sprig_last_synced_at"); } catch (_) {}
+  const plan = force
+    ? { action: "push", expectedRev: cloud.exists ? cloud.rev : 0 }
+    : cloudPushPlan({ knownRev: readKnownRev(user.id), hadSyncedBefore, cloud });
+  if (plan.action === "conflict") {
+    return { ok: false, conflict: true, error: "Your cloud backup has data from another device. Choose which to keep." };
+  }
+
+  const { data: res, error } = await supabase.rpc("push_user_data", {
+    p_expected_rev: plan.expectedRev, p_device: cloudDeviceId(), p_data: data,
+  });
   if (error) {
-    console.error("[sprig] syncToCloud upsert failed:", error);
+    console.error("[sprig] syncToCloud push failed:", error.code || error.message);
     return { ok: false, error: error.message || "Sync failed" };
   }
+  if (!res?.ok) {
+    return { ok: false, conflict: true, error: "Your cloud backup changed on another device. Choose which to keep." };
+  }
+  writeKnownRev(user.id, res.rev);
   try { window.localStorage.setItem("sprig_last_synced_at", new Date().toISOString()); } catch (_) {}
   return { ok: true, count };
 }
@@ -5394,7 +5450,7 @@ async function restoreFromCloud() {
   if (!user) return { ok: false, error: "You're not logged in." };
   const { data, error } = await supabase
     .from("sprig_user_data")
-    .select("app_data, updated_at")
+    .select("app_data, updated_at, rev")
     .eq("user_id", user.id)
     .maybeSingle();
   if (error) {
@@ -5407,10 +5463,13 @@ async function restoreFromCloud() {
   if (keys.length === 0) return { ok: false, error: "Cloud backup is empty." };
   try {
     for (const k of keys) {
-      if (k.startsWith("sprig_") && typeof incoming[k] === "string") {
+      // photos are device-only; an old backup may still carry them — keep this device's
+      if (k.startsWith("sprig_") && typeof incoming[k] === "string" && !CLOUD_EXCLUDED_KEYS.includes(k)) {
         await store.set(k, incoming[k]);
       }
     }
+    // this device now holds the cloud revision, so its next automatic push may update it
+    writeKnownRev(user.id, data.rev ?? 0);
     try { window.localStorage.setItem("sprig_last_synced_at", new Date().toISOString()); } catch (_) {}
   } catch (e) {
     console.error("[sprig] restoreFromCloud write failed:", e);
@@ -5707,6 +5766,13 @@ function PhotoSheet({ onClose, photos, onAdd, onRemove }) {
   const [picked, setPicked] = useState([]);
   async function handleFile(file) {
     if (!file) return;
+    // Resized JPEG (≤ 1100 px) instead of the full-size original: photos stay on this device
+    // (never in the cloud blob, see cloudSync.js) and a 12 MP original would bloat storage.
+    const small = await resizeImage(file, 1100).catch(() => null);
+    if (small?.data) {
+      onAdd({ id: uid(), ts: Date.now(), date: new Date().toLocaleDateString("en-CA"), dataUrl: `data:${small.media};base64,${small.data}` });
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => onAdd({ id: uid(), ts: Date.now(), date: new Date().toLocaleDateString("en-CA"), dataUrl: reader.result });
     reader.readAsDataURL(file);

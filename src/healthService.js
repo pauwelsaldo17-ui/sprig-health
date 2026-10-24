@@ -92,9 +92,9 @@ async function readWeights(days) {
 async function readSleep(days) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   try {
-    // A night can have a few hundred stage segments per source; 14 nights × 2 sources fits in 5000.
+    // A night can have a few hundred stage segments per source; allow ~150 per day, 5000 minimum.
     const res = await Health.readSamples({
-      dataType: "sleep", startDate: iso(Date.now() - days * 864e5), endDate: iso(Date.now()), limit: 5000, ascending: true,
+      dataType: "sleep", startDate: iso(Date.now() - days * 864e5), endDate: iso(Date.now()), limit: Math.max(5000, days * 150), ascending: true,
     });
     const samples = res.samples || [];
     return { sessions: healthSleepSessions(samples).map((s) => ({ ...s, timezone: tz })), samples: samples.length, error: false };
@@ -137,16 +137,17 @@ export async function requestHealthPermissions() {
 // workouts: raw plugin workouts (mapped to sport sessions in App.jsx)
 // stepActive / motionActive: [{ s, e }] ms intervals when the phone moved (for the phone estimate)
 // meta: { sleepSamples, sleepError, motionStatus } — counts/status only, for the Sleep tab
-export async function syncHealthData() {
+// sleepDays: how far back to read sleep (see sleepBackfillDays) so nights are never missed.
+export async function syncHealthData({ sleepDays = 14 } = {}) {
   const result = { steps: null, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [], stepActive: [], motionActive: [], meta: {} };
   if (!(await isHealthAvailable())) return result;
   try {
-    const sl = await readSleep(14);
+    const sl = await readSleep(sleepDays);
     result.sleep = sl.sessions;
     result.meta = { sleepSamples: sl.samples, sleepError: sl.error };
     // Phone-only sleep (no wearable): when the phone moved — step samples + Core Motion history.
     // Times only; App.jsx turns the still gaps into nights (phoneSleepNights).
-    result.stepActive = stepActiveIntervals(await readSamples("steps", 14, 20000));
+    result.stepActive = stepActiveIntervals(await readSamples("steps", Math.max(14, sleepDays), Math.max(20000, sleepDays * 400)));
     const motion = await getMotionActive(7);
     result.motionActive = motion.active;
     result.meta.motionStatus = motion.status;
