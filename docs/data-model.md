@@ -34,9 +34,9 @@ Read this when: adding, renaming or reshaping any stored value, writing a migrat
 | `sprig_supps_v1` | Supplement list |
 | `sprig_sleep_v1` | Sleep logs (shape below) |
 | `sprig_alarm_v1` | Wake alarm settings |
-| `sprig_workouts_v1` | Finished workout sessions |
+| `sprig_workouts_v1` | Finished workout sessions: `{ id, date, ts (end), durationMin, exercises: [{ name, group, sets: [{ w, reps, rir, ts }] }], routineName?, recap }`. A set with `warmup: true` or `done: false` is ignored by stats. `recap` = `workoutRecap` (additive fields, older workouts have fewer). All training analytics are derived, nothing else stored (`docs/training-intelligence.md`) |
 | `sprig_active_workout_v1` | In-progress workout |
-| `sprig_rests_v1` | Rest-timer data |
+| `sprig_rests_v1` | Per-exercise custom rest seconds; `null` = automatic (`restFor`) |
 | `sprig_routines_v1` | Saved workout routines |
 | `sprig_sport_sessions_v1` | Sport / cardio sessions |
 | `sprig_weightseries_v1` | Weight series |

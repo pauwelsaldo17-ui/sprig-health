@@ -107,6 +107,7 @@ Before committing: validation hook clean + `npm run build` passes (+ `npm test` 
 | `docs/architecture.md` | New screens/state, storage, sync/auth, API routes, health, notifications, day boundary |
 | `docs/data-model.md` | Any new/changed storage key, migration, export/sync, Supabase schema |
 | `docs/energy-budget.md` | Calorie targets, maintenance, exercise energy, macros, weight-trend calibration |
+| `docs/training-intelligence.md` | Workout stats, recovery model, progression/prefill, plateaus/deload, rest, recap, coach training summary |
 | `docs/sleep-intelligence.md` | Sleep import/estimates, morning check-in, schedule/regularity, day boundary, alarms |
 | `docs/ui-conventions.md` | Any visual change: tokens, classes, motion, haptics, z-index exceptions |
 | `docs/testing.md` | Writing/running tests, browser verification, native (TestFlight) checklist |

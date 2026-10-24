@@ -411,7 +411,7 @@ const store = {
 };
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, sleepPattern, sleepRegularity, sleepTrends, sleepGoalProgress, likelySleepPeriod, sprigDateFor, workoutAdjustment, exerciseByDay, activityAverages, dailyBudget, calibrateMaintenance, todayActivityEnergy, wakingDayFraction, bmrMifflin, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, energyZones, sleepHabits, sleepDebtNights, sleepBackfillDays, bestGymWindow, smartWake, mergeHealthSleep, mergeHealthMetrics, sportSessionFromHealthWorkout, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeCoach, localCoachAnswer, phoneSleepNights, usualSleepMidMin } from "./utils/vitaeCalc.js";
+import { todayStr, uid, safeParse, asArray, asObject, DEFAULT_DAILY, DEFAULT_ALARM, DEFAULT_HABIT_CFG, DEFAULT_REMINDERS, migrateDaily, migrateAlarm, migrateHabitCfg, migrateReminders, migrateProfile, computeTargets, stepGoal, stepsKcal, movementSummary, CARDIO_INTENSITY, SPORTS_LIBRARY, sportKcal, sportMuscleImpact, DRINK_PRESETS, cardioKcal, sleepPattern, sleepRegularity, sleepTrends, sleepGoalProgress, likelySleepPeriod, sprigDateFor, workoutAdjustment, exerciseByDay, activityAverages, dailyBudget, calibrateMaintenance, todayActivityEnergy, wakingDayFraction, bmrMifflin, sedentaryNote, SWEAT_LEVELS, smartHydration, SPORTS, sportFields, sportAdvice, MOBILITY_ROUTINES, detectAchievements, goalTimeline, plateauDetection, patternDetection, seedDemoData, KG_TO_LB, CM_TO_IN, convW, convL, lbToKg, inToCm, EQUIPMENT, canDoWith, mealShortcuts, nextWorkoutSuggestion, calorieTrendRecommendation, GOAL_HABITS, FOCUS_HABITS, HABIT_META, suggestedHabitsFor, tonightPlan, ACTIVITY_SOURCES, searchAll, calendarDay, progressDiagnosis, MICRO_KEYS, MICRO_ALIASES, omegaNum, normalizeMicros, dayTotals, FUNCS, pct, funcScores, FOOD_SOURCES, NUTRI_LABEL, waterGoal, mealScore, dietQuality, missingNutrients, nutritionCoach, MEASURE_KEYS, PHOTO_KINDS, weightStats, weightVerdict, photoReminder, measurementStats, BLOOD_MARKERS, BLOOD_LABEL, latestHealth, bloodFlag, avgRecent, healthRiskRadar, RISK_TAG, RED_FLAGS, redFlagScan, bpRedFlag, INTERACTION_RULES, interactionFlags, PAIN_LOCATIONS, PAIN_TYPES, PAIN_LEVELS, SET_PAIN, LOADS_PART, PAIN_MODS, painLevelOf, painSummary, painAdvice, exercisePainRisk, HABIT_CATEGORIES, HABIT_SUGGESTIONS, DAY_NAMES_SHORT, daysLabel, habitWeekKey, habitPeriodKey, getHabitStatus, computeHabitStreak, computeHabitConsistencyV2, computeAutoHabitToday, migrateHabitsV1toV2, DEFAULT_HABITS, habitAutoDone, activeHabits, habitsToday, habitConsistency, FOCUS_PRESETS, DAYMIN, tsToMin, hmToMin, minToHM, minToLabel, minToHm, durLabel, circDiff, sleepNeedMin, circMean, inWindow, estimateStages, scoreSleep, sleepDebtMin, sleepDebtLabel, bedtimeReminder, recommend, sleepScoreBreakdown, ALCOHOL_LEVELS, alcoholLevel, alcoholImpact, recoveryRecommendation, calculatePerfectRecovery, gauss, energyCurve, energyZones, sleepHabits, sleepDebtNights, sleepBackfillDays, bestGymWindow, smartWake, mergeHealthSleep, mergeHealthMetrics, sportSessionFromHealthWorkout, MUSCLES, RECOVER_BASE, EXERCISES, findEx, restDefault, est1RM, bestSetOf, weeklyVolume, applyQuickLogMuscles, SPORT_ID_ALIASES, SPORT_FALLBACK_IMPACTS, findSportDefinition, resolveSessionMuscleImpact, normalizeMovementSessionsForMuscleRecovery, muscleRecovery, STD, STD_PCT, sexFactor, avgBW, MUSCLE_LIFT, MUSCLE_LIFT_FB, TIERS, tierFor, pctFromAnchors, bestE1RMForLift, getMuscleGroupForExercise, bestE1RMForMuscle, ranking, suggestNext, exLastBest, detectSetPR, recapFor, makeWin, mergeWins, detectDayWins, detectSleepWins, detectWorkoutWins, plateLoad, warmupSets, MOBILITY_PREP, mobilityFor, recoveryColor, liftE1RMSeries, stallingLifts, deloadAdvice, detectPRs, predictNextSets, restFor, workoutRecap, trainingSummary, trainingLoad, trainingConsistency, suggestTemplatesFromHistory, plateauedExercises, VOLUME_TARGETS, PUSH_M, PULL_M, LEG_M, UPPER_M, volumeStatus, VOL_TAG_LABEL, VOL_TAG_COLOR, suggestSplit, progressionFor, TEMPLATES, clamp100, WATER_TARGET, STEPS_TARGET, DEFAULT_TRACKING_PREFS, migrateTrackingPrefs, dailyScores, dailyHealthScore, functionalHealth, scoreVerdict, getDailyTruth, bestActions, coachReport, weeklyReport, SCHEMA_PROMPT, resizeImage, extractJSON, analyze, analyzeCoach, localCoachAnswer, phoneSleepNights, usualSleepMidMin } from "./utils/vitaeCalc.js";
 
 /* ---------------- Sprig "day" boundary --------------
    A calendar day rolls at 00:00, which is wrong for late-night eating/drinking:
@@ -2546,8 +2546,9 @@ function SprigApp() {
       const dismissed = new Set(daily.dismissedHealthIds || []);
       const overlapsApp = (s) => [...workouts, ...sportSessionsLog, ...(daily.sportSessions || [])].some((w) => {
         if (!w.ts || w.source === "health_sync") return false;
-        const wEnd = w.ts + (w.durationMin || 30) * 60000;
-        return w.ts < s.endTs && wEnd > s.ts;
+        // Sprig workouts and app-logged sessions are saved when they end: ts is the end time
+        const wStart = w.ts - (w.durationMin || 30) * 60000;
+        return wStart < s.endTs && w.ts > s.ts;
       });
       const fresh = data.workouts
         .map((w) => sportSessionFromHealthWorkout(w, profile?.weight))
@@ -2982,6 +2983,8 @@ function SprigApp() {
         stalledLifts: ctx?.stalls || [],
         muscleRecovery: ctx?.muscleRecovery || null,
         trainedToday: ctx?.trainedToday ?? null,
+        // frequency, adherence, load ratio, per-lift trends, plateaus, weekly sets vs targets, last workout
+        summary: ctx?.trainingSummary || null,
         sportSessionsToday: ctx?.today?.sportSessions || null,
       },
       flags: {
@@ -3334,14 +3337,18 @@ function SprigApp() {
   function addWoExercise(name) {
     const meta = findEx(name);
     // Pre-fill inputs from progression suggestion or last session
-    const prog = progressionFor(workouts, name, daily, sleepReadiness, rirPref?.repRange, rirPref?.intensityStyle);
+    // First predicted working set (progression target applied to last session's sets);
+    // same inputs as the exercise card so the prefill matches the plan shown there.
+    const plan = predictNextSets(workouts, name, { daily, sleepReadiness, repRange: profile.repRange, intensityStyle: rirPref?.intensityStyle });
+    const prog = progressionFor(workouts, name, daily, sleepReadiness, profile.repRange, rirPref?.intensityStyle);
     const sug  = prog || suggestNext(workouts, name);
     let lastW = "", lastR = "";
     workouts.forEach(wk => wk.exercises.forEach(e => {
       if (e.name === name && e.sets?.length) { const s = e.sets[e.sets.length - 1]; lastW = String(s.w); lastR = String(s.reps); }
     }));
-    const initW = lastW || (sug?.w != null ? String(sug.w) : "");
-    const initR = lastR || (sug?.reps != null ? String(sug.reps) : "");
+    const first = plan?.sets?.[0];
+    const initW = first ? String(first.w) : lastW || (sug?.w != null ? String(sug.w) : "");
+    const initR = first ? String(first.reps) : lastR || (sug?.reps != null ? String(sug.reps) : "");
     persistActive({ ...activeWorkout, exercises: [...activeWorkout.exercises, { name, group: meta?.group, sets: [], pendingW: initW, pendingR: initR }] });
   }
   function woLogSet(exIdx, set) {
@@ -3408,6 +3415,14 @@ function SprigApp() {
       ? { ...e, sets: e.sets.map((s, j) => (j === setIdx ? { ...s, rir } : s)) }
       : e);
     persistActive({ ...activeWorkout, exercises: ex });
+    // RIR given while the auto rest timer runs for this set → shift it (failure rests longer)
+    const cur = activeWorkout.exercises[exIdx];
+    if (rest?.auto && rest.exName === cur?.name && setIdx === cur.sets.length - 1) {
+      const set = cur.sets[setIdx];
+      const r = typeof rir === "number" ? rir : rir == null || rir === "" ? null : Number(rir);
+      const delta = (restFor(findEx(cur.name), { ...set, rir: r }).secs - rest.secs) * 1000;
+      if (delta) setRest((x) => x && (x.paused ? { ...x, secs: x.secs + delta / 1000, remainingMs: Math.max(0, (x.remainingMs || 0) + delta) } : { ...x, secs: x.secs + delta / 1000, end: x.end + delta }));
+    }
   }
   const [rirPrompt, setRirPrompt] = useState(null); // { exIdx, setIdx } — frame-level RIR sheet
   function chooseRir(exIdx, setIdx, val) { woSetRir(exIdx, setIdx, val); setRirPrompt(null); buzz("select"); }
@@ -3439,7 +3454,8 @@ function SprigApp() {
       setTimeout(() => setRestDone(false), 4000);
     }
   }, [restLeft, rest, profile]);
-  function startRest(exName) { const meta = findEx(exName); const secs = customRests[exName] ?? restDefault(meta); restFiredRef.current = false; setRestDone(false); setRest({ exName, end: Date.now() + secs * 1000, paused: false }); }
+  // Rest adapts to the set just logged (exercise type, reps, RIR); a custom rest always wins.
+  function startRest(exName, set) { const { secs, auto } = restFor(findEx(exName), set, customRests[exName]); restFiredRef.current = false; setRestDone(false); setRest({ exName, end: Date.now() + secs * 1000, paused: false, secs, auto }); }
   function pauseRest() { setRest((r) => r && !r.paused ? { ...r, paused: true, remainingMs: Math.max(0, r.end - Date.now()) } : r); }
   function resumeRest() { setRest((r) => r && r.paused ? { ...r, paused: false, end: Date.now() + (r.remainingMs || 0) } : r); }
   function addRest(ms) { setRest((r) => { if (!r) return r; if (r.paused) return { ...r, remainingMs: (r.remainingMs || 0) + ms }; return { ...r, end: r.end + ms }; }); restFiredRef.current = false; }
@@ -3455,9 +3471,10 @@ function SprigApp() {
     const done = (activeWorkout?.exercises || []).filter((e) => e.sets.length);
     let doneRecap = null;
     if (done.length) {
-      const w = { id: uid(), date, ts: Date.now(), durationMin: Math.max(1, Math.round((Date.now() - activeWorkout.startTs) / 60000)), exercises: done, source: 'manual', timezone: tz(), confirmed: true };
-      // recap vs all prior workouts → drives wins + history badges
-      const recap = recapFor(w, workouts);
+      const w = { id: uid(), date, ts: Date.now(), durationMin: Math.max(1, Math.round((Date.now() - activeWorkout.startTs) / 60000)), exercises: done, source: 'manual', timezone: tz(), confirmed: true, ...(activeWorkout.routineName ? { routineName: activeWorkout.routineName } : {}) };
+      // recap vs all prior workouts → drives wins + history badges (recapFor fields + stats,
+      // calorie estimate, typed records, change vs last time, insights)
+      const recap = workoutRecap(w, workouts, { profile, allWorkouts: [...workouts, w], sportSessions: [...sportSessionsLog, ...(daily.sportSessions || [])] });
       doneRecap = recap;
       const winCands = detectWorkoutWins(recap);
       w.recap = recap;
@@ -3809,8 +3826,20 @@ function SprigApp() {
     : Math.round(muscleReadyAvg * 0.6 + sleepReadiness * 0.4);
   const readyMuscles = MUSCLES.filter(([k]) => recovery[k]?.recovered && recovery[k]?.lastTs).map(([, n]) => n);
   const freshMuscles = MUSCLES.filter(([k]) => (recovery[k]?.fatigue ?? 0) < 30 && recovery[k]?.hasData !== false && !recovery[k]?.trackingOff).map(([, n]) => n);
-  const deload = deloadAdvice(workouts, debtMin, recovery);
-  const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily };
+  // All sport/Health sessions once (today's list + cross-day log), for load and dedupe
+  const trainingSport = useMemo(() => [...new Map([...(sportSessionsLog || []), ...(daily.sportSessions || [])].map((s, i) => [s.id || "i" + i, s])).values()], [sportSessionsLog, daily.sportSessions]);
+  // Training intelligence (docs/training-intelligence.md): derived from workouts, nothing stored
+  // (memoized: the app re-renders every second while a rest timer runs)
+  const trainingIQ = useMemo(() => ({
+    consistency: trainingConsistency({ workouts }),
+    load: trainingLoad({ workouts, sportSessions: trainingSport }),
+    plateaus: plateauedExercises(workouts),
+    historyTemplates: suggestTemplatesFromHistory({ workouts, routines }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- date: windows roll with the day
+  }), [workouts, trainingSport, routines, date]);
+  const deload = deloadAdvice(workouts, debtMin, recovery, { sportSessions: trainingSport, load: trainingIQ.load, stalls: trainingIQ.plateaus.map((x) => x.name) });
+  const trainInfo = { recovery, volume, sleepReadiness, bodyReadiness, readyMuscles, freshMuscles, deload, customRests, daily, ...trainingIQ };
+  trainInfo.sportSessions = trainingSport;
   // Strength ranking — relative e1RM percentile vs same-sex population at avg bodyweight
   trainInfo.ranking = workouts.length >= 2 ? ranking(workouts, profile, 'relative') : null;
   // Recent personal records (all-time PRs most-recent first, capped at 3)
@@ -4854,17 +4883,44 @@ function SprigApp() {
                   ))}
                 </div>
               )}
+              {/* weight / rep records that aren't e1RM bests */}
+              {(r.prs || []).filter((p) => p.kind !== "e1rm").length > 0 && (
+                <div style={{ marginBottom: 14, fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>
+                  <span style={{ color: C.lime, fontWeight: 700 }}>Also: </span>
+                  {r.prs.filter((p) => p.kind !== "e1rm").map((p) => `${p.name} ${p.label}`).join(" · ")}
+                </div>
+              )}
+              {/* energy (estimate, no heart rate) + muscles worked */}
+              {(r.kcal || (r.muscles || []).length > 0) && (
+                <div style={{ background: C.bg, borderRadius: 12, padding: "11px 12px", marginBottom: 14, fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>
+                  {r.kcal && <div><b style={{ color: C.ink }}>≈ {r.kcal.kcal} kcal</b> <span style={{ color: C.muted }}>estimate ({r.kcal.low}–{r.kcal.high}) · counted in today's energy</span></div>}
+                  {(r.muscles || []).length > 0 && <div style={{ marginTop: r.kcal ? 4 : 0 }}><span style={{ color: C.muted }}>Sets worked: </span>{r.muscles.map((m) => `${m.label} ${m.sets}`).join(" · ")}</div>}
+                </div>
+              )}
+              {/* insights */}
+              {(r.insights || []).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div className="sprig-eyebrow" style={{ marginBottom: 6 }}>Insights</div>
+                  {r.insights.map((t, i) => (
+                    <div key={i} style={{ display: "flex", gap: 8, fontSize: 12.5, color: C.inkSoft, lineHeight: 1.45, padding: "4px 0" }}>
+                      <Sparkles size={13} color={C.greenSoft} style={{ flexShrink: 0, marginTop: 2 }} /><span>{t}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Exercise list */}
               {(r.exercises || []).length > 0 && (
                 <div style={{ marginBottom: 14 }}>
                   <div className="sprig-eyebrow" style={{ marginBottom: 8 }}>Exercises</div>
                   {(r.exercises || []).slice(0, 7).map((ex, i) => {
                     const bestSet = (ex.sets || []).reduce((b, s) => (est1RM(s.w, s.reps) > est1RM(b.w, b.reps) ? s : b), ex.sets?.[0] || { w: 0, reps: 0 });
+                    const ch = (r.changes || []).find((c) => c.name === ex.name);
                     return (
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.line}` }}>
                         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</span>
                         <span style={{ fontSize: 11.5, color: C.muted, flexShrink: 0 }}>{ex.sets?.length ?? 0} sets</span>
                         {bestSet.w > 0 && <span style={{ fontSize: 11, color: C.inkSoft, flexShrink: 0 }}>{bestSet.w}kg×{bestSet.reps}</span>}
+                        {ch?.pct != null && ch.pct !== 0 && <span style={{ fontSize: 11, fontWeight: 700, color: ch.pct > 0 ? C.greenSoft : C.amber, flexShrink: 0 }}>{ch.pct > 0 ? "+" : ""}{ch.pct}%</span>}
                       </div>
                     );
                   })}
@@ -4945,6 +5001,7 @@ function SprigApp() {
           calAvg, protAvg, sleepAvg, sleepLastMin,
           sleepDebt: sleepInfo?.debtMin ?? null,
           weeklyWk, stalls,
+          trainingSummary: trackingPrefs.training === false ? null : trainingSummary({ workouts, sportSessions: trainInfo.sportSessions }),
           painActive: activePainLevel !== "none",
           painNotes: activePainLocations.length ? `${activePainLevel} at ${activePainLocations.join(", ")}` : null,
           weightRate,
