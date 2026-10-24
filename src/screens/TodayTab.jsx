@@ -4,6 +4,7 @@ import {
   Flame, Heart, Moon, Pill, Plus, Repeat, Scale, Sparkles, TrendingUp, Zap,
 } from "lucide-react";
 import { C } from "../theme.js";
+import SleepCheckIn from "../components/SleepCheckIn.jsx";
 import {
   stepGoal, ACTIVITY_SOURCES, durLabel, scoreVerdict, uid, todayStr, MUSCLES, RISK_TAG, BLOOD_MARKERS,
   ALCOHOL_LEVELS, alcoholLevel, interactionFlags, volumeStatus, VOL_TAG_COLOR,
@@ -558,7 +559,7 @@ function TodayTab({
   sleepInfo, trainInfo, advanced, dailyInfo, nutriInfo, healthInfo,
   mindInfo, moveInfo,
   onDaily, onAddEntry, onCheckin, onQuickLog, onStartWorkout,
-  onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind,
+  onGoSleep, onGoEnergy, onGoBody, onGoHealth, onGoMind, onConfirmSleepCheckin,
   onGoNutrition, onGoTrain,
   wins, onKudos, onViewAllWins,
   recoveryInfo, quickLog, tp = {}, dt = null,
@@ -813,6 +814,13 @@ function TodayTab({
           </div>
         )}
       </div>
+
+      {/* ══ 1b. MORNING SLEEP CHECK-IN — confirm an estimated night in one tap ══ */}
+      {tp.sleep !== false && sleepInfo?.checkin && (
+        <div style={{ marginTop: 10 }}>
+          <SleepCheckIn compact checkin={sleepInfo.checkin} onConfirm={onConfirmSleepCheckin} onAdjust={() => onGoSleep?.()} />
+        </div>
+      )}
 
       {/* ══ 2. SCORE CHIPS ═══════════════════════════════════════ */}
       {loggedDays >= 1 && scoreChips.length > 0 && (

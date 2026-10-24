@@ -2473,12 +2473,14 @@ export function bedtimeReminder({ nowTs, recBedMin, lastLogTs, t, targets, daily
 
   return { missing: missing.slice(0, 3), nearBed: true };
 }
-export function recommend(logs, profile, debtMin) {
+// pattern + wakeDate (optional): aim for the learned wake time of that day (work vs free day).
+export function recommend(logs, profile, debtMin, { pattern = null, wakeDate = null } = {}) {
   const need = sleepNeedMin(profile.age);
   const recent = logs.filter((l) => !l.nap).slice(-7);
   const wakeMins = recent.map((l) => tsToMin(l.waketime));
   const bedMins = recent.map((l) => tsToMin(l.bedtime));
-  const recWake = circMean(wakeMins) ?? 420;
+  const learned = pattern && wakeDate ? expectedNight(pattern, wakeDate) : null;
+  const recWake = learned?.wakeMin ?? circMean(wakeMins) ?? 420;
   const usualBed = circMean(bedMins) ?? (recWake - need + DAYMIN) % DAYMIN;
   // Rise-style pay-down: up to an extra hour a night (debt is a 14-night total, so ~15% per night);
   // bigger jumps in bedtime shift the rhythm instead of repaying debt.
@@ -5440,4 +5442,181 @@ export function todayActivityEnergy({ daily, exerciseToday, profile }) {
     exerciseLow: exerciseToday?.low || 0, exerciseHigh: exerciseToday?.high || 0,
     sessions: exerciseToday?.sessions || [], duplicates: exerciseToday?.dropped?.length || 0,
   };
+}
+
+/* ---------------- sleep intelligence (wearable-free) --------------
+   See docs/sleep-intelligence.md. Learned schedule, regularity (SRI), trends, goal progress,
+   the morning check-in suggestion and the sleep-aware day boundary. Missing nights are unknown,
+   never "no sleep". */
+const SI_DAY = 864e5;
+const siDay = (ts) => new Date(ts).toLocaleDateString("en-CA");
+const siAt = (dateStr, min) => { const d = new Date(dateStr + "T00:00:00"); d.setMinutes(Math.round(min)); return d.getTime(); };
+// signed clock difference a − b in minutes, in (−720, 720]
+export const circSigned = (a, b) => { const d = (((a - b) % DAYMIN) + DAYMIN) % DAYMIN; return d > DAYMIN / 2 ? d - DAYMIN : d; };
+// Circular standard deviation of clock minutes (minutes); null with < 2 values.
+export function circSdMin(mins) {
+  if (!mins || mins.length < 2) return null;
+  let x = 0, y = 0;
+  mins.forEach((m) => { const a = (m / DAYMIN) * 2 * Math.PI; x += Math.cos(a); y += Math.sin(a); });
+  const R = Math.min(1, Math.sqrt(x * x + y * y) / mins.length);
+  return Math.round((Math.sqrt(Math.max(0, -2 * Math.log(Math.max(R, 1e-9)))) * DAYMIN) / (2 * Math.PI)) || 0;
+}
+// Main sleeps (≥ 2 h, not naps, not ignored) that ended in (from, to].
+function siMainSleeps(logs, from, to) {
+  return (logs || []).filter((l) => l && !l.discarded && !l.nap && !l.ignoredFromScore && l.bedtime && l.waketime &&
+    l.waketime > from && l.waketime <= to && (l.durationMin || 0) >= 120);
+}
+function siGroup(arr) {
+  if (!arr.length) return null;
+  const beds = arr.map((l) => tsToMin(l.bedtime)), wakes = arr.map((l) => tsToMin(l.waketime));
+  const bedMin = circMean(beds), wakeMin = circMean(wakes);
+  return {
+    nights: arr.length, bedMin, wakeMin,
+    midMin: Math.round(bedMin + ((wakeMin - bedMin + DAYMIN) % DAYMIN) / 2) % DAYMIN,
+    durationMin: Math.round(arr.reduce((a, l) => a + (l.durationMin || 0), 0) / arr.length),
+    bedSdMin: circSdMin(beds), wakeSdMin: circSdMin(wakes),
+  };
+}
+
+// The user's learned schedule over the last `days` days, split into work and free days by the
+// weekday of waking (workDays: 0 = Sunday … 6, default Mon–Fri / the alarm days).
+// daySleeper: main sleep centred between 08:00 and 18:00 (overnight shifts).
+export function sleepPattern(logs, { nowTs = Date.now(), days = 28, workDays = [1, 2, 3, 4, 5] } = {}) {
+  const ms = siMainSleeps(logs, nowTs - days * SI_DAY, nowTs);
+  const isWork = (l) => workDays.includes(new Date(l.waketime).getDay());
+  const all = siGroup(ms), work = siGroup(ms.filter(isWork)), free = siGroup(ms.filter((l) => !isWork(l)));
+  return {
+    nights: ms.length, all, work, free, workDays,
+    socialJetlagMin: work && free && work.nights >= 2 && free.nights >= 2 ? circDiff(work.midMin, free.midMin) : null,
+    daySleeper: !!all && all.nights >= 3 && all.midMin >= 8 * 60 && all.midMin <= 18 * 60,
+    confidence: ms.length >= 10 ? "high" : ms.length >= 5 ? "medium" : "low",
+  };
+}
+// Usual night ending on wake date `dateStr` (work or free day), or null while confidence is low.
+export function expectedNight(pattern, dateStr) {
+  if (!pattern?.all || pattern.confidence === "low") return null;
+  const work = pattern.workDays.includes(new Date(dateStr + "T12:00:00").getDay());
+  const g = work ? pattern.work : pattern.free;
+  const use = g && g.nights >= 2 ? g : pattern.all;
+  return { bedMin: use.bedMin, wakeMin: use.wakeMin, durationMin: use.durationMin, basis: use === pattern.all ? "usual" : work ? "work" : "free" };
+}
+
+// Sleep Regularity Index (Phillips et al. 2017): % of 5-min epochs in the same state (asleep /
+// awake) 24 h apart, over consecutive wake days that both have a main sleep (last `days` days).
+// Reported 0–100 (SRI below 0 is clamped). Needs ≥ 3 day pairs.
+export function sleepRegularity(logs, { nowTs = Date.now(), days = 14, epochMin = 5 } = {}) {
+  const from = nowTs - days * SI_DAY;
+  const main = siMainSleeps(logs, from - SI_DAY, nowTs);
+  const iv = (logs || []).filter((l) => l && !l.discarded && l.bedtime && l.waketime && !(l.ignoredFromScore && !l.nap) && l.waketime > from - 2 * SI_DAY)
+    .map((l) => ({ s: l.bedtime, e: l.waketime }));
+  const asleep = (t) => iv.some((x) => t >= x.s && t < x.e);
+  const daysWith = new Set(main.map((l) => siDay(l.waketime)));
+  let same = 0, total = 0, pairs = 0;
+  const step = epochMin * 60000;
+  [...daysWith].sort().forEach((d) => {
+    const next = siDay(new Date(d + "T12:00:00").getTime() + SI_DAY);
+    if (!daysWith.has(next)) return;
+    const w0 = new Date(d + "T12:00:00").getTime() - SI_DAY; // noon before → noon of wake day
+    if (w0 + 2 * SI_DAY > nowTs + SI_DAY) return;
+    pairs += 1;
+    for (let t = w0; t < w0 + SI_DAY; t += step) { total += 1; if (asleep(t) === asleep(t + SI_DAY)) same += 1; }
+  });
+  const recent = siMainSleeps(logs, from, nowTs);
+  const bedSdMin = circSdMin(recent.map((l) => tsToMin(l.bedtime)));
+  const wakeSdMin = circSdMin(recent.map((l) => tsToMin(l.waketime)));
+  if (pairs < 3) return { sri: null, pairs, bedSdMin, wakeSdMin, label: null };
+  const sri = Math.max(0, Math.min(100, Math.round(200 * (same / total) - 100)));
+  const label = sri >= 80 ? "Very regular" : sri >= 65 ? "Fairly regular" : sri >= 50 ? "Irregular" : "Very irregular";
+  return { sri, pairs, bedSdMin, wakeSdMin, label };
+}
+
+// Total sleep (main + naps) per wake date in (from, to].
+function siTotals(logs, from, to) {
+  const out = {};
+  (logs || []).forEach((l) => {
+    if (!l || l.discarded || !l.waketime || l.waketime <= from || l.waketime > to) return;
+    if (!l.nap && (l.ignoredFromScore || (l.durationMin || 0) < 20)) return;
+    const d = l.date || siDay(l.waketime);
+    out[d] = (out[d] || 0) + (l.durationMin || 0);
+  });
+  return out;
+}
+// 7 / 28 / 90-day averages and how the last week compares with the month.
+export function sleepTrends(logs, { nowTs = Date.now() } = {}) {
+  const win = (d) => {
+    const tot = Object.values(siTotals(logs, nowTs - d * SI_DAY, nowTs));
+    const g = siGroup(siMainSleeps(logs, nowTs - d * SI_DAY, nowTs));
+    if (!tot.length || !g) return null;
+    return { nights: tot.length, durationMin: Math.round(tot.reduce((a, v) => a + v, 0) / tot.length), bedMin: g.bedMin, wakeMin: g.wakeMin };
+  };
+  const d7 = win(7), d28 = win(28), d90 = win(90);
+  const cmp = d7 && d28 && d7.nights >= 3 && d28.nights >= 8;
+  return {
+    d7, d28, d90,
+    durationDeltaMin: cmp ? d7.durationMin - d28.durationMin : null,
+    bedShiftMin: cmp ? circSigned(d7.bedMin, d28.bedMin) : null, // + = later than usual
+    wakeShiftMin: cmp ? circSigned(d7.wakeMin, d28.wakeMin) : null,
+  };
+}
+// Progress toward the sleep need over the last 7 wake days (unlogged days are unknown, not misses).
+export function sleepGoalProgress(logs, { nowTs = Date.now(), needMin = 480, toleranceMin = 15 } = {}) {
+  const tot = siTotals(logs, nowTs - 7 * SI_DAY, nowTs);
+  const dates = Object.keys(tot).sort();
+  const met = dates.filter((d) => tot[d] >= needMin - toleranceMin);
+  let streak = 0;
+  for (const d of [...dates].reverse()) { if (tot[d] >= needMin - toleranceMin) streak += 1; else break; }
+  return {
+    nights: dates.length, metNights: met.length, streak,
+    avgMin: dates.length ? Math.round(dates.reduce((a, d) => a + tot[d], 0) / dates.length) : null,
+    needMin,
+  };
+}
+
+// Morning check-in. Returns what to ask the user about last night, or null when nothing is needed:
+//  • { kind: "confirm", log }  — last night is a phone/alarm estimate the user hasn't confirmed
+//  • { kind: "suggest", bedTs, wakeTs } — nothing recorded; the usual schedule for that weekday
+// Trusted nights (Apple Health, the user's own or edited/confirmed logs) need nothing.
+const SI_ESTIMATE_SOURCES = new Set(["phone_estimate", "estimate"]);
+export function likelySleepPeriod({ logs, pattern, nowTs = Date.now(), maxAgeH = 14 }) {
+  const recent = (logs || [])
+    .filter((l) => l && !l.discarded && !l.nap && l.waketime && l.waketime <= nowTs && nowTs - l.waketime < maxAgeH * 36e5)
+    .sort((a, b) => b.waketime - a.waketime)[0];
+  if (recent) {
+    if (!SI_ESTIMATE_SOURCES.has(recent.source) || recent.edited || recent.userConfirmed) return null;
+    return {
+      kind: "confirm", log: recent, bedTs: recent.bedtime, wakeTs: recent.waketime, durationMin: recent.durationMin,
+      confidence: recent.source === "phone_estimate" ? "medium" : "low",
+      reason: recent.source === "phone_estimate" ? "Your iPhone didn't move between these times." : "Estimated from your usual schedule.",
+    };
+  }
+  // nothing for last night: offer the usual schedule once its wake time has passed
+  for (const dateStr of [siDay(nowTs), siDay(nowTs - SI_DAY)]) {
+    const exp = expectedNight(pattern, dateStr);
+    if (!exp) return null;
+    const wakeTs = siAt(dateStr, exp.wakeMin);
+    if (wakeTs > nowTs || nowTs - wakeTs >= maxAgeH * 36e5) continue;
+    const bedTs = wakeTs - ((exp.wakeMin - exp.bedMin + DAYMIN) % DAYMIN) * 60000;
+    // a logged sleep overlapping that period (e.g. a long nap) means we shouldn't guess
+    if ((logs || []).some((l) => l && !l.discarded && l.bedtime < wakeTs && l.waketime > bedTs)) return null;
+    return {
+      kind: "suggest", bedTs, wakeTs, durationMin: exp.durationMin, confidence: pattern.confidence, basis: exp.basis,
+      reason: exp.basis === "work" ? "Your usual work-day schedule." : exp.basis === "free" ? "Your usual day-off schedule." : "Your usual schedule.",
+    };
+  }
+  return null;
+}
+
+// The "Sprig day" a timestamp belongs to. The day starts when you wake from your latest main
+// sleep (≥ 3 h, not a nap) — at any hour on that calendar day, and for day sleepers (night shifts)
+// for up to 20 h after waking even past midnight. Otherwise the day rolls at 04:00.
+export function sprigDateFor(now = Date.now(), latestSleepLog = null, mode = "after-wake", { daySleeper = false } = {}) {
+  if (mode === "midnight") return siDay(now);
+  const l = latestSleepLog;
+  if (mode === "after-wake" && l?.waketime && !l.nap && (l.durationMin || 0) >= 180) {
+    const since = now - l.waketime;
+    if (since >= 0 && since < 20 * 36e5 && (siDay(l.waketime) === siDay(now) || daySleeper)) return siDay(l.waketime);
+  }
+  const d = new Date(now);
+  if (d.getHours() * 60 + d.getMinutes() < 4 * 60) d.setDate(d.getDate() - 1);
+  return siDay(d.getTime());
 }

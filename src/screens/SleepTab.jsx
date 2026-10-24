@@ -11,6 +11,7 @@ import {
   smartWake, sleepDebtLabel, tsToMin, DAYMIN, uid, ENERGY_ZONE_META, SLEEP_HABIT_META
 } from "../utils/vitaeCalc.js";
 import { btn, Btn, Legend, SubTabs, EmptyState, Ring } from "../components/ui.jsx";
+import SleepCheckIn from "../components/SleepCheckIn.jsx";
 
 const _HAPTIC = { tap: 14, light: 10, select: 8, success: [30, 50, 30] };
 function buzz(kind = "tap") {
@@ -409,54 +410,6 @@ function LastNightSummary({ log, allLogs, need, onEdit, onRemove }) {
 }
 
 // ─── Smart Estimate Card ──────────────────────────────────────────────────────
-function SmartEstimateCard({ alarm, sleepLogs, onConfirm }) {
-  const avgBedMin = sleepLogs.length
-    ? (circMean(sleepLogs.filter(l => !l.nap).slice(-7).map(l => tsToMin(l.bedtime))) ?? hmToMin("23:00"))
-    : hmToMin("23:00");
-  const wakeMin = hmToMin(alarm?.latest || "07:00");
-  let durMin = ((wakeMin - avgBedMin) + DAYMIN) % DAYMIN;
-  if (durMin > 12 * 60) durMin = 8 * 60; // fallback if nonsensical
-
-  const bedLabel = minToLabel(avgBedMin);
-  const wakeLabel = minToLabel(wakeMin);
-
-  function confirmEstimate() {
-    const now = new Date();
-    const [wh, wm] = (alarm?.latest || "07:00").split(":").map(Number);
-    const wakeDate = new Date(now); wakeDate.setHours(wh, wm, 0, 0);
-    if (wakeDate > now) wakeDate.setDate(wakeDate.getDate() - 1);
-    const bedDate = new Date(wakeDate);
-    const bedH = Math.floor(avgBedMin / 60), bedM = avgBedMin % 60;
-    bedDate.setHours(bedH, bedM, 0, 0);
-    if (bedDate >= wakeDate) bedDate.setDate(bedDate.getDate() - 1);
-    onConfirm({ bedTs: bedDate.getTime(), wakeTs: wakeDate.getTime(), restlessness: 30, source: "estimate" });
-  }
-
-  return (
-    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${C.amber}55` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
-        <span style={{ fontSize: 16 }}>🌅</span>
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>Sleep estimate from alarm</span>
-      </div>
-      <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.55 }}>
-        Alarm set for <b>{wakeLabel}</b> — assuming <b>{bedLabel}</b> bedtime based on your average.
-      </div>
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 700, color: C.greenSoft, margin: "10px 0" }}>
-        ~{durLabel(durMin)}
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button className="sprig-tap" onClick={confirmEstimate}
-          style={{ flex: 1, background: C.green, color: "#fff", border: "none", borderRadius: 10, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Check size={14} /> Confirm estimate
-        </button>
-      </div>
-      <div style={{ fontSize: 11, color: C.muted, marginTop: 8, lineHeight: 1.4 }}>
-        Estimates show with a ~ prefix and can be edited anytime.
-      </div>
-    </div>
-  );
-}
-
 // ─── Apple Health sync status (Rise-style "synced from your watch") ───────────
 // Counts only — never raw values. Tapping syncs now.
 function HealthSyncRow({ healthStatus, onHealthSync }) {
@@ -622,6 +575,57 @@ function SleepDebtDetail({ sleepInfo, onGoAlarm, onAskCoach }) {
 
 // ─── Recent nights: source, naps, and per-log actions ────────────────────────
 const SOURCE_LABEL = { health_sync: "Apple Health", phone_estimate: "Phone", manual: "Manual", estimate: "Estimate", session: "Tracked", auto: "Tracked" };
+// ─── Consistency: regularity (SRI), learned schedule, trend, goal progress ─────
+function SleepConsistencyCard({ sleepInfo }) {
+  const { regularity: rg, pattern: pt, trends: tr, goal } = sleepInfo;
+  if (!rg && !pt) return null;
+  const hm = (m) => minToLabel(m);
+  const signed = (m, word) => `${durLabel(Math.abs(m))} ${m > 0 ? word[0] : word[1]}`;
+  const rows = [];
+  if (pt?.confidence !== "low" && pt?.work && pt?.free && pt.work.nights >= 2 && pt.free.nights >= 2) {
+    rows.push(["Work days", `${hm(pt.work.bedMin)} → ${hm(pt.work.wakeMin)}`]);
+    rows.push(["Days off", `${hm(pt.free.bedMin)} → ${hm(pt.free.wakeMin)}`]);
+  } else if (pt?.confidence !== "low" && pt?.all) {
+    rows.push(["Usual night", `${hm(pt.all.bedMin)} → ${hm(pt.all.wakeMin)}`]);
+  }
+  if (rg?.bedSdMin != null) rows.push(["Bedtime varies", `±${durLabel(rg.bedSdMin)}`]);
+  if (pt?.socialJetlagMin >= 60) rows.push(["Weekend shift", durLabel(pt.socialJetlagMin)]);
+  if (tr?.durationDeltaMin != null) rows.push(["Last 7 nights", `${durLabel(tr.d7.durationMin)} (${tr.durationDeltaMin >= 0 ? "+" : "−"}${durLabel(Math.abs(tr.durationDeltaMin))} vs month)`]);
+  if (tr?.bedShiftMin != null && Math.abs(tr.bedShiftMin) >= 20) rows.push(["Bedtime lately", signed(tr.bedShiftMin, ["later", "earlier"])]);
+  if (goal?.nights) rows.push(["Sleep goal", `${goal.metNights} of ${goal.nights} nights${goal.streak >= 2 ? ` · ${goal.streak} in a row` : ""}`]);
+  const sri = rg?.sri;
+  const tone = sri == null ? C.muted : sri >= 80 ? C.greenSoft : sri >= 65 ? C.lime : sri >= 50 ? C.amber : C.coral;
+  return (
+    <div style={{ background: C.card, borderRadius: 20, padding: "16px 18px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: .4, textTransform: "uppercase" }}>Consistency</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, marginTop: 2 }}>{rg?.label || "Learning your rhythm"}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 24, fontWeight: 700, color: tone }}>{sri ?? "—"}</div>
+          <div style={{ fontSize: 10, color: C.muted }}>regularity</div>
+        </div>
+      </div>
+      {rows.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {rows.map(([l, v]) => (
+            <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+              <span style={{ color: C.muted }}>{l}</span><span style={{ color: C.inkSoft, fontWeight: 600 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 10, lineHeight: 1.45 }}>
+        {sri == null
+          ? "A few nights in a row and Vitae can score how regular your sleep is."
+          : "How often you're asleep or awake at the same clock times 24 h apart. Regular sleep matters as much as long sleep."}
+        {pt?.daySleeper ? " Your main sleep is in the daytime — Vitae follows your shift schedule." : ""}
+      </div>
+    </div>
+  );
+}
+
 function RecentNights({ sleepLogs, onRemove, onToggleIgnore, onMarkNap }) {
   const [open, setOpen] = useState(null);
   const logs = [...sleepLogs].sort((a, b) => b.waketime - a.waketime).slice(0, 14);
@@ -1141,7 +1145,7 @@ const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const WEEKENDS = [0, 6];
 
-function AlarmCard({ alarm, onSaveAlarm, profile }) {
+function AlarmCard({ alarm, onSaveAlarm, profile, alarmSupport }) {
   const [showSound, setShowSound] = useState(false);
   const [vol, setVol] = useState(profile?.alarmVolume ?? 0.7);
   const { wakeMin, cycles } = smartWake(Date.now() - 6 * 3600000, hmToMin(alarm.latest), alarm.window || 30);
@@ -1171,6 +1175,7 @@ function AlarmCard({ alarm, onSaveAlarm, profile }) {
           <div style={{ fontSize: 11.5, opacity: .65, marginTop: 4 }}>Wakes you at your lightest sleep</div>
         </div>
       </div>
+      {alarm.enabled && <AlarmSupportNote support={alarmSupport} latest={alarm.latest} />}
 
       {/* Wake window */}
       <div style={{ padding: "14px 18px" }}>
@@ -1328,7 +1333,26 @@ function SleepSoundsCard() {
 }
 
 // ─── Main SleepTab ────────────────────────────────────────────────────────────
-function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, profile, advanced, daily, onDaily, recoveryRec, onAskCoach, healthStatus, onHealthSync, sleepSummaryNotify = true, onToggleSleepSummary }) {
+// What actually happens at wake-up time on this device — never promise more than iOS allows.
+function AlarmSupportNote({ support, latest }) {
+  const text = support === "system"
+    ? `System alarm set for ${latest} — it rings even if Vitae is closed or your iPhone is locked. The smart window only works while Vitae stays open.`
+    : support === "notification"
+      ? `Backup notification at ${latest} (one sound, not a full alarm). Real alarms need iOS 26 and alarm permission. The smart window only works while Vitae stays open.`
+      : support === "failed"
+        ? "Couldn't set the wake-up alarm. Allow notifications (and alarms on iOS 26) for Vitae in Settings."
+        : support === "none"
+          ? "In the browser the alarm only rings while this page is open."
+          : null;
+  if (!text) return null;
+  return (
+    <div style={{ padding: "10px 18px", fontSize: 11.5, lineHeight: 1.45, color: support === "system" ? C.inkSoft : C.amber, background: C.bg2, borderTop: `1px solid ${C.line}` }}>
+      {text}
+    </div>
+  );
+}
+
+function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onSub, session, micState, onStart, onEnd, onManual, onRemove, onToggleIgnore, onMarkNap, onEditLog, onConfirmCheckin, alarmSupport, profile, advanced, daily, onDaily, recoveryRec, onAskCoach, healthStatus, onHealthSync, sleepSummaryNotify = true, onToggleSleepSummary }) {
   const { debtMin, lastSleep, rec, need, breakdown } = sleepInfo;
 
   // Local state for morning routine and wind-down
@@ -1338,6 +1362,13 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
   const [editingLog, setEditingLog] = useState(null); // log object being edited
   const [editBed, setEditBed] = useState("23:00");
   const [editWake, setEditWake] = useState("07:00");
+  const [formDefaults, setFormDefaults] = useState(null); // { bed, wake } from the morning check-in
+  // "Adjust" on the morning check-in: edit the estimate, or log the suggested night with its times
+  function adjustCheckin(c) {
+    onSub?.("sleep");
+    if (c.kind === "confirm") { setEditingLog(c.log); setEditBed(minToHm(tsToMin(c.bedTs))); setEditWake(minToHm(tsToMin(c.wakeTs))); }
+    else { setFormDefaults({ bed: minToHm(tsToMin(c.bedTs)), wake: minToHm(tsToMin(c.wakeTs)) }); setShowLogForm(true); }
+  }
 
   function saveRoutine(steps) { setRoutine(steps); lsSet("sprig_routine_v1", steps); }
   function toggleWinddown() { const v = !winddownEnabled; setWinddownEnabled(v); lsSet("sprig_winddown_v1", v); }
@@ -1364,7 +1395,9 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
             </span>
           </div>
           <div style={{ fontSize: 11.5, opacity: .7, marginTop: 18, lineHeight: 1.5, maxWidth: 280, margin: "18px auto 0" }}>
-            Keep the app open with your phone charging on the nightstand.
+            {alarmSupport === "system"
+              ? "Keep Vitae open on the nightstand for the smart window. Your system alarm rings at the latest time either way."
+              : "Keep Vitae open with your phone charging on the nightstand — the alarm can only ring while the app is open."}
           </div>
         </div>
         <button className="sprig-tap" onClick={onEnd}
@@ -1395,8 +1428,11 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
           <SleepTodayHero sleepInfo={sleepInfo} />
           <HealthSyncRow healthStatus={healthStatus} onHealthSync={onHealthSync} />
 
+          {/* Morning check-in: confirm an estimated night in one tap */}
+          <SleepCheckIn checkin={sleepInfo.checkin} onConfirm={onConfirmCheckin} onAdjust={adjustCheckin} />
+
           {/* No sleep for last night yet → one tap to log it */}
-          {!hasRecentLog && (
+          {!hasRecentLog && !sleepInfo.checkin && (
             <button className="sprig-tap" onClick={() => { onSub?.("sleep"); setShowLogForm(true); buzz("tap"); }}
               style={{ width: "100%", background: `${SLEEP_CLR}15`, border: `1px solid ${SLEEP_CLR}44`, borderRadius: 14, padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontFamily: "DM Sans", textAlign: "left", boxShadow: C.shadow }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: `${SLEEP_CLR}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
@@ -1477,6 +1513,10 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <SleepDebtDetail sleepInfo={sleepInfo} onGoAlarm={() => onSub?.("alarm")} onAskCoach={onAskCoach} />
 
+          {!editingLog && <SleepCheckIn checkin={sleepInfo.checkin} onConfirm={onConfirmCheckin} onAdjust={adjustCheckin} />}
+
+          <SleepConsistencyCard sleepInfo={sleepInfo} />
+
           <SleepScoreCard log={lastSleep} allLogs={sleepLogs} need={need} onAskCoach={onAskCoach} />
 
           {/* Last Night Summary */}
@@ -1517,11 +1557,6 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
             </div>
           )}
 
-          {/* Smart Estimate (when no recent log) */}
-          {!hasRecentLog && alarm?.enabled && (
-            <SmartEstimateCard alarm={alarm} sleepLogs={sleepLogs} onConfirm={onManual} />
-          )}
-
           <RecentNights sleepLogs={sleepLogs} onRemove={onRemove} onToggleIgnore={onToggleIgnore} onMarkNap={onMarkNap} />
 
           {/* Manual logging stays available when Health has no data */}
@@ -1532,7 +1567,8 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
             </button>
             {showLogForm && (
               <div className="sprig-pop" style={{ marginTop: 8 }}>
-                <SleepLogForm onSave={(d) => { onManual(d); setShowLogForm(false); }} alarm={alarm} />
+                <SleepLogForm key={formDefaults ? formDefaults.bed + formDefaults.wake : "blank"} defaultBed={formDefaults?.bed} defaultWake={formDefaults?.wake}
+                  onSave={(d) => { onManual(d); setShowLogForm(false); setFormDefaults(null); }} alarm={alarm} />
               </div>
             )}
           </div>
@@ -1543,7 +1579,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
             <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 15, fontWeight: 700 }}>
               <Moon size={17} /> Start sleep tracking
             </span>
-            <span style={{ fontSize: 11, opacity: .8, fontWeight: 600 }}>Smart alarm wakes you by {alarm.latest}</span>
+            <span style={{ fontSize: 11, opacity: .8, fontWeight: 600 }}>{alarm.enabled ? `Smart alarm while Vitae is open · ${alarmSupport === "system" ? "system alarm" : "latest"} ${alarm.latest}` : "Alarm off"}</span>
           </button>
 
           <div style={{ height: 8 }} />
@@ -1567,7 +1603,7 @@ function SleepTab({ sleepLogs, sleepInfo, alarm, onSaveAlarm, sub = "today", onS
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
           {/* A. Smart Alarm */}
-          <AlarmCard alarm={alarm} onSaveAlarm={onSaveAlarm} profile={profile} />
+          <AlarmCard alarm={alarm} onSaveAlarm={onSaveAlarm} profile={profile} alarmSupport={alarmSupport} />
 
           {/* B. Wind-Down Reminder */}
           {onToggleSleepSummary && <MorningSummaryCard enabled={sleepSummaryNotify} onToggle={onToggleSleepSummary} />}
