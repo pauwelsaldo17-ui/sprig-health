@@ -11,7 +11,8 @@ import {
   SET_PAIN, warmupSets, EXERCISES, MUSCLES, canDoWith, volumeStatus,
   VOL_TAG_COLOR, VOL_TAG_LABEL, liftE1RMSeries, SPORTS_LIBRARY, sportKcal,
   sportMuscleImpact, stepGoal, uid, detectPRs, detectSetPR, recapFor, TEMPLATES,
-  MOBILITY_ROUTINES, minToLabel
+  MOBILITY_ROUTINES, minToLabel, predictNextSets, restFor, warmGroupsFor, exerciseRecords,
+  exerciseTrend, exerciseSessions, LOAD_ZONE_LABEL
 } from "../utils/vitaeCalc.js";
 
 const HAPTIC_PATTERNS = { tap: 14, light: 10, select: 8, success: [30, 50, 30], complete: [30, 50, 50], strong: 40, error: [100, 50, 100] };
@@ -45,25 +46,31 @@ function PlateView({ target, unit }) {
 }
 
 
-function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain, nextExName }) {
+function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepReadiness, daily, painLevel, painLocations, repRangePref, intensityStyle, onLogSet, onSetRir, onOpenRirPrompt, onRemoveSet, onRemoveEx, onSaveRest, onStartRest, onSetExercisePain, nextExName, activeExercises }) {
   const meta = findEx(ex.name);
   const prog = progressionFor(workouts, ex.name, daily, sleepReadiness, repRangePref, intensityStyle);  // richer: action + text + suggested w/reps
   const sug = prog || suggestNext(workouts, ex.name);                     // fall back to lightweight hint
-  // Local state for weight/reps inputs — pre-filled from last session or progression hint
+  // Predicted working sets for today (progression target applied to last session's sets)
+  const plan = predictNextSets(workouts, ex.name, { daily, sleepReadiness, repRange: repRangePref, intensityStyle });
+  // Local state for weight/reps inputs — pre-filled from the plan, else last session / hint
   const initW = (() => {
     if (ex.pendingW != null) return ex.pendingW;
+    const p = plan?.sets?.[ex.sets.length];
+    if (p) return String(p.w);
     let last = "";
     workouts.forEach(wk => wk.exercises.forEach(e => { if (e.name === ex.name && e.sets?.length) { const s = e.sets[e.sets.length - 1]; last = String(s.w); } }));
     return last || (sug?.w != null ? String(sug.w) : "");
   })();
-  const initR = ex.pendingR != null ? ex.pendingR : (sug?.reps != null ? String(sug.reps) : "");
+  const initR = ex.pendingR != null ? ex.pendingR : plan?.sets?.[ex.sets.length] ? String(plan.sets[ex.sets.length].reps) : (sug?.reps != null ? String(sug.reps) : "");
   const [w, setW]       = useState(initW);
   const [reps, setReps] = useState(initR);
   const [showCue, setShowCue] = useState(false);
   const [showPlate, setShowPlate] = useState(false);
   const [editRest, setEditRest] = useState(false);
   const [prBadges, setPrBadges] = useState({});   // setIdx → { kind, label }
-  const restSecs = customRests[ex.name] ?? restDefault(meta);
+  // Rest shown for the set about to be logged; the timer recomputes from the logged set + RIR
+  const restInfo = restFor(meta, { reps: parseInt(reps) || plan?.sets?.[ex.sets.length]?.reps || 0 }, customRests[ex.name]);
+  const restSecs = restInfo.secs;
   const setNo = ex.sets.length + 1;
 
   // last session's sets for this exercise (the "do it again next week" reference)
@@ -98,9 +105,18 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
       setPrBadges((prev) => ({ ...prev, [ex.sets.length]: pr }));
     }
     onLogSet(exIdx, { w: W, reps: R, rir: null });
-    onStartRest(ex.name);
-    // Keep weight, clear reps for next set
-    setReps("");
+    onStartRest(ex.name, { w: W, reps: R });
+    // Prefill the next planned set. If the user corrected this set's weight, carry the
+    // correction forward (same weight on same-tier sets, same ratio on back-off sets).
+    const cur = plan?.sets?.[ex.sets.length], next = plan?.sets?.[ex.sets.length + 1];
+    if (next) {
+      const corr = cur && cur.w > 0 && W > 0 ? W / cur.w : 1;
+      const nw = Math.abs(corr - 1) < 1e-3 ? next.w : next.w === cur.w ? W : Math.round(next.w * corr * 2) / 2;
+      setW(String(nw)); setReps(String(next.reps));
+    } else {
+      // Beyond the plan: keep weight, clear reps (quick "=N" chip repeats the last reps)
+      setReps("");
+    }
   }
   return (
     <div className="vitae-fade-up" data-ex-card={exIdx} style={{ background: C.cardSolid, borderRadius: 24, padding: "18px 16px", boxShadow: "0 2px 16px rgba(0,0,0,.28)", border: `1px solid ${C.line}`, marginBottom: 16, position: "relative" }}>
@@ -210,9 +226,9 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         const sty = styleMap[action] || styleMap.add_w;
         const text = sug.text || sug.note;
         const isPush = action === "add_w" || action === "add_rep";
-        const summaryLabel = sug.prevW != null
+        const summaryLabel = (sug.prevW != null
           ? `${sug.prevW}${unit} × ${sug.prevReps} → ${sug.w}${unit} × ${sug.reps}`
-          : (text || "Progression hint");
+          : (text || "Progression hint")) + (plan?.sets?.length > 1 ? ` · ${plan.sets.length} sets` : "");
         return (
           <details style={{ marginTop: 10 }} open={false}>
             <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 7, padding: "8px 10px", background: isPush ? C.green + "0d" : C.bg2, borderRadius: 10, border: `1px solid ${isPush ? C.green + "22" : C.line}` }}>
@@ -286,12 +302,12 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
       {(() => {
         const target = parseFloat(w) || prevSets?.bestSet?.w || 0;
         if (!target || ex.sets.length > 0) return null;
-        const wu = warmupSets(target, meta, unit);
+        const wu = warmupSets(target, meta, unit, { warmGroups: warmGroupsFor(activeExercises, exIdx) });
         if (!wu.sets.length && !wu.mobility.length) return null;
         return (
           <details style={{ marginTop: 10 }}>
             <summary style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, color: C.greenSoft, fontWeight: 600, padding: "2px 0" }}>
-              <Flame size={13} /> Warm-up for {target}{unit} <ChevronDown size={12} />
+              <Flame size={13} /> Warm-up for {target}{unit}{wu.alreadyWarm ? " · short, already warm" : ""} <ChevronDown size={12} />
             </summary>
             <div style={{ background: C.bg, borderRadius: 10, padding: "10px 12px", marginTop: 6, fontSize: 12 }}>
               {wu.sets.length > 0 && (
@@ -321,17 +337,21 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
 
       {/* rest pref */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 11, fontSize: 12, color: C.muted, flexWrap: "wrap" }}>
-        <Timer size={13} color={C.muted} /> <span>Rest <b style={{ color: C.inkSoft }}>{fmtClock(restSecs)}</b></span>
-        <button className="sprig-tap" onClick={() => setEditRest((s) => !s)} style={{ background: "none", border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 11.5, fontWeight: 700, padding: 0, marginLeft: 2 }}>edit</button>
+        <Timer size={13} color={C.muted} /> <span>Rest <b style={{ color: C.inkSoft }}>{fmtClock(restSecs)}</b>{restInfo.auto && <span style={{ color: C.muted }}> · auto</span>}</span>
+        <button className="sprig-tap" onClick={() => { buzz("tap"); setEditRest((s) => !s); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.greenSoft, fontSize: 11.5, fontWeight: 700, padding: 0, marginLeft: 2, fontFamily: "DM Sans" }}>edit</button>
         {editRest && (
           <span style={{ display: "flex", gap: 4, marginLeft: 4, flexWrap: "wrap" }}>
+            <button onClick={() => { buzz("tap"); onSaveRest(ex.name, null); setEditRest(false); }} className="sprig-tap"
+              style={{ border: "none", cursor: "pointer", padding: "4px 7px", borderRadius: 7, fontSize: 10.5, fontWeight: 600, fontFamily: "DM Sans", background: restInfo.auto ? C.green : C.bg2, color: restInfo.auto ? "#fff" : C.inkSoft }}>Auto</button>
             {[45, 60, 90, 120, 180, 240].map((s) => (
-              <button key={s} onClick={() => { onSaveRest(ex.name, s); setEditRest(false); }} className="sprig-tap"
-                style={{ border: "none", cursor: "pointer", padding: "4px 7px", borderRadius: 7, fontSize: 10.5, fontWeight: 600, fontFamily: "DM Sans", background: restSecs === s ? C.green : C.bg2, color: restSecs === s ? "#fff" : C.inkSoft }}>{fmtClock(s)}</button>
+              <button key={s} onClick={() => { buzz("tap"); onSaveRest(ex.name, s); setEditRest(false); }} className="sprig-tap"
+                style={{ border: "none", cursor: "pointer", padding: "4px 7px", borderRadius: 7, fontSize: 10.5, fontWeight: 600, fontFamily: "DM Sans", background: !restInfo.auto && restSecs === s ? C.green : C.bg2, color: !restInfo.auto && restSecs === s ? "#fff" : C.inkSoft }}>{fmtClock(s)}</button>
             ))}
           </span>
         )}
       </div>
+
+      <ExerciseHistory workouts={workouts} exName={ex.name} unit={unit} />
 
       {/* per-exercise pain marker */}
       {onSetExercisePain && (
@@ -373,6 +393,106 @@ function ExerciseCard({ ex, exIdx, workouts, unit, customRests, advanced, sleepR
         </button>
       )}
     </div>
+  );
+}
+
+// Consistency, training load, per-lift progress and plateaus — all derived, nothing to enter.
+function TrainingInsights({ workouts, trainInfo, onAskCoach }) {
+  const cons = trainInfo.consistency, load = trainInfo.load;
+  if (!cons || !workouts.length) return null;
+  const counts = {};
+  workouts.filter((w) => Date.now() - w.ts < 42 * 864e5).forEach((w) => w.exercises.forEach((e) => { if (e.sets?.length) counts[e.name] = (counts[e.name] || 0) + 1; }));
+  const trends = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n]) => exerciseTrend(workouts, n)).filter(Boolean);
+  const plateaus = trainInfo.plateaus || [];
+  const zoneClr = load?.zone === "spike" ? C.coral : load?.zone === "high" ? C.amber : load?.zone === "low" ? C.muted : C.greenSoft;
+  const row = { display: "flex", alignItems: "baseline", gap: 8, padding: "7px 0", borderBottom: `1px solid ${C.line}`, fontSize: 12.5 };
+  const lbl = { width: 92, flexShrink: 0, color: C.muted, fontSize: 11.5 };
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: "14px 16px", boxShadow: C.shadow, border: `1px solid ${C.line}`, marginTop: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+        <Activity size={16} color={TRAIN_CLR} /> Training insights
+      </div>
+      <div style={row}>
+        <span style={lbl}>Consistency</span>
+        <span style={{ flex: 1, color: C.inkSoft }}>
+          <b style={{ color: C.ink }}>{cons.sessionsThisWeek}/{cons.target}</b> this week · {cons.perWeek4}/wk avg
+          {cons.adherencePct != null && <> · {cons.adherencePct}% on target</>}
+          {cons.streakWeeks >= 2 && <> · {cons.streakWeeks}-week streak</>}
+        </span>
+      </div>
+      <div style={row}>
+        <span style={lbl}>Training load</span>
+        <span style={{ flex: 1, color: C.inkSoft }}>
+          {load?.ratio != null
+            ? <><b style={{ color: zoneClr }}>{LOAD_ZONE_LABEL[load.zone]}</b> · {load.ratio.toFixed(2)}× your 4-week average</>
+            : <span style={{ color: C.muted }}>Needs ~3 weeks of history</span>}
+        </span>
+      </div>
+      {trends.map((t) => {
+        const txt = t.plateau ? (t.plateau.kind === "regressing" ? `${t.plateau.dropPct}% under best` : `No new best in ${t.plateau.weeks} wk`)
+          : t.change4wPct != null ? (Math.abs(t.change4wPct) < 1 ? "Steady" : `${t.change4wPct > 0 ? "+" : ""}${t.change4wPct}% vs ~4 wk`) : t.slopePctWk != null ? `${t.slopePctWk > 0 ? "+" : ""}${t.slopePctWk}%/wk` : "Building history";
+        const clr = t.plateau ? C.amber : (t.change4wPct ?? t.slopePctWk ?? 0) > 0 ? C.greenSoft : C.muted;
+        return (
+          <div key={t.exercise} style={row}>
+            <span style={{ ...lbl, width: "auto", flex: 1, color: C.ink, fontWeight: 600, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.exercise}</span>
+            <span style={{ color: clr, fontWeight: 700, flexShrink: 0 }}>{txt}</span>
+            {t.change12wPct != null && <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{t.change12wPct > 0 ? "+" : ""}{t.change12wPct}% / 12 wk</span>}
+          </div>
+        );
+      })}
+      {plateaus.length > 0 && (
+        <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5, marginTop: 9 }}>
+          <b style={{ color: C.amber }}>Stalled:</b> {plateaus.slice(0, 3).map((p) => p.name).join(", ")}. {plateaus.some((p) => progressionFor(workouts, p.name, trainInfo.daily, trainInfo.sleepReadiness)?.action === "deload") ? "Next session suggests a ~10% reset, then builds back up." : "Building back up after a lighter session."}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5, marginTop: 9 }}>
+        Muscle recovery is approximate: it adds up your recent sets, how hard they were (RIR) and your sleep — not a fixed timer.
+      </div>
+      {onAskCoach && (
+        <button className="sprig-tap" onClick={() => { buzz("tap"); onAskCoach("How is my training progressing, and what should I change next week?"); }}
+          style={{ marginTop: 10, background: "none", border: "none", cursor: "pointer", padding: 0, color: C.greenSoft, fontSize: 12, fontWeight: 700, fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 5 }}>
+          <Sparkles size={13} /> Ask the coach about my progress
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Collapsed per-exercise history: trend, records, last sessions. No popup — a native <details>.
+function ExerciseHistory({ workouts, exName, unit }) {
+  const ses = exerciseSessions(workouts, exName);
+  if (!ses.length) return null;
+  const rec = exerciseRecords(workouts, exName);
+  const tr = exerciseTrend(workouts, exName);
+  const fmtD = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const trendTxt = !tr ? null
+    : tr.plateau ? (tr.plateau.kind === "regressing" ? `${tr.plateau.dropPct}% under best` : `no new best in ${tr.plateau.weeks} wk`)
+    : tr.change4wPct != null ? `${tr.change4wPct > 0 ? "+" : ""}${tr.change4wPct}% vs ~4 wk ago`
+    : null;
+  const trendClr = tr?.plateau ? C.amber : tr?.change4wPct > 0 ? C.greenSoft : C.muted;
+  return (
+    <details style={{ marginTop: 9 }}>
+      <summary className="sprig-tap" onClick={() => buzz("tap")} style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, color: C.muted, fontWeight: 600, padding: "2px 0" }}>
+        <BarChart3 size={13} /> History · {ses.length} session{ses.length !== 1 ? "s" : ""}
+        {trendTxt && <span style={{ color: trendClr }}>· {trendTxt}</span>}
+        <ChevronDown size={12} />
+      </summary>
+      <div style={{ background: C.bg, borderRadius: 10, padding: "10px 12px", marginTop: 6, fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+          {rec?.e1rm && <span><span style={{ color: C.muted }}>Best e1RM </span><b>{Math.round(rec.e1rm.value)}{unit}</b></span>}
+          {rec?.weight && <span><span style={{ color: C.muted }}>Heaviest </span><b>{rec.weight.value}{unit} × {rec.weight.reps}</b></span>}
+          {!rec?.weight && rec?.reps && <span><span style={{ color: C.muted }}>Most reps </span><b>{rec.reps.value}</b></span>}
+          {rec?.sessionVolume && <span><span style={{ color: C.muted }}>Best session </span><b>{rec.sessionVolume.value.toLocaleString()}{unit}</b></span>}
+        </div>
+        {ses.slice(-4).reverse().map((s) => (
+          <div key={s.ts} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", flexWrap: "wrap" }}>
+            <span style={{ width: 48, color: C.muted, fontSize: 11 }}>{fmtD(s.ts)}</span>
+            {s.sets.map((x, i) => <span key={i} style={{ background: C.bg2, borderRadius: 6, padding: "1px 6px", fontWeight: 600, fontSize: 11 }}>{x.w}×{x.reps}</span>)}
+            {s.e1rm && <span style={{ marginLeft: "auto", color: C.muted, fontSize: 10.5 }}>{Math.round(s.e1rm)}{unit}</span>}
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -1054,6 +1174,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
             onLogSet={onLogSet} onSetRir={onSetRir} onOpenRirPrompt={onOpenRirPrompt} onRemoveSet={onRemoveSet} onRemoveEx={onRemoveExercise} onSaveRest={onSaveRest} onStartRest={onStartRest}
             onSetExercisePain={onSetExercisePain}
             nextExName={exList[i + 1]?.name || null}
+            activeExercises={exList}
             />
         ))}
 
@@ -1284,6 +1405,29 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
         </button>
       )}
 
+      {/* sessions you repeat but haven't saved — built from your last 8 weeks */}
+      {!builder && (trainInfo.historyTemplates || []).length > 0 && (
+        <>
+          <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "18px 2px 8px" }}>Your usual sessions</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {trainInfo.historyTemplates.map((t) => (
+              <div key={t.exercises.join("|")} style={{ background: C.card, borderRadius: 15, padding: "13px 15px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700 }}>{t.name}</div>
+                    <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      Done {t.count}× · {t.exercises.slice(0, 3).join(", ")}{t.exercises.length > 3 ? "…" : ""}
+                    </div>
+                  </div>
+                  <button className="sprig-tap" onClick={() => { buzz("tap"); onSaveRoutine({ name: t.name, exercises: t.exercises }); }} title="Save as routine" style={{ background: C.bg2, border: "none", cursor: "pointer", height: 32, borderRadius: 9, padding: "0 10px", color: C.inkSoft, fontSize: 12, fontWeight: 600, fontFamily: "DM Sans" }}>Save</button>
+                  <button className="sprig-tap" onClick={() => { buzz("tap"); onStart({ name: t.name, exercises: t.exercises }); }} style={{ ...btn(TRAIN_CLR, "#fff"), padding: "9px 14px", fontSize: 13 }}><Play size={14} /> Start</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* mobility routines */}
       <div style={{ marginTop: 12 }}>
         <button className="sprig-tap" onClick={() => setShowMobility((s) => !s)} style={{ width: "100%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 15, padding: "12px 14px", cursor: "pointer", boxShadow: C.shadow, display: "flex", alignItems: "center", gap: 10 }}>
@@ -1402,6 +1546,7 @@ function TrainTab({ workouts, active, profile, trainInfo, advanced, sub = "train
 
       {normSub === "recovery" && (<>
       {recoveryInfo && <PerfectRecoveryCard recoveryInfo={recoveryInfo} compact={false} />}
+      <TrainingInsights workouts={workouts} trainInfo={trainInfo} onAskCoach={onAskCoach} />
       <VolumeCoach volume={trainInfo.volume} advanced={advanced} onAskCoach={onAskCoach} />
 
       {/* Recovery & strength — moved here from Progress; lives with the rest of training */}

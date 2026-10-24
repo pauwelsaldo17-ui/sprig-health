@@ -475,7 +475,7 @@ export function plateauDetection({ workouts, weightSeries, sleepLogs, history, t
   const stalls = (typeof stallingLifts === "function") ? stallingLifts(workouts || []) : [];
   if (stalls.length) out.push({
     kind: "strength",
-    title: `${stalls[0]} hasn't moved in 3+ sessions`,
+    title: `${stalls[0]} hasn't moved in 3+ weeks`,
     reasons: ["Calories too low to support new tissue", "Sleep under 7h dulling neural drive", "Volume too high — fatigue masking strength", "Form drift — film a working set and check"],
   });
   // sleep plateau (consistently under-recovered)
@@ -938,7 +938,7 @@ export function progressDiagnosis({ workouts, weightSeries, history, sleepLogs, 
   // training volume / consistency
   if (wkWorkouts < 2) cand.push({ score: 8, key: "consistency", title: "Training inconsistent", detail: `Only ${wkWorkouts} session${wkWorkouts !== 1 ? "s" : ""} in the last week — not enough stimulus to progress.`, fix: "Aim for 3–4 sessions/week, even short ones." });
   // stalled lifts (progression)
-  if (stalls.length >= 2) cand.push({ score: 6, key: "stall", title: "Lifts have stalled", detail: `${stalls.slice(0, 2).join(", ")} haven't moved in 3 sessions.`, fix: "Deload that lift ~10%, then rebuild — or add a rep before adding weight." });
+  if (stalls.length >= 2) cand.push({ score: 6, key: "stall", title: "Lifts have stalled", detail: `${stalls.slice(0, 2).join(", ")} haven't moved in 3+ weeks.`, fix: "Deload that lift ~10%, then rebuild — or add a rep before adding weight." });
   // alcohol
   if (avgAlc != null && avgAlc >= 1) cand.push({ score: 5, key: "alcohol", title: "Alcohol is a factor", detail: `~${avgAlc} drinks/day average dents sleep, recovery, and protein synthesis.`, fix: "Cut back on training-week drinking and watch recovery improve." });
   // pain
@@ -3325,13 +3325,13 @@ export const restDefault = (ex) => (ex?.type === "compound" ? 180 : 75);
 export const est1RM = (w, reps) => (reps <= 0 ? 0 : w * (1 + reps / 30));
 export const bestSetOf = (sets) => sets.reduce((b, s) => (est1RM(s.w, s.reps) > est1RM(b.w, b.reps) ? s : b), sets[0]);
 
-export function weeklyVolume(workouts) {
-  const since = Date.now() - 7 * 864e5;
+export function weeklyVolume(workouts, now = Date.now()) {
+  const since = now - 7 * 864e5;
   const vol = {}; const direct = {}; const indirect = {};
   MUSCLES.forEach(([k]) => { vol[k] = 0; direct[k] = 0; indirect[k] = 0; });
-  workouts.filter((w) => w.ts >= since).forEach((w) => {
-    w.exercises.forEach((ex) => {
-      const meta = findEx(ex.name); const n = ex.sets.length;
+  (workouts || []).filter((w) => w.ts >= since && w.ts <= now).forEach((w) => {
+    (w.exercises || []).forEach((ex) => {
+      const meta = findEx(ex.name); const n = (ex.sets || []).filter(isWorkingSet).length; // warm-ups don't count
       const prim = ex.group || meta?.group;
       if (prim) { vol[prim] = (vol[prim] || 0) + n; direct[prim] = (direct[prim] || 0) + n; }
       (meta?.sec || []).forEach((s) => { vol[s] = (vol[s] || 0) + n * 0.5; indirect[s] = (indirect[s] || 0) + n * 0.5; });
@@ -3533,7 +3533,27 @@ export function normalizeMovementSessionsForMuscleRecovery({ daily, sportSession
   return out;
 }
 
-export function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSessions = []) {
+// Muscles whose main exercise in the latest session (last 10 days) fell ≥ 5 % below the
+// average of that exercise's previous three sessions — a sign recovery isn't complete.
+function musclesWithPerfDrop(workouts, now) {
+  const recent = (workouts || []).filter((w) => w?.ts > now - 10 * 864e5 && w.ts <= now);
+  const latestByGroup = {};
+  recent.forEach((w) => (w.exercises || []).forEach((ex) => {
+    const g = ex.group || findEx(ex.name)?.group;
+    if (g && (ex.sets || []).some(isWorkingSet) && (!latestByGroup[g] || w.ts > latestByGroup[g].ts)) latestByGroup[g] = { ts: w.ts, name: ex.name };
+  }));
+  const out = new Set();
+  Object.entries(latestByGroup).forEach(([g, { ts, name }]) => {
+    const ses = exerciseSessions(workouts, name).filter((s) => s.ts <= ts);
+    if (ses.length < 4) return;
+    const last = ses[ses.length - 1], prev = ses.slice(-4, -1);
+    const avg = prev.reduce((a, s) => a + s.perf, 0) / prev.length;
+    if (avg > 0 && last.perf < avg * 0.95) out.add(g);
+  });
+  return out;
+}
+const RECOVERED_F = 6 * -Math.log(0.8); // residual stimulus at which fatigue reads 20 %
+export function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSessions = [], { now = Date.now() } = {}) {
   if (tp.training === false) {
     const out = {};
     MUSCLES.forEach(([k]) => { out[k] = { recovered: false, remaining: 0, fatigue: 0, lastTs: null, setCount: 0, full: RECOVER_BASE[k], trackingOff: true, hasData: false }; });
@@ -3542,14 +3562,20 @@ export function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSess
   const out = {};
   const factor = readiness >= 75 ? 0.85 : readiness >= 55 ? 1 : readiness >= 35 ? 1.15 : 1.3;
   const qlMuscles = applyQuickLogMuscles(quickLog);
+  // Imported sessions that duplicate a Sprig workout don't add fatigue twice
+  sportSessions = dropDuplicateSessions(sportSessions, workouts);
+  // Every session in the last 10 days leaves residual fatigue S·e^(−h/τ); residuals add up.
+  const recentW = (workouts || []).filter((w) => w?.ts > now - 10 * 864e5 && w.ts <= now)
+    .map((w) => ({ ts: w.ts, stim: muscleSetsOf(w, { weighted: true }), sets: muscleSetsOf(w) }));
+  const perfDrop = musclesWithPerfDrop(workouts, now);
 
   // Pre-compute sport fatigue from ALL recent sport sessions (today + past days, within 48h)
   // muscle → {fatigue, ts, sportName, sportNames[]}
   const sportFatigue = {};
   sportSessions.forEach((ss) => {
-    const ts = ss.ts || Date.now();
-    const since = (Date.now() - ts) / 36e5;
-    if (since > 48) return; // only sessions within 48h matter
+    const ts = ss.ts || now;
+    const since = (now - ts) / 36e5;
+    if (since > 48 || since < 0) return; // only sessions within 48h matter
     // Use the normalised muscle impact (resolveSessionMuscleImpact covers saved impact + library + fallback)
     const rawImpact = resolveSessionMuscleImpact(ss);
     if (!rawImpact || Object.keys(rawImpact).length === 0) return;
@@ -3574,17 +3600,10 @@ export function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSess
     });
   });
 
+  const setsByWorkout = (workouts || []).filter((w) => w?.ts && w.ts <= now).map((w) => ({ ts: w.ts, sets: muscleSetsOf(w) }));
   MUSCLES.forEach(([k]) => {
     let lastTs = 0, setCount = 0;
-    workouts.forEach((w) => {
-      let c = 0;
-      w.exercises.forEach((ex) => {
-        const meta = findEx(ex.name); const prim = ex.group || meta?.group;
-        if (prim === k) c += ex.sets.length;
-        if ((meta?.sec || []).includes(k)) c += ex.sets.length * 0.5;
-      });
-      if (c > 0 && w.ts > lastTs) { lastTs = w.ts; setCount = c; }
-    });
+    setsByWorkout.forEach((w) => { const c = w.sets[k] || 0; if (c > 0 && w.ts > lastTs) { lastTs = w.ts; setCount = c; } });
     if (!lastTs) {
       // No gym workout for this muscle — fall back to sport estimate, then QL
       if (sportFatigue[k] && sportFatigue[k].fatigue > 0) {
@@ -3604,16 +3623,22 @@ export function muscleRecovery(workouts, readiness, quickLog, tp = {}, sportSess
         };
       } else if (qlMuscles[k]) {
         const qf = qlMuscles[k].fatigue;
-        out[k] = { recovered: false, remaining: 24, fatigue: qf, lastTs: Date.now(), setCount: 0, full: 48, quickLogged: true, hasData: true };
+        out[k] = { recovered: false, remaining: 24, fatigue: qf, lastTs: now, setCount: 0, full: 48, quickLogged: true, hasData: true };
       } else {
         out[k] = { recovered: true, remaining: 0, fatigue: 0, lastTs: null, setCount: 0, full: RECOVER_BASE[k], hasData: false };
       }
       return;
     }
-    const full = (RECOVER_BASE[k] + Math.min(40, setCount * 4)) * factor;
-    const since = (Date.now() - lastTs) / 36e5;
-    const remaining = Math.max(0, full - since);
-    let baseFatigue = Math.round(Math.min(100, (remaining / full) * 100));
+    // Residual fatigue: τ from the muscle's base recovery time, stretched by poor sleep; a
+    // performance drop on the muscle's main lift adds 20 %. Recovered = fatigue < 20 %.
+    const tau = (RECOVER_BASE[k] / 2.3) * factor;
+    const drop = perfDrop.has(k) ? 1.2 : 1;
+    const residual = (h) => recentW.reduce((a, w) => a + (w.stim[k] || 0) * Math.exp(-((now - w.ts) / 36e5 + h) / tau), 0) * drop;
+    const f0 = residual(0);
+    let remaining = 0;
+    if (f0 > RECOVERED_F) { while (remaining < 240 && residual(remaining) > RECOVERED_F) remaining += 1; }
+    const full = Math.max(1, (now - lastTs) / 36e5 + remaining);
+    let baseFatigue = remaining > 0 ? Math.round(100 * (1 - Math.exp(-f0 / 6))) : Math.min(19, Math.round(100 * (1 - Math.exp(-f0 / 6))));
     // Gym is recovered — sport is now the sole fatigue source, use it directly
     if (remaining <= 0 && sportFatigue[k] && sportFatigue[k].fatigue > 0) {
       const sf = sportFatigue[k];
@@ -3949,19 +3974,24 @@ export function plateLoad(target, bar = 20) {
 }
 
 // generate ramp-up warm-up sets toward a working weight (compound lifts get more ramp)
-export function warmupSets(workingWeight, meta, unit = "kg") {
+// warmGroups: muscle groups already worked this session → short ramp (compound) or none (isolation)
+export function warmupSets(workingWeight, meta, unit = "kg", { warmGroups } = {}) {
   const w = +workingWeight;
   if (!w || w <= 0) return { sets: [], mobility: [] };
   const minInc = unit === "lb" ? 5 : 2.5;
   const roundTo = (x) => Math.max(minInc, Math.round(x / minInc) * minInc);
   const isCompound = meta?.type === "compound";
   const isBarbell = meta?.bar;
+  const alreadyWarm = !!(meta?.group && warmGroups?.has?.(meta.group));
+  if (alreadyWarm && !isCompound) return { sets: [], mobility: [], alreadyWarm: true };
   // bodyweight / very light: no real ramp needed
   if (w < (unit === "lb" ? 40 : 20)) {
+    if (alreadyWarm) return { sets: [], mobility: [], alreadyWarm: true };
     return { sets: [{ w: 0, reps: 10, note: "light/bodyweight warm-up" }], mobility: mobilityFor(meta) };
   }
   // percentages of working weight, fewer reps as we climb
-  const scheme = isCompound
+  const scheme = alreadyWarm ? [[0.6, 5], [0.85, 2]]
+    : isCompound
     ? [[0.4, 8], [0.6, 5], [0.8, 3], [0.9, 1]]
     : [[0.5, 10], [0.7, 5], [0.85, 3]];
   const bar = isBarbell ? (unit === "lb" ? 45 : 20) : 0;
@@ -3969,7 +3999,7 @@ export function warmupSets(workingWeight, meta, unit = "kg") {
     .map(([pct, reps]) => ({ w: isBarbell ? Math.max(bar, roundTo(w * pct)) : roundTo(w * pct), reps }))
     // drop dupes / sets at/above working weight
     .filter((s, i, arr) => s.w < w && (i === 0 || s.w !== arr[i - 1].w));
-  return { sets, working: w, mobility: mobilityFor(meta) };
+  return { sets, working: w, mobility: alreadyWarm ? [] : mobilityFor(meta), alreadyWarm };
 }
 // quick mobility prep per muscle group
 export const MOBILITY_PREP = {
@@ -4010,27 +4040,31 @@ export function liftE1RMSeries(workouts, exName) {
   });
   return out;
 }
-export function stallingLifts(workouts) {
-  const stalls = [];
-  ["bench", "squat", "deadlift", "ohp", "row"].forEach((lk) => {
-    const ex = EXERCISES.find((e) => e.lift === lk);
-    if (!ex) return;
-    const ser = liftE1RMSeries(workouts, ex.name);
-    if (ser.length >= 3) {
-      const last3 = ser.slice(-3);
-      if (last3[2].e1 <= last3[0].e1 * 1.005) stalls.push(ex.name);
-    }
-  });
-  return stalls;
+// Exercises with a real plateau or regression (≥ 5 sessions over ≥ 3 weeks; see plateauFor).
+export function stallingLifts(workouts, now = Date.now()) {
+  return plateauedExercises(workouts, now).map((p) => p.name);
 }
-export function deloadAdvice(workouts, debtMin, recovery) {
-  const stalls = stallingLifts(workouts);
-  const fatigued = MUSCLES.filter(([k]) => recovery[k].fatigue > 70).length;
+// Deload only on meaningful trends: ≥ 4 weeks of history and ≥ 2 independent signals.
+// load / stalls may be passed in when the caller already computed them for the same workouts.
+export function deloadAdvice(workouts, debtMin, recovery, { sportSessions = [], now = Date.now(), load: loadIn, stalls: stallsIn } = {}) {
+  const sorted = (workouts || []).filter((w) => w?.ts && w.ts <= now).sort((a, b) => a.ts - b.ts);
+  const stalls = stallsIn || stallingLifts(sorted, now);
   const reasons = [];
-  if (stalls.length >= 2) reasons.push(`${stalls.length} main lifts have stalled`);
+  const historyDays = sorted.length ? (now - sorted[0].ts) / 864e5 : 0;
+  if (historyDays < 28 || sorted.filter((w) => w.ts > now - 28 * 864e5).length < 4) return { suggest: false, reasons, stalls, load: null };
+  const load = loadIn || trainingLoad({ workouts: sorted, sportSessions, now });
+  const fatigued = MUSCLES.filter(([k]) => (recovery?.[k]?.fatigue || 0) > 70).length;
+  // consecutive recent weeks without a lighter week (< 60 % of the usual weekly load)
+  const active = load.weeks.filter((x) => x > 0).sort((a, b) => a - b);
+  const usual = active.length ? active[Math.floor(active.length / 2)] : 0;
+  let hardWeeks = 0;
+  for (let i = load.weeks.length - 1; i >= 0 && usual > 0 && load.weeks[i] >= usual * 0.6; i--) hardWeeks++;
+  if (stalls.length >= 2) reasons.push(`${stalls.length} lifts have stalled or slipped for 3+ weeks`);
+  if (load.zone === "spike") reasons.push(`training load is ${load.ratio}× your 4-week average`);
+  else if (hardWeeks >= 6 && stalls.length >= 1) reasons.push(`${hardWeeks} hard weeks without a lighter one`);
   if (debtMin > 300) reasons.push(`high sleep debt (${durLabel(debtMin)})`);
   if (fatigued >= 6) reasons.push("most muscle groups are under-recovered");
-  return { suggest: reasons.length >= 2, reasons, stalls };
+  return { suggest: reasons.length >= 2, reasons, stalls, load, hardWeeks };
 }
 export function detectPRs(workouts) {
   // running best e1RM per exercise; a workout sets a PR when it beats prior best
@@ -4136,7 +4170,7 @@ export function suggestSplit({ workouts, recovery, volume, sleepReadiness, debtM
 }
 
 // progression decision per exercise
-export function progressionFor(workouts, exName, daily, sleepReadiness, prefRange, intensityStyle) {
+export function progressionFor(workouts, exName, daily, sleepReadiness, prefRange, intensityStyle, now = Date.now()) {
   // gather this exercise's history, most recent session's best set as the reference
   const byTs = {};
   workouts.forEach((w) => w.exercises.forEach((ex) => { if (ex.name === exName) { (byTs[w.ts] = byTs[w.ts] || []).push(...ex.sets); } }));
@@ -4156,13 +4190,17 @@ export function progressionFor(workouts, exName, daily, sleepReadiness, prefRang
   const validPref = Array.isArray(prefRange) && prefRange.length === 2 && prefRange[0] > 0 && prefRange[1] >= prefRange[0];
   const repRange = validPref ? [prefRange[0], prefRange[1]] : (compound ? [5, 8] : bar ? [6, 10] : [8, 12]);
   const [, repTop] = repRange;
-  const stalls = stallingLifts(workouts).includes(exName);
+  // Reset only on a real plateau (3+ weeks) while the last session is still at the top (≥ 97 %
+  // of the best). Once lighter — after a reset, however big — it builds back up, never spirals.
+  const plateau = plateauFor(workouts, exName, now);
+  const lastPerf = est1RM(+last.w || 0, +last.reps || 0);
+  const stalls = !!plateau && plateau.best > 0 && lastPerf >= plateau.best * 0.97;
   const prevW = last.w, prevReps = last.reps, prevRir = last.rir;
   const base = { prevW, prevReps, prevRir };
 
   // ---- caution branches: only when genuinely warranted (kept rare) ----
   if (daily?.deloadMode) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: "Deload week — drop ~10%, move smooth, own the pattern." };
-  if (stalls) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: "Stalled 3 sessions — reset ~10% this week. You'll blast past your old best on the way back up." };
+  if (stalls) return { ...base, action: "deload", w: +(prevW * 0.9).toFixed(1), reps: prevReps, text: `No new best in ${plateau.weeks} weeks — reset ~10% and build back up. You'll pass your old best on the way.` };
   if ((daily?.checkin?.pain) === "serious") return { ...base, action: "hold", w: prevW, reps: prevReps, text: `Pain logged — match ${prevW}kg × ${prevReps} and stop early if it flares.` };
   if (sleepReadiness < 40) return { ...base, action: "hold", w: prevW, reps: prevReps, text: `Recovery is low — match ${prevW}kg × ${prevReps}. Push only if it feels great.` };
 
@@ -4241,6 +4279,396 @@ export const TEMPLATES = [
       { name: "Legs", exercises: ["Barbell Squat", "Romanian Deadlift", "Leg Press", "Leg Curl", "Calf Raise"] },
     ] },
 ];
+
+/* ---------------- training intelligence (docs/training-intelligence.md) -------------- */
+const TI_DAY = 864e5;
+const tiDay = (ts) => new Date(ts).toLocaleDateString("en-CA");
+const tiRound1 = (x) => Math.round(x * 10) / 10;
+const tiMuscleLabel = (k) => MUSCLES.find(([m]) => m === k)?.[1] || k;
+// A set counts toward volume, load and records unless it is a warm-up or not done.
+export const isWorkingSet = (s) => !!s && s.done !== false && s.warmup !== true && (+s.reps || 0) > 0;
+export const isHardSet = (s) => isWorkingSet(s) && (s.rir == null || s.rir <= 4);
+// Stimulus weight of one set from its RIR (unknown RIR counts as a normal hard set).
+export function setStimulus(s) {
+  if (!isWorkingSet(s)) return 0;
+  const r = s.rir;
+  if (r == null) return 1;
+  return r <= 0 ? 1.15 : r === 1 ? 1.05 : r === 2 ? 1 : r === 3 ? 0.85 : 0.6;
+}
+// e1RM is only meaningful for loaded sets of 12 reps or fewer.
+export const e1rmApplicable = (s) => !!s && (+s.w || 0) > 0 && (+s.reps || 0) > 0 && +s.reps <= 12;
+function tiSorted(workouts) {
+  return [...(workouts || [])].filter((w) => w && Array.isArray(w.exercises) && w.ts).sort((a, b) => a.ts - b.ts);
+}
+// Sets per muscle in one workout: primary 1, each secondary 0.5. weighted → RIR stimulus.
+export function muscleSetsOf(workout, { weighted = false } = {}) {
+  const out = {};
+  (workout?.exercises || []).forEach((ex) => {
+    const meta = findEx(ex.name); const prim = ex.group || meta?.group;
+    const n = (ex.sets || []).reduce((a, s) => a + (weighted ? setStimulus(s) : isHardSet(s) ? 1 : 0), 0);
+    if (!n) return;
+    if (prim) out[prim] = (out[prim] || 0) + n;
+    (meta?.sec || []).forEach((k) => { out[k] = (out[k] || 0) + n * 0.5; });
+  });
+  return out;
+}
+// Totals for one workout. Duration: logged, else first→last set, else ~2.5 min per set.
+export function workoutStats(w) {
+  let sets = 0, reps = 0, volume = 0, hardSets = 0; const rirs = []; const setTs = [];
+  (w?.exercises || []).forEach((ex) => (ex.sets || []).forEach((s) => {
+    if (!isWorkingSet(s)) return;
+    sets += 1; reps += +s.reps || 0; volume += (+s.w || 0) * (+s.reps || 0);
+    if (isHardSet(s)) hardSets += 1;
+    if (typeof s.rir === "number") rirs.push(s.rir);
+    if (s.ts) setTs.push(s.ts);
+  }));
+  const durationMin = w?.durationMin > 0 ? w.durationMin
+    : setTs.length >= 2 ? Math.max(1, Math.round((Math.max(...setTs) - Math.min(...setTs)) / 60000) + 2)
+    : sets ? Math.max(10, Math.round(sets * 2.5)) : 0;
+  const meanRir = rirs.length ? rirs.reduce((a, b) => a + b, 0) / rirs.length : null;
+  const rpe = meanRir == null ? 7.5 : Math.min(10, Math.max(5, 10 - meanRir));
+  const exercises = (w?.exercises || []).filter((ex) => (ex.sets || []).some(isWorkingSet)).length;
+  return { sets, reps, volume: Math.round(volume), hardSets, exercises, durationMin, meanRir, rpe, muscles: muscleSetsOf(w) };
+}
+// Time window of a workout or sport session ([start, end] ms), same rules as exerciseEnergy.
+function tiWindow(rec) {
+  if (!rec?.ts) return null;
+  if (Array.isArray(rec.exercises)) { const min = workoutStats(rec).durationMin || 1; return [rec.ts - min * 60000, rec.ts]; }
+  const min = +rec.durationMin || +rec.minutes || 0;
+  if (rec.endTs > rec.ts) return [rec.ts, rec.endTs];
+  if (!min) return null;
+  return rec.source === "health_sync" ? [rec.ts, rec.ts + min * 60000] : [rec.ts - min * 60000, rec.ts];
+}
+// Drop sport/Health sessions that overlap a Sprig workout by ≥ 50 % of the shorter one
+// (an imported "Strength training" for the same session must not count twice).
+export function dropDuplicateSessions(sportSessions, workouts) {
+  const wins = (workouts || []).map(tiWindow).filter(Boolean);
+  return (sportSessions || []).filter((s) => {
+    const sw = tiWindow(s);
+    if (!sw) return true;
+    return !wins.some(([a, b]) => Math.max(0, Math.min(b, sw[1]) - Math.max(a, sw[0])) >= 0.5 * Math.min(b - a, sw[1] - sw[0]));
+  });
+}
+
+// ---- per-exercise history, records, trend, plateau ----
+// One entry per session: working sets, top set (best e1RM), perf = comparable strength number.
+export function exerciseSessions(workouts, exName) {
+  const out = [];
+  tiSorted(workouts).forEach((w) => {
+    const sets = [];
+    w.exercises.forEach((ex) => { if (ex.name === exName) sets.push(...(ex.sets || []).filter(isWorkingSet)); });
+    if (!sets.length) return;
+    let top = sets[0], topE = -1, vol = 0, appE = 0;
+    sets.forEach((s) => {
+      const W = +s.w || 0, R = +s.reps || 0;
+      vol += W * R;
+      const e = est1RM(W, R);
+      if (e > topE) { topE = e; top = s; }
+      if (e1rmApplicable(s)) appE = Math.max(appE, e);
+    });
+    const maxReps = Math.max(...sets.map((s) => +s.reps || 0));
+    out.push({
+      ts: w.ts, date: w.date || tiDay(w.ts), sets, top,
+      e1rm: appE > 0 ? tiRound1(appE) : null,
+      perf: appE > 0 ? appE : topE > 0 ? topE : maxReps, // e1RM, else Epley on any load, else reps (bodyweight)
+      volume: Math.round(vol), maxW: Math.max(...sets.map((s) => +s.w || 0)), maxReps,
+    });
+  });
+  return out;
+}
+export function exerciseRecords(workouts, exName) {
+  const ses = exerciseSessions(workouts, exName);
+  if (!ses.length) return null;
+  const r = { e1rm: null, weight: null, reps: null, setVolume: null, sessionVolume: null, repsAt: {}, sessions: ses.length };
+  ses.forEach((s) => {
+    s.sets.forEach((x) => {
+      const W = +x.w || 0, R = +x.reps || 0;
+      if (e1rmApplicable(x)) { const e = est1RM(W, R); if (!r.e1rm || e > r.e1rm.value) r.e1rm = { value: tiRound1(e), w: W, reps: R, ts: s.ts }; }
+      if (W > 0 && (!r.weight || W > r.weight.value)) r.weight = { value: W, reps: R, ts: s.ts };
+      if (!r.reps || R > r.reps.value) r.reps = { value: R, w: W, ts: s.ts };
+      if (!r.repsAt[W] || R > r.repsAt[W].value) r.repsAt[W] = { value: R, ts: s.ts };
+      if (W * R > 0 && (!r.setVolume || W * R > r.setVolume.value)) r.setVolume = { value: W * R, w: W, reps: R, ts: s.ts };
+    });
+    if (s.volume > 0 && (!r.sessionVolume || s.volume > r.sessionVolume.value)) r.sessionVolume = { value: s.volume, ts: s.ts };
+  });
+  return r;
+}
+// Plateau: ≥ 5 sessions over ≥ 21 days, ≥ 3 in the last 21 days, none beating the earlier
+// best by > 1 %, after earlier progress (≥ 2.5 %). Regressing: last 3 sessions average < 95 %
+// of the best.
+export function plateauFor(workouts, exName, now = Date.now()) {
+  const ses = exerciseSessions(workouts, exName).filter((s) => s.perf > 0 && s.ts <= now);
+  if (ses.length < 5 || ses[ses.length - 1].ts - ses[0].ts < 21 * TI_DAY) return null;
+  const cut = now - 21 * TI_DAY;
+  const recent = ses.filter((s) => s.ts > cut), before = ses.filter((s) => s.ts <= cut);
+  if (recent.length < 3 || !before.length) return null;
+  const prevBest = Math.max(...before.map((s) => s.perf));
+  const recentBest = Math.max(...recent.map((s) => s.perf));
+  const best = Math.max(prevBest, recentBest);
+  const bestTs = ses.find((s) => s.perf === best).ts;
+  const last3 = ses.slice(-3).reduce((a, s) => a + s.perf, 0) / 3;
+  const weeks = Math.max(3, Math.round((now - bestTs) / (7 * TI_DAY)));
+  if (last3 < best * 0.95) return { kind: "regressing", weeks, best: tiRound1(best), recent: tiRound1(last3), dropPct: Math.round((1 - last3 / best) * 100) };
+  // A plateau is progress that stopped: an exercise kept at a steady load on purpose
+  // (typical for accessories) never progressed, so it isn't flagged.
+  const progressedBefore = prevBest >= before[0].perf * 1.025;
+  if (progressedBefore && recentBest <= prevBest * 1.01) return { kind: "plateau", weeks, best: tiRound1(prevBest), sessions: recent.length };
+  return null;
+}
+// Trend: slope of session perf over the last 8 weeks (%/week) and change vs ~4 / ~12 weeks ago.
+export function exerciseTrend(workouts, exName, now = Date.now()) {
+  const ses = exerciseSessions(workouts, exName).filter((s) => s.perf > 0 && s.ts <= now);
+  if (ses.length < 2) return null;
+  const recent = ses.filter((s) => s.ts > now - 56 * TI_DAY);
+  let slopePctWk = null;
+  if (recent.length >= 3) {
+    const xs = recent.map((s) => (s.ts - now) / (7 * TI_DAY)), ys = recent.map((s) => s.perf);
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+    if (den > 0 && my > 0) slopePctWk = tiRound1((xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / den / my) * 100);
+  }
+  // "current" = best of the last two sessions (one off day doesn't swing it); references come
+  // from sessions before that window.
+  const curN = ses.length >= 3 ? 2 : 1;
+  const current = Math.max(...ses.slice(-curN).map((s) => s.perf));
+  const earlier = ses.slice(0, ses.length - curN);
+  const refAt = (weeks) => {
+    const target = now - weeks * 7 * TI_DAY;
+    const near = earlier.filter((s) => Math.abs(s.ts - target) <= 14 * TI_DAY);
+    if (!near.length) return null;
+    return near.reduce((b, s) => (Math.abs(s.ts - target) < Math.abs(b.ts - target) ? s : b)).perf;
+  };
+  const pctVs = (ref) => (ref > 0 ? tiRound1(((current - ref) / ref) * 100) : null);
+  const plateau = plateauFor(workouts, exName, now);
+  const status = plateau ? plateau.kind : slopePctWk != null && slopePctWk >= 0.5 ? "progressing" : "maintaining";
+  const last = ses[ses.length - 1];
+  return {
+    exercise: exName, sessions: ses.length, slopePctWk, change4wPct: pctVs(refAt(4)), change12wPct: pctVs(refAt(12)),
+    status, plateau, e1rm: last.e1rm, bestE1rm: exerciseRecords(workouts, exName)?.e1rm?.value ?? null,
+    series: ses.slice(-16).map((s) => ({ ts: s.ts, perf: tiRound1(s.perf), e1rm: s.e1rm })),
+  };
+}
+// Exercises that have plateaued or are slipping, among those trained in the last 3 weeks.
+export function plateauedExercises(workouts, now = Date.now()) {
+  const names = new Set();
+  tiSorted(workouts).forEach((w) => { if (w.ts > now - 21 * TI_DAY) w.exercises.forEach((ex) => names.add(ex.name)); });
+  const out = [];
+  names.forEach((n) => { const p = plateauFor(workouts, n, now); if (p) out.push({ name: n, ...p }); });
+  return out;
+}
+
+// ---- training load (session RPE × minutes) ----
+const SPORT_RPE = { easy: 3, light: 3, moderate: 5, hard: 7, intense: 7, max: 8 };
+export function sessionLoads({ workouts, sportSessions = [] }) {
+  const items = tiSorted(workouts).map((w) => {
+    const st = workoutStats(w);
+    return { ts: w.ts, date: w.date || tiDay(w.ts), kind: "strength", min: st.durationMin, load: Math.round(st.durationMin * st.rpe) };
+  });
+  dropDuplicateSessions(sportSessions, workouts).forEach((s) => {
+    const min = +s.durationMin || +s.minutes || 0;
+    const ts = s.ts || (s.date ? Date.parse(s.date + "T12:00:00") : 0);
+    if (!min || !ts) return;
+    items.push({ ts, date: s.date || tiDay(ts), kind: "sport", min, load: Math.round(min * (SPORT_RPE[s.intensity] || 5)) });
+  });
+  return items.sort((a, b) => a.ts - b.ts);
+}
+// Acute (7 d) vs chronic (28 d ÷ 4) load. Ratio only once there are ≥ 21 days of history.
+export function trainingLoad({ workouts, sportSessions = [], now = Date.now() }) {
+  const items = sessionLoads({ workouts, sportSessions }).filter((i) => i.ts <= now);
+  const sumSince = (from, to = now) => items.filter((i) => i.ts > from && i.ts <= to).reduce((a, i) => a + i.load, 0);
+  const acute = sumSince(now - 7 * TI_DAY), chronic = sumSince(now - 28 * TI_DAY) / 4;
+  const historyDays = items.length ? Math.floor((now - items[0].ts) / TI_DAY) : 0;
+  const ratio = historyDays >= 21 && chronic > 0 ? +(acute / chronic).toFixed(2) : null;
+  const zone = ratio == null ? null : ratio < 0.8 ? "low" : ratio <= 1.3 ? "steady" : ratio <= 1.5 ? "high" : "spike";
+  const weeks = []; // rolling 7-day totals, oldest → newest (last = the past 7 days)
+  for (let i = 11; i >= 0; i--) { const end = now - i * 7 * TI_DAY; weeks.push(Math.round(sumSince(end - 7 * TI_DAY, end))); }
+  return { acute: Math.round(acute), chronic: Math.round(chronic), ratio, zone, historyDays, weeks };
+}
+export const LOAD_ZONE_LABEL = { low: "Lighter than usual", steady: "Steady", high: "High", spike: "Spike" };
+
+// ---- frequency, consistency, adherence (calendar weeks, Monday start) ----
+function tiWeekStart(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
+function tiShiftWeek(ws, n) { const d = new Date(ws); d.setDate(d.getDate() + 7 * n); return d.getTime(); }
+export function trainingConsistency({ workouts, now = Date.now() }) {
+  const sorted = tiSorted(workouts).filter((w) => w.ts <= now);
+  const thisWeek = tiWeekStart(now);
+  if (!sorted.length) return { sessionsThisWeek: 0, perWeek4: 0, perWeek12: 0, target: null, adherencePct: null, streakWeeks: 0, daysSinceLast: null, weeks: [], muscleFrequency: {} };
+  const firstWeek = tiWeekStart(sorted[0].ts);
+  const daysIn = (from, to) => new Set(sorted.filter((w) => w.ts >= from && w.ts < to).map((w) => w.date || tiDay(w.ts))).size;
+  const weeks = []; // last 12 complete weeks, oldest → newest; null before the first workout
+  for (let i = 12; i >= 1; i--) { const ws = tiShiftWeek(thisWeek, -i); weeks.push(ws < firstWeek ? null : daysIn(ws, tiShiftWeek(ws, 1))); }
+  const valid = (arr) => arr.filter((c) => c != null);
+  const mean = (arr) => (arr.length ? tiRound1(arr.reduce((a, b) => a + b, 0) / arr.length) : 0);
+  const active8 = valid(weeks.slice(-8)).filter((c) => c > 0).sort((a, b) => a - b);
+  const target = active8.length ? Math.min(6, Math.max(2, active8[Math.floor(active8.length / 2)])) : 3;
+  const last4 = valid(weeks.slice(-4));
+  const adherencePct = last4.length ? Math.round((last4.reduce((a, c) => a + Math.min(c, target), 0) / (target * last4.length)) * 100) : null;
+  let streakWeeks = 0;
+  for (let i = weeks.length - 1; i >= 0 && weeks[i] != null && weeks[i] >= target; i--) streakWeeks++;
+  // per-muscle sessions/week over the last 4 complete weeks (a session counts with ≥ 2 sets)
+  const from4 = Math.max(tiShiftWeek(thisWeek, -4), firstWeek);
+  const nWeeks = Math.max(1, Math.round((thisWeek - from4) / (7 * TI_DAY)));
+  const muscleFrequency = {};
+  sorted.filter((w) => w.ts >= from4 && w.ts < thisWeek).forEach((w) => {
+    Object.entries(muscleSetsOf(w)).forEach(([k, n]) => { if (n >= 2) muscleFrequency[k] = (muscleFrequency[k] || 0) + 1; });
+  });
+  Object.keys(muscleFrequency).forEach((k) => { muscleFrequency[k] = tiRound1(muscleFrequency[k] / nWeeks); });
+  return {
+    sessionsThisWeek: daysIn(thisWeek, tiShiftWeek(thisWeek, 1)), perWeek4: mean(last4), perWeek12: mean(valid(weeks)),
+    target, adherencePct, streakWeeks, daysSinceLast: Math.floor((now - sorted[sorted.length - 1].ts) / TI_DAY), weeks, muscleFrequency,
+  };
+}
+
+// ---- next-session prediction, rest, warm-up context ----
+// Last session's working sets scaled to the progression target: back-off sets keep their
+// ratio to the top set; the top-weight sets take the target reps.
+export function predictNextSets(workouts, exName, { daily, sleepReadiness = 70, repRange, intensityStyle, now = Date.now() } = {}) {
+  const ses = exerciseSessions(workouts, exName);
+  if (!ses.length) return null;
+  const last = ses[ses.length - 1];
+  const prog = progressionFor(workouts, exName, daily, sleepReadiness, repRange, intensityStyle, now);
+  const topW = +last.top.w || 0, topR = +last.top.reps || 0;
+  const tW = prog?.w ?? topW, tR = prog?.reps ?? topR;
+  const sets = last.sets.slice(0, 8).map((s) => {
+    const W = +s.w || 0;
+    if (topW <= 0) return { w: W, reps: W === topW ? tR : +s.reps || tR };
+    const ratio = W / topW;
+    const same = Math.abs(ratio - 1) < 1e-3;
+    return { w: same ? +(+tW).toFixed(2) : Math.round(tW * ratio * 2) / 2, reps: same ? tR : +s.reps || tR };
+  });
+  return { sets, action: prog?.action || "repeat", text: prog?.text || null, from: last.date };
+}
+// Rest after a set: heavier/lower-rep compounds rest longer, failure adds 30 s, easy sets less.
+// A user-set rest for the exercise always wins.
+export function restFor(meta, set, custom) {
+  if (custom > 0) return { secs: custom, auto: false };
+  const reps = +set?.reps || 0, rir = set?.rir;
+  let s;
+  if (meta?.group === "abs") s = 60;
+  else if (meta?.type === "compound") s = reps && reps <= 5 ? 210 : reps && reps <= 10 ? 150 : 120;
+  else s = reps && reps <= 8 ? 90 : 75;
+  if (rir === 0) s += 30; else if (typeof rir === "number" && rir >= 3) s -= 15;
+  return { secs: Math.min(300, Math.max(45, Math.round(s / 15) * 15)), auto: true };
+}
+// Muscle groups already worked (with logged sets) by other exercises in this session.
+export function warmGroupsFor(exercises, exIdx) {
+  const g = new Set();
+  (exercises || []).forEach((ex, i) => {
+    if (i === exIdx || !(ex.sets || []).some(isWorkingSet)) return;
+    const meta = findEx(ex.name); const prim = ex.group || meta?.group;
+    if (prim) g.add(prim);
+    (meta?.sec || []).forEach((k) => g.add(k));
+  });
+  return g;
+}
+
+// ---- templates from history ----
+export function suggestTemplatesFromHistory({ workouts, routines = [], now = Date.now() }) {
+  const jac = (a, b) => { const A = new Set(a), B = new Set(b); let i = 0; A.forEach((x) => { if (B.has(x)) i++; }); return i / ((A.size + B.size - i) || 1); };
+  const recent = tiSorted(workouts).filter((w) => w.ts > now - 56 * TI_DAY && w.ts <= now)
+    .map((w) => ({ w, names: [...new Set(w.exercises.filter((ex) => (ex.sets || []).some(isWorkingSet)).map((ex) => ex.name))] }))
+    .filter((x) => x.names.length >= 2).reverse(); // newest first
+  const groups = [];
+  recent.forEach((x) => { const g = groups.find((gr) => jac(gr.names, x.names) >= 0.6); if (g) g.members.push(x); else groups.push({ names: x.names, members: [x] }); });
+  return groups
+    .filter((g) => g.members.length >= 2 && !(routines || []).some((r) => jac(r.exercises || [], g.names) >= 0.6))
+    .map((g) => {
+      const freq = {}; g.members.forEach((m) => m.names.forEach((n) => { freq[n] = (freq[n] || 0) + 1; }));
+      const keep = (n) => freq[n] >= g.members.length / 2;
+      const exercises = [...g.names.filter(keep), ...Object.keys(freq).filter((n) => !g.names.includes(n) && keep(n))];
+      const gc = {}; exercises.forEach((n) => { const k = findEx(n)?.group; if (k) gc[k] = (gc[k] || 0) + 1; });
+      const top = Object.entries(gc).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => tiMuscleLabel(k));
+      return { name: top.join(" · ") || "Usual session", exercises, count: g.members.length, lastTs: g.members[0].w.ts };
+    })
+    .slice(0, 3);
+}
+
+// ---- recap + coach summary ----
+// recapFor + reps, hard sets, muscles, calorie estimate, typed records, change vs last time, insights.
+export function workoutRecap(workout, priorWorkouts, { profile, allWorkouts, sportSessions = [], now = Date.now() } = {}) {
+  const base = recapFor(workout, priorWorkouts);
+  const st = workoutStats(workout);
+  const mode = profile?.workoutCalorieMode || "conservative";
+  const en = mode === "off" ? null : exerciseEnergy(workout, profile, { workoutCalorieMode: mode });
+  const kcal = en && en.kcal > 0 ? { kcal: en.kcal, low: en.low, high: en.high } : null;
+  const prs = [], changes = [];
+  (workout.exercises || []).forEach((ex) => {
+    const sets = (ex.sets || []).filter(isWorkingSet);
+    if (!sets.length) return;
+    const rec = exerciseRecords(priorWorkouts, ex.name);
+    const prev = exerciseSessions(priorWorkouts, ex.name).slice(-1)[0];
+    const cur = exerciseSessions([{ ...workout, exercises: [ex] }], ex.name)[0];
+    if (rec) {
+      let pr = null;
+      sets.forEach((s) => {
+        const W = +s.w || 0, R = +s.reps || 0;
+        if (e1rmApplicable(s) && rec.e1rm && est1RM(W, R) > rec.e1rm.value * 1.001 && (!pr || pr.rank < 3)) pr = { rank: 3, kind: "e1rm", name: ex.name, label: `e1RM ${Math.round(est1RM(W, R))} kg`, prev: Math.round(rec.e1rm.value) };
+        else if (W > 0 && rec.weight && W > rec.weight.value && (!pr || pr.rank < 2)) pr = { rank: 2, kind: "weight", name: ex.name, label: `Heaviest · ${W} kg × ${R}`, prev: rec.weight.value };
+        else if (rec.repsAt[W] && R > rec.repsAt[W].value && (!pr || pr.rank < 1)) pr = { rank: 1, kind: "reps", name: ex.name, label: `${R} reps at ${W} kg`, prev: rec.repsAt[W].value };
+      });
+      if (pr) prs.push(pr);
+    }
+    if (prev && cur) {
+      const pct = prev.perf > 0 ? tiRound1(((cur.perf - prev.perf) / prev.perf) * 100) : null;
+      changes.push({ name: ex.name, pct, volDelta: cur.volume - prev.volume, prevTop: { w: +prev.top.w || 0, reps: +prev.top.reps || 0 }, top: { w: +cur.top.w || 0, reps: +cur.top.reps || 0 } });
+    }
+  });
+  const muscles = Object.entries(st.muscles).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, n]) => ({ key: k, label: tiMuscleLabel(k), sets: tiRound1(n) }));
+  // insights: weekly volume, trend / plateau, load
+  const all = allWorkouts || [...(priorWorkouts || []), workout];
+  const insights = [];
+  const vol = weeklyVolume(all, now);
+  const prims = [...new Set((workout.exercises || []).map((ex) => ex.group || findEx(ex.name)?.group).filter(Boolean))];
+  const volLine = prims.map((k) => ({ k, n: vol[k] || 0, ...volumeStatus(vol[k] || 0, k) }))
+    .sort((a, b) => (a.tag === "under" || a.tag === "low" ? -1 : 0) - (b.tag === "under" || b.tag === "low" ? -1 : 0))[0];
+  if (volLine) {
+    if (volLine.tag === "low" || volLine.tag === "under") insights.push(`${tiMuscleLabel(volLine.k)}: ${volLine.n} sets this week, ${Math.max(1, Math.ceil(volLine.lo - volLine.n))} more reaches your ${volLine.lo}–${volLine.hi} range.`);
+    else if (volLine.tag === "good") insights.push(`${tiMuscleLabel(volLine.k)}: ${volLine.n} sets this week, inside the ${volLine.lo}–${volLine.hi} range.`);
+    else insights.push(`${tiMuscleLabel(volLine.k)}: ${volLine.n} sets this week, above ${volLine.hi}. More isn't better from here.`);
+  }
+  const trends = prims.length ? (workout.exercises || []).map((ex) => exerciseTrend(all, ex.name, now)).filter(Boolean) : [];
+  const stuck = trends.find((t) => t.plateau);
+  const climbing = trends.filter((t) => t.change4wPct != null && t.change4wPct >= 2).sort((a, b) => b.change4wPct - a.change4wPct)[0];
+  const resetNext = stuck && progressionFor(all, stuck.exercise, null, 70, null, null, now)?.action === "deload";
+  if (stuck) insights.push(stuck.plateau.kind === "regressing"
+    ? `${stuck.exercise} is ${stuck.plateau.dropPct}% under its best. Check sleep and food before adding load.`
+    : resetNext ? `${stuck.exercise}: no new best in ${stuck.plateau.weeks} weeks. Next session suggests a ~10% reset.`
+    : `${stuck.exercise}: building back toward your best of ${Math.round(stuck.plateau.best)} kg e1RM.`);
+  else if (climbing) insights.push(`${climbing.exercise} is up ${climbing.change4wPct}% vs ~4 weeks ago.`);
+  const load = trainingLoad({ workouts: all, sportSessions, now });
+  if (load.zone === "spike" || load.zone === "high") insights.push(`Training load is ${load.ratio}× your 4-week average. Keep the next day easy.`);
+  return { ...base, reps: st.reps, hardSets: st.hardSets, durationMin: base.durationMin || st.durationMin, kcal, muscles, prs, changes, insights: insights.slice(0, 3) };
+}
+// Compact, numbers-only training picture for the AI coach (and the local fallback).
+export function trainingSummary({ workouts, sportSessions = [], now = Date.now() }) {
+  const sorted = tiSorted(workouts).filter((w) => w.ts <= now);
+  if (!sorted.length) return null;
+  const cons = trainingConsistency({ workouts: sorted, now });
+  const load = trainingLoad({ workouts: sorted, sportSessions, now });
+  const counts = {};
+  sorted.filter((w) => w.ts > now - 42 * TI_DAY).forEach((w) => w.exercises.forEach((ex) => { if ((ex.sets || []).some(isWorkingSet)) counts[ex.name] = (counts[ex.name] || 0) + 1; }));
+  const main = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([n]) => n);
+  const trends = main.map((n) => exerciseTrend(sorted, n, now)).filter(Boolean)
+    .map((t) => ({ exercise: t.exercise, e1rmKg: t.e1rm, change4wPct: t.change4wPct, change12wPct: t.change12wPct, slopePctWk: t.slopePctWk, status: t.status }));
+  const vol = weeklyVolume(sorted, now);
+  const trained28 = new Set(); sorted.filter((w) => w.ts > now - 28 * TI_DAY).forEach((w) => Object.keys(muscleSetsOf(w)).forEach((k) => trained28.add(k)));
+  const weeklySets = {}, underTarget = [], overTarget = [];
+  trained28.forEach((k) => {
+    weeklySets[tiMuscleLabel(k)] = vol[k] || 0;
+    const tag = volumeStatus(vol[k] || 0, k).tag;
+    if (tag === "low" || tag === "under" || tag === "none") underTarget.push(tiMuscleLabel(k));
+    if (tag === "over") overTarget.push(tiMuscleLabel(k));
+  });
+  const lw = sorted[sorted.length - 1]; const ls = workoutStats(lw);
+  return {
+    sessionsThisWeek: cons.sessionsThisWeek, sessionsPerWeek4w: cons.perWeek4, usualPerWeek: cons.target,
+    adherencePct: cons.adherencePct, streakWeeks: cons.streakWeeks, daysSinceLast: cons.daysSinceLast,
+    load: { acute7d: load.acute, chronicWeekly: load.chronic, ratio: load.ratio, zone: load.zone },
+    trends, plateaus: plateauedExercises(sorted, now).map((p) => ({ exercise: p.name, kind: p.kind, weeks: p.weeks, resetNextSession: progressionFor(sorted, p.name, null, 70, null, null, now)?.action === "deload" })),
+    weeklySets, underTarget, overTarget,
+    lastWorkout: { date: lw.date || tiDay(lw.ts), sets: ls.sets, volumeKg: ls.volume, durationMin: ls.durationMin, kcalApprox: lw.recap?.kcal?.kcal ?? null },
+  };
+}
 
 /* ---------------- Daily Health Score + best action -------------- */
 export const clamp100 = (x) => Math.max(0, Math.min(100, Math.round(x)));
@@ -5106,8 +5534,21 @@ export function localCoachAnswer(question, ctx, profile, targets) {
     return "I need your profile (sex, age, weight, height, activity) to compute calories. Finish onboarding and ask again.";
   }
 
-  // 4) Otherwise: be honest. The AI is the right tool for everything else.
-  return "AI coaching is unavailable right now. You can still ask about whether to train today, your recovery score, or your calorie target — I can answer those from your data. Try the full coach again in a moment.";
+  // 4) Training progress / plateau / deload / volume (from trainingSummary)
+  const ts = ctx?.trainingSummary;
+  if (ts && /(plateau|stall|stuck|progress|getting stronger|deload|volume|how many sets|training load|overtrain|consisten)/.test(q)) {
+    const lines = [];
+    if (ts.plateaus?.length) lines.push(`Stalled: ${ts.plateaus.slice(0, 3).map((p) => `${p.exercise} (${p.weeks} wk${p.kind === "regressing" ? ", slipping" : ""})`).join(", ")}. ${ts.plateaus.some((p) => p.resetNextSession) ? "Reset ~10% next session and build back over 2–3 weeks." : "You've already gone lighter — add load in small steps back toward your best."}`);
+    const up = (ts.trends || []).filter((t) => t.change4wPct != null && t.change4wPct > 0).slice(0, 3);
+    if (up.length) lines.push(`Moving up vs ~4 weeks ago: ${up.map((t) => `${t.exercise} +${t.change4wPct}%`).join(", ")}.`);
+    if (ts.load?.ratio != null) lines.push(`Load this week is ${ts.load.ratio.toFixed(2)}× your 4-week average${ts.load.zone === "spike" ? " — too fast a jump; ease off for a few days" : ts.load.zone === "low" ? " — lighter than usual" : ""}.`);
+    if (ts.underTarget?.length) lines.push(`Under weekly volume: ${ts.underTarget.slice(0, 4).join(", ")}.`);
+    if (ts.adherencePct != null) lines.push(`Consistency: ${ts.sessionsPerWeek4w}/wk over 4 weeks (usual ${ts.usualPerWeek}), ${ts.adherencePct}% adherence.`);
+    if (lines.length) return lines.join("\n");
+  }
+
+  // 5) Otherwise: be honest. The AI is the right tool for everything else.
+  return "AI coaching is unavailable right now. You can still ask about whether to train today, your recovery score, your calorie target, or your training progress — I can answer those from your data. Try the full coach again in a moment.";
 }
 
 /* ---------------- small UI bits -------------- */

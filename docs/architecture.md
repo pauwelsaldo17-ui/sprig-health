@@ -115,6 +115,7 @@ Sleep math uses circular-time helpers from `vitaeCalc.js`: `tsToMin`, `circMean`
 Grep for exports instead of reading the file. Main groups:
 
 - Dates/units: `todayStr`, `convW`, `convL`, `minToHM`, `hmToMin`
+- Training intelligence (see `docs/training-intelligence.md`): `workoutStats`, `exerciseSessions` / `exerciseRecords` / `exerciseTrend` / `plateauFor`, `trainingLoad` (sRPE acute:chronic), `trainingConsistency`, `predictNextSets` (prefill), `restFor`, `warmupSets(…, { warmGroups })`, `suggestTemplatesFromHistory`, `workoutRecap`, `trainingSummary` (coach). `muscleRecovery` accumulates residual fatigue across sessions; `stallingLifts` / `deloadAdvice` use the plateau model. `App.jsx` memoizes them into `trainInfo` (`consistency`, `load`, `plateaus`, `historyTemplates`).
 - Energy budget (see `docs/energy-budget.md`): `computeTargets(profile, { averages, calibrationOffset })`, `maintenanceEstimate`, `exerciseEnergy` / `exerciseByDay` / `dedupeExercise` (net kcal, counted once), `activityAverages`, `dailyBudget` (stable or dynamic), `calibrateMaintenance`, `macroTargets` / `dayMacros`. `App.jsx` builds `targets` (stable) and `calAdjust` (today, passed as `moveInfo.calAdjust`); today's cards use `dayTargets`.
 - Targets & nutrition: `computeTargets`, `dayTotals`, `nutritionCoach`, `dietQuality`, `missingNutrients`, `waterGoal`, `smartHydration`
 - Sleep: `sleepNeedMin`, `scoreSleep`, `sleepDebtMin`, `estimateStages`, `smartWake`, `energyCurve`, `bestGymWindow`
