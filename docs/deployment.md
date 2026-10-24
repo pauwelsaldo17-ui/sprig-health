@@ -12,6 +12,9 @@ Names only. Never write values into the repo or docs.
 | `SUPABASE_SERVICE_ROLE_KEY` | Vercel env (`api/delete-account.js`) | **No** |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Vercel, Codemagic, `.env.local`, `.env.test` | Yes (anon key only) |
 | `VITE_REVENUECAT_WEB_KEY` | build env | Yes (public SDK key) |
+| `REVENUECAT_SECRET_KEY` | Vercel env (optional) | **No** — lets `/api/analyze` verify premium; without it everyone gets free-tier AI limits |
+| `EXTRA_ALLOWED_ORIGINS` | Vercel env (optional) | n/a — extra browser origins for `/api/analyze` (comma-separated) |
+| `VITE_API_BASE` | build env (optional) | Yes — overrides the API host; native builds default to `https://sprig-health.vercel.app` |
 
 `.env*` files are gitignored except `.env.test` (test Supabase project, used by Playwright).
 
