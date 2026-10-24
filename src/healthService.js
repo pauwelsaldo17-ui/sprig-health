@@ -91,9 +91,9 @@ async function readWeights(days) {
 async function readSleep(days) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   try {
-    // A night can have a few hundred stage segments per source; 14 nights × 2 sources fits in 5000.
+    // A night can have a few hundred stage segments per source; allow ~150 per day, 5000 minimum.
     const res = await Health.readSamples({
-      dataType: "sleep", startDate: iso(Date.now() - days * 864e5), endDate: iso(Date.now()), limit: 5000, ascending: true,
+      dataType: "sleep", startDate: iso(Date.now() - days * 864e5), endDate: iso(Date.now()), limit: Math.max(5000, days * 150), ascending: true,
     });
     const samples = res.samples || [];
     return { sessions: healthSleepSessions(samples).map((s) => ({ ...s, timezone: tz })), samples: samples.length, error: false };
@@ -135,11 +135,12 @@ export async function requestHealthPermissions() {
 // weights: [{ date, kg }] · sleep: [{ bedTs, wakeTs, asleepMin, awakeMin, stages, nap, timezone }]
 // workouts: raw plugin workouts (mapped to sport sessions in App.jsx)
 // meta: { sleepSamples, sleepError } — counts only, for the Sleep tab's sync status
-export async function syncHealthData() {
+// sleepDays: how far back to read sleep (see sleepBackfillDays) so nights are never missed.
+export async function syncHealthData({ sleepDays = 14 } = {}) {
   const result = { steps: null, activeKcal: {}, basalKcal: {}, weights: [], sleep: [], restingHr: {}, hrv: {}, workouts: [], meta: {} };
   if (!(await isHealthAvailable())) return result;
   try {
-    const sl = await readSleep(14);
+    const sl = await readSleep(sleepDays);
     result.sleep = sl.sessions;
     result.meta = { sleepSamples: sl.samples, sleepError: sl.error };
     result.steps = await readDaily("steps", 7, "sum");

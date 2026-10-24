@@ -17,6 +17,7 @@ import {
   DAYMIN,
   sleepDebtNights,
   sleepHabits,
+  sleepBackfillDays,
   recommend,
 } from '../../src/utils/vitaeCalc.js';
 
@@ -341,5 +342,21 @@ describe('sleepHabits', () => {
     const h = sleepHabits({ wakeMin: 900, bedMin: 420, zones: [], rec: { caffeineCutoff: 1380 }, gym: null, debtMin: 0 });
     expect(h.find((x) => x.key === 'bed').start).toBe(420 + DAYMIN - 45);
     expect(h.find((x) => x.key === 'caffeine').start).toBe(1380);
+  });
+});
+
+describe('sleepBackfillDays — never miss a night, however long the app stays closed', () => {
+  const NOW = at('2026-10-23T08:00:00');
+  test('first connect imports 120 days', () => {
+    expect(sleepBackfillDays(null, NOW)).toBe(120);
+  });
+  test('daily use reads the normal 14-day window', () => {
+    expect(sleepBackfillDays(NOW - 6 * H, NOW)).toBe(14);
+  });
+  test('three weeks unopened reads back past the last sync', () => {
+    expect(sleepBackfillDays(NOW - 21 * 864e5, NOW)).toBe(23);
+  });
+  test('capped at a year', () => {
+    expect(sleepBackfillDays(NOW - 800 * 864e5, NOW)).toBe(365);
   });
 });
