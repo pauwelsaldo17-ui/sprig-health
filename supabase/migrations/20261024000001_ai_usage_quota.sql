@@ -1,7 +1,5 @@
 -- Roadmap 0.1 — server-side AI quotas for /api/analyze.
--- STATUS: not applied yet (declined at the first attempt; apply after owner review).
--- Until applied, /api/analyze still requires a signed-in session and an allowed origin,
--- but skips the monthly limit and logs "quota functions missing".
+-- STATUS: applied to the production project (pivktajvfpjjgejfngeb) on 2026-10-24 via the SQL Editor.
 create table if not exists public.ai_usage (
   user_id uuid not null references auth.users(id) on delete cascade,
   period text not null,                       -- 'YYYY-MM' (UTC)
