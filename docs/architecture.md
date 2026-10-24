@@ -62,17 +62,19 @@ Some small flags bypass `store` and use localStorage directly (theme, nudges, co
 
 - `getSupabase()` returns `null` if `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are missing; every call site must handle `null`.
 - When configured, `AuthGate` shows `AuthScreen` until the user is signed in.
-- Sync is **manual**: `syncToCloud()` uploads every `sprig_*` key from `store.list("sprig_")` as one JSON blob to `sprig_user_data` (one row per user); `restoreFromCloud()` writes the blob back through `store.set` after the user confirms. No background sync.
+- Sync is **automatic and versioned**: 3 s after a data change `syncToCloud()` uploads every `sprig_*` key except `CLOUD_EXCLUDED_KEYS` (progress photos) through `push_user_data`, which only writes if the row's `rev` matches the revision this device last pushed or restored (`sprig_cloud_rev_<userId>`). `cloudPushPlan` (`src/cloudSync.js`) decides first: new devices and reinstalls never auto-push over an existing backup. On a conflict, auto-sync pauses ("Sync paused" pill) until the user picks "Use cloud data" (restore, confirmed) or "Keep this phone" (`syncToCloud({ force: true })`, confirmed) in Me › Account. `restoreFromCloud()` writes the blob back through `store.set` after the user confirms and never touches local photos.
 - Push tokens are upserted into `device_tokens`.
 - `api/delete-account.js` deletes `sprig_user_data` and `device_tokens` rows and the auth user.
 - The comment above `collectSprigLocalData` in `App.jsx` still says "localStorage"; the code uses `store` (IndexedDB).
 
 ## AI proxy (`api/analyze.js`)
 
-- Request: `{ kind: "nutrition", mode: "photo|label|text|supplement|supp-label", text?, image? }` or `{ kind: "text", prompt, system? }`.
-- Response: `{ result, raw? }` for nutrition, `{ text }` for text.
+- Every request needs `Authorization: Bearer <Supabase access token>` (401 otherwise). Browser origins are allow-listed (Capacitor app, localhost, our Vercel domains; `EXTRA_ALLOWED_ORIGINS` adds more).
+- Request: `{ kind: "nutrition", mode: "photo|label|text|supplement|supp-label", text?, image?, refine? }`, `{ mode: "nutrition", description }` (food items), or `{ kind: "coach", question, context, localTime }`. The coach system prompt is built on the server; the old free-form `kind: "text"` returns 410.
+- Response: `{ result }` for nutrition, `{ items }` for descriptions, `{ text }` for the coach; `402 { error: "quota", kind, limit }` when the monthly limit is reached.
+- Quotas per user and UTC month in `public.ai_usage` via `consume_ai_quota` / `refund_ai_quota` (service role): free coach 5, scan 10 (photo/label), food_text 60 (descriptions, refinements); premium caps 300/300/600. Premium = RevenueCat entitlement `premium`, checked with `REVENUECAT_SECRET_KEY`. Size caps: image ~1.8 MB, text 4000, question 1000, context 30 000 characters.
 - Model is set in the file (`claude-sonnet-4-6` at the time of writing). Key: `ANTHROPIC_API_KEY` (Vercel env only).
-- Client side: `analyze()` / `analyzeText()` in `vitaeCalc.js`. Coach falls back to `localCoachAnswer` on failure.
+- Client side: `src/apiClient.js` (`postAnalyze`; `apiUrl`: native builds call `https://sprig-health.vercel.app`, the web build its own origin, `VITE_API_BASE` overrides), used by `analyze()` / `analyzeCoach()` in `vitaeCalc.js` and the food-description calls in `NutritionTab.jsx`. Coach falls back to `localCoachAnswer` on failure; a 402 opens the paywall.
 
 ## Health sync
 

@@ -58,7 +58,7 @@ Read this when: adding, renaming or reshaping any stored value, writing a migrat
 
 ## Keys written directly to localStorage (device-only flags)
 
-`vitae_idb_v1` (IDB migration done) · `sprig_theme_v1` · `sprig_health_connected` · `sprig_health_sync_ts` · `sprig_health_status_v1` (last Health sync summary, counts only; `sleepOkTs` = last successful sleep read, sizes the backfill) · `sprig_last_synced_at` · `sprig_first_login_prompted_<userId>` · `sprig_account_nudge_v1` · `sprig_account_nudge_snooze` · `sprig_coach_queries_YYYY-MM` · `sprig_ai_scans_YYYY-MM` (free-tier counters) · `sprig_seen_achievements_v1` · `sprig_rir_preference_v1` · `sprig_routine_v1`, `sprig_winddown_v1` (SleepTab wind-down) · `sprig.supabase.auth` (Supabase session).
+`vitae_idb_v1` (IDB migration done) · `sprig_theme_v1` · `sprig_health_connected` · `sprig_health_sync_ts` · `sprig_health_status_v1` (last Health sync summary, counts only; `sleepOkTs` = last successful sleep read, sizes the backfill) · `sprig_last_synced_at` · `sprig_device_id` · `sprig_cloud_rev_<userId>` (cloud revision this device last pushed or restored) · `sprig_first_login_prompted_<userId>` · `sprig_account_nudge_v1` · `sprig_account_nudge_snooze` · `sprig_coach_queries_YYYY-MM` · `sprig_ai_scans_YYYY-MM` (free-tier counters) · `sprig_seen_achievements_v1` · `sprig_rir_preference_v1` · `sprig_routine_v1`, `sprig_winddown_v1` (SleepTab wind-down) · `sprig.supabase.auth` (Supabase session).
 
 ## Shapes worth knowing
 
@@ -72,7 +72,7 @@ Dates are always `new Date(x).toLocaleDateString("en-CA")` → `YYYY-MM-DD`.
 
 ## Supabase
 
-Tables used by the code: `sprig_user_data` (one row per user, `app_data` jsonb = all `sprig_*` keys) and `device_tokens` (push tokens). Every query filters by `user_id`.
+Tables used by the code: `sprig_user_data` (one row per user, `app_data` jsonb = all `sprig_*` keys except progress photos, `rev` bigint revision, `device_id` of the last writer; written through `push_user_data`), `ai_usage` (AI calls per user/month/kind, written by the server only) and `device_tokens` (push tokens; **this table does not exist in the production project yet**). Every query filters by `user_id`. SQL lives in `supabase/migrations/`.
 
 Schema and row-level security for `sprig_user_data` (run in Supabase → SQL Editor):
 

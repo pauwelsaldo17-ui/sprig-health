@@ -1,4 +1,5 @@
-﻿// todayStr and uid are also defined in App.jsx — kept here for self-contained import
+﻿import { postAnalyze } from "../apiClient.js";
+// todayStr and uid are also defined in App.jsx — kept here for self-contained import
 export const todayStr = (d) => (d instanceof Date ? d : new Date()).toLocaleDateString("en-CA");
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -5062,55 +5063,19 @@ export function extractJSON(text) {
   return JSON.parse(s);
 }
 
-export async function analyze({ text, image, mode }) {
-  // Calls the Sprig serverless proxy at /api/analyze, which holds the Anthropic key.
-  // The frontend never sees the API key — see api/analyze.js for the server side.
-  const resp = await fetch("/api/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "nutrition", mode, text, image }),
-  });
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => "");
-    throw new Error("AI proxy " + resp.status + (body ? ": " + body.slice(0, 120) : ""));
-  }
-  const data = await resp.json();
-  // The proxy returns { result: <parsed JSON>, raw?: <string> }.
-  // Fall back to parsing raw text if the proxy didn't parse for us.
+export async function analyze({ text, image, mode, refine = false }) {
+  // Calls the Sprig serverless proxy (api/analyze.js), which holds the Anthropic key and checks
+  // the user's session and quota. Throws ApiError (status 402 = monthly limit reached).
+  const data = await postAnalyze({ kind: "nutrition", mode, text, image, refine });
+  // The proxy returns { result: <parsed JSON> }.
   if (data.result && typeof data.result === "object") return data.result;
   if (typeof data.raw === "string") return extractJSON(data.raw);
   throw new Error("AI proxy returned no result");
 }
 
-// free-form text reply for the Ask Coach feature
-export async function analyzeText({ prompt, system }) {
-  // Same proxy, different mode. Returns plain text.
-  // We log everything to the console here because Ask Coach failures are otherwise invisible —
-  // open DevTools (Safari Develop menu on iOS, or eruda on phone) to see what actually went wrong.
-  let resp;
-  try {
-    resp = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "text", prompt, system }),
-    });
-  } catch (e) {
-    console.error("[sprig] analyzeText: fetch threw —", e?.message || e);
-    throw new Error("Network error talking to /api/analyze: " + (e?.message || e));
-  }
-  // Read body once as text so we can both inspect it and parse it as JSON if possible.
-  const bodyText = await resp.text().catch(() => "");
-  if (!resp.ok) {
-    console.error("[sprig] analyzeText: HTTP " + resp.status + " from /api/analyze. Body:", bodyText.slice(0, 500));
-    let serverError = null;
-    try { serverError = JSON.parse(bodyText)?.error; } catch (_) {}
-    throw new Error("AI proxy " + resp.status + (serverError ? ": " + serverError : ""));
-  }
-  let data;
-  try { data = JSON.parse(bodyText); } catch (e) {
-    console.error("[sprig] analyzeText: response was not JSON. Body:", bodyText.slice(0, 500));
-    throw new Error("AI proxy returned non-JSON response");
-  }
+// Ask Coach: the server builds the coach prompt from the question + structured context.
+export async function analyzeCoach({ question, context, localTime }) {
+  const data = await postAnalyze({ kind: "coach", question, context, localTime });
   return (data.text || "").trim();
 }
 
