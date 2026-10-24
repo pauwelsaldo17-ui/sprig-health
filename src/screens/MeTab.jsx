@@ -525,7 +525,7 @@ export function MoreTab({ onGoTargets, onGoHealth, onGoMind, onGoProgress, onGoS
   );
 }
 
-function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday, user, onHealthSync, onSyncToCloud, onRestoreFromCloud, syncConflict, onSyncResolved }) {
+function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode = "dark", onSetTheme, onExportJSON, onExportCSV, onImportJSON, onResetData, onLoadDemo, reminders, onSaveReminders, sleepInfo, onResetOnboarding, rirPref, onSaveRirPref, trackingPrefs = {}, onSaveTrackingPrefs, onDevSeedFull, onDevSeedQL, onDevClearToday, user, onHealthSync, onSyncToCloud, onRestoreFromCloud, syncConflict, onSyncResolved, energyCtx }) {
   const saveRirPref = onSaveRirPref || (() => {});
   const [confirmResetOnb, setConfirmResetOnb] = useState(false);
   const importRef = useRef(null);
@@ -536,7 +536,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
   const [p, setP] = useState(profile);
   const [saved, setSaved] = useState(false);
   const set = (k, v) => { setP((x) => ({ ...x, [k]: v })); setSaved(false); };
-  const live = computeTargets(p);
+  const live = computeTargets(p, energyCtx || {});
   const Row = ({ label, children }) => (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0", borderBottom: `1px solid ${C.line}` }}>
       <span style={{ fontSize: 13.5, color: C.inkSoft }}>{label}</span>{children}
@@ -599,6 +599,47 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
           <span style={{ fontSize: 13.5, color: C.inkSoft }}>Focus</span>
           <Seg k="focus" opts={[["gym", "Gym"], ["cardio", "Cardio"], ["sports", "Sport"], ["health", "Health"]]} />
         </div>
+      </div>
+
+      {/* calorie budget: fixed vs adjusts to activity + how the number is built (docs/energy-budget.md) */}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, fontWeight: 600, margin: "18px 2px 10px" }}>Calorie budget</div>
+      <div style={{ background: C.card, borderRadius: 18, padding: "4px 16px 14px", boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
+        <Row label="Daily budget"><Seg k="calorieMode" opts={[["dynamic", "Adjusts"], ["stable", "Fixed"]]} /></Row>
+        <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.5, margin: "10px 0 12px" }}>
+          {(p.calorieMode || "dynamic") === "stable"
+            ? "Same target every day. Your average steps and training are already included."
+            : "Moves with your day: more than your usual activity raises it (only part of the estimate, to stay safe), a quiet day lowers it by evening."}
+        </div>
+        {(() => {
+          const en = live.energy;
+          const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(Math.round(v));
+          const goalLbl = { lose: "Goal: cut", gain: "Goal: bulk" }[p.goal] || "Goal: maintain";
+          const rows = [
+            ["Resting metabolism", Math.round(en.bmr)],
+            ["Activity level", sign(en.prior - en.bmr)],
+            en.stepDays ? [`Your steps (avg ${(en.avgSteps || 0).toLocaleString()}/day)`, sign(en.neatDelta)] : null,
+            en.exerciseDays ? ["Your logged training", sign(en.exerciseDelta)] : null,
+            Math.round(en.calibration) ? ["Weight-trend calibration", sign(en.calibration)] : null,
+            ["Maintenance", live.maintenance, true],
+            [goalLbl, sign(live.goalKcal)],
+            ["Daily target", live.calories, true],
+          ].filter(Boolean);
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {rows.map(([l, v, strong]) => (
+                <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: strong ? C.ink : C.inkSoft, fontWeight: strong ? 700 : 400 }}>
+                  <span>{l}</span><span>{v}{strong ? " kcal" : ""}</span>
+                </div>
+              ))}
+              <div style={{ fontSize: 10.5, color: C.muted, lineHeight: 1.45, marginTop: 4 }}>
+                {energyCtx?.calibration?.status === "updated"
+                  ? `Calibrated from ${energyCtx.calibration.days} logged days and ${energyCtx.calibration.weighIns} weigh-ins. `
+                  : "Log food and weigh in a few times a week and this calibrates to you within 2–3 weeks. "}
+                All values are estimates.
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* advanced profile (optional, collapsed) */}
@@ -803,14 +844,14 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
       {/* WORKOUT CALORIE ADJUSTMENT — Off / Conservative / Normal */}
       <div style={{ background: C.card, borderRadius: 18, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.line}` }}>
         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
-          How much extra to eat after a strength workout. Conservative is recommended — lifting burns less than fitness apps usually claim. Steps and cardio are tracked separately and don't change with this setting.
+          How much of a strength workout's estimated energy counts. Conservative is recommended — lifting burns less than fitness apps usually claim. Steps, cardio and sports are estimated separately and don't change with this setting.
         </div>
         {(() => {
           const cur = profile?.workoutCalorieMode || "conservative";
           const OPTS = [
-            ["off",          "Off",          "+0 kcal"],
-            ["conservative", "Conservative", "+100 / +150 / +200"],
-            ["normal",       "Normal",       "+150 / +250 / +350"],
+            ["off",          "Off",          "Lifting isn't counted"],
+            ["conservative", "Conservative", "Low end of the estimate"],
+            ["normal",       "Normal",       "Middle of the estimate"],
           ];
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -825,7 +866,7 @@ function MeTab({ view = "settings", onBack, profile, targets, onSave, themeMode 
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{lbl}</div>
-                      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>easy / normal / hard session → {sub}</div>
+                      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>{sub}</div>
                     </div>
                   </button>
                 );

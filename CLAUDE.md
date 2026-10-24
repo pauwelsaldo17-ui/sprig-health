@@ -106,6 +106,7 @@ Before committing: validation hook clean + `npm run build` passes (+ `npm test` 
 | `docs/product-requirements.md` | Planning features, changing user flows, coach/AI behavior, free tier |
 | `docs/architecture.md` | New screens/state, storage, sync/auth, API routes, health, notifications, day boundary |
 | `docs/data-model.md` | Any new/changed storage key, migration, export/sync, Supabase schema |
+| `docs/energy-budget.md` | Calorie targets, maintenance, exercise energy, macros, weight-trend calibration |
 | `docs/ui-conventions.md` | Any visual change: tokens, classes, motion, haptics, z-index exceptions |
 | `docs/testing.md` | Writing/running tests, browser verification, native (TestFlight) checklist |
 | `docs/deployment.md` | Env vars, Vercel, Codemagic, native sync |

@@ -48,27 +48,15 @@ export function migrateProfile(p, defaultProfile) {
 }
 
 /* ---------------- nutrition math -------------- */
-export function computeTargets(p) {
-  const w   = (typeof p?.weight === "number" && isFinite(p.weight)  && p.weight  > 0) ? p.weight  : 72;
-  const h   = (typeof p?.height === "number" && isFinite(p.height)  && p.height  > 0) ? p.height  : 178;
-  const age = (typeof p?.age    === "number" && isFinite(p.age)     && p.age     > 0) ? p.age     : 18;
-  const sex      = p?.sex      || "male";
-  const activity = p?.activity || "moderate";
-  const goal     = p?.goal     || "maintain";
-  const bmr =
-    sex === "female"
-      ? 10 * w + 6.25 * h - 5 * age - 161
-      : 10 * w + 6.25 * h - 5 * age + 5;
-  const af = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725 }[activity] || 1.375;
-  let cals = bmr * af;
-  if (goal === "lose") cals -= 450;
-  if (goal === "gain") cals += 350;
-  cals = Math.round(cals / 10) * 10;
-  const proteinFactor = goal === "lose" ? 2.0 : goal === "gain" ? 1.9 : 1.7;
-  const protein = Math.round(w * proteinFactor);
-  const fat = Math.round((cals * 0.27) / 9);
-  const carbs = Math.max(0, Math.round((cals - protein * 4 - fat * 9) / 4));
-  return { calories: cals, protein, carbs, fat, fiber: 30 };
+// Stable daily targets. Without ctx this is the Mifflin × activity-level prior plus the goal;
+// ctx { averages, calibrationOffset } refines maintenance (see "energy budget" below).
+export function computeTargets(p, ctx = {}) {
+  const energy = maintenanceEstimate(p, ctx);
+  const goalKcal = goalAdjustment(p, energy.kcal);
+  const floor = calorieFloor(p);
+  const raw = energy.kcal + goalKcal;
+  const cals = Math.round(Math.max(floor, raw) / 10) * 10;
+  return { ...macroTargets(p, cals), maintenance: Math.round(energy.kcal), goalKcal, floorApplied: raw < floor, energy };
 }
 
 /* ---------------- movement + dynamic calorie adjustment -------------- */
@@ -272,101 +260,25 @@ export function cardioKcal(minutes, intensity, weightKg) {
   const perMin = CARDIO_INTENSITY[intensity] || CARDIO_INTENSITY.moderate;
   return Math.round((minutes || 0) * perMin * ((weightKg || 70) / 70));
 }
-/* Strength-workout calorie adjustment (separate from steps + cardio).
-   Lifting burn is famously over-estimated by fitness trackers; this engine
-   stays conservative on purpose and exposes an Off / Conservative / Normal
-   user setting (`profile.workoutCalorieMode`).
-
-   Intensity is bucketed from session duration + total working sets + RIR / failure
-   signals. We deliberately do NOT use weights × reps × body weight formulas —
-   those over-estimate badly for hypertrophy work.
-
-   Returns null when no strength workout is logged today or the mode is "off"
-   (so the Today card simply doesn't show the row). */
+/* Strength-workout energy for today (net of resting energy, see strengthEnergy). Lifting burn is
+   famously over-estimated, so `profile.workoutCalorieMode` picks the end of the range:
+   Off → none, Conservative → low estimate, Normal → central estimate.
+   Returns null when no strength workout is logged today or the mode is "off". */
 export function workoutAdjustment({ workouts, profile, date }) {
   const mode = profile?.workoutCalorieMode || "conservative";
   if (mode === "off") return null;
   const todayKey = date || todayStr();
-  const todays = (workouts || []).filter((w) => {
-    const d = w.date || (w.ts ? new Date(w.ts).toLocaleDateString("en-CA") : null);
-    return d === todayKey;
-  });
+  const todays = (workouts || []).filter((w) => (w.date || (w.ts ? new Date(w.ts).toLocaleDateString("en-CA") : null)) === todayKey);
   if (!todays.length) return null;
-
-  // Aggregate signal across all of today's sessions.
-  let totalMin = 0, totalSets = 0, totalEx = 0, hardSets = 0;
-  todays.forEach((w) => {
-    totalMin += +w.durationMin || 0;
-    (w.exercises || []).forEach((ex) => {
-      totalEx += 1;
-      const sets = ex.sets || [];
-      totalSets += sets.length;
-      // A "hard" set: RIR <= 1 or marked as failure, or reps logged below 5 with weight (heavy single/double)
-      sets.forEach((s) => {
-        const rir = (typeof s.rir === "number") ? s.rir : null;
-        if (rir != null && rir <= 1) hardSets += 1;
-        else if (s.failure === true) hardSets += 1;
-      });
-    });
-  });
-
-  // Bucket: easy / normal / hard
-  // Heuristics:
-  //   - hard:   ≥45 min AND (≥18 sets OR ≥6 hard sets OR ≥6 exercises)
-  //   - easy:   <30 min OR <8 sets total
-  //   - normal: everything in between
-  let intensity = "normal";
-  if (totalMin >= 45 && (totalSets >= 18 || hardSets >= 6 || totalEx >= 6)) intensity = "hard";
-  else if (totalMin < 30 || totalSets < 8) intensity = "easy";
-
-  // kcal table — spec literal values; do not change without re-thinking the over-estimation risk.
-  const TABLE = {
-    conservative: { easy: 100, normal: 150, hard: 200 },
-    normal:       { easy: 150, normal: 250, hard: 350 },
+  const items = dedupeExercise(todays.map((w) => exerciseEnergy(w, profile, { workoutCalorieMode: mode }))).kept;
+  if (!items.length) return null;
+  const rank = { easy: 0, normal: 1, hard: 2 };
+  const intensity = items.reduce((m, it) => (rank[it.intensity] > rank[m] ? it.intensity : m), "easy");
+  const totalSets = todays.reduce((a, w) => a + (w.exercises || []).reduce((b, ex) => b + (ex.sets || []).length, 0), 0);
+  return {
+    kcal: items.reduce((a, it) => a + it.kcal, 0), low: items.reduce((a, it) => a + it.low, 0), high: items.reduce((a, it) => a + it.high, 0),
+    intensity, mode, sessions: items.length, totalMin: Math.round(items.reduce((a, it) => a + it.min, 0)), totalSets,
   };
-  const kcal = TABLE[mode]?.[intensity] ?? 0;
-  return { kcal, intensity, mode, sessions: todays.length, totalMin, totalSets };
-}
-
-export function calorieAdjustment({ daily, profile, targets, trainedToday, workoutAdj }) {
-  const steps = daily?.steps || 0;
-  // baseline steps per the spec (sedentary 3k / light 5k / moderate 7k / active 9k)
-  const baseSteps = { sedentary: 3000, light: 5000, moderate: 7000, active: 9000 }[profile?.activity] || 6000;
-  const extraSteps = steps - baseSteps;
-  // step delta — only the difference from baseline counts (don't double-count daily activity factor)
-  const stepDelta = Math.round(extraSteps * 0.045 * ((profile?.weight || 70) / 70));
-  // cardio sessions — sum kcal from each session by intensity
-  const sessions = Array.isArray(daily?.cardioSessions) ? daily.cardioSessions : [];
-  let cardioK = 0;
-  if (sessions.length) {
-    cardioK = sessions.reduce((a, s) => a + cardioKcal(s.minutes, s.intensity, profile?.weight), 0);
-  } else if (daily?.cardioMin) {
-    // legacy fallback if user logged minutes without sessions
-    cardioK = cardioKcal(daily.cardioMin, "moderate", profile?.weight);
-  }
-  // strength-workout adjustment (separate from cardio; lifting doesn't appear in cardioSessions)
-  const workoutK = workoutAdj?.kcal || 0;
-  // sport sessions
-  const sportK = (Array.isArray(daily?.sportSessions) ? daily.sportSessions : [])
-    .reduce((a, s) => a + (s.estimatedCalories || 0), 0);
-  let delta = stepDelta + cardioK + workoutK + sportK;
-  delta = Math.round(delta / 10) * 10;
-  // Show nothing only when there's literally no signal — steps, cardio, AND no workout adjustment.
-  if (steps === 0 && !cardioK && !workoutK && !sportK) return null;
-  const adjustedTargetCalories = (targets?.calories || 0) + delta;
-  let text;
-  if (delta >= 150) {
-    text = profile?.goal === "lose"
-      ? `You moved a lot today — burned ~${delta} extra kcal. You can eat a bit more and still lose.`
-      : `Big movement day (~${delta} extra kcal out). Eating ${Math.round(delta * 0.7 / 10) * 10}–${delta} kcal more today is fine.`;
-  } else if (delta <= -150) {
-    text = profile?.goal === "lose"
-      ? `Low movement today — your burn is ~${Math.abs(delta)} kcal under usual. Keep the deficit tighter or add a walk.`
-      : `Quiet day (~${Math.abs(delta)} kcal under usual). No need to force extra food.`;
-  } else {
-    text = "Movement's about average for you today — stick to your normal target.";
-  }
-  return { delta, stepDelta, cardioK, workoutK, adjustedTargetCalories, adjMaintenance: adjustedTargetCalories, text };
 }
 
 /* ---------------- sedentary time -------------- */
@@ -791,7 +703,7 @@ export function nextWorkoutSuggestion({ workouts, trainInfo }) {
 }
 
 /* ---------------- calorie target recommendation from weight trend -------------- */
-export function calorieTrendRecommendation({ profile, weightSeries, history, targets }) {
+export function calorieTrendRecommendation({ profile, weightSeries, history, targets, calibrating = false }) {
   if (!profile?.goal || profile.goal === "maintain") return null;
   const ws = [...(weightSeries || [])].sort((a, b) => a.date.localeCompare(b.date));
   if (ws.length < 5) return null;
@@ -815,6 +727,8 @@ export function calorieTrendRecommendation({ profile, weightSeries, history, tar
     else if (pctPerWeek < -0.9) { suggestedDelta = 150; rationale = `Weight is dropping fast (${pctPerWeek.toFixed(2)}%/wk) — risks muscle loss.`; }
     else return { onTrack: true, rate, message: `On track: ${pctPerWeek.toFixed(2)}%/wk is in the 0.3–0.7%/wk range.` };
   }
+  // Maintenance is already recalibrating from this same trend — don't suggest a second change.
+  if (calibrating) return { onTrack: true, rate, message: `${rationale} Your budget is recalibrating automatically from your weight trend.` };
   const currentTarget = targets?.calories || 0;
   const suggestedTarget = currentTarget + suggestedDelta;
   return { onTrack: false, rate, rationale, currentTarget, suggestedTarget, suggestedDelta, avgCal, days: Math.round(days) };
@@ -2515,6 +2429,7 @@ export function sportSessionFromHealthWorkout(w, weightKg) {
     sportId: sport?.id || null, sportName: sport?.name || "Workout", emoji: sport?.emoji || "🏃",
     durationMin, intensity,
     estimatedCalories: Math.round(w.totalEnergyBurned || (sport ? sportKcal(sport, durationMin, intensity, weightKg) : 0)),
+    healthKcal: w.totalEnergyBurned > 0 ? Math.round(w.totalEnergyBurned) : undefined,
     muscleImpact: sport ? sportMuscleImpact(sport, durationMin, intensity) : {},
     distanceM: w.totalDistance ? Math.round(w.totalDistance) : undefined,
     bodyWeightKg: weightKg || undefined,
@@ -5203,3 +5118,326 @@ export const ALARM_SOUNDS = [
   { id: "deep",    label: "Deep alarm" },
   { id: "vibrate", label: "Silent vibration only" },
 ];
+
+/* ---------------- energy budget: maintenance, exercise, calibration, daily target --------------
+   Phone-only (no heart rate). See docs/energy-budget.md. Every exercise number is NET of resting
+   energy (BMR already covers rest) and every value is an estimate with a range. Nothing is counted
+   twice: overlapping sessions count once, steps inside walking/running sessions leave NEAT, and
+   Apple Health "active energy" is never added on top. */
+export const ENERGY = {
+  KCAL_PER_KG: 7700,
+  PAL: { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725 },
+  // What each activity level already assumes (the PAL prior includes it)
+  TYPICAL_STEPS: { sedentary: 3000, light: 5000, moderate: 7000, active: 9000 },
+  TYPICAL_SESSIONS_WK: { sedentary: 0, light: 1.5, moderate: 3.5, active: 5.5 },
+  TYPICAL_SESSION: { met: 5, min: 45 },
+  DAMPING: { lose: 0.5, maintain: 0.75, gain: 0.85 },
+  DYN_MAX_UP: 600, DYN_MAX_DOWN: 400,
+  MAX_MET: 16,
+  // steps per minute inside ambulatory sessions (removed from NEAT)
+  STEP_CADENCE: { walking: 100, hiking: 90, jogging: 150, running: 160, sprints: 100 },
+  CARDIO_MET: { easy: 4.3, moderate: 6.9, hard: 9.4 },
+};
+const eClamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const ePos = (v, d) => (typeof v === "number" && isFinite(v) && v > 0 ? v : d);
+const eDay = (ts) => new Date(ts).toLocaleDateString("en-CA");
+const eAddDays = (dateStr, n) => { const d = new Date(dateStr + "T12:00:00"); d.setDate(d.getDate() + n); return eDay(d.getTime()); };
+
+// Profile with safe defaults (same defaults computeTargets always used).
+export function energyProfile(p) {
+  const activity = p?.activity || "moderate";
+  return {
+    weight: ePos(p?.weight, 72), height: ePos(p?.height, 178), age: ePos(p?.age, 18),
+    sex: p?.sex === "female" ? "female" : "male",
+    activity: ENERGY.PAL[activity] ? activity : "light",
+    goal: p?.goal === "lose" || p?.goal === "gain" ? p.goal : "maintain",
+    health: p?.intent === "health",
+    experience: p?.experience || "beginner",
+  };
+}
+// Mifflin-St Jeor
+export function bmrMifflin(p) {
+  const e = energyProfile(p);
+  return 10 * e.weight + 6.25 * e.height - 5 * e.age + (e.sex === "female" ? -161 : 5);
+}
+// Net walking cost above rest: 0.5 kcal per kg per km (ACSM 0.1 ml O2/kg/m). Distance from
+// Apple Health when known, otherwise steps × stride (height × 0.415 / 0.413).
+export function netStepKcal(steps, p, distanceM) {
+  const e = energyProfile(p);
+  const km = distanceM > 0 ? distanceM / 1000 : ((steps || 0) * e.height * (e.sex === "female" ? 0.413 : 0.415)) / 100000;
+  return km > 0 ? 0.5 * e.weight * km : 0;
+}
+const metNet = (met, kg, min) => Math.max(0, met - 1) * kg * (min / 60);
+
+// Strength session (Sprig workout) → net kcal. MET 3.5–6.0 from set density, effort and volume
+// load per minute relative to body weight. Load × reps is not turned into joules on purpose.
+export function strengthEnergy(w, p) {
+  const e = energyProfile(p);
+  let sets = 0, hard = 0, vl = 0;
+  (w?.exercises || []).forEach((ex) => (ex.sets || []).forEach((s) => {
+    if (s?.done === false) return;
+    sets += 1;
+    if ((typeof s.rir === "number" && s.rir <= 1) || s.failure === true) hard += 1;
+    vl += (+(s.w ?? s.weight) || 0) * (+s.reps || 0);
+  }));
+  const min = w?.durationMin > 0 ? w.durationMin : sets ? Math.max(10, sets * 2.5) : 0;
+  if (!min) return null;
+  let score = 0;
+  if (sets / min >= 0.35) score += 1;          // short rests
+  if (sets && hard / sets >= 0.4) score += 1;  // close to failure
+  if (vl / (e.weight * min) >= 3) score += 1;  // heavy volume per minute
+  const met = 3.5 + score * 0.85;
+  const central = metNet(met, e.weight, min);
+  return { central, low: central * 0.65, high: central * 1.35, met, min, sets, hardSets: hard, intensity: score >= 2 ? "hard" : score === 1 ? "normal" : "easy" };
+}
+
+// Any exercise record → normalized net-energy item, or null.
+//   kind: "strength" (Sprig workout) | "sport" (TrainTab / Apple Health) | "cardio" (legacy daily)
+export function exerciseEnergy(rec, p, { workoutCalorieMode = "conservative" } = {}) {
+  if (!rec) return null;
+  const e = energyProfile(p);
+  let kind, central, low, high, min, method, intensity, sportId = null;
+  if (Array.isArray(rec.exercises)) {
+    const s = strengthEnergy(rec, p);
+    if (!s) return null;
+    kind = "strength"; min = s.min; intensity = s.intensity; method = `strength MET ${s.met.toFixed(1)}`;
+    const k = workoutCalorieMode === "off" ? 0 : workoutCalorieMode === "normal" ? s.central : s.low;
+    central = k; low = workoutCalorieMode === "off" ? 0 : s.low; high = workoutCalorieMode === "off" ? 0 : s.high;
+  } else if (rec.minutes != null && rec.sportId == null) {
+    min = +rec.minutes || 0;
+    if (!min) return null;
+    kind = "cardio"; intensity = rec.intensity || "moderate";
+    const met = ENERGY.CARDIO_MET[intensity] || ENERGY.CARDIO_MET.moderate;
+    central = metNet(met, e.weight, min); low = central * 0.75; high = central * 1.25; method = `cardio MET ${met}`;
+  } else {
+    min = +rec.durationMin || 0;
+    if (!min) return null;
+    kind = "sport"; intensity = rec.intensity || "moderate"; sportId = rec.sportId || null;
+    if (rec.source === "health_sync" && rec.healthKcal > 0) {
+      central = rec.healthKcal; method = "Apple Health active energy";
+    } else {
+      const sport = SPORTS_LIBRARY.find((s) => s.id === rec.sportId);
+      const met = sport?.met?.[intensity] ?? sport?.met?.moderate ?? 5;
+      central = metNet(met, e.weight, min); method = `${sport?.name || "activity"} MET ${met}`;
+    }
+    low = central * 0.75; high = central * 1.25;
+  }
+  // plausibility cap — no session burns more than MET 16 for its whole duration
+  const cap = metNet(ENERGY.MAX_MET, e.weight, min);
+  central = Math.min(central, cap); low = Math.min(low, cap); high = Math.min(high, cap);
+  // time window: Health workouts carry start/end; app logs are saved when they end
+  let start = null, end = null;
+  if (rec.ts) {
+    if (rec.endTs > rec.ts) { start = rec.ts; end = rec.endTs; }
+    else if (rec.source === "health_sync") { start = rec.ts; end = rec.ts + min * 60000; }
+    else { start = rec.ts - min * 60000; end = rec.ts; }
+  }
+  const cadence = ENERGY.STEP_CADENCE[sportId] || 0;
+  return {
+    id: rec.id || null, kind, sportId, source: rec.source || "manual", start, end, min, intensity, method,
+    kcal: Math.round(central), low: Math.round(low), high: Math.round(high),
+    stepsInSession: Math.round(cadence * min),
+    priority: kind === "strength" ? 3 : rec.source === "health_sync" ? 1 : 2,
+  };
+}
+
+// Count every workout once: same id, or ≥ 50 % time overlap of the shorter session.
+// Keeps Sprig strength > Sprig sport/cardio > Apple Health, then the larger estimate.
+export function dedupeExercise(items) {
+  const sorted = [...(items || [])].filter(Boolean).sort((a, b) => b.priority - a.priority || b.kcal - a.kcal);
+  const kept = [], dropped = [];
+  for (const it of sorted) {
+    const clash = kept.find((k) => (it.id && k.id === it.id) || (k.start != null && it.start != null &&
+      Math.max(0, Math.min(k.end, it.end) - Math.max(k.start, it.start)) >= 0.5 * Math.min(k.end - k.start, it.end - it.start)));
+    if (clash) dropped.push({ ...it, duplicateOf: clash.id }); else kept.push(it);
+  }
+  return { kept, dropped };
+}
+
+// All exercise records grouped by day (Sprig workouts by their date, sport sessions by local
+// start day). `daily` adds today's sport + cardio sessions.
+export function exerciseByDay({ workouts, sportSessionsLog, daily, date, profile }) {
+  const mode = profile?.workoutCalorieMode || "conservative";
+  const byDay = {};
+  const add = (d, rec) => { const it = exerciseEnergy(rec, profile, { workoutCalorieMode: mode }); if (d && it) (byDay[d] = byDay[d] || []).push(it); };
+  (workouts || []).forEach((w) => add(w.date || (w.ts ? eDay(w.ts) : null), w));
+  (sportSessionsLog || []).forEach((s) => add(s.ts ? eDay(s.ts) : s.date, s));
+  if (date) {
+    (daily?.sportSessions || []).forEach((s) => add(date, s));
+    (daily?.cardioSessions || []).forEach((s) => add(date, s));
+  }
+  const out = {};
+  Object.keys(byDay).forEach((d) => {
+    const { kept, dropped } = dedupeExercise(byDay[d]);
+    out[d] = {
+      sessions: kept, dropped,
+      kcal: kept.reduce((a, s) => a + s.kcal, 0),
+      low: kept.reduce((a, s) => a + s.low, 0),
+      high: kept.reduce((a, s) => a + s.high, 0),
+      stepsInSessions: kept.reduce((a, s) => a + s.stepsInSession, 0),
+    };
+  });
+  return out;
+}
+
+// NEAT for one day: steps outside workouts (steps inside walking/running sessions are in exercise).
+export function dayNeatKcal({ steps, distanceM, stepsInSessions = 0 }, p) {
+  if (!(steps > 0)) return 0;
+  const own = Math.max(0, steps - stepsInSessions);
+  return netStepKcal(own, p, distanceM > 0 ? distanceM * (own / steps) : 0);
+}
+
+// Averages over previous complete days. Step days with < 300 or > 60 000 steps are missing
+// (phone left behind / bad data), not zero. Exercise rest days are real zeros, counted from
+// the first day the user has any data.
+export function activityAverages({ activityDays, exercise, today, firstDate, profile, windowDays = 28 }) {
+  const from = eAddDays(today, -windowDays);
+  const stepRows = (activityDays || []).filter((r) => r.date >= from && r.date < today && r.steps >= 300 && r.steps <= 60000);
+  const neats = stepRows.map((r) => dayNeatKcal({ steps: r.steps, distanceM: r.distanceM, stepsInSessions: exercise?.[r.date]?.stepsInSessions || 0 }, profile));
+  const start = firstDate && firstDate > from ? firstDate : from;
+  let exDays = 0, exSum = 0, logged = 0;
+  for (let d = start; d < today; d = eAddDays(d, 1)) { exDays += 1; exSum += exercise?.[d]?.kcal || 0; logged += exercise?.[d]?.sessions?.length || 0; if (exDays > 400) break; }
+  // No exercise logged at all = unknown (keep the activity level's assumption), not zero.
+  const knownEx = firstDate && exDays && logged > 0;
+  return {
+    stepDays: stepRows.length,
+    avgSteps: stepRows.length ? Math.round(stepRows.reduce((a, r) => a + r.steps, 0) / stepRows.length) : null,
+    avgNeat: neats.length ? neats.reduce((a, v) => a + v, 0) / neats.length : null,
+    exerciseDays: knownEx ? exDays : 0,
+    avgExercise: knownEx ? exSum / exDays : null,
+  };
+}
+
+// Maintenance = BMR × PAL prior, shifted by how the user's real average activity differs from
+// what that activity level assumes (shrunk while history is short), plus the calibration offset.
+export function maintenanceEstimate(p, { averages = null, calibrationOffset = 0 } = {}) {
+  const e = energyProfile(p);
+  const bmr = bmrMifflin(p);
+  const prior = bmr * ENERGY.PAL[e.activity];
+  const typicalNeat = netStepKcal(ENERGY.TYPICAL_STEPS[e.activity], p);
+  const typicalExercise = (ENERGY.TYPICAL_SESSIONS_WK[e.activity] / 7) * metNet(ENERGY.TYPICAL_SESSION.met, e.weight, ENERGY.TYPICAL_SESSION.min);
+  const cap = bmr * 0.35;
+  const wSteps = averages?.avgNeat != null ? Math.min(1, averages.stepDays / 14) : 0;
+  const wEx = averages?.avgExercise != null ? Math.min(1, averages.exerciseDays / 28) : 0;
+  const neatDelta = wSteps ? eClamp(wSteps * (averages.avgNeat - typicalNeat), -cap, cap) : 0;
+  const exerciseDelta = wEx ? eClamp(wEx * (averages.avgExercise - typicalExercise), -cap, cap) : 0;
+  const calLimit = Math.max(500, prior * 0.2);
+  const calibration = eClamp(calibrationOffset || 0, -calLimit, calLimit);
+  return {
+    bmr, prior, typicalNeat, typicalExercise, neatDelta, exerciseDelta, calibration,
+    avgNeat: typicalNeat + neatDelta, avgExercise: typicalExercise + exerciseDelta, // what the target includes
+    avgSteps: averages?.avgSteps ?? null, stepDays: averages?.stepDays || 0, exerciseDays: averages?.exerciseDays || 0,
+    kcal: prior + neatDelta + exerciseDelta + calibration,
+  };
+}
+
+// Goal → kcal/day. Cut −0.5 % body weight a week; bulk +0.5/0.35/0.25 % by experience.
+export function goalAdjustment(p, maintenance) {
+  const e = energyProfile(p);
+  if (e.goal === "lose") return -Math.round(eClamp(e.weight * 5.5, Math.min(300, maintenance * 0.25), Math.min(750, maintenance * 0.25)));
+  if (e.goal === "gain") return Math.round(eClamp(e.weight * ({ beginner: 5.5, intermediate: 3.85, advanced: 2.75 }[e.experience] || 5.5), 150, 500));
+  return 0;
+}
+export const calorieFloor = (p) => Math.max(Math.round(bmrMifflin(p)), energyProfile(p).sex === "female" ? 1200 : 1500);
+
+// Protein on a reference weight capped at BMI 27; fat 27 % (≥ 0.6 g/kg); carbs the rest.
+export function macroTargets(p, calories) {
+  const e = energyProfile(p);
+  const refKg = Math.min(e.weight, 27 * (e.height / 100) ** 2);
+  const perKg = e.goal === "lose" ? 2.0 : e.goal === "gain" ? 1.9 : e.health ? 1.4 : 1.7;
+  const protein = Math.round(refKg * perKg);
+  const fat = Math.round(Math.max((calories * 0.27) / 9, e.weight * 0.6));
+  const carbs = Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4));
+  return { calories, protein, carbs, fat, fiber: 30 };
+}
+// Same protein (and fat while possible) on a different calorie day: the difference goes to carbs.
+export function dayMacros(stable, calories, p) {
+  const minFat = Math.round(energyProfile(p).weight * 0.6);
+  let fat = stable.fat;
+  let carbs = Math.round((calories - stable.protein * 4 - fat * 9) / 4);
+  if (carbs < 0) { fat = Math.max(minFat, Math.round(fat + (carbs * 4) / 9)); carbs = Math.max(0, Math.round((calories - stable.protein * 4 - fat * 9) / 4)); }
+  return { ...stable, calories, carbs, fat };
+}
+
+// Fraction of the waking day elapsed (wake → wake + 16 h), for crediting activity during the day.
+export function wakingDayFraction(nowTs, wakeTs, awakeH = 16) {
+  if (!wakeTs || !(nowTs > wakeTs)) return 0;
+  return eClamp((nowTs - wakeTs) / (awakeH * 36e5), 0, 1);
+}
+
+// Today's target. "stable": the same every day (average activity is already included).
+// "dynamic": stable + f(goal) × activity difference. More than the average counts as soon as it
+// happens; less than expected-by-now fades in through the day, so mornings don't drop and by
+// bedtime the difference is exact — over a normal week the days average to the stable target.
+export function dailyBudget({ profile, targets, neatKcal = 0, exerciseKcal = 0, dayFraction = 1, mode }) {
+  const e = energyProfile(profile);
+  const en = targets?.energy;
+  const stable = targets?.calories || 0;
+  const m = mode || profile?.calorieMode || "dynamic";
+  const base = { stable, maintenance: targets?.maintenance ?? null, mode: m, neatKcal: Math.round(neatKcal), exerciseKcal: Math.round(exerciseKcal) };
+  if (!en || m === "stable") {
+    return { ...base, ...dayMacros(targets, stable, profile), delta: 0, activityDiff: 0,
+      text: en ? `Your target already includes your usual activity (about ${Math.round(en.avgNeat + en.avgExercise)} kcal a day), so it stays the same every day.` : null };
+  }
+  const avg = en.avgNeat + en.avgExercise;
+  const actual = neatKcal + exerciseKcal;
+  const frac = eClamp(dayFraction, 0, 1);
+  const diff = Math.max(0, actual - avg) + Math.min(0, actual - avg * frac) * frac;
+  const f = ENERGY.DAMPING[e.goal];
+  let delta = Math.round(eClamp(diff * f, -ENERGY.DYN_MAX_DOWN, ENERGY.DYN_MAX_UP) / 10) * 10;
+  const calories = Math.max(calorieFloor(profile), stable + delta);
+  delta = calories - stable;
+  let text;
+  if (delta >= 50) {
+    text = `Your estimated activity expenditure is higher today (~${Math.round(diff / 10) * 10} kcal above your usual), so your suggested calorie budget has increased by ${delta} kcal`
+      + (e.goal === "lose" ? " — about half of it, to keep your deficit." : e.goal === "gain" ? "." : ".");
+  } else if (delta <= -50) {
+    text = `Quieter day than usual so far, so your calorie budget is ${Math.abs(delta)} kcal lower.`;
+  } else {
+    text = "Activity is about your usual, so your budget is unchanged.";
+  }
+  return { ...base, ...dayMacros(targets, calories, profile), delta, activityDiff: Math.round(diff), text };
+}
+
+// Least-squares weight slope (kg/day) over [{date, kg}].
+export function weightSlopePerDay(points) {
+  const pts = (points || []).filter((w) => w?.kg > 0 && w.date).map((w) => ({ x: new Date(w.date + "T12:00:00").getTime() / 864e5, y: w.kg }));
+  if (pts.length < 2) return null;
+  const mx = pts.reduce((a, q) => a + q.x, 0) / pts.length, my = pts.reduce((a, q) => a + q.y, 0) / pts.length;
+  const sxx = pts.reduce((a, q) => a + (q.x - mx) ** 2, 0);
+  return sxx ? pts.reduce((a, q) => a + (q.x - mx) * (q.y - my), 0) / sxx : null;
+}
+
+// Calibrate maintenance from logged intake and the weight trend (previous 21 days). Runs at most
+// once per day and moves slowly, so one bad week or a partial log can't swing the target.
+//   prev: { offset, date } from sprig_energy_cal_v1 · modelKcal: maintenance without calibration
+export function calibrateMaintenance({ history, weights, today, modelKcal, targetKcal, bmr, prev }) {
+  const offset = prev?.offset || 0;
+  const keep = (status, extra = {}) => ({ offset, date: prev?.date || null, status, ...extra });
+  if (prev?.date === today) return keep("same-day");
+  const from = eAddDays(today, -21);
+  const minKcal = Math.max(800, (targetKcal || 0) * 0.55);
+  const days = (history || []).filter((h) => h.date >= from && h.date < today && h.calories >= minKcal);
+  const ws = (weights || []).filter((w) => w.date >= from && w.date <= today && w.kg > 0).sort((a, b) => a.date.localeCompare(b.date));
+  const span = ws.length ? (new Date(ws[ws.length - 1].date) - new Date(ws[0].date)) / 864e5 : 0;
+  if (days.length < 8 || ws.length < 4 || span < 9) return keep("insufficient", { days: days.length, weighIns: ws.length });
+  const intake = days.reduce((a, h) => a + h.calories, 0) / days.length;
+  const slope = weightSlopePerDay(ws);
+  const observed = intake - slope * ENERGY.KCAL_PER_KG;
+  if (!(observed >= bmr * 1.0 && observed <= bmr * 2.6)) return keep("unreliable", { observed: Math.round(observed) });
+  const limit = Math.max(500, modelKcal * 0.2);
+  const target = eClamp(observed - modelKcal, -limit, limit);
+  const next = eClamp(offset + eClamp(0.25 * (target - offset), -60, 60), -limit, limit);
+  return { offset: Math.round(next), date: today, status: "updated", observed: Math.round(observed), target: Math.round(target), days: days.length, weighIns: ws.length, kgPerWeek: +(slope * 7).toFixed(2) };
+}
+
+// Today's activity for the budget: NEAT from steps outside workouts + deduped net exercise.
+// Apple Health active energy is deliberately not an input (it would double-count both).
+export function todayActivityEnergy({ daily, exerciseToday, profile }) {
+  const neatKcal = dayNeatKcal({ steps: daily?.steps || 0, distanceM: daily?.distanceM, stepsInSessions: exerciseToday?.stepsInSessions || 0 }, profile);
+  return {
+    neatKcal: Math.round(neatKcal), exerciseKcal: exerciseToday?.kcal || 0,
+    exerciseLow: exerciseToday?.low || 0, exerciseHigh: exerciseToday?.high || 0,
+    sessions: exerciseToday?.sessions || [], duplicates: exerciseToday?.dropped?.length || 0,
+  };
+}
